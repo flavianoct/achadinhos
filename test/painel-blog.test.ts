@@ -162,7 +162,10 @@ test('blog: gráfico só aparece com 3 dias ou mais de histórico', () => {
   assert.match(graficoDePreco([1, 2, 3].map((d) => ({ dia: String(d), preco: 50 }))), /points="3\.0,18\.0 /); // preço parado: linha no meio, sem divisão por zero
 });
 
-test('blog: gera páginas Top N, escapa HTML, marca links como patrocinados e descarta link inseguro', async () => {
+const DIA = 86_400_000;
+const ler = (dir: string, arquivo: string) => readFileSync(join(dir, arquivo), 'utf8');
+
+test('blog: cria os posts do dia, página inicial, categorias e arquivo; escapa HTML e descarta link inseguro', async () => {
   const dir = pasta();
   const config = lerConfig({ BLOG_PASTA: dir, BLOG_NOME: 'Meu <Blog>', BLOG_URL: 'https://exemplo.github.io/achados/', TELEGRAM_CHAT_ID: '@meucanal' });
   const produtos = [
@@ -174,51 +177,100 @@ test('blog: gera páginas Top N, escapa HTML, marca links como patrocinados e de
     produto(31, { link: 'javascript:alert(1)', pontos: 998 }),
   ];
   const banco = bancoCom(produtos);
-  for (const d of [3, 2, 1]) banco.registrarPreco({ ...produto(1), preco: 150 + d }, new Date(AGORA.getTime() - d * 86_400_000));
-  writeFileSync(join(dir, 'ofertas-antiga.html'), 'página velha');
+  for (const d of [3, 2, 1]) banco.registrarPreco({ ...produto(1), preco: 150 + d }, new Date(AGORA.getTime() - d * DIA));
+  writeFileSync(join(dir, 'ofertas-antiga.html'), 'página do formato antigo');
 
   const r = await gerarBlog(banco, config, AGORA);
 
   assert.equal(r.gerou, true);
-  assert.deepEqual(r.paginas, ['index.html', 'ofertas-tech.html', 'ofertas-casa.html']); // pet tem só 2: não vira página
-  assert.equal(existsSync(join(dir, 'ofertas-antiga.html')), false, 'página de categoria sem ofertas é removida');
-  for (const arquivo of ['estilo.css', '.nojekyll', 'sitemap.xml', 'robots.txt']) assert.ok(existsSync(join(dir, arquivo)), arquivo);
+  assert.equal(r.postsDeHoje, 3); // geral, tech e casa; pet tem só 2 produtos e não vira post
+  assert.deepEqual([...r.paginas].sort(), [
+    '404.html', 'arquivo.html', 'categoria-casa.html', 'categoria-tech.html', 'categoria-todas.html', 'index.html',
+    'post-2026-10-03-casa.html', 'post-2026-10-03-ofertas-do-dia.html', 'post-2026-10-03-tech.html',
+  ]);
+  assert.equal(existsSync(join(dir, 'ofertas-antiga.html')), false, 'página que não faz mais parte do site é removida');
+  for (const arquivo of ['estilo.css', '.nojekyll', 'sitemap.xml', 'robots.txt', 'feed.xml']) assert.ok(existsSync(join(dir, arquivo)), arquivo);
 
-  const inicio = readFileSync(join(dir, 'index.html'), 'utf8');
-  assert.match(inicio, /<h1>Top 10 ofertas de hoje<\/h1>/);
-  assert.equal((inicio.match(/<li class="cartao">/g) ?? []).length, 10);
-  assert.ok(!inicio.includes('<script>alert'), 'título malicioso não vira tag');
-  assert.ok(inicio.includes('&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; &quot;aspas&quot;'));
-  assert.ok(!inicio.includes('javascript:'), 'link que não é https fica de fora');
-  assert.equal((inicio.match(/rel="sponsored nofollow noopener"/g) ?? []).length, 10);
-  assert.ok(inicio.includes('<title>Top 10 ofertas de hoje (03/10/2026) | Meu &lt;Blog&gt;</title>'));
-  assert.ok(inicio.includes('<link rel="canonical" href="https://exemplo.github.io/achados/">'));
-  assert.ok(inicio.includes('href="https://t.me/meucanal"'));
-  assert.ok(inicio.includes('programas de afiliados'));
-  assert.ok(inicio.includes('<svg'), 'produto com histórico ganha gráfico');
-  const ld = JSON.parse(/<script type="application\/ld\+json">(.*?)<\/script>/s.exec(inicio)![1]);
-  assert.equal(ld['@type'], 'ItemList');
-  assert.equal(ld.itemListElement.length, 10);
-  assert.equal(ld.itemListElement[0].name, '<script>alert("x")</script> & "aspas"');
+  const post = ler(dir, 'post-2026-10-03-ofertas-do-dia.html');
+  assert.match(post, /<h1>Top 10 ofertas do dia 03\/10\/2026<\/h1>/);
+  assert.equal((post.match(/<li class="cartao">/g) ?? []).length, 10);
+  assert.ok(!post.includes('<script>alert'), 'título malicioso não vira tag');
+  assert.ok(post.includes('&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; &quot;aspas&quot;'));
+  assert.ok(!post.includes('javascript:'), 'link que não é https fica de fora');
+  assert.equal((post.match(/rel="sponsored nofollow noopener"/g) ?? []).length, 10);
+  assert.ok(post.includes('<title>Top 10 ofertas do dia 03/10/2026 | Meu &lt;Blog&gt;</title>'));
+  assert.ok(post.includes('<link rel="canonical" href="https://exemplo.github.io/achados/post-2026-10-03-ofertas-do-dia.html">'));
+  assert.ok(post.includes('href="https://t.me/meucanal"'));
+  assert.ok(post.includes('programas de afiliados'));
+  assert.ok(post.includes('<svg'), 'produto com histórico ganha gráfico');
+  assert.ok(!post.includes('class="antigo"'), 'post de hoje não leva aviso de post antigo');
+  const ld = JSON.parse(/<script type="application\/ld\+json">(.*?)<\/script>/s.exec(post)![1])['@graph'];
+  assert.equal(ld[0]['@type'], 'BlogPosting');
+  assert.equal(ld[1].itemListElement.length, 10);
+  assert.equal(ld[1].itemListElement[0].name, '<script>alert("x")</script> & "aspas"');
 
-  const casa = readFileSync(join(dir, 'ofertas-casa.html'), 'utf8');
-  assert.match(casa, /<h1>Top 3 ofertas de Casa e Cozinha hoje<\/h1>/);
+  const casa = ler(dir, 'post-2026-10-03-casa.html');
+  assert.match(casa, /<h1>Top 3 ofertas de Casa e Cozinha em 03\/10\/2026<\/h1>/);
   assert.ok(casa.includes('<s>R$ 300,00</s>') && casa.includes('Frete grátis') && casa.includes('Menor preço em 12 dias') && casa.includes('Ver oferta na Mercado Livre'));
-  assert.ok(casa.includes('<a href="index.html">Todas</a>') && casa.includes('<a href="ofertas-casa.html" aria-current="page">'), 'links relativos entre as páginas');
 
-  const mapa = readFileSync(join(dir, 'sitemap.xml'), 'utf8');
-  assert.ok(mapa.includes('<loc>https://exemplo.github.io/achados/</loc>') && mapa.includes('<loc>https://exemplo.github.io/achados/ofertas-casa.html</loc>'));
+  const inicio = ler(dir, 'index.html');
+  assert.match(inicio, /<h1>Ofertas de hoje<\/h1>/);
+  for (const a of ['post-2026-10-03-ofertas-do-dia.html', 'post-2026-10-03-tech.html', 'post-2026-10-03-casa.html']) assert.ok(inicio.includes(`<a href="${a}">`), a);
+  assert.ok(inicio.indexOf('ofertas-do-dia.html') < inicio.indexOf('post-2026-10-03-casa.html'), 'o post geral vem primeiro');
+  assert.ok(inicio.includes('<a href="index.html" aria-current="page">Início</a>') && inicio.includes('<a href="categoria-tech.html">Tecnologia</a>') && inicio.includes('<a href="arquivo.html">Arquivo</a>'));
+  assert.ok(inicio.includes('<link rel="canonical" href="https://exemplo.github.io/achados/">'));
+  assert.ok(ler(dir, 'categoria-casa.html').includes('post-2026-10-03-casa.html') && !ler(dir, 'categoria-casa.html').includes('post-2026-10-03-tech.html'));
+
+  const mapa = ler(dir, 'sitemap.xml');
+  assert.ok(mapa.includes('<loc>https://exemplo.github.io/achados/</loc>') && mapa.includes('<loc>https://exemplo.github.io/achados/post-2026-10-03-casa.html</loc>') && !mapa.includes('404'));
+  assert.equal((ler(dir, 'feed.xml').match(/<item>/g) ?? []).length, 3);
 });
 
-test('blog: com menos de 3 ofertas recentes, mantém o blog anterior', async () => {
+test('blog: cada dia ganha posts novos; os antigos ficam no arquivo com aviso e saem do ar depois do prazo', async () => {
   const dir = pasta();
-  writeFileSync(join(dir, 'index.html'), 'blog de ontem');
-  const banco = bancoCom([produto(1), produto(2)]);
-  banco.guardarProduto(produto(3), new Date(AGORA.getTime() - 48 * 3_600_000)); // visto há 2 dias: vencido
-  const r = await gerarBlog(banco, lerConfig({ BLOG_PASTA: dir }), AGORA);
-  assert.equal(r.gerou, false);
-  assert.match(r.avisos[0], /mínimo de 3/);
-  assert.equal(readFileSync(join(dir, 'index.html'), 'utf8'), 'blog de ontem');
+  const config = lerConfig({ BLOG_PASTA: dir, BLOG_URL: 'https://x.exemplo', BLOG_DIAS_NO_AR: '2' });
+  const banco = new Banco(':memory:');
+  const noDia = (n: number) => new Date(AGORA.getTime() + n * DIA);
+  const ver = (dia: number, preco: number) => { for (let i = 1; i <= 3; i++) banco.guardarProduto(produto(i, { preco }), noDia(dia)); };
+
+  // Site vazio: ainda assim existe uma página inicial (é o que vai ao ar na primeira execução).
+  const vazio = await gerarBlog(banco, config, AGORA);
+  assert.equal(vazio.gerou, true);
+  assert.equal(vazio.postsDeHoje, 0);
+  assert.match(ler(dir, 'index.html'), /Os primeiros posts chegam em breve/);
+
+  ver(0, 100);
+  await gerarBlog(banco, config, noDia(0));
+  ver(1, 80);
+  const r1 = await gerarBlog(banco, config, noDia(1));
+  assert.equal(r1.postsDeHoje, 2);
+  assert.equal(r1.postsNoAr, 4);
+
+  const antigo = ler(dir, 'post-2026-10-03-tech.html');
+  assert.ok(antigo.includes('R$ 100,00') && !antigo.includes('R$ 80,00'), 'o post antigo guarda os preços do dia em que foi escrito');
+  assert.match(antigo, /class="antigo">Este post é de 03\/10\/2026\..*<a href="post-2026-10-04-tech\.html">Veja o post mais recente de Tecnologia<\/a>/);
+  const novo = ler(dir, 'post-2026-10-04-tech.html');
+  assert.ok(novo.includes('R$ 80,00') && !novo.includes('class="antigo"'));
+
+  const inicio = ler(dir, 'index.html');
+  assert.match(inicio, /<h1>Ofertas de hoje<\/h1>/);
+  assert.ok(inicio.indexOf('post-2026-10-04-tech.html') < inicio.indexOf('Dias anteriores') && inicio.indexOf('Dias anteriores') < inicio.indexOf('post-2026-10-03-tech.html'));
+  const arquivo = ler(dir, 'arquivo.html');
+  assert.ok(arquivo.includes('>Hoje</h2>') && arquivo.includes('>03/10/2026</h2>'));
+
+  // Dia sem ofertas novas (produtos vistos há mais de 36 h): nenhum post novo, e o site continua no ar.
+  const r3 = await gerarBlog(banco, config, noDia(3));
+  assert.equal(r3.gerou, true);
+  assert.equal(r3.postsDeHoje, 0);
+  assert.match(r3.avisos.join(' '), /mínimo de 3/);
+  assert.match(ler(dir, 'index.html'), /<h1>Ofertas de 04\/10\/2026<\/h1>/);
+  assert.ok(ler(dir, 'post-2026-10-04-tech.html').includes('class="antigo"'));
+
+  // Prazo de 2 dias: no dia 3, os posts do dia 0 saem do banco, da pasta e do sitemap.
+  assert.equal(r3.postsNoAr, 2);
+  assert.equal(existsSync(join(dir, 'post-2026-10-03-tech.html')), false);
+  assert.ok(existsSync(join(dir, 'post-2026-10-04-tech.html')));
+  assert.ok(!ler(dir, 'sitemap.xml').includes('2026-10-03'));
 });
 
 test('blog: a IA escreve abertura, um parágrafo por produto e fechamento; os textos são reaproveitados', async () => {
@@ -241,28 +293,73 @@ test('blog: a IA escreve abertura, um parágrafo por produto e fechamento; os te
   assert.ok(pedidos.every((p) => !/R\$\s?\d|10[123]/.test(p.prompt)), 'o modelo recebe nomes e avaliações, nunca os preços');
   assert.ok(pedidos.some((p) => p.prompt.includes('Avaliação dos compradores: 4,8 de 5') && p.prompt.includes('Unidades vendidas: 12,4 mil')));
 
-  const html = readFileSync(join(dir, 'index.html'), 'utf8');
+  const html = ler(dir, 'post-2026-10-03-ofertas-do-dia.html');
   assert.ok(html.includes('<p class="intro">Abertura: texto escrito pelo modelo'));
   assert.equal((html.match(/<p class="analise">Análise de Produto \d: /g) ?? []).length, 3);
   assert.ok(html.includes('<h2>Como escolher</h2><p>Fechamento: texto escrito pelo modelo'));
   assert.ok(html.includes('escritos por inteligência artificial'), 'a página avisa que o texto é de IA');
+  assert.ok(ler(dir, 'index.html').includes('Abertura: texto escrito pelo modelo'), 'a página inicial mostra o começo da abertura');
 
   // Segunda rodada com os mesmos produtos: nada é pedido de novo.
   const r2 = await gerarBlog(banco, config, AGORA, ollama);
   assert.equal(pedidos.length, 7);
   assert.equal(r2.textosDeIA, 0);
-  assert.ok(readFileSync(join(dir, 'index.html'), 'utf8').includes('Análise de Produto 1: '));
+  assert.ok(ler(dir, 'post-2026-10-03-ofertas-do-dia.html').includes('Análise de Produto 1: '));
 
-  // Entrou um produto novo: a IA escreve só o que mudou (produto novo + abertura e fechamento dos 2 posts).
+  // Entrou um produto novo no mesmo dia: a IA escreve só o texto dele.
   banco.guardarProduto(produto(0, { pontos: 500 }), AGORA);
   const r3 = await gerarBlog(banco, config, AGORA, ollama);
-  assert.equal(r3.textosDeIA, 5);
+  assert.equal(r3.textosDeIA, 1);
 
-  // Texto de produto vencido (mais de 14 dias) é reescrito.
-  const depois = new Date(AGORA.getTime() + 20 * 86_400_000);
+  // 20 dias depois: posts novos (abertura e fechamento de 2 posts) e os 3 textos de produto, já vencidos, reescritos.
+  const depois = new Date(AGORA.getTime() + 20 * DIA);
   for (let i = 0; i <= 3; i++) banco.guardarProduto(produto(i, i === 0 ? { pontos: 500 } : {}), depois);
   const r4 = await gerarBlog(banco, config, depois, ollama);
-  assert.equal(r4.textosDeIA, 7); // os 3 produtos que estão no Top 3, mais abertura e fechamento dos 2 posts
+  assert.equal(r4.textosDeIA, 7);
+});
+
+test('blog: IA gratuita do GitHub usa o token do workflow, respeita a pausa e o teto por rodada, e cai no texto padrão no limite', async () => {
+  const doze = () => bancoCom(Array.from({ length: 12 }, (_, i) => produto(i + 1)));
+  const env = (dir: string, extra: Record<string, string> = {}) => lerConfig({ BLOG_PASTA: dir, BLOG_IA: 'github', GITHUB_TOKEN: 'token-do-workflow', ...extra });
+  const pedidos: any[] = [];
+  const esperas: number[] = [];
+  const esperar = async (ms: number) => { esperas.push(ms); };
+  const github = (async (url: any, init: any) => {
+    pedidos.push({ url: String(url), auth: init.headers.authorization, corpo: JSON.parse(init.body) });
+    return new Response(JSON.stringify({ choices: [{ message: { content: 'Texto escrito pelo modelo da nuvem para ajudar o leitor a decidir.' } }] }), { status: 200 });
+  }) as typeof fetch;
+
+  const banco = doze();
+  const dir = pasta();
+  const r1 = await gerarBlog(banco, env(dir), AGORA, github, esperar);
+  assert.equal(pedidos[0].url, 'https://models.github.ai/inference/chat/completions');
+  assert.equal(pedidos[0].auth, 'Bearer token-do-workflow');
+  assert.equal(pedidos[0].corpo.model, 'openai/gpt-4o-mini');
+  assert.equal(pedidos[0].corpo.messages[1].role, 'user');
+  assert.equal(r1.textosDeIA, 12, 'teto de 12 textos por rodada');
+  assert.equal(r1.modeloDeIA, 'openai/gpt-4o-mini');
+  assert.deepEqual(esperas, Array(11).fill(4500), 'pausa entre um pedido e outro, para caber no limite por minuto');
+  assert.match(r1.avisos.join(' '), /os que faltam entram na próxima/);
+  assert.ok(!ler(dir, 'post-2026-10-03-tech.html').includes('<h2>Como escolher</h2>'), 'o que a IA ainda não escreveu fica de fora, sem texto inventado');
+
+  // A rodada seguinte continua de onde parou: 2 posts × (abertura + 10 produtos + fechamento) = 24 pedidos, menos os 10 produtos repetidos.
+  const r2 = await gerarBlog(banco, env(dir), AGORA, github, esperar);
+  assert.equal(r1.textosDeIA + r2.textosDeIA, 14);
+  assert.ok(ler(dir, 'post-2026-10-03-tech.html').includes('<h2>Como escolher</h2>'));
+
+  const limite = (async () => new Response('{}', { status: 429 })) as typeof fetch;
+  const dir3 = pasta();
+  const r3 = await gerarBlog(doze(), env(dir3), AGORA, limite, esperar);
+  assert.equal(r3.gerou, true);
+  assert.equal(r3.avisos.filter((a) => /limite gratuito do GitHub Models/.test(a)).length, 1, 'para no primeiro aviso de limite');
+  assert.ok(ler(dir3, 'post-2026-10-03-tech.html').includes('Selecionamos 10 ofertas de Tecnologia'));
+
+  const semToken = await gerarBlog(doze(), lerConfig({ BLOG_PASTA: pasta(), BLOG_IA: 'github' }), AGORA, github, esperar);
+  assert.match(semToken.avisos.join(' '), /não há GITHUB_TOKEN/);
+
+  const recusado = (async () => new Response('{}', { status: 403 })) as typeof fetch;
+  const r5 = await gerarBlog(doze(), env(pasta()), AGORA, recusado, esperar);
+  assert.match(r5.avisos.join(' '), /models: read/);
 });
 
 test('blog: sem modelo configurado usa o primeiro instalado; IA fora do ar ou inventando preço cai no texto padrão', async () => {

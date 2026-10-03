@@ -1,7 +1,7 @@
 {
   "name": "achadinhos-bot",
-  "version": "0.1.0",
-  "description": "Robô de ofertas com link de afiliado (Shopee, Mercado Livre, Amazon) para canal do Telegram",
+  "version": "0.2.0",
+  "description": "Robô de ofertas com link de afiliado: posta no Telegram e mantém um blog escrito por IA, rodando de graça no GitHub",
   "type": "module",
   "private": true,
   "engines": {
@@ -13,6 +13,7 @@
     "uma-vez": "node --disable-warning=ExperimentalWarning src/index.ts --uma-vez",
     "checar": "node --disable-warning=ExperimentalWarning src/index.ts --checar",
     "blog": "node --disable-warning=ExperimentalWarning src/index.ts --blog",
+    "nuvem": "node --disable-warning=ExperimentalWarning src/index.ts --nuvem",
     "test": "node --disable-warning=ExperimentalWarning --test \"test/*.test.ts\""
   }
 }

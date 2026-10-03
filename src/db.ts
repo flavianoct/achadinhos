@@ -19,6 +19,16 @@ function diasAtras(data: Date, dias: number): string {
   return diaDe(new Date(data.getTime() - dias * 86_400_000));
 }
 
+/** Um post do blog como fica guardado. `dados` é JSON com os produtos e os textos do post. */
+export interface PostSalvo {
+  arquivo: string;
+  dia: string;
+  tema: string;
+  titulo: string;
+  dados: string;
+  atualizadoEm: number;
+}
+
 export class Banco {
   private db: DatabaseSync;
 
@@ -62,6 +72,15 @@ export class Banco {
         PRIMARY KEY (loja, id_produto)
       );
       CREATE INDEX IF NOT EXISTS produtos_visto ON produtos (visto_em, pontos);
+      CREATE TABLE IF NOT EXISTS posts (
+        arquivo TEXT PRIMARY KEY,
+        dia TEXT NOT NULL,
+        tema TEXT NOT NULL,
+        titulo TEXT NOT NULL,
+        dados TEXT NOT NULL,
+        atualizado_em INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS posts_dia ON posts (dia);
       CREATE TABLE IF NOT EXISTS textos (
         chave TEXT PRIMARY KEY,
         texto TEXT NOT NULL,
@@ -199,6 +218,42 @@ export class Banco {
     this.db
       .prepare(`INSERT INTO textos (chave, texto, criado_em) VALUES (?, ?, ?) ON CONFLICT (chave) DO UPDATE SET texto = excluded.texto, criado_em = excluded.criado_em`)
       .run(chave, texto, agora.getTime());
+  }
+
+  salvarPost(p: PostSalvo): void {
+    this.db
+      .prepare(
+        `INSERT INTO posts (arquivo, dia, tema, titulo, dados, atualizado_em) VALUES (?, ?, ?, ?, ?, ?)
+         ON CONFLICT (arquivo) DO UPDATE SET dia = excluded.dia, tema = excluded.tema, titulo = excluded.titulo, dados = excluded.dados, atualizado_em = excluded.atualizado_em`,
+      )
+      .run(p.arquivo, p.dia, p.tema, p.titulo, p.dados, p.atualizadoEm);
+  }
+
+  /** Todos os posts no ar, do dia mais novo para o mais antigo; dentro do dia, o post geral vem primeiro. */
+  postsSalvos(): PostSalvo[] {
+    const linhas = this.db
+      .prepare(`SELECT arquivo, dia, tema, titulo, dados, atualizado_em FROM posts ORDER BY dia DESC, (tema = 'todas') DESC, arquivo ASC`)
+      .all() as Array<{ arquivo: string; dia: string; tema: string; titulo: string; dados: string; atualizado_em: number }>;
+    return linhas.map((l) => ({ arquivo: l.arquivo, dia: l.dia, tema: l.tema, titulo: l.titulo, dados: l.dados, atualizadoEm: l.atualizado_em }));
+  }
+
+  /** Apaga os posts de dias anteriores a `dia` (AAAA-MM-DD). Devolve quantos saíram. */
+  removerPostsAntesDe(dia: string): number {
+    return Number(this.db.prepare(`DELETE FROM posts WHERE dia < ?`).run(dia).changes);
+  }
+
+  /**
+   * Faxina: apaga o que não é mais usado, para o banco não crescer sem parar.
+   * (Histórico de preços de 90 dias, posts do canal de 90 dias, produtos e textos antigos.)
+   */
+  limpar(agora: Date): void {
+    const t = agora.getTime();
+    this.db.prepare(`DELETE FROM precos WHERE dia < ?`).run(diasAtras(agora, 90));
+    this.db.prepare(`DELETE FROM postados WHERE postado_em < ?`).run(t - 90 * 86_400_000);
+    this.db.prepare(`DELETE FROM produtos WHERE visto_em < ?`).run(t - 7 * 86_400_000);
+    this.db.prepare(`DELETE FROM textos WHERE criado_em < ? AND chave LIKE 'produto:%'`).run(t - 30 * 86_400_000);
+    this.db.prepare(`DELETE FROM textos WHERE criado_em < ? AND chave NOT LIKE 'produto:%'`).run(t - 3 * 86_400_000);
+    this.db.exec('VACUUM');
   }
 
   fechar(): void {

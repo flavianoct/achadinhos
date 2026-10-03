@@ -1,139 +1,131 @@
 # Achadinhos Bot
 
-Robô que busca ofertas, filtra as boas, coloca o seu link de afiliado, posta sozinho num canal do Telegram e mantém um blog de "Top 3/5/10" escrito por IA.
+Robô que busca ofertas, filtra as boas, coloca o seu link de afiliado, posta num canal do Telegram e mantém um **blog online** com posts novos todo dia, escritos por IA.
 
-Tudo é controlado por um **painel no navegador**. Não precisa instalar nenhuma biblioteca: o projeto usa só o que já vem no Node.
+Ele roda **de graça na nuvem, 24 horas, sem o seu PC ligado**, usando só uma conta do GitHub:
 
-| Parte | Situação |
+| Peça | O que faz | Custo |
+|---|---|---|
+| GitHub Actions | Executa o robô a cada meia hora | Grátis em repositório público |
+| GitHub Pages | Hospeda o blog na internet | Grátis |
+| GitHub Models | A IA que escreve os posts | Grátis, com limite diário |
+
+| Loja | Situação |
 |---|---|
 | Shopee | Pronta, pela API oficial de afiliados. |
-| Mercado Livre | Pronta, mas precisa ser validada com a sua conta (passo 5). |
+| Mercado Livre | Pronta, mas precisa ser validada com a sua conta (veja abaixo). |
 | Amazon | Fase 2. O link com a sua tag já está pronto; a coleta automática depende de uma API que a Amazon só libera para contas com vendas recentes. |
-| Blog | Pronto. A IA (Ollama, grátis, no seu PC) escreve os posts; a publicação é pelo GitHub Pages, também grátis. |
 
-## 1. Requisito
+## Colocar no ar (uma vez só)
 
-Node.js **22.18 ou mais novo** (recomendado: 24 LTS). Para conferir, abra o terminal e digite:
+### 1. Criar o repositório
 
-```
-node -v
-```
+1. Entre em https://github.com/new.
+2. Dê um nome (ex.: `achadinhos`), marque **Public** e clique em **Create repository**. Não marque nenhuma outra opção.
 
-Se aparecer uma versão mais antiga, instale a atual em https://nodejs.org.
+O repositório precisa ser público para o GitHub Actions e o Pages serem gratuitos. O código fica visível, mas as suas chaves não: elas ficam nos Secrets (passo 4).
 
-## 2. Ver funcionando sem nenhuma chave
+### 2. Enviar os arquivos
 
-Dê dois cliques em `testar.bat`.
+1. Na página do repositório vazio, clique em **uploading an existing file**.
+2. No seu PC, abra a pasta `achadinhos-bot` (já extraída do zip), selecione **tudo o que está dentro dela** (Ctrl+A) e arraste para a página.
+3. Espere a lista carregar e clique em **Commit changes**.
+4. Confira se existe o arquivo `.github/workflows/robo.yml` no repositório. Se a pasta `.github` não tiver subido, clique em **Add file → Create new file**, digite o nome `.github/workflows/robo.yml`, cole o conteúdo desse arquivo e salve.
 
-Ele abre o painel no navegador com ofertas inventadas: a fila enche, os "posts" aparecem só na janela preta (nada é enviado) e um blog de demonstração é gerado. Use o botão **Ver o blog gerado**, na aba Blog.
+### 3. Ligar o blog
 
-## 3. Telegram
+Em **Settings → Pages → Build and deployment → Source**, escolha **GitHub Actions**.
 
-1. No Telegram, fale com **@BotFather**, envie `/newbot` e siga os passos. Guarde o **token**.
-2. Crie o seu canal de ofertas.
-3. No canal, adicione o bot como **administrador**, com permissão de postar mensagens.
-4. Anote o endereço do canal (ex.: `@meusachadinhos`).
+### 4. Cadastrar as chaves
 
-## 4. Shopee
+Em **Settings → Secrets and variables → Actions → New repository secret**, crie um secret para cada linha:
 
-1. Entre no painel de afiliados da Shopee e procure a área **Open API**.
-2. Copie o **App ID** e o **Secret**. Se a opção não aparecer, a API ainda não foi liberada para a sua conta e é preciso solicitar no próprio painel.
+| Nome do secret | Valor |
+|---|---|
+| `TELEGRAM_BOT_TOKEN` | O token que o @BotFather mostrou. |
+| `TELEGRAM_CHAT_ID` | O endereço do canal, ex.: `@meusachadinhos`. |
+| `SHOPEE_APP_ID` | App ID da Open API de afiliados da Shopee. |
+| `SHOPEE_SECRET` | Secret da Open API de afiliados da Shopee. |
 
-## 5. Mercado Livre (ative depois que a Shopee estiver rodando)
+O bot precisa ser **administrador do canal**, com permissão de postar. Se a opção Open API não aparecer no painel de afiliados da Shopee, é preciso solicitar a liberação por lá.
 
-O Mercado Livre não tem API oficial para gerar link de afiliado. O robô faz assim:
+### 5. Primeira execução
 
-- **Dados dos produtos:** API oficial, com um app seu. Crie em https://developers.mercadolivre.com.br e copie o **Client ID** e o **Client Secret**.
-- **Seu código de afiliado:** gere um link qualquer no painel de afiliados, abra esse link no navegador e olhe a URL final. Copie os valores de `matt_word` e `matt_tool`.
+1. Abra a aba **Actions**. Se aparecer um botão para habilitar os workflows, clique nele.
+2. Escolha **Robô de ofertas → Run workflow**.
+3. Em um ou dois minutos a execução termina. Clique nela para ver o resumo: quantas ofertas viu, quantas postou e o endereço do blog.
 
-**Valide antes de confiar:** use o botão **Testar chaves**, clique no link de exemplo que ele mostra e confira no painel de afiliados se o clique foi contado. Se não contar, o formato do link precisa ser ajustado antes de ativar.
+Daí em diante ele roda sozinho a cada meia hora. O blog fica em `https://SEUUSUARIO.github.io/NOME-DO-REPOSITORIO/`.
 
-O robô pega os mais vendidos de cada categoria. Como essa listagem não traz "ofertas do dia", o Mercado Livre rende mais depois de alguns dias, quando o histórico de preços próprio começa a detectar quedas.
+## Acompanhar e ajustar
 
-## 6. Rodar
+- **Ver o que o robô fez:** aba **Actions**. Cada execução tem um resumo. Execução em vermelho significa que algo precisa de atenção, e o resumo diz o quê.
+- **Mudar ajustes** (desconto mínimo, horário, posts por rodada, nome do blog): edite o arquivo `ajustes.env` direto no GitHub (ícone do lápis) e salve. Vale na próxima execução.
+- **Pausar tudo:** aba Actions → Robô de ofertas → menu "…" → **Disable workflow**.
+- **Rodar na hora:** aba Actions → Robô de ofertas → **Run workflow**.
 
-1. Dê dois cliques em `iniciar.bat`. O painel abre em http://localhost:3210.
-2. Na aba **Configurações**, preencha Telegram e Shopee e clique em **Salvar**.
-3. Clique em **Testar chaves**. Ele confere cada chave sem postar nada.
-4. Pronto: o robô começa a coletar e a postar sozinho.
+## Como é o blog
 
-O robô só funciona com o computador ligado e a janela preta aberta. O painel só responde neste computador.
-
-### O que tem no painel
-
-- **Resumo:** fila, posts de hoje, quando é a próxima coleta e o próximo post.
-- **Botões:** pausar/retomar, coletar agora, postar a próxima agora, testar chaves.
-- **Fila:** o que vai ser postado, em ordem. Dá para remover uma oferta.
-- **Postados:** o histórico do canal.
-- **Blog:** gerar na hora e ver o resultado.
-- **Configurações:** todas as chaves e ajustes, sem editar arquivo.
-- **Registro:** o que o robô fez e os erros.
-
-## 7. Blog automático
-
-O blog é um site estático montado a partir das ofertas que o robô já aprovou. Ele cria um post geral ("Top 10 ofertas de hoje") e um por categoria que tenha pelo menos 3 ofertas ("Top 5 ofertas de Tecnologia hoje"). Cada post é refeito sozinho a cada 6 horas, então os preços não ficam velhos.
-
-Em **Configurações → Blog**:
-
-1. Ligue **Gerar o blog automaticamente**.
-2. Escolha **Quem escreve os posts → IA local e gratuita (Ollama)**.
-3. Salve e clique em **Testar chaves**: ele diz se o Ollama está no ar e qual modelo vai usar.
+- **Posts novos todo dia:** um post geral ("Top 10 ofertas do dia 03/10/2026") e um por categoria com pelo menos 3 ofertas ("Top 5 ofertas de Tecnologia em 03/10/2026"). A lista é Top 3, 5 ou 10 conforme a quantidade de ofertas boas.
+- **Ao longo do dia** os posts de hoje são atualizados com preços e ofertas novas.
+- **Posts antigos** ficam no ar com endereço fixo, na página **Arquivo**, com um aviso de que os preços são daquele dia e um link para o post mais recente. Depois de 60 dias saem do ar (`BLOG_DIAS_NO_AR`).
+- **Cada produto** mostra preço, desconto, selo de menor preço e um gráfico do histórico de preço que o próprio robô registra.
+- **Para o Google:** cada página tem título, descrição, dados estruturados, `sitemap.xml` e `feed.xml`. Cadastre o endereço no Google Search Console e envie o sitemap. O tráfego de busca costuma levar meses para aparecer.
 
 ### A IA que escreve os posts
 
-- Usa o **Ollama**, que roda no seu computador e não tem custo. Ele precisa estar aberto e com um modelo baixado (ex.: `ollama pull llama3.1`). Veja os seus com `ollama list`.
-- Para cada post, a IA escreve a **abertura**, **um parágrafo por produto** e o **fechamento** ("Como escolher").
+- É o **GitHub Models**, gratuito, com o modelo `openai/gpt-4o-mini` (dá para trocar em `ajustes.env`). Não precisa de chave: o próprio GitHub Actions fornece.
+- Para cada post, ela escreve a **abertura**, **um parágrafo por produto** e o **fechamento** ("Como escolher").
 - Ela recebe só o nome do produto, a categoria, a loja, a nota e as vendas. **Não recebe preços**: preço, desconto e histórico vêm direto dos dados, para não haver número inventado. Se o modelo citar preço ou percentual, o texto é descartado.
-- Os textos ficam guardados: o de um produto vale 14 dias, e a abertura só é reescrita quando a lista de produtos do post muda. Assim a IA só trabalha no que é novo.
-- Se o Ollama estiver fechado, o blog sai do mesmo jeito, com um texto padrão.
+- O plano gratuito tem limite de pedidos por dia. O robô escreve no máximo 12 textos por execução e reaproveita o que já escreveu. Se o limite do dia acabar, os posts saem com um texto padrão e a IA completa nas execuções seguintes.
 
-**Limite que você precisa conhecer:** a IA escreve a partir do nome do produto. Modelos pequenos às vezes afirmam coisas que não estão no anúncio. As regras do robô reduzem isso, mas não eliminam. Leia alguns posts nos primeiros dias; se o modelo inventar muito, troque por um modelo maior.
-
-### Publicar de graça (GitHub Pages)
-
-Precisa do Git instalado e de uma conta no GitHub.
-
-1. Crie um repositório **público** no GitHub (ex.: `achadinhos`).
-2. Gere o blog uma vez pelo painel. Isso cria a pasta `blog`.
-3. Abra o terminal dentro da pasta `blog` e rode, trocando `SEUUSUARIO`:
-
-```
-git init -b main
-git remote add origin https://github.com/SEUUSUARIO/achadinhos.git
-git add -A
-git commit -m "Primeira versão"
-git push -u origin main
-```
-
-4. No GitHub: **Settings → Pages → Deploy from a branch → main / (root)**.
-5. No painel, em **Configurações → Blog**: coloque o **Endereço público** (`https://SEUUSUARIO.github.io/achadinhos`) e escolha **Publicar → Enviar com Git**.
-
-A partir daí, cada vez que o blog é refeito, o robô envia as mudanças sozinho.
-
-Para o Google encontrar o blog, cadastre o endereço no Google Search Console e envie o `sitemap.xml`. O tráfego de busca costuma levar meses para aparecer.
+**Limite que você precisa conhecer:** a IA escreve a partir do nome do produto e às vezes afirma coisas que não estão no anúncio. As regras do robô reduzem isso, mas não eliminam. Leia alguns posts nos primeiros dias.
 
 ## Como ele decide o que postar
 
-1. Guarda o preço de **tudo** o que vê, todo dia, em `dados.db`. Esse é o histórico.
+1. Guarda o preço de **tudo** o que vê, todo dia. Esse é o histórico.
 2. Aprova a oferta se o desconto anunciado for bom **ou** se o preço caiu contra o histórico.
 3. Barra "promoção falsa": desconto anunciado, mas o produto esteve mais barato nos últimos 30 dias.
 4. Não repete o mesmo produto no canal por 7 dias, a não ser que o preço caia mais 5%.
 5. Posta primeiro as ofertas com mais pontos (desconto, queda real, comissão, nota, vendas, frete grátis).
 6. Marca cada oferta com uma categoria (`#tech`, `#casa`...). O blog usa isso para os posts por categoria.
 
+O histórico, a fila e os posts ficam num banco de dados (`dados.db`) guardado no ramo `dados` do repositório. Não apague esse ramo.
+
+## Mercado Livre (ative depois que a Shopee estiver rodando)
+
+O Mercado Livre não tem API oficial para gerar link de afiliado. O robô faz assim:
+
+- **Dados dos produtos:** API oficial, com um app seu. Crie em https://developers.mercadolivre.com.br.
+- **Seu código de afiliado:** gere um link qualquer no painel de afiliados, abra esse link no navegador e olhe a URL final. Copie os valores de `matt_word` e `matt_tool`.
+
+Cadastre os secrets `ML_CLIENT_ID`, `ML_CLIENT_SECRET`, `ML_MATT_WORD` e `ML_MATT_TOOL` e mude `ML_ATIVO=1` em `ajustes.env`.
+
+**Valide antes de confiar:** clique num link do Mercado Livre postado pelo robô e confira no painel de afiliados se o clique foi contado. Se não contar, desligue (`ML_ATIVO=0`) até o formato do link ser ajustado.
+
+O robô pega os mais vendidos de cada categoria. Como essa listagem não traz "ofertas do dia", o Mercado Livre rende mais depois de alguns dias, quando o histórico de preços começa a detectar quedas.
+
 ## Avisos
 
+- **Um lugar só:** não rode o robô no PC e na nuvem ao mesmo tempo com o mesmo canal, senão as ofertas saem repetidas.
+- **Horários:** o GitHub pode atrasar as execuções agendadas em alguns minutos, às vezes mais em horários de pico.
+- **Pausa automática:** o GitHub pode desligar agendamentos de repositórios sem atividade por 60 dias. Se o robô parar, reative na aba Actions.
+- **Regras do GitHub:** o Actions gratuito é pensado para construir e publicar projetos. Publicar o blog se encaixa bem nisso; as postagens no Telegram são um uso menos típico. Se o GitHub restringir, o robô continua funcionando no PC (abaixo).
 - Escreva na descrição do canal que os links são de afiliado. O blog já mostra esse aviso no rodapé, e também avisa quando o texto é de IA.
-- Não compartilhe o arquivo `.env` nem o `dados.db`.
-- Os testes automáticos (`npm test`) usam respostas simuladas das lojas e do Ollama. A primeira execução com as suas chaves reais é o teste de verdade: use o botão **Testar chaves**.
+- Os testes automáticos (`npm test`) usam respostas simuladas das lojas, do Telegram e da IA. A primeira execução com as suas chaves reais é o teste de verdade.
 
-## Comandos (para quem prefere o terminal)
+## Rodar no PC (opcional)
+
+O mesmo robô também roda no seu computador, com um painel no navegador. Precisa do Node.js 22.18 ou mais novo.
+
+- `testar.bat`: demonstração com ofertas inventadas. Abre o painel e gera um blog de exemplo, sem enviar nada.
+- `iniciar.bat`: robô de verdade, com painel em http://localhost:3210. As chaves e ajustes ficam na aba **Configurações**.
+- No PC, a IA pode ser o **Ollama** (local e gratuito) ou a do GitHub (com um token pessoal com a permissão "models").
 
 | Comando | O que faz |
 |---|---|
 | `npm start` | Robô + painel. |
 | `npm run teste` | Demonstração com ofertas inventadas. |
 | `npm run checar` | Testa as chaves e sai. |
-| `npm run blog` | Gera o blog uma vez e sai. |
-| `npm run uma-vez` | Uma coleta e um post, sem painel. |
+| `npm run nuvem` | Uma rodada completa, como o GitHub Actions faz (usa `ajustes.env`). |
 | `npm test` | Testes automáticos. |

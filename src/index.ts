@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { appendFileSync } from 'node:fs';
 import { FonteSimulada, OFERTAS_SIMULADAS } from './fontes/simulada.ts';
 import { iniciarPainel } from './painel.ts';
 import { Robo } from './robo.ts';
@@ -44,8 +45,63 @@ function criarRoboDeDemonstracao(): Robo {
   return robo;
 }
 
+/**
+ * Modo nuvem: uma rodada completa e sai. É o que o GitHub Actions executa a cada meia hora.
+ * Coleta as ofertas, posta algumas no Telegram, atualiza o blog e faz a faxina do banco.
+ * As chaves vêm dos Secrets do repositório; os ajustes, do arquivo ajustes.env.
+ */
+async function modoNuvem(): Promise<void> {
+  const robo = new Robo({ caminhoEnv: 'ajustes.env', modeloEnv: '' });
+  const resumo: string[] = ['## Rodada do robô', ''];
+  const dizer = (linha: string) => {
+    resumo.push(linha);
+    console.log(linha.replace(/^- /, ''));
+  };
+
+  const problemas = robo.problemas();
+  if (problemas.length) {
+    dizer('**O robô ainda não pode rodar.** Falta cadastrar em Settings → Secrets and variables → Actions:');
+    for (const p of problemas) dizer(`- ${p}`);
+    process.exitCode = 1;
+  } else {
+    const coleta = await robo.coletarAgora();
+    dizer(`- Coleta: ${coleta.coletadas} ofertas vistas, ${coleta.aprovadas} aprovadas.`);
+    for (const [fonte, erro] of Object.entries(coleta.errosPorFonte)) dizer(`- **Erro em ${fonte}:** ${erro}`);
+    // Se nenhuma loja respondeu, a rodada termina em vermelho para chamar atenção, mas o blog e o banco seguem.
+    const fontesComErro = Object.keys(coleta.errosPorFonte).length;
+    if (fontesComErro > 0 && coleta.coletadas === 0) process.exitCode = 1;
+
+    let postados = 0;
+    let motivoDaParada = '';
+    for (let i = 0; i < robo.config.ritmo.postsPorRodada; i++) {
+      if (i > 0) await pausa(3000);
+      const r = await robo.postarAgora();
+      if (!r.postou) {
+        motivoDaParada = r.motivo === 'erro' ? `erro: ${r.detalhe}` : r.motivo;
+        if (r.motivo === 'erro') process.exitCode = 1;
+        break;
+      }
+      postados++;
+    }
+    dizer(`- Telegram: ${postados} ofertas postadas${motivoDaParada ? ` (parou por: ${motivoDaParada})` : ''}. Na fila: ${robo.banco.tamanhoDaFila()}.`);
+  }
+
+  // O blog é gravado mesmo sem chaves: assim o site existe desde a primeira execução.
+  if (robo.config.blog.ativo) {
+    const blog = await robo.gerarBlogAgora();
+    dizer(`- Blog: ${blog.postsDeHoje} posts de hoje, ${blog.postsNoAr} no ar${blog.textosDeIA ? `, ${blog.textosDeIA} textos novos da IA (${blog.modeloDeIA})` : ''}.`);
+    for (const aviso of blog.avisos) dizer(`- Aviso do blog: ${aviso}`);
+    if (robo.config.blog.url) dizer(`- Endereço: ${robo.config.blog.url}`);
+  }
+
+  robo.banco.limpar(new Date());
+  robo.fechar();
+  if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${resumo.join('\n')}\n`);
+}
+
 async function main(): Promise<void> {
   const args = new Set(process.argv.slice(2));
+  if (args.has('--nuvem')) return modoNuvem();
   const demonstracao = args.has('--teste');
   const robo = demonstracao ? criarRoboDeDemonstracao() : new Robo();
 

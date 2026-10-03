@@ -204,11 +204,11 @@ function desenhar() {
   const b = s.blog;
   const info = $('blog-info');
   info.replaceChildren(el('p', null, b.ativo ? 'O blog é refeito sozinho. Você também pode gerar na hora.' : 'A geração automática está desligada. Ligue em Configurações, ou gere na hora pelo botão abaixo.'));
-  info.append(el('p', null, b.ia === 'ollama' ? 'Os posts são escritos pela IA local (Ollama).' : 'Os posts usam o texto padrão. Para a IA escrever, escolha "IA local" em Configurações.'));
+  info.append(el('p', null, b.ia === 'ollama' ? 'Os posts são escritos pela IA local (Ollama).' : b.ia === 'github' ? 'Os posts são escritos pela IA gratuita do GitHub.' : 'Os posts usam o texto padrão. Para a IA escrever, escolha uma IA em Configurações.'));
   if (b.gerando) info.append(el('p', null, 'Gerando agora… com a IA escrevendo, pode levar alguns minutos.'));
   if (b.ultimo) {
     const r = b.ultimo.resultado;
-    info.append(el('p', null, r.gerou ? `Última geração: ${hora(b.ultimo.em)} — ${r.paginas.length} posts, ${r.produtos} produtos${r.textosDeIA ? `, ${r.textosDeIA} textos novos escritos pela IA (${r.modeloDeIA})` : ''}${r.publicacao ? ` — ${r.publicacao}` : ''}.` : `Última tentativa: ${hora(b.ultimo.em)} — não gerou.`));
+    info.append(el('p', null, r.gerou ? `Última geração: ${hora(b.ultimo.em)} — ${r.postsDeHoje} posts de hoje, ${r.postsNoAr} no ar, ${r.produtos} produtos${r.textosDeIA ? `, ${r.textosDeIA} textos novos escritos pela IA (${r.modeloDeIA})` : ''}${r.publicacao ? ` — ${r.publicacao}` : ''}.` : `Última tentativa: ${hora(b.ultimo.em)} — não gerou.`));
     for (const a of r.avisos) info.append(el('p', null, 'Aviso: ' + a));
   }
   info.append(el('p', null, `Pasta: ${b.pasta}`, b.url ? ' · Endereço: ' : '', b.url ? el('a', { href: b.url, target: '_blank', rel: 'noopener' }, b.url) : ''));
@@ -239,7 +239,7 @@ async function acao(corpo, botao, esperando) {
       const erros = Object.entries(r.resumo.errosPorFonte).map(([f, e]) => `\n✗ ${LOJAS[f] || f}: ${e}`).join('');
       retorno(`Coleta feita: ${r.resumo.coletadas} ofertas vistas, ${r.resumo.aprovadas} aprovadas.${erros}`, erros ? 'erro' : 'ok');
     } else if (corpo.acao === 'postar') retorno(r.mensagem, r.ok ? 'ok' : 'erro');
-    else if (corpo.acao === 'blog') retorno(r.ok ? `Blog gerado: ${r.resultado.paginas.length} posts${r.resultado.textosDeIA ? `, ${r.resultado.textosDeIA} textos novos da IA` : ''}.${r.resultado.avisos.length ? '\n' + r.resultado.avisos.join('\n') : ''}` : r.resultado.avisos.join('\n'), r.ok ? 'ok' : 'erro');
+    else if (corpo.acao === 'blog') retorno(r.ok ? `Blog gerado: ${r.resultado.postsDeHoje} posts de hoje, ${r.resultado.postsNoAr} no ar${r.resultado.textosDeIA ? `, ${r.resultado.textosDeIA} textos novos da IA` : ''}.${r.resultado.avisos.length ? '\n' + r.resultado.avisos.join('\n') : ''}` : r.resultado.avisos.join('\n'), r.ok ? 'ok' : 'erro');
     else retorno('');
   } catch (e) {
     retorno('Erro: ' + e.message, 'erro');

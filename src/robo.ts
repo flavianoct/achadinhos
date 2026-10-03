@@ -1,4 +1,4 @@
-import { gerarBlog, modelosDoOllama, type ResultadoDoBlog } from './blog.ts';
+import { gerarBlog, modelosDoOllama, pedirAoGitHub, type ResultadoDoBlog } from './blog.ts';
 import { lerArquivoEnv, lerConfig, problemasDeConfig, problemasDoBlog, salvarNoEnv, type Config, type Env } from './config.ts';
 import { Banco, horaDe } from './db.ts';
 import { FonteAmazon } from './fontes/amazon.ts';
@@ -150,7 +150,7 @@ export class Robo {
         resultado.avisos.unshift(...problemasDoBlog(config));
         this.ultimoBlog = { em: agora.getTime(), resultado };
         const ia = resultado.textosDeIA ? `, ${resultado.textosDeIA} textos novos de IA (${resultado.modeloDeIA})` : '';
-        this.log(resultado.gerou ? `blog: ${resultado.paginas.length} posts, ${resultado.produtos} produtos${ia}${resultado.publicacao ? `, ${resultado.publicacao}` : ''}` : 'blog: não gerado');
+        this.log(resultado.gerou ? `blog: ${resultado.postsDeHoje} posts de hoje, ${resultado.postsNoAr} no ar, ${resultado.produtos} produtos${ia}${resultado.publicacao ? `, ${resultado.publicacao}` : ''}` : 'blog: não gerado');
         for (const aviso of resultado.avisos) this.log(`blog: ${aviso}`);
         return resultado;
       } finally {
@@ -195,6 +195,18 @@ export class Robo {
         else linhas.push({ ok: true, texto: `IA do blog: Ollama no ar, usando o modelo ${escolhido}` });
       } catch (e) {
         linhas.push({ ok: false, texto: `IA do blog: não consegui falar com o Ollama (${(e as Error).message}). Ele está aberto?` });
+      }
+    }
+    if (this.config.blog.ia === 'github') {
+      const { githubToken, githubModelo } = this.config.blog;
+      if (!githubToken) linhas.push({ ok: false, texto: 'IA do blog: falta o GITHUB_TOKEN (no GitHub Actions ele vem do próprio workflow).' });
+      else {
+        try {
+          await pedirAoGitHub(githubToken, githubModelo, 'Responda apenas: ok');
+          linhas.push({ ok: true, texto: `IA do blog: GitHub Models respondendo, modelo ${githubModelo}` });
+        } catch (e) {
+          linhas.push({ ok: false, texto: `IA do blog: ${(e as Error).message}` });
+        }
       }
     }
     return linhas;

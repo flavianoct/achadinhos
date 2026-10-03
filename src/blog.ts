@@ -1,23 +1,22 @@
 import { execFile } from 'node:child_process';
-import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readdirSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Config } from './config.ts';
-import type { Banco } from './db.ts';
+import { diaDe, type Banco, type PostSalvo } from './db.ts';
 import { formatarPreco, formatarVendas } from './mensagem.ts';
 import type { OfertaAvaliada } from './types.ts';
 
 type Fetch = typeof fetch;
+type Esperar = (ms: number) => Promise<void>;
 
-/** Produto visto há mais tempo que isso sai do blog (o preço pode ter mudado). */
+/** Produto visto há mais tempo que isso não entra no post de hoje (o preço pode ter mudado). */
 const HORAS_DE_VALIDADE = 36;
 const DIAS_DO_GRAFICO = 30;
 /** O texto de um produto é reaproveitado por este tempo antes de ser reescrito. */
 const DIAS_DO_TEXTO_DE_PRODUTO = 14;
-/** A abertura e o fechamento de um post com os mesmos produtos são reaproveitados por este tempo. */
-const DIAS_DO_TEXTO_DE_POST = 3;
-/** Teto de textos novos por rodada, para a geração não demorar demais. O que faltar entra na rodada seguinte. */
-const MAX_TEXTOS_POR_RODADA = 30;
+const DIAS_DO_TEXTO_DE_POST = 400;
+/** Tema do post geral do dia (os outros temas são as categorias). */
+const TEMA_GERAL = 'todas';
 
 const NOME_DA_CATEGORIA: Record<string, string> = {
   tech: 'Tecnologia',
@@ -37,7 +36,12 @@ const NOME_DA_LOJA: Record<string, string> = { shopee: 'Shopee', mercadolivre: '
 export interface ResultadoDoBlog {
   gerou: boolean;
   pasta: string;
+  /** Todos os arquivos HTML gravados nesta rodada. */
   paginas: string[];
+  /** Posts criados ou atualizados hoje. */
+  postsDeHoje: number;
+  /** Posts no ar, contando os dos dias anteriores. */
+  postsNoAr: number;
   produtos: number;
   /** Quantos textos a IA escreveu nesta rodada (os já escritos antes são reaproveitados). */
   textosDeIA: number;
@@ -47,23 +51,29 @@ export interface ResultadoDoBlog {
   publicacao?: string;
 }
 
-interface Pagina {
-  arquivo: string;
-  titulo: string;
-  rotulo: string;
-  itens: OfertaAvaliada[];
-  tema: string;
+/** Um produto dentro de um post, com tudo o que a página precisa (o post antigo não consulta mais nada). */
+interface ItemDoPost extends OfertaAvaliada {
+  grafico: Array<{ dia: string; preco: number }>;
+  texto?: string;
 }
 
-/** Textos de um post. O que a IA não escreveu fica undefined e a página usa o texto padrão (ou nada). */
-interface TextosDoPost {
+interface DadosDoPost {
+  itens: ItemDoPost[];
   intro: string;
   fim?: string;
-  porProduto: Map<string, string>;
   temIA: boolean;
 }
 
-/** Tamanho da lista: Top 10, Top 5 ou Top 3. Com menos de 3 produtos, a página não é criada. */
+interface Post {
+  arquivo: string;
+  dia: string;
+  tema: string;
+  titulo: string;
+  atualizadoEm: number;
+  dados: DadosDoPost;
+}
+
+/** Tamanho da lista: Top 10, Top 5 ou Top 3. Com menos de 3 produtos, o post não é criado. */
 export function tamanhoDoTop(total: number): number {
   if (total >= 10) return 10;
   if (total >= 5) return 5;
@@ -79,8 +89,18 @@ function urlSegura(url: string | undefined): string | undefined {
   return url && /^https:\/\//i.test(url) ? url : undefined;
 }
 
-function dataPorExtenso(agora: Date): string {
-  return new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' }).format(agora).replace(',', ' às');
+function dataEHora(ms: number): string {
+  return new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' }).format(new Date(ms)).replace(',', ' às');
+}
+
+/** "2026-10-03" → "03/10/2026". */
+function dataBr(dia: string): string {
+  const [a, m, d] = dia.split('-');
+  return `${d}/${m}/${a}`;
+}
+
+function nomeDoTema(tema: string): string {
+  return tema === TEMA_GERAL ? 'Ofertas do dia' : (NOME_DA_CATEGORIA[tema] ?? tema);
 }
 
 function listarLojas(itens: OfertaAvaliada[]): string {
@@ -91,8 +111,14 @@ function listarLojas(itens: OfertaAvaliada[]): string {
 
 const idDe = (o: OfertaAvaliada) => `${o.loja}:${o.idProduto}`;
 
-function introPadrao(p: Pagina): string {
-  return `Selecionamos ${p.itens.length} ofertas de ${p.tema} encontradas hoje em ${listarLojas(p.itens)}. A lista é refeita automaticamente várias vezes ao dia e leva em conta o desconto, a avaliação de quem comprou e o nosso próprio histórico de preços.`;
+function introPadrao(tema: string, itens: OfertaAvaliada[]): string {
+  const assunto = tema === TEMA_GERAL ? 'várias categorias' : nomeDoTema(tema);
+  return `Selecionamos ${itens.length} ofertas de ${assunto} encontradas neste dia em ${listarLojas(itens)}. A escolha leva em conta o desconto, a avaliação de quem comprou e o nosso próprio histórico de preços.`;
+}
+
+function encurtar(s: string, max: number): string {
+  const t = s.replace(/\s+/g, ' ').trim();
+  return t.length <= max ? t : `${t.slice(0, max - 1).trimEnd()}…`;
 }
 
 /** Gráfico pequeno com o preço de cada dia. Só aparece com pelo menos 3 dias de histórico. */
@@ -115,7 +141,59 @@ export function graficoDePreco(pontos: Array<{ dia: string; preco: number }>): s
   return `<figure class="grafico"><svg viewBox="0 0 ${L} ${A}" width="${L}" height="${A}" role="img" aria-label="${esc(descricao)}"><polyline points="${coords.join(' ')}" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/><circle cx="${ux}" cy="${uy}" r="3" fill="currentColor"/></svg><figcaption>${esc(descricao)}</figcaption></figure>`;
 }
 
-function cartao(o: OfertaAvaliada, posicao: number, texto: string | undefined, banco: Banco, agora: Date): string {
+// ───────────── páginas ─────────────
+
+interface Site {
+  config: Config;
+  posts: Post[];
+  hoje: string;
+  agora: Date;
+  /** Temas que têm pelo menos um post no ar, na ordem do menu. */
+  temas: string[];
+}
+
+function moldura(site: Site, p: { arquivo: string; titulo: string; descricao: string; corpo: string; imagem?: string; tipo?: string; dadosEstruturados?: unknown; rodapeExtra?: string }): string {
+  const b = site.config.blog;
+  const canonica = b.url ? `${b.url}/${p.arquivo === 'index.html' ? '' : p.arquivo}` : '';
+  const itensDoMenu: Array<[string, string]> = [['index.html', 'Início'], ...site.temas.map((t): [string, string] => [`categoria-${t}.html`, nomeDoTema(t)]), ['arquivo.html', 'Arquivo']];
+  const nav = itensDoMenu.map(([arquivo, rotulo]) => `<a href="${arquivo}"${arquivo === p.arquivo ? ' aria-current="page"' : ''}>${esc(rotulo)}</a>`).join('');
+  const tituloCompleto = p.arquivo === 'index.html' ? `${b.nome} — ${p.titulo}` : `${p.titulo} | ${b.nome}`;
+  return `<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${esc(tituloCompleto)}</title>
+<meta name="description" content="${esc(p.descricao)}">
+${canonica ? `<link rel="canonical" href="${esc(canonica)}">` : ''}
+<meta property="og:type" content="${p.tipo ?? 'website'}">
+<meta property="og:title" content="${esc(p.titulo)}">
+<meta property="og:description" content="${esc(p.descricao)}">
+${canonica ? `<meta property="og:url" content="${esc(canonica)}">` : ''}
+${p.imagem ? `<meta property="og:image" content="${esc(p.imagem)}">` : ''}
+${b.url ? `<link rel="alternate" type="application/rss+xml" title="${esc(b.nome)}" href="${esc(`${b.url}/feed.xml`)}">` : ''}
+<link rel="stylesheet" href="estilo.css">
+${p.dadosEstruturados ? `<script type="application/ld+json">${JSON.stringify(p.dadosEstruturados).replace(/</g, '\\u003c')}</script>` : ''}
+</head>
+<body>
+<header>
+  <a class="marca" href="index.html">${esc(b.nome)}</a>
+  <nav aria-label="Seções">${nav}</nav>
+</header>
+<main>
+${p.corpo}
+  ${b.telegramLink && urlSegura(b.telegramLink) ? `<p class="chamada">Quer receber as ofertas na hora? <a href="${esc(b.telegramLink)}" target="_blank" rel="noopener">Entre no nosso canal do Telegram</a>.</p>` : ''}
+</main>
+<footer>
+  <p><strong>Aviso:</strong> este site participa de programas de afiliados. Ao comprar pelos links, podemos receber uma comissão, sem custo extra para você.</p>
+  ${p.rodapeExtra ?? ''}
+</footer>
+</body>
+</html>
+`;
+}
+
+function cartaoDoProduto(o: ItemDoPost, posicao: number): string {
   const loja = NOME_DA_LOJA[o.loja] ?? o.loja;
   const imagem = urlSegura(o.imagem);
   const selos: string[] = [];
@@ -137,75 +215,97 @@ function cartao(o: OfertaAvaliada, posicao: number, texto: string | undefined, b
     <p class="preco">${de}<strong>${formatarPreco(o.preco)}</strong></p>
     ${selos.length ? `<p class="selos">${selos.join(' ')}</p>` : ''}
     <p class="social">${esc(social.join(' · '))}</p>
-    ${texto ? `<p class="analise">${esc(texto)}</p>` : ''}
-    ${graficoDePreco(banco.historicoDiario(o.loja, o.idProduto, DIAS_DO_GRAFICO, agora))}
+    ${o.texto ? `<p class="analise">${esc(o.texto)}</p>` : ''}
+    ${graficoDePreco(o.grafico ?? [])}
     <a class="botao" href="${esc(o.link)}" target="_blank" rel="sponsored nofollow noopener">Ver oferta na ${esc(loja)}</a>
   </div>
 </li>`;
 }
 
-function montarPagina(p: Pagina, todas: Pagina[], textos: TextosDoPost, config: Config, banco: Banco, agora: Date): string {
-  const b = config.blog;
-  const data = dataPorExtenso(agora);
-  const tituloCompleto = `${p.titulo} (${data.split(' ')[0]}) | ${b.nome}`;
-  const descricao = `${p.titulo}: ${p.itens.slice(0, 3).map((i) => i.titulo.slice(0, 50)).join('; ')}. Atualizado em ${data}.`.slice(0, 300);
-  const canonica = b.url ? `${b.url}/${p.arquivo === 'index.html' ? '' : p.arquivo}` : '';
-  const imagemOg = urlSegura(p.itens[0]?.imagem);
-
+function paginaDoPost(site: Site, post: Post): string {
+  const d = post.dados;
+  const atualizado = dataEHora(post.atualizadoEm);
+  const antigo = post.dia !== site.hoje;
+  const maisNovo = site.posts.find((p) => p.tema === post.tema); // a lista vem do mais novo para o mais antigo
+  const aviso = antigo
+    ? `<p class="antigo">Este post é de ${dataBr(post.dia)}. Os preços e a disponibilidade podem ter mudado. ${maisNovo && maisNovo.arquivo !== post.arquivo ? `<a href="${maisNovo.arquivo}">Veja o post mais recente de ${esc(nomeDoTema(post.tema))}</a>.` : '<a href="index.html">Veja as ofertas mais recentes</a>.'}</p>`
+    : '';
+  const descricao = encurtar(`${post.titulo}: ${d.itens.slice(0, 3).map((i) => encurtar(i.titulo, 50)).join('; ')}.`, 300);
+  const b = site.config.blog;
   const dadosEstruturados = {
     '@context': 'https://schema.org',
-    '@type': 'ItemList',
-    name: p.titulo,
-    numberOfItems: p.itens.length,
-    itemListElement: p.itens.map((o, i) => ({ '@type': 'ListItem', position: i + 1, name: o.titulo, url: o.link })),
+    '@graph': [
+      { '@type': 'BlogPosting', headline: post.titulo, datePublished: `${post.dia}T00:00:00-03:00`, dateModified: new Date(post.atualizadoEm).toISOString(), author: { '@type': 'Organization', name: b.nome } },
+      { '@type': 'ItemList', name: post.titulo, numberOfItems: d.itens.length, itemListElement: d.itens.map((o, i) => ({ '@type': 'ListItem', position: i + 1, name: o.titulo, url: o.link })) },
+    ],
   };
-  const nav = todas.map((t) => `<a href="${t.arquivo}"${t.arquivo === p.arquivo ? ' aria-current="page"' : ''}>${esc(t.rotulo)}</a>`).join('');
-
-  return `<!doctype html>
-<html lang="pt-BR">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${esc(tituloCompleto)}</title>
-<meta name="description" content="${esc(descricao)}">
-${canonica ? `<link rel="canonical" href="${esc(canonica)}">` : ''}
-<meta property="og:type" content="article">
-<meta property="og:title" content="${esc(p.titulo)}">
-<meta property="og:description" content="${esc(descricao)}">
-${canonica ? `<meta property="og:url" content="${esc(canonica)}">` : ''}
-${imagemOg ? `<meta property="og:image" content="${esc(imagemOg)}">` : ''}
-<link rel="stylesheet" href="estilo.css">
-<script type="application/ld+json">${JSON.stringify(dadosEstruturados).replace(/</g, '\\u003c')}</script>
-</head>
-<body>
-<header>
-  <a class="marca" href="index.html">${esc(b.nome)}</a>
-  <nav aria-label="Categorias">${nav}</nav>
-</header>
-<main>
-  <article>
-  <h1>${esc(p.titulo)}</h1>
-  <p class="data">Atualizado em <time datetime="${agora.toISOString()}">${esc(data)}</time></p>
-  <p class="intro">${esc(textos.intro)}</p>
+  const corpo = `  <article>
+  <h1>${esc(post.titulo)}</h1>
+  <p class="data"><a href="categoria-${post.tema}.html">${esc(nomeDoTema(post.tema))}</a> · Atualizado em <time datetime="${new Date(post.atualizadoEm).toISOString()}">${esc(atualizado)}</time></p>
+  ${aviso}
+  <p class="intro">${esc(d.intro)}</p>
   <ol class="lista">
-${p.itens.map((o, i) => cartao(o, i + 1, textos.porProduto.get(idDe(o)), banco, agora)).join('\n')}
+${d.itens.map((o, i) => cartaoDoProduto(o, i + 1)).join('\n')}
   </ol>
-  ${textos.fim ? `<section class="fim"><h2>Como escolher</h2><p>${esc(textos.fim)}</p></section>` : ''}
-  </article>
-  ${b.telegramLink && urlSegura(b.telegramLink) ? `<p class="chamada">Quer receber as ofertas na hora? <a href="${esc(b.telegramLink)}" target="_blank" rel="noopener">Entre no nosso canal do Telegram</a>.</p>` : ''}
-</main>
-<footer>
-  <p><strong>Aviso:</strong> este site participa de programas de afiliados. Ao comprar pelos links, podemos receber uma comissão, sem custo extra para você.</p>
-  <p>Preços conferidos em ${esc(data)}. Eles podem mudar a qualquer momento; vale o preço mostrado na loja.</p>
-  ${textos.temIA ? '<p>Os textos desta página são escritos por inteligência artificial a partir do nome e dos dados de cada produto. Confira os detalhes na página da loja antes de comprar.</p>' : ''}
-</footer>
-</body>
-</html>
-`;
+  ${d.fim ? `<section class="fim"><h2>Como escolher</h2><p>${esc(d.fim)}</p></section>` : ''}
+  </article>`;
+  const rodapeExtra = `<p>Preços conferidos em ${esc(atualizado)}. Eles podem mudar a qualquer momento; vale o preço mostrado na loja.</p>${d.temIA ? '\n  <p>Os textos desta página são escritos por inteligência artificial a partir do nome e dos dados de cada produto. Confira os detalhes na página da loja antes de comprar.</p>' : ''}`;
+  return moldura(site, { arquivo: post.arquivo, titulo: post.titulo, descricao, corpo, imagem: urlSegura(d.itens[0]?.imagem), tipo: 'article', dadosEstruturados, rodapeExtra });
 }
 
-const ESTILO = `:root{--fundo:#f6f7f9;--cartao:#fff;--texto:#16181d;--suave:#5b6370;--borda:#e2e5ea;--cor:#d6336c;--cor-texto:#fff;--ok:#0a7d4f}
-@media (prefers-color-scheme:dark){:root{--fundo:#111318;--cartao:#1a1d24;--texto:#eceef2;--suave:#a0a7b4;--borda:#2a2e38;--cor:#f06595;--cor-texto:#111318;--ok:#51cf8a}}
+function resumoDoPost(post: Post, site: Site): string {
+  const imagem = urlSegura(post.dados.itens[0]?.imagem);
+  const hoje = post.dia === site.hoje;
+  return `<li class="resumo">
+  ${imagem ? `<img src="${esc(imagem)}" alt="" width="88" height="88" loading="lazy" referrerpolicy="no-referrer">` : ''}
+  <div>
+    <h3><a href="${post.arquivo}">${esc(post.titulo)}</a></h3>
+    <p class="data">${hoje ? 'Hoje' : dataBr(post.dia)} · ${esc(nomeDoTema(post.tema))} · ${post.dados.itens.length} produtos</p>
+    <p>${esc(encurtar(post.dados.intro, 170))}</p>
+  </div>
+</li>`;
+}
+
+function listaDePosts(posts: Post[], site: Site): string {
+  return `<ul class="posts">\n${posts.map((p) => resumoDoPost(p, site)).join('\n')}\n</ul>`;
+}
+
+function paginaInicial(site: Site): string {
+  const b = site.config.blog;
+  if (site.posts.length === 0) {
+    return moldura(site, { arquivo: 'index.html', titulo: 'ofertas do dia', descricao: `${b.nome}: as melhores ofertas do dia, com histórico de preço.`, corpo: `  <h1>${esc(b.nome)}</h1>\n  <p class="intro">Os primeiros posts chegam em breve. O robô publica aqui as melhores ofertas de cada dia.</p>` });
+  }
+  const diaMaisNovo = site.posts[0].dia;
+  const recentes = site.posts.filter((p) => p.dia === diaMaisNovo);
+  const anteriores = site.posts.filter((p) => p.dia !== diaMaisNovo).slice(0, 24);
+  const titulo = diaMaisNovo === site.hoje ? 'Ofertas de hoje' : `Ofertas de ${dataBr(diaMaisNovo)}`;
+  const corpo = `  <h1>${esc(titulo)}</h1>
+  <p class="intro">As melhores ofertas de cada dia em listas Top 3, 5 e 10, escolhidas pelo desconto, pela avaliação de quem comprou e pelo histórico de preços.</p>
+  ${listaDePosts(recentes, site)}
+  ${anteriores.length ? `<h2 class="secao">Dias anteriores</h2>\n  ${listaDePosts(anteriores, site)}\n  <p><a href="arquivo.html">Ver todos os posts</a></p>` : ''}`;
+  return moldura(site, { arquivo: 'index.html', titulo: 'ofertas do dia em listas Top 3, 5 e 10', descricao: encurtar(`${b.nome}: ${recentes.map((p) => p.titulo).join('; ')}.`, 300), corpo, imagem: urlSegura(recentes[0]?.dados.itens[0]?.imagem) });
+}
+
+function paginaDoTema(site: Site, tema: string): string {
+  const posts = site.posts.filter((p) => p.tema === tema);
+  const nome = nomeDoTema(tema);
+  const corpo = `  <h1>${esc(nome)}</h1>
+  <p class="intro">Todos os posts de ${esc(nome)}, do mais novo para o mais antigo.</p>
+  ${listaDePosts(posts, site)}`;
+  return moldura(site, { arquivo: `categoria-${tema}.html`, titulo: `${nome}: ofertas por dia`, descricao: `Posts de ofertas de ${nome}, atualizados todos os dias.`, corpo });
+}
+
+function paginaDoArquivo(site: Site): string {
+  const dias = [...new Set(site.posts.map((p) => p.dia))];
+  const blocos = dias.map((dia) => `<h2 class="secao">${dia === site.hoje ? 'Hoje' : dataBr(dia)}</h2>\n  ${listaDePosts(site.posts.filter((p) => p.dia === dia), site)}`);
+  const corpo = `  <h1>Arquivo</h1>
+  <p class="intro">Todos os posts que estão no ar, por dia. Posts antigos mostram os preços do dia em que foram escritos.</p>
+  ${blocos.join('\n  ') || '<p>Ainda não há posts.</p>'}`;
+  return moldura(site, { arquivo: 'arquivo.html', titulo: 'Arquivo de posts', descricao: `Todos os posts de ofertas de ${site.config.blog.nome}, por dia.`, corpo });
+}
+
+const ESTILO = `:root{--fundo:#f6f7f9;--cartao:#fff;--texto:#16181d;--suave:#5b6370;--borda:#e2e5ea;--cor:#d6336c;--cor-texto:#fff;--ok:#0a7d4f;--aviso-fundo:#fff3d6;--aviso:#7a4a00}
+@media (prefers-color-scheme:dark){:root{--fundo:#111318;--cartao:#1a1d24;--texto:#eceef2;--suave:#a0a7b4;--borda:#2a2e38;--cor:#f06595;--cor-texto:#111318;--ok:#51cf8a;--aviso-fundo:#3a2c0c;--aviso:#f2c261}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--fundo);color:var(--texto);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 header,main,footer{max-width:820px;margin:0 auto;padding:16px}
@@ -215,9 +315,13 @@ nav{display:flex;flex-wrap:wrap;gap:6px}
 nav a{padding:4px 10px;border:1px solid var(--borda);border-radius:999px;color:var(--suave);text-decoration:none;font-size:.875rem}
 nav a[aria-current]{background:var(--texto);color:var(--fundo);border-color:var(--texto)}
 h1{font-size:1.75rem;line-height:1.2;margin:8px 0 4px}
+.secao{font-size:1.25rem;margin:28px 0 10px}
 .data{color:var(--suave);margin:0 0 12px;font-size:.875rem}
+.data a{color:var(--suave)}
 .intro{margin:0 0 20px}
-.lista{list-style:none;margin:0;padding:0;display:grid;gap:12px}
+.antigo{background:var(--aviso-fundo);color:var(--aviso);border-radius:10px;padding:10px 14px;margin:0 0 16px}
+.antigo a{color:inherit;font-weight:700}
+.lista,.posts{list-style:none;margin:0;padding:0;display:grid;gap:12px}
 .cartao{position:relative;display:flex;gap:14px;background:var(--cartao);border:1px solid var(--borda);border-radius:12px;padding:14px}
 .posicao{position:absolute;top:-8px;left:-8px;width:30px;height:30px;border-radius:50%;background:var(--texto);color:var(--fundo);display:grid;place-items:center;font-weight:700;font-size:.875rem}
 .cartao img,.semimagem{width:120px;height:120px;flex:none;border-radius:8px;object-fit:contain;background:#fff}
@@ -236,13 +340,20 @@ h1{font-size:1.75rem;line-height:1.2;margin:8px 0 4px}
 .grafico svg{display:block}
 .grafico figcaption{color:var(--suave);font-size:.75rem}
 .botao{display:inline-block;background:var(--cor);color:var(--cor-texto);font-weight:700;text-decoration:none;padding:10px 16px;border-radius:8px}
+.resumo{display:flex;gap:14px;background:var(--cartao);border:1px solid var(--borda);border-radius:12px;padding:14px}
+.resumo img{width:88px;height:88px;flex:none;border-radius:8px;object-fit:contain;background:#fff}
+.resumo div{min-width:0}
+.resumo h3{font-size:1.0625rem;line-height:1.3;margin:0 0 4px;overflow-wrap:anywhere}
+.resumo h3 a{color:var(--texto)}
+.resumo p{margin:0}
+.resumo .data{margin:0 0 4px}
 .fim{margin:24px 0 0}
 .fim h2{font-size:1.25rem;margin:0 0 6px}
 .fim p{margin:0}
 .chamada{margin:24px 0 0;padding:14px;border:1px dashed var(--borda);border-radius:12px}
 a{color:var(--cor)}
 footer{color:var(--suave);font-size:.8125rem;border-top:1px solid var(--borda);margin-top:24px}
-@media (max-width:520px){.cartao{flex-direction:column}.cartao img{width:100%;height:180px}.semimagem{display:none}}
+@media (max-width:520px){.cartao{flex-direction:column}.cartao img{width:100%;height:180px}.semimagem{display:none}.resumo img{width:64px;height:64px}}
 `;
 
 // ───────────── IA ─────────────
@@ -274,15 +385,82 @@ export async function modelosDoOllama(url: string, fetchFn: Fetch = fetch): Prom
   return (dados.models ?? []).map((m) => m.name ?? '').filter((n) => n && !/embed/i.test(n));
 }
 
-async function pedirAoOllama(url: string, modelo: string, prompt: string, fetchFn: Fetch): Promise<string> {
-  const resposta = await fetchFn(`${url}/api/generate`, {
+/** Quem escreve: o modelo, como pedir um texto e os limites a respeitar. */
+interface Escritor {
+  modelo: string;
+  pedir(prompt: string): Promise<string>;
+  /** Espera entre um pedido e outro, para respeitar o limite por minuto. */
+  pausaMs: number;
+  /** Teto de textos novos por rodada. O que faltar entra na rodada seguinte. */
+  maxPorRodada: number;
+}
+
+const ENDERECO_DO_GITHUB_MODELS = 'https://models.github.ai/inference/chat/completions';
+
+/** IA gratuita do GitHub (GitHub Models). No GitHub Actions, usa o token do próprio workflow. */
+export async function pedirAoGitHub(token: string, modelo: string, prompt: string, fetchFn: Fetch = fetch): Promise<string> {
+  const resposta = await fetchFn(ENDERECO_DO_GITHUB_MODELS, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ model: modelo, prompt, stream: false, options: { temperature: 0.6, num_predict: 260 } }),
-    signal: AbortSignal.timeout(180_000),
+    headers: { 'content-type': 'application/json', accept: 'application/vnd.github+json', authorization: `Bearer ${token}` },
+    body: JSON.stringify({
+      model: modelo,
+      messages: [
+        { role: 'system', content: 'Você escreve em português do Brasil para um blog de ofertas. Segue as regras à risca e devolve somente o texto pedido.' },
+        { role: 'user', content: prompt },
+      ],
+      temperature: 0.6,
+      max_tokens: 300,
+    }),
+    signal: AbortSignal.timeout(60_000),
   });
-  if (!resposta.ok) throw new Error(`Ollama respondeu ${resposta.status}`);
-  return ((await resposta.json()) as { response?: string }).response ?? '';
+  if (resposta.status === 429) throw new Error('limite gratuito do GitHub Models atingido por agora');
+  if (resposta.status === 401 || resposta.status === 403) throw new Error('o GitHub recusou o token (no workflow, confira a permissão "models: read")');
+  if (!resposta.ok) {
+    const detalhe = await resposta.text().catch(() => '');
+    throw new Error(`GitHub Models respondeu ${resposta.status}${/model/i.test(detalhe) ? ` (o modelo "${modelo}" existe?)` : ''}`);
+  }
+  const dados = (await resposta.json()) as { choices?: Array<{ message?: { content?: string } }> };
+  return dados.choices?.[0]?.message?.content ?? '';
+}
+
+async function prepararEscritor(config: Config, fetchFn: Fetch, avisos: string[]): Promise<Escritor | undefined> {
+  const b = config.blog;
+  if (b.ia === 'ollama') {
+    try {
+      const modelo = b.ollamaModelo || (await modelosDoOllama(b.ollamaUrl, fetchFn))[0];
+      if (!modelo) {
+        avisos.push('O Ollama não tem nenhum modelo instalado. Baixe um (ex.: ollama pull llama3.1) e gere de novo.');
+        return undefined;
+      }
+      return {
+        modelo,
+        pausaMs: 0,
+        maxPorRodada: 30,
+        async pedir(prompt) {
+          const resposta = await fetchFn(`${b.ollamaUrl}/api/generate`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ model: modelo, prompt, stream: false, options: { temperature: 0.6, num_predict: 260 } }),
+            signal: AbortSignal.timeout(180_000),
+          });
+          if (!resposta.ok) throw new Error(`Ollama respondeu ${resposta.status}`);
+          return ((await resposta.json()) as { response?: string }).response ?? '';
+        },
+      };
+    } catch (e) {
+      avisos.push(`IA indisponível (${(e as Error).message}): o Ollama está aberto? Usei o texto padrão.`);
+      return undefined;
+    }
+  }
+  if (b.ia === 'github') {
+    if (!b.githubToken) {
+      avisos.push('BLOG_IA=github, mas não há GITHUB_TOKEN. No GitHub Actions ele vem do próprio workflow; fora dele, crie um token com a permissão "models".');
+      return undefined;
+    }
+    // O plano gratuito aceita poucos pedidos por minuto e por dia; por isso a pausa e o teto por rodada.
+    return { modelo: b.githubModelo, pausaMs: b.githubPausaMs, maxPorRodada: 12, pedir: (prompt) => pedirAoGitHub(b.githubToken, b.githubModelo, prompt, fetchFn) };
+  }
+  return undefined;
 }
 
 const REGRAS_DE_ESCRITA = `Regras:
@@ -291,26 +469,26 @@ const REGRAS_DE_ESCRITA = `Regras:
 - Não cite preços, percentuais de desconto nem prazos.
 - Sem títulos, sem listas, sem emojis, sem aspas. Devolva só o parágrafo.`;
 
-function listaParaPrompt(p: Pagina): string {
-  return p.itens.map((o, i) => `${i + 1}. ${o.titulo.slice(0, 90)}`).join('\n');
+function listaParaPrompt(itens: OfertaAvaliada[]): string {
+  return itens.map((o, i) => `${i + 1}. ${o.titulo.slice(0, 90)}`).join('\n');
 }
 
-function promptDaIntro(p: Pagina): string {
-  return `Você escreve para um blog brasileiro de ofertas. Escreva a introdução do post "${p.titulo}".
+function promptDaIntro(titulo: string, itens: OfertaAvaliada[]): string {
+  return `Você escreve para um blog brasileiro de ofertas. Escreva a introdução do post "${titulo}".
 
 ${REGRAS_DE_ESCRITA}
 
 Produtos do post:
-${listaParaPrompt(p)}`;
+${listaParaPrompt(itens)}`;
 }
 
-function promptDoFim(p: Pagina): string {
-  return `Você escreve para um blog brasileiro de ofertas. Escreva o parágrafo final do post "${p.titulo}", com uma dica prática de como escolher entre os produtos da lista.
+function promptDoFim(titulo: string, itens: OfertaAvaliada[]): string {
+  return `Você escreve para um blog brasileiro de ofertas. Escreva o parágrafo final do post "${titulo}", com uma dica prática de como escolher entre os produtos da lista.
 
 ${REGRAS_DE_ESCRITA}
 
 Produtos do post:
-${listaParaPrompt(p)}`;
+${listaParaPrompt(itens)}`;
 }
 
 function promptDoProduto(o: OfertaAvaliada): string {
@@ -325,7 +503,7 @@ ${REGRAS_DE_ESCRITA}
 ${dados.join('\n')}`;
 }
 
-// ───────────── publicação ─────────────
+// ───────────── publicação pelo PC ─────────────
 
 function rodar(comando: string, args: string[]): Promise<{ codigo: number; saida: string }> {
   return new Promise((resolve) => {
@@ -337,12 +515,13 @@ function rodar(comando: string, args: string[]): Promise<{ codigo: number; saida
 }
 
 /**
- * Publica a pasta do blog com Git (GitHub Pages, Cloudflare Pages etc.).
+ * Publica a pasta do blog com Git, para quem roda o robô no próprio PC.
  * A pasta precisa ser um repositório próprio, já ligado ao remoto.
+ * (No modo nuvem isto não é usado: o GitHub Actions publica direto no GitHub Pages.)
  */
 export async function publicarComGit(pasta: string, mensagem: string): Promise<string> {
   if (!existsSync(join(pasta, '.git'))) {
-    throw new Error(`A pasta "${pasta}" ainda não é um repositório Git. Veja o passo "Publicar o blog" no LEIA-ME.`);
+    throw new Error(`A pasta "${pasta}" ainda não é um repositório Git. Veja "Rodar no PC" no LEIA-ME.`);
   }
   const git = (...args: string[]) => rodar('git', ['-C', pasta, ...args]);
   const add = await git('add', '-A');
@@ -357,112 +536,145 @@ export async function publicarComGit(pasta: string, mensagem: string): Promise<s
 
 // ───────────── geração ─────────────
 
+function paraPost(salvo: PostSalvo): Post | undefined {
+  try {
+    const dados = JSON.parse(salvo.dados) as DadosDoPost;
+    if (!Array.isArray(dados.itens)) return undefined;
+    return { arquivo: salvo.arquivo, dia: salvo.dia, tema: salvo.tema, titulo: salvo.titulo, atualizadoEm: salvo.atualizadoEm, dados };
+  } catch {
+    return undefined;
+  }
+}
+
+function diaMenos(agora: Date, dias: number): string {
+  return diaDe(new Date(agora.getTime() - dias * 86_400_000));
+}
+
+const pausaPadrao: Esperar = (ms) => new Promise((r) => setTimeout(r, ms));
+
 /**
- * Monta os posts "Top N" a partir dos produtos guardados pelo robô e grava o site na pasta do blog.
+ * Atualiza os posts de hoje (um geral e um por categoria com ofertas suficientes), apaga os que passaram
+ * do prazo e grava o site inteiro na pasta do blog: posts, página inicial, categorias, arquivo, sitemap e feed.
  * Com a IA ligada, ela escreve a abertura, um parágrafo por produto e o fechamento de cada post.
  */
-export async function gerarBlog(banco: Banco, config: Config, agora: Date = new Date(), fetchFn: Fetch = fetch): Promise<ResultadoDoBlog> {
+export async function gerarBlog(banco: Banco, config: Config, agora: Date = new Date(), fetchFn: Fetch = fetch, esperar: Esperar = pausaPadrao): Promise<ResultadoDoBlog> {
   const b = config.blog;
-  const resultado: ResultadoDoBlog = { gerou: false, pasta: b.pasta, paginas: [], produtos: 0, textosDeIA: 0, avisos: [] };
+  const resultado: ResultadoDoBlog = { gerou: false, pasta: b.pasta, paginas: [], postsDeHoje: 0, postsNoAr: 0, produtos: 0, textosDeIA: 0, avisos: [] };
+  const hoje = diaDe(agora);
   const valido = (o: OfertaAvaliada) => Boolean(urlSegura(o.link));
 
-  const paginas: Pagina[] = [];
+  // 1. Quais posts o dia de hoje tem.
+  const rascunhos: Array<{ arquivo: string; tema: string; titulo: string; itens: OfertaAvaliada[] }> = [];
   const gerais = banco.melhoresProdutos({ horas: HORAS_DE_VALIDADE, limite: 40 }, agora).filter(valido);
   const nGeral = tamanhoDoTop(gerais.length);
-  if (nGeral === 0) {
-    resultado.avisos.push('Ainda não há ofertas recentes suficientes (mínimo de 3). O blog anterior foi mantido.');
-    return resultado;
-  }
-  paginas.push({ arquivo: 'index.html', titulo: `Top ${nGeral} ofertas de hoje`, rotulo: 'Todas', itens: gerais.slice(0, nGeral), tema: 'várias categorias' });
-
-  for (const { categoria } of banco.categoriasRecentes(HORAS_DE_VALIDADE, agora)) {
-    if (!/^[a-z0-9-]+$/.test(categoria)) continue;
-    const itens = banco.melhoresProdutos({ horas: HORAS_DE_VALIDADE, limite: 20, categoria }, agora).filter(valido);
-    const n = tamanhoDoTop(itens.length);
-    if (n === 0) continue;
-    const nome = NOME_DA_CATEGORIA[categoria] ?? categoria;
-    paginas.push({ arquivo: `ofertas-${categoria}.html`, titulo: `Top ${n} ofertas de ${nome} hoje`, rotulo: nome, itens: itens.slice(0, n), tema: nome });
-  }
-
-  // Prepara a IA. Qualquer falha aqui só desliga a IA nesta rodada; o blog sai do mesmo jeito.
-  let modelo: string | undefined;
-  if (b.ia === 'ollama') {
-    try {
-      modelo = b.ollamaModelo || (await modelosDoOllama(b.ollamaUrl, fetchFn))[0];
-      if (!modelo) resultado.avisos.push('O Ollama não tem nenhum modelo instalado. Baixe um (ex.: ollama pull llama3.1) e gere de novo.');
-    } catch (e) {
-      resultado.avisos.push(`IA indisponível (${(e as Error).message}): o Ollama está aberto? Usei o texto padrão.`);
+  if (nGeral > 0) {
+    rascunhos.push({ arquivo: `post-${hoje}-ofertas-do-dia.html`, tema: TEMA_GERAL, titulo: `Top ${nGeral} ofertas do dia ${dataBr(hoje)}`, itens: gerais.slice(0, nGeral) });
+    for (const { categoria } of banco.categoriasRecentes(HORAS_DE_VALIDADE, agora)) {
+      if (!/^[a-z0-9-]+$/.test(categoria)) continue;
+      const itens = banco.melhoresProdutos({ horas: HORAS_DE_VALIDADE, limite: 20, categoria }, agora).filter(valido);
+      const n = tamanhoDoTop(itens.length);
+      if (n === 0) continue;
+      rascunhos.push({ arquivo: `post-${hoje}-${categoria}.html`, tema: categoria, titulo: `Top ${n} ofertas de ${nomeDoTema(categoria)} em ${dataBr(hoje)}`, itens: itens.slice(0, n) });
     }
+  } else {
+    resultado.avisos.push('Ainda não há ofertas recentes suficientes para um post novo hoje (mínimo de 3).');
   }
-  let restantes = MAX_TEXTOS_POR_RODADA;
-  let avisouLimite = false;
 
-  /** Texto salvo, se ainda valer; senão pede à IA e guarda. undefined = sem texto de IA para este trecho. */
+  // 2. A IA escreve o que ainda não foi escrito. Qualquer falha só desliga a IA nesta rodada.
+  let escritor = rascunhos.length ? await prepararEscritor(config, fetchFn, resultado.avisos) : undefined;
+  let pedidos = 0;
+  let avisouLimite = false;
   const escrever = async (chave: string, validadeEmDias: number, prompt: () => string): Promise<string | undefined> => {
-    if (b.ia !== 'ollama') return undefined;
+    if (b.ia === 'nenhuma') return undefined;
     const salvo = banco.textoSalvo(chave, validadeEmDias, agora);
     if (salvo) return salvo;
-    if (!modelo) return undefined;
-    if (restantes <= 0) {
-      if (!avisouLimite) resultado.avisos.push(`A IA escreveu ${MAX_TEXTOS_POR_RODADA} textos nesta rodada; os que faltam entram na próxima.`);
+    if (!escritor) return undefined;
+    if (pedidos >= escritor.maxPorRodada) {
+      if (!avisouLimite) resultado.avisos.push(`A IA escreveu ${pedidos} textos nesta rodada; os que faltam entram na próxima.`);
       avisouLimite = true;
       return undefined;
     }
-    restantes--;
     try {
-      const texto = limparTextoDeIA(await pedirAoOllama(b.ollamaUrl, modelo, prompt(), fetchFn));
+      if (pedidos > 0 && escritor.pausaMs > 0) await esperar(escritor.pausaMs);
+      pedidos++;
+      const texto = limparTextoDeIA(await escritor.pedir(prompt()));
       if (!texto) return undefined;
       banco.salvarTexto(chave, texto, agora);
       resultado.textosDeIA++;
-      resultado.modeloDeIA = modelo;
+      resultado.modeloDeIA = escritor.modelo;
       return texto;
     } catch (e) {
-      // Sem o Ollama no ar, o blog sai com o texto padrão. Não insiste no resto desta rodada.
-      resultado.avisos.push(`IA indisponível (${(e as Error).message}); usei o texto padrão.`);
-      modelo = undefined;
+      resultado.avisos.push(`IA indisponível (${(e as Error).message}); usei o texto padrão no que faltava.`);
+      escritor = undefined;
       return undefined;
     }
   };
 
-  mkdirSync(b.pasta, { recursive: true });
-
-  for (const p of paginas) {
-    // A abertura e o fechamento valem enquanto o post tiver os mesmos produtos; mudou a lista, a IA reescreve.
-    const lista = createHash('sha1').update(p.itens.map(idDe).sort().join('|')).digest('hex').slice(0, 12);
-    const introDeIA = await escrever(`post:${p.arquivo}:${lista}:intro`, DIAS_DO_TEXTO_DE_POST, () => promptDaIntro(p));
-    const porProduto = new Map<string, string>();
-    for (const o of p.itens) {
+  for (const r of rascunhos) {
+    // A abertura e o fechamento são reescritos quando a lista muda de tamanho (Top 3 → 5 → 10) ao longo do dia.
+    const introDeIA = await escrever(`post:${r.arquivo}:${r.itens.length}:intro`, DIAS_DO_TEXTO_DE_POST, () => promptDaIntro(r.titulo, r.itens));
+    const itens: ItemDoPost[] = [];
+    for (const o of r.itens) {
       const texto = await escrever(`produto:${idDe(o)}`, DIAS_DO_TEXTO_DE_PRODUTO, () => promptDoProduto(o));
-      if (texto) porProduto.set(idDe(o), texto);
+      itens.push({ ...o, texto, grafico: banco.historicoDiario(o.loja, o.idProduto, DIAS_DO_GRAFICO, agora) });
     }
-    const fim = await escrever(`post:${p.arquivo}:${lista}:fim`, DIAS_DO_TEXTO_DE_POST, () => promptDoFim(p));
-    const textos: TextosDoPost = { intro: introDeIA ?? introPadrao(p), fim, porProduto, temIA: Boolean(introDeIA || fim || porProduto.size) };
-
-    writeFileSync(join(b.pasta, p.arquivo), montarPagina(p, paginas, textos, config, banco, agora), 'utf8');
-    resultado.paginas.push(p.arquivo);
+    const fim = await escrever(`post:${r.arquivo}:${r.itens.length}:fim`, DIAS_DO_TEXTO_DE_POST, () => promptDoFim(r.titulo, r.itens));
+    const dados: DadosDoPost = { itens, intro: introDeIA ?? introPadrao(r.tema, r.itens), fim, temIA: Boolean(introDeIA || fim || itens.some((i) => i.texto)) };
+    banco.salvarPost({ arquivo: r.arquivo, dia: hoje, tema: r.tema, titulo: r.titulo, dados: JSON.stringify(dados), atualizadoEm: agora.getTime() });
   }
+  // Um post de hoje cuja categoria ficou sem ofertas suficientes continua no ar como estava.
+  resultado.postsDeHoje = rascunhos.length;
 
-  // Remove páginas de categorias que deixaram de ter ofertas, para não ficar oferta velha no ar.
+  // 3. Posts que passaram do prazo saem do ar.
+  banco.removerPostsAntesDe(diaMenos(agora, b.diasNoAr));
+
+  // 4. Grava o site inteiro a partir do que está guardado.
+  const posts = banco.postsSalvos().map(paraPost).filter((p): p is Post => p !== undefined);
+  const temasComPost = new Set(posts.map((p) => p.tema));
+  const temas = [TEMA_GERAL, ...Object.keys(NOME_DA_CATEGORIA)].filter((t) => temasComPost.has(t));
+  for (const t of temasComPost) if (!temas.includes(t)) temas.push(t);
+  const site: Site = { config, posts, hoje, agora, temas };
+
+  mkdirSync(b.pasta, { recursive: true });
+  const gravar = (arquivo: string, html: string) => {
+    writeFileSync(join(b.pasta, arquivo), html, 'utf8');
+    resultado.paginas.push(arquivo);
+  };
+  for (const post of posts) gravar(post.arquivo, paginaDoPost(site, post));
+  for (const tema of temas) gravar(`categoria-${tema}.html`, paginaDoTema(site, tema));
+  gravar('arquivo.html', paginaDoArquivo(site));
+  gravar('index.html', paginaInicial(site));
+  gravar('404.html', moldura(site, { arquivo: '404.html', titulo: 'Página não encontrada', descricao: 'Página não encontrada.', corpo: '  <h1>Página não encontrada</h1>\n  <p class="intro">Este post pode ter saído do ar. <a href="index.html">Veja as ofertas mais recentes</a>.</p>' }));
+
+  // Remove páginas que não existem mais (posts vencidos, categorias vazias, formato antigo), para não ficar oferta velha no ar.
   for (const arquivo of readdirSync(b.pasta)) {
-    if (/^ofertas-[a-z0-9-]+\.html$/.test(arquivo) && !resultado.paginas.includes(arquivo)) unlinkSync(join(b.pasta, arquivo));
+    if (/^(post|categoria|ofertas)-[a-z0-9-]+\.html$/.test(arquivo) && !resultado.paginas.includes(arquivo)) unlinkSync(join(b.pasta, arquivo));
   }
 
   writeFileSync(join(b.pasta, 'estilo.css'), ESTILO, 'utf8');
   writeFileSync(join(b.pasta, '.nojekyll'), '', 'utf8');
   if (b.url) {
-    const urls = paginas.map((p) => `  <url><loc>${esc(`${b.url}/${p.arquivo === 'index.html' ? '' : p.arquivo}`)}</loc><lastmod>${agora.toISOString()}</lastmod><changefreq>daily</changefreq></url>`);
+    const endereco = (arquivo: string) => `${b.url}/${arquivo === 'index.html' ? '' : arquivo}`;
+    const noMapa = resultado.paginas.filter((a) => a !== '404.html');
+    const urls = noMapa.map((a) => {
+      const post = posts.find((p) => p.arquivo === a);
+      return `  <url><loc>${esc(endereco(a))}</loc><lastmod>${new Date(post ? post.atualizadoEm : agora.getTime()).toISOString()}</lastmod></url>`;
+    });
     writeFileSync(join(b.pasta, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join('\n')}\n</urlset>\n`, 'utf8');
     writeFileSync(join(b.pasta, 'robots.txt'), `User-agent: *\nAllow: /\nSitemap: ${b.url}/sitemap.xml\n`, 'utf8');
+    const itensDoFeed = posts.slice(0, 30).map((p) => `  <item><title>${esc(p.titulo)}</title><link>${esc(endereco(p.arquivo))}</link><guid>${esc(endereco(p.arquivo))}</guid><pubDate>${new Date(p.atualizadoEm).toUTCString()}</pubDate><description>${esc(encurtar(p.dados.intro, 300))}</description></item>`);
+    writeFileSync(join(b.pasta, 'feed.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<rss version="2.0"><channel>\n  <title>${esc(b.nome)}</title><link>${esc(`${b.url}/`)}</link><description>${esc(`${b.nome}: ofertas do dia`)}</description><language>pt-BR</language>\n${itensDoFeed.join('\n')}\n</channel></rss>\n`, 'utf8');
   } else {
-    resultado.avisos.push('BLOG_URL está vazio: o sitemap não foi criado. Preencha depois de publicar.');
+    resultado.avisos.push('BLOG_URL está vazio: o sitemap e o feed não foram criados. Preencha depois de publicar.');
   }
 
   resultado.gerou = true;
-  resultado.produtos = new Set(paginas.flatMap((p) => p.itens.map(idDe))).size;
+  resultado.postsNoAr = posts.length;
+  resultado.produtos = new Set(posts.filter((p) => p.dia === hoje).flatMap((p) => p.dados.itens.map(idDe))).size;
 
   if (b.publicar === 'git') {
     try {
-      resultado.publicacao = await publicarComGit(b.pasta, `Atualiza ofertas (${dataPorExtenso(agora)})`);
+      resultado.publicacao = await publicarComGit(b.pasta, `Atualiza ofertas (${dataEHora(agora.getTime())})`);
     } catch (e) {
       resultado.avisos.push((e as Error).message);
     }
