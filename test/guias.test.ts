@@ -115,10 +115,10 @@ test('gemini: pede no formato compatível, com a chave, e explica recusas', asyn
     visto = { url, auth: init.headers.authorization, corpo: JSON.parse(init.body) };
     return new Response(JSON.stringify({ choices: [{ message: { content: 'Texto do Gemini' } }] }), { status: 200 });
   }) as unknown as typeof fetch;
-  assert.equal(await pedirAoGemini('CHAVE', 'gemini-2.5-flash', 'oi', ok), 'Texto do Gemini');
+  assert.equal(await pedirAoGemini('CHAVE', 'gemini-3.8-flash', 'oi', ok), 'Texto do Gemini');
   assert.match(visto.url, /generativelanguage\.googleapis\.com\/v1beta\/openai\/chat\/completions/);
   assert.equal(visto.auth, 'Bearer CHAVE');
-  assert.equal(visto.corpo.model, 'gemini-2.5-flash');
+  assert.equal(visto.corpo.model, 'gemini-3.8-flash');
   const recusa = (async () => new Response('{"error":"API key not valid"}', { status: 400 })) as unknown as typeof fetch;
   await assert.rejects(pedirAoGemini('x', 'm', 'oi', recusa), /GEMINI_API_KEY/);
 });

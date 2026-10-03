@@ -52,6 +52,8 @@ export interface Config {
     /** Chave gratuita do Google Gemini (aistudio.google.com). Fica nos Secrets como GEMINI_API_KEY. */
     geminiChave: string;
     geminiModelo: string;
+    /** Modelo usado quando o principal está sobrecarregado. */
+    geminiReserva: string;
     publicar: 'nao' | 'git';
     /** Link do canal do Telegram mostrado no blog. */
     telegramLink: string;
@@ -183,7 +185,8 @@ export function lerConfig(env: Env = process.env): Config {
       githubModelo: (env.GITHUB_MODELO ?? '').trim() || 'openai/gpt-4o-mini',
       githubPausaMs: numero(env, 'GITHUB_PAUSA_MS', 4500),
       geminiChave: (env.GEMINI_API_KEY ?? '').trim(),
-      geminiModelo: (env.GEMINI_MODELO ?? '').trim() || 'gemini-2.5-flash',
+      geminiModelo: (env.GEMINI_MODELO ?? '').trim() || 'gemini-3.8-flash',
+      geminiReserva: (env.GEMINI_RESERVA ?? '').trim() || 'gemini-3.1-flash-lite',
       publicar: opcao(env, 'BLOG_PUBLICAR', ['nao', 'git'] as const, 'nao'),
       telegramLink: (env.BLOG_TELEGRAM ?? '').trim() || (chatId.startsWith('@') ? `https://t.me/${chatId.slice(1)}` : ''),
     },

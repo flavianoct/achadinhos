@@ -566,7 +566,20 @@ export async function pedirAoGitHub(token: string, modelo: string, prompt: strin
 }
 
 /** IA gratuita do Google (Gemini), pelo endereço compatível com o formato OpenAI. */
-export async function pedirAoGemini(chave: string, modelo: string, prompt: string, fetchFn: Fetch = fetch): Promise<string> {
+export async function pedirAoGemini(chave: string, modelo: string, prompt: string, fetchFn: Fetch = fetch, esperaMs = 4000): Promise<string> {
+  // Erro 503/500 é falta de capacidade momentânea do Google: espera e tenta de novo (até 3 vezes).
+  for (let tentativa = 1; ; tentativa++) {
+    try {
+      return await pedirAoGeminiUmaVez(chave, modelo, prompt, fetchFn);
+    } catch (e) {
+      const passageiro = /respondeu (500|502|503|504)/.test((e as Error).message);
+      if (!passageiro || tentativa >= 3) throw e;
+      await new Promise((r) => setTimeout(r, esperaMs * tentativa));
+    }
+  }
+}
+
+async function pedirAoGeminiUmaVez(chave: string, modelo: string, prompt: string, fetchFn: Fetch): Promise<string> {
   let resposta: Response;
   try {
     resposta = await fetchFn('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', {
@@ -634,7 +647,15 @@ async function prepararEscritor(config: Config, fetchFn: Fetch, avisos: string[]
       avisos.push('BLOG_IA=gemini, mas falta o segredo GEMINI_API_KEY (chave grátis em aistudio.google.com).');
       return undefined;
     }
-    return { modelo: b.geminiModelo, pausaMs: b.githubPausaMs, maxPorRodada: 25, pedir: (prompt) => pedirAoGemini(b.geminiChave, b.geminiModelo, prompt, fetchFn) };
+    return { modelo: b.geminiModelo, pausaMs: b.githubPausaMs, maxPorRodada: 25, pedir: async (prompt) => {
+        try {
+          return await pedirAoGemini(b.geminiChave, b.geminiModelo, prompt, fetchFn);
+        } catch (e) {
+          // Se o modelo principal está sobrecarregado ou saiu do ar, tenta o reserva antes de desistir.
+          if (!b.geminiReserva || b.geminiReserva === b.geminiModelo || /limite gratuito|recusou/.test((e as Error).message)) throw e;
+          return await pedirAoGemini(b.geminiChave, b.geminiReserva, prompt, fetchFn);
+        }
+      } };
   }
   if (b.ia === 'github') {
     if (!b.githubToken) {
