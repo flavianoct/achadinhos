@@ -43,9 +43,20 @@ export function paginaDaBio(ofertas: OfertaAvaliada[], config: Config, agora: Da
   const nome = config.blog.nome;
   const blog = https(config.blog.url ? `${config.blog.url}/` : undefined);
   const telegram = https(config.blog.telegramLink);
+  // O canal do Telegram é o destino principal: quem entra recebe cada oferta na hora, sem depender do Instagram.
+  const chamada = telegram
+    ? `<section class="chamada">
+    <p class="chamada-titulo">As melhores ofertas chegam primeiro no Telegram</p>
+    <p class="chamada-texto">Entre no canal grátis e receba o aviso na hora. Os preços baixos costumam acabar rápido.</p>
+    <a class="telegram" href="${esc(telegram)}" target="_blank" rel="noopener">Entrar no canal do Telegram</a>
+    <p class="chamada-mini">Grátis. Você pode sair quando quiser.</p>
+  </section>`
+    : '';
+  const chamadaFinal = telegram
+    ? `<a class="telegram final" href="${esc(telegram)}" target="_blank" rel="noopener">Quero receber as ofertas no Telegram</a>`
+    : '';
   const botoes: string[] = [];
-  if (blog) botoes.push(`<a class="atalho" href="${esc(blog)}">Ver o blog com todas as ofertas</a>`);
-  if (telegram) botoes.push(`<a class="atalho claro" href="${esc(telegram)}" target="_blank" rel="noopener">Entrar no canal do Telegram</a>`);
+  if (blog) botoes.push(`<a class="atalho claro" href="${esc(blog)}">Ver o blog com todas as ofertas e guias</a>`);
 
   const cartoes = ofertas
     .map((o) => {
@@ -81,6 +92,10 @@ export function paginaDaBio(ofertas: OfertaAvaliada[], config: Config, agora: Da
 main{max-width:520px;margin:0 auto;padding:22px 16px 48px}
 h1{font-size:22px;margin:0 0 4px;text-align:center}.sub{text-align:center;color:var(--mut);font-size:14px;margin:0 0 18px}
 .atalho{display:block;text-align:center;background:var(--ac);color:#fff;text-decoration:none;font-weight:700;padding:15px 16px;border-radius:14px;margin:0 0 10px}
+.chamada{background:var(--ac);color:#fff;border-radius:16px;padding:18px 16px;text-align:center;margin:0 0 6px}
+.chamada-titulo{font-size:19px;font-weight:800;line-height:1.25;margin:0 0 6px}.chamada-texto{font-size:14px;margin:0 0 14px;opacity:.95}.chamada-mini{font-size:12px;margin:8px 0 0;opacity:.85}
+.telegram{display:block;text-align:center;background:#fff;color:#1d4fd7;text-decoration:none;font-weight:800;font-size:17px;padding:15px 16px;border-radius:12px}
+.telegram.final{background:var(--ac);color:#fff;margin:16px 0 10px}
 .atalho.claro{background:var(--card);color:var(--ac);border:2px solid var(--ac)}
 h2{font-size:17px;margin:26px 0 10px}
 ul{list-style:none;margin:0;padding:0}
@@ -100,9 +115,11 @@ ul{list-style:none;margin:0;padding:0}
 <main>
   <h1>${esc(nome)}</h1>
   <p class="sub">Ofertas de hoje, com o preço do momento</p>
-  ${botoes.join('\n  ')}
+  ${chamada}
   <h2>Ofertas em destaque</h2>
   ${cartoes ? `<ul>\n${cartoes}\n</ul>` : vazio}
+  ${chamadaFinal}
+  ${botoes.join('\n  ')}
   <p class="nota">Publi: os links são de afiliado e o site pode ganhar uma comissão, sem custo extra para você. Preços e estoque podem mudar a qualquer momento. Atualizado em ${esc(atualizado)}.</p>
 </main>
 </body>

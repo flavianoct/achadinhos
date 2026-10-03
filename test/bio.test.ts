@@ -15,6 +15,8 @@ test('bio: página leva botões do blog e do Telegram, ofertas com link de afili
   assert.match(h, /href="https:\/\/flavianoct\.github\.io\/achadinhos\/"/);
   assert.match(h, /href="https:\/\/t\.me\/topfera_achadinhos"/);
   assert.match(h, /matt_word=topfera/);
+  assert.match(h, /Entrar no canal do Telegram/);
+  assert.equal(h.split('href="https://t.me/topfera_achadinhos"').length - 1, 2, 'chamada para o Telegram no topo e no fim');
   assert.match(h, /Publi:/);
   assert.match(h, /noindex/);
   assert.ok(!h.includes('<b>Elétrica'), 'título é escapado');
@@ -24,5 +26,5 @@ test('bio: sem ofertas mostra aviso amigável e ignora links que não são https
   const h = paginaDaBio([], config, new Date());
   assert.match(h, /estão chegando/);
   const semBlog = paginaDaBio([], lerConfig({}), new Date());
-  assert.ok(!semBlog.includes('class="atalho"'));
+  assert.ok(!semBlog.includes('Entrar no canal do Telegram'));
 });
