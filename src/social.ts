@@ -40,6 +40,12 @@ export function nomeDoCanal(config: Config): string {
   return m ? `@${m[1]}` : config.blog.nome;
 }
 
+/** Endereço do blog sem "https://" (ex.: flavianoct.github.io/achadinhos). Sem blog publicado, usa o canal. */
+export function enderecoDoBlog(config: Config): string {
+  const url = (config.blog.url || '').replace(/^https?:\/\//, '').replace(/\/+$/, '');
+  return url || nomeDoCanal(config);
+}
+
 function titulosCurto(titulo: string, max = 70): string {
   const limpo = titulo.replace(/\s+/g, ' ').trim();
   if (limpo.length <= max) return limpo;
@@ -58,7 +64,7 @@ export function montarLegenda(o: OfertaAvaliada, config: Config): string {
   if (o.freteGratis) linhas.push('🚚 Frete grátis');
   if (o.nota && o.nota > 0) linhas.push(`⭐ ${o.nota.toFixed(1).replace('.', ',')}${o.vendas ? ` · ${formatarVendas(o.vendas)} vendidos` : ''}`);
   linhas.push('');
-  linhas.push(`👉 Link no canal do Telegram ${nomeDoCanal(config)} (está na bio)`);
+  linhas.push(`👉 Todas as ofertas no blog, link na bio: ${enderecoDoBlog(config)}`);
   linhas.push('');
   linhas.push('Publi: link de afiliado. O preço pode mudar a qualquer momento.');
   linhas.push('');
@@ -74,7 +80,7 @@ export function montarRoteiro(o: OfertaAvaliada, config: Config): string {
     `0 a 3 s (gancho, mostre o produto): "Olha esse achado: ${titulosCurto(o.titulo, 45)}!"`,
     `3 a 8 s (mostre em uso ou de perto): "${o.nota ? `Nota ${o.nota.toFixed(1).replace('.', ',')}` : 'Bem avaliado'}${o.vendas ? ` e ${formatarVendas(o.vendas)} vendidos` : ''}${o.freteGratis ? ', com frete grátis' : ''}."`,
     `8 a 12 s (texto grande na tela): "${preco}, ${desc}"`,
-    `12 a 15 s (chamada): "Link no canal do Telegram, na minha bio. Corre que o preço muda!" (texto na tela: ${nomeDoCanal(config)})`,
+    `12 a 15 s (chamada): "Todas as ofertas no blog, link na minha bio. Corre que o preço muda!" (texto na tela: ${enderecoDoBlog(config)})`,
     'Dica: escreva "publi" ou "link de afiliado" na legenda.',
   ].join('\n');
 }
@@ -109,7 +115,6 @@ export function montarSvgDoStory(o: OfertaAvaliada, imagem: string | undefined, 
   const titulo = quebrarTexto(o.titulo, 34, 2);
   const temDe = Boolean(o.precoOriginal && o.precoOriginal > o.preco);
   const desc = o.desconto && o.desconto > 0 ? Math.round(o.desconto) : 0;
-  const canal = nomeDoCanal(config);
   const foto = imagem
     ? `<image href="${imagem}" x="130" y="400" width="820" height="820" preserveAspectRatio="xMidYMid meet"/>`
     : `<text x="540" y="830" font-size="64" text-anchor="middle" fill="#98a2b3">Oferta do dia</text>`;
@@ -127,7 +132,7 @@ ${temDe ? `<text x="540" y="1478" font-size="44" fill="#cbd5e1" text-anchor="mid
 <text x="540" y="1648" font-size="150" font-weight="700" fill="#ffd34d" text-anchor="middle">${esc(formatarPreco(o.preco))}</text>
 ${o.freteGratis ? `<rect x="390" y="1684" width="300" height="60" rx="30" fill="#12805c"/><text x="540" y="1725" font-size="34" font-weight="700" fill="#ffffff" text-anchor="middle">FRETE GRÁTIS</text>` : ''}
 <rect x="140" y="1768" width="800" height="92" rx="46" fill="#ffffff"/>
-<text x="540" y="1827" font-size="40" font-weight="700" fill="#1b1f27" text-anchor="middle">Link no canal ${esc(canal)}</text>
+<text x="540" y="1827" font-size="40" font-weight="700" fill="#1b1f27" text-anchor="middle">Ofertas no link da bio</text>
 <text x="540" y="1895" font-size="26" fill="#cbd5e1" text-anchor="middle">Publi · link de afiliado · preço pode mudar</text>
 </svg>`;
 }
@@ -137,7 +142,6 @@ export function montarSvgDoFeed(o: OfertaAvaliada, imagem: string | undefined, c
   const titulo = quebrarTexto(o.titulo, 36, 2);
   const temDe = Boolean(o.precoOriginal && o.precoOriginal > o.preco);
   const desc = o.desconto && o.desconto > 0 ? Math.round(o.desconto) : 0;
-  const canal = nomeDoCanal(config);
   const foto = imagem
     ? `<image href="${imagem}" x="190" y="170" width="700" height="600" preserveAspectRatio="xMidYMid meet"/>`
     : `<text x="540" y="490" font-size="60" text-anchor="middle" fill="#98a2b3">Oferta do dia</text>`;
@@ -155,7 +159,7 @@ ${temDe ? `<text x="540" y="980" font-size="38" fill="#cbd5e1" text-anchor="midd
 <text x="540" y="1120" font-size="124" font-weight="700" fill="#ffd34d" text-anchor="middle">${esc(formatarPreco(o.preco))}</text>
 ${o.freteGratis ? `<rect x="400" y="1146" width="280" height="52" rx="26" fill="#12805c"/><text x="540" y="1183" font-size="30" font-weight="700" fill="#ffffff" text-anchor="middle">FRETE GRÁTIS</text>` : ''}
 <rect x="140" y="1215" width="800" height="84" rx="42" fill="#ffffff"/>
-<text x="540" y="1269" font-size="36" font-weight="700" fill="#1b1f27" text-anchor="middle">Link no canal ${esc(canal)}</text>
+<text x="540" y="1269" font-size="36" font-weight="700" fill="#1b1f27" text-anchor="middle">Ofertas no link da bio</text>
 <text x="540" y="1334" font-size="24" fill="#cbd5e1" text-anchor="middle">Publi · link de afiliado · preço pode mudar</text>
 </svg>`;
 }

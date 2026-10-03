@@ -23,7 +23,7 @@ O robô publica no Instagram uma foto de feed (com legenda) e um Story (sem lege
 - No máximo **1 foto de feed por rodada** e até **3 por dia**, **6 Stories por dia**, só no horário de postagem. Ajustável em `INSTAGRAM_FEED_POR_DIA` e `INSTAGRAM_STORIES_POR_DIA`.
 - A oferta de maior pontuação sai primeiro. Cada oferta sai uma vez.
 - A imagem só é enviada à Meta depois de estar no ar no site, então a primeira publicação acontece na rodada seguinte à da oferta.
-- Story pela API não aceita link nem legenda: o link fica na bio (o canal do Telegram).
+- Story pela API não aceita link nem legenda. Na bio do Instagram vai o seu gerenciador de links, com estes botões: **Ofertas de hoje** (https://flavianoct.github.io/achadinhos/bio.html, página que o robô atualiza a cada rodada com as últimas ofertas e os links de afiliado), **Blog** (https://flavianoct.github.io/achadinhos) e **Telegram** (https://t.me/topfera_achadinhos). A legenda e a arte dizem "ofertas no link da bio".
 
 ## Manutenção
 

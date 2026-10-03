@@ -69,11 +69,15 @@ test('nuvem: rodadas seguidas coletam, postam sem repetir, escrevem o blog com I
   const publico = readFileSync(join(pasta, 'blog', 'status.json'), 'utf8') + readFileSync(join(pasta, 'blog', 'whatsapp.json'), 'utf8');
   for (const segredo of ['123:abc', 'segredo', 'token-do-workflow']) assert.ok(!publico.includes(segredo), `status público não pode conter ${segredo}`);
   assert.match(readFileSync(join(pasta, 'blog', 'painel.html'), 'utf8'), /noindex/);
+  const bio = readFileSync(join(pasta, 'blog', 'bio.html'), 'utf8');
+  assert.match(bio, /noindex/);
+  assert.match(bio, /Ver oferta na/, 'a página do link da bio lista as ofertas postadas');
+  assert.match(bio, /rel="sponsored nofollow noopener"/);
   const social = JSON.parse(readFileSync(join(pasta, 'blog', 'social.json'), 'utf8'));
   assert.equal(social.itens.length, 2, 'cada oferta postada ganha conteúdo de Story e Reels');
   assert.match(social.itens[0].svg, /^<svg[^>]+1080/);
   assert.match(social.itens[0].svg, /data:image\/png;base64,/, 'a foto do produto vai embutida na arte');
-  assert.match(social.itens[0].legenda, /Link no canal do Telegram @canal_teste|Link no canal do Telegram Blog/);
+  assert.match(social.itens[0].legenda, /Todas as ofertas no blog, link na bio: fulano\.github\.io\/achadinhos/);
   assert.match(social.itens[0].legenda, /#publi/);
   assert.match(social.itens[0].roteiro, /0 a 3 s/);
 

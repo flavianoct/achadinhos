@@ -128,3 +128,13 @@ test('gemini: pede no formato compatível, com a chave, e explica recusas', asyn
   const recusa = (async () => new Response('{"error":"API key not valid"}', { status: 400 })) as unknown as typeof fetch;
   await assert.rejects(pedirAoGemini('x', 'm', 'oi', recusa), /GEMINI_API_KEY/);
 });
+
+test('texto da IA cortado no meio da frase é aparado ou descartado', async () => {
+  const { limparTextoDeIA, terminaBem } = await import('../src/blog.ts');
+  assert.equal(limparTextoDeIA('O aparelho é indicado para quem precisa de um celular com 12 GB de'), undefined);
+  assert.equal(
+    limparTextoDeIA('Este celular é indicado para quem busca bateria que dura o dia todo e tela grande. Ele também traz câmera de 50 MP e conectividade'),
+    'Este celular é indicado para quem busca bateria que dura o dia todo e tela grande.',
+  );
+  assert.ok(terminaBem('Frase completa.') && !terminaBem('Frase pela metade de'));
+});

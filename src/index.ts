@@ -6,6 +6,7 @@ import { Robo } from './robo.ts';
 import { publicarControle, type DadosDaRodada } from './exportar.ts';
 import { publicarNoInstagram } from './instagram.ts';
 import { gravarPngs, prepararSocial } from './social.ts';
+import { gravarBio } from './bio.ts';
 import { PublicadorDeTeste } from './telegram.ts';
 
 const pausa = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -112,6 +113,8 @@ async function modoNuvem(): Promise<void> {
     for (const a of ig.avisos) dizer(`- Aviso do Instagram: ${a}`);
     rodada.instagram = ig;
     publicarControle(robo.banco, robo.config, rodada, new Date());
+    const naBio = gravarBio(robo.banco, robo.config, new Date());
+    if (robo.config.blog.url) dizer(`- Página do link da bio: ${robo.config.blog.url}/bio.html (${naBio} ofertas).`);
     if (artes) dizer(`- Redes sociais: ${artes} artes de Story novas.`);
     if (robo.config.whatsapp.ativo) dizer(`- WhatsApp: ${robo.banco.mensagensDoWhatsapp(12, new Date()).length} mensagens na fila do enviador.`);
   } catch (e) {

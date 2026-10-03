@@ -13,7 +13,11 @@ const oferta: OfertaAvaliada = {
 test('social: legenda leva preço, canal, aviso de publi e hashtags da categoria', () => {
   const l = montarLegenda(oferta, config);
   assert.match(l, /De R\$ 80,00 por R\$ 34,41 \(-57%\)/);
-  assert.match(l, /@topfera_achadinhos/);
+  assert.match(l, /link na bio/);
+  assert.match(l, /@topfera_achadinhos/); // sem blog publicado, cai no canal
+  const comBlog = { ...config, blog: { ...config.blog, url: 'https://flavianoct.github.io/achadinhos/' } };
+  assert.match(montarLegenda(oferta, comBlog), /flavianoct\.github\.io\/achadinhos(?!\/)/);
+  assert.ok(!montarLegenda(oferta, comBlog).includes('https://'));
   assert.match(l, /Publi: link de afiliado/);
   assert.match(l, /#cozinha/);
   assert.ok(!l.includes('https://exemplo/x'), 'link não vai na legenda, só na bio');
