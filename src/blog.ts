@@ -347,19 +347,25 @@ ${linhas.join('\n')}
 /** Os "campeões" do guia (custo-benefício, mais vendido, melhor avaliado...), para o leitor decidir em dez segundos. */
 function melhoresEscolhas(itens: ItemDoPost[]): string {
   const rotulos = ['Melhor custo-benefício', 'Mais vendido', 'Melhor avaliado', 'Mais barato da lista'];
-  const cartoes: string[] = [];
+  // Um produto que ganha vários selos aparece uma vez só, com todos eles.
+  const grupos: Array<{ item: ItemDoPost; selos: string[] }> = [];
   for (const rotulo of rotulos) {
     const o = itens.find((i) => (i.destaques ?? []).includes(rotulo));
     if (!o) continue;
+    const grupo = grupos.find((g) => g.item === o);
+    if (grupo) grupo.selos.push(rotulo);
+    else grupos.push({ item: o, selos: [rotulo] });
+  }
+  if (grupos.length === 0) return '';
+  const cartoes = grupos.map(({ item: o, selos }) => {
     const imagem = urlSegura(o.imagem);
-    cartoes.push(`<li class="escolha">
-    <span class="escolha-rotulo">${esc(rotulo)}</span>
+    return `<li class="escolha">
+    <span class="escolha-selos">${selos.map((r) => `<span class="escolha-rotulo">${esc(r)}</span>`).join('')}</span>
     ${imagem ? `<img src="${esc(imagem)}" alt="" width="72" height="72" loading="lazy" decoding="async" referrerpolicy="no-referrer">` : ''}
     <a class="escolha-nome" href="${esc(o.link)}" target="_blank" rel="sponsored nofollow noopener">${esc(encurtar(o.titulo, 70))}</a>
     <span class="escolha-preco">${formatarPreco(o.preco)}</span>
-  </li>`);
-  }
-  if (cartoes.length === 0) return '';
+  </li>`;
+  });
   return `<h2 class="secao">Em resumo: nossas escolhas</h2>\n  <ul class="escolhas">\n  ${cartoes.join('\n  ')}\n  </ul>\n  `;
 }
 
@@ -624,7 +630,8 @@ h2{line-height:1.25}
 .resumo .data{margin:0 0 4px;font-size:.8rem}
 .escolhas{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr));gap:12px}
 .escolha{display:flex;flex-direction:column;gap:6px;background:var(--cartao);border:1px solid var(--borda);border-radius:var(--raio);padding:14px;box-shadow:var(--sombra)}
-.escolha-rotulo{align-self:flex-start;font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--cor-forte);background:var(--cor-suave);padding:3px 9px;border-radius:999px}
+.escolha-selos{display:flex;flex-wrap:wrap;gap:6px}
+.escolha-rotulo{font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--cor-forte);background:var(--cor-suave);padding:3px 9px;border-radius:999px}
 .escolha img{width:72px;height:72px;object-fit:contain;background:#fff;border-radius:8px;border:1px solid var(--borda)}
 .escolha-nome{color:var(--texto);font-weight:600;font-size:.92rem;line-height:1.35;text-decoration:none;overflow-wrap:anywhere}
 .escolha-nome:hover{color:var(--cor-forte)}
@@ -663,6 +670,11 @@ VERSAO_DO_ESTILO = createHash('sha1').update(ESTILO).digest('hex').slice(0, 8);
 // ───────────── IA ─────────────
 
 /** Limpa o texto devolvido pelo modelo. Devolve undefined se ele não servir. */
+/** O texto termina como uma frase de verdade? */
+export function terminaBem(t: string): boolean {
+  return /[.!?…]["”')]?$/.test(t.trim());
+}
+
 export function limparTextoDeIA(bruto: string): string | undefined {
   let t = bruto
     .replace(/<think>[\s\S]*?<\/think>/gi, '')
@@ -671,6 +683,12 @@ export function limparTextoDeIA(bruto: string): string | undefined {
     .trim()
     .replace(/^["“”']+|["“”']+$/g, '');
   if (t.length < 40) return undefined;
+  // Texto cortado no meio da frase: aproveita até a última frase completa ou descarta.
+  if (!terminaBem(t)) {
+    const fim = Math.max(t.lastIndexOf('. '), t.lastIndexOf('! '), t.lastIndexOf('? '));
+    if (fim < 60) return undefined;
+    t = t.slice(0, fim + 1);
+  }
   // O modelo não recebe preços; se citar preço ou percentual, inventou. Melhor ficar sem o texto.
   if (/R\$|\d\s?%|\d+\s?reais/i.test(t)) return undefined;
   if (t.length > 520) {
@@ -1018,8 +1036,8 @@ export async function gerarBlog(banco: Banco, config: Config, agora: Date = new 
   const escrever = async (chave: string, validadeEmDias: number, prompt: () => string): Promise<string | undefined> => {
     if (b.ia === 'nenhuma') return undefined;
     const salvo = banco.textoSalvo(chave, validadeEmDias, agora);
-    if (salvo) return salvo;
-    if (!escritor) return undefined;
+    if (salvo && terminaBem(salvo)) return salvo; // texto antigo cortado no meio é refeito
+    if (!escritor) return salvo && terminaBem(salvo) ? salvo : undefined;
     if (pedidos >= escritor.maxPorRodada) {
       if (!avisouLimite) resultado.avisos.push(`A IA escreveu ${pedidos} textos nesta rodada; os que faltam entram na próxima.`);
       avisouLimite = true;
