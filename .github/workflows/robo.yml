@@ -1,0 +1,104 @@
+name: Robô de ofertas
+
+on:
+  schedule:
+    # A cada meia hora (o GitHub pode atrasar alguns minutos).
+    - cron: '7,37 * * * *'
+  # Permite rodar na hora pelo botão "Run workflow" da aba Actions.
+  workflow_dispatch:
+
+permissions:
+  contents: write   # guardar o banco de dados no ramo "dados"
+  pages: write      # publicar o blog
+  id-token: write   # exigido pela publicação no GitHub Pages
+  models: read      # IA gratuita do GitHub, que escreve os posts
+
+# Nunca duas rodadas ao mesmo tempo: a segunda espera a primeira terminar.
+concurrency:
+  group: robo
+  cancel-in-progress: false
+
+jobs:
+  rodar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: github-pages
+      url: ${{ steps.publicar.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Recuperar o banco de dados
+        run: |
+          if git ls-remote --exit-code --heads origin dados >/dev/null; then
+            git fetch --depth=1 origin dados
+            git show FETCH_HEAD:dados.db > dados.db
+            echo "Banco recuperado: $(du -h dados.db | cut -f1)"
+          else
+            codigo=$?
+            # 2 = o ramo ainda não existe (primeira execução). Qualquer outro código é falha de rede:
+            # melhor parar do que começar um banco vazio e apagar o histórico.
+            if [ "$codigo" -ne 2 ]; then
+              echo "Não consegui consultar o ramo de dados (código $codigo)."
+              exit 1
+            fi
+            echo "Primeira execução: banco novo."
+          fi
+
+      - name: Preparar o GitHub Pages
+        id: pages
+        uses: actions/configure-pages@v5
+        # Se o Pages ainda não foi ligado, o robô roda mesmo assim; só o blog não é publicado.
+        continue-on-error: true
+
+      - name: Rodar o robô
+        id: robo
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          SHOPEE_APP_ID: ${{ secrets.SHOPEE_APP_ID }}
+          SHOPEE_SECRET: ${{ secrets.SHOPEE_SECRET }}
+          ML_CLIENT_ID: ${{ secrets.ML_CLIENT_ID }}
+          ML_CLIENT_SECRET: ${{ secrets.ML_CLIENT_SECRET }}
+          ML_MATT_WORD: ${{ secrets.ML_MATT_WORD }}
+          ML_MATT_TOOL: ${{ secrets.ML_MATT_TOOL }}
+          AMAZON_TAG: ${{ secrets.AMAZON_TAG }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BLOG_URL: ${{ steps.pages.outputs.base_url }}
+        run: node --disable-warning=ExperimentalWarning src/index.ts --nuvem
+
+      - name: Guardar o banco de dados
+        # Roda mesmo se o robô terminou com erro, para não perder o que já foi coletado e postado.
+        if: always() && steps.robo.outcome != 'skipped' && hashFiles('dados.db') != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          pasta=$(mktemp -d)
+          cp dados.db "$pasta/"
+          cd "$pasta"
+          git init -q -b dados
+          git config user.name "achadinhos-bot"
+          git config user.email "achadinhos-bot@users.noreply.github.com"
+          git add dados.db
+          git commit -q -m "Banco de dados do robô"
+          # Um único commit, sempre substituído: o histórico do repositório não cresce.
+          git push -q -f "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" dados
+
+      - name: Enviar o blog
+        if: always() && steps.pages.outcome == 'success' && hashFiles('blog/index.html') != ''
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: blog
+
+      - name: Publicar o blog
+        id: publicar
+        if: always() && steps.pages.outcome == 'success' && hashFiles('blog/index.html') != ''
+        uses: actions/deploy-pages@v4
+
+      - name: Aviso sobre o Pages
+        if: always() && steps.pages.outcome != 'success'
+        run: echo "::warning::O blog não foi publicado porque o GitHub Pages ainda não está ligado. Vá em Settings → Pages e escolha Source = GitHub Actions."
