@@ -97,6 +97,14 @@ export class Banco {
         dados TEXT NOT NULL,
         atualizado_em INTEGER NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS whatsapp_saida (
+        chave TEXT PRIMARY KEY,
+        loja TEXT NOT NULL,
+        texto TEXT NOT NULL,
+        imagem TEXT,
+        link TEXT NOT NULL,
+        criado_em INTEGER NOT NULL
+      );
       CREATE TABLE IF NOT EXISTS textos (
         chave TEXT PRIMARY KEY,
         texto TEXT NOT NULL,
@@ -187,6 +195,33 @@ export class Banco {
       .prepare(`SELECT loja, titulo, categoria, preco, postado_em FROM postados ORDER BY postado_em DESC LIMIT ?`)
       .all(limite) as Array<{ loja: string; titulo: string; categoria: string; preco: number; postado_em: number }>;
     return linhas.map((l) => ({ loja: l.loja, titulo: l.titulo, categoria: l.categoria, preco: l.preco, postadoEm: l.postado_em }));
+  }
+
+  /** Mensagens por dia nos últimos `dias` dias (do mais antigo ao de hoje), incluindo dias sem posts. */
+  postsPorDia(dias: number, agora: Date): Array<{ dia: string; posts: number }> {
+    const linhas = this.db.prepare(`SELECT dia, COUNT(*) AS n FROM postados WHERE dia >= ? GROUP BY dia`).all(diasAtras(agora, dias - 1)) as Array<{ dia: string; n: number }>;
+    const porDia = new Map(linhas.map((l) => [l.dia, l.n]));
+    const saida: Array<{ dia: string; posts: number }> = [];
+    for (let i = dias - 1; i >= 0; i--) {
+      const dia = diasAtras(agora, i);
+      saida.push({ dia, posts: porDia.get(dia) ?? 0 });
+    }
+    return saida;
+  }
+
+  /** Guarda a mensagem de WhatsApp de uma oferta já postada. O enviador do PC lê isto pelo arquivo whatsapp.json. */
+  guardarParaWhatsapp(o: OfertaAvaliada, texto: string, agora: Date): void {
+    this.db
+      .prepare(`INSERT OR REPLACE INTO whatsapp_saida (chave, loja, texto, imagem, link, criado_em) VALUES (?, ?, ?, ?, ?, ?)`)
+      .run(`${o.loja}:${o.idProduto}:${agora.getTime()}`, o.loja, texto, o.imagem ?? null, o.link, agora.getTime());
+  }
+
+  /** Mensagens de WhatsApp criadas nas últimas `horas` horas, da mais antiga para a mais nova. */
+  mensagensDoWhatsapp(horas: number, agora: Date): Array<{ chave: string; loja: string; texto: string; imagem?: string; link: string; criadoEm: number }> {
+    const linhas = this.db
+      .prepare(`SELECT chave, loja, texto, imagem, link, criado_em FROM whatsapp_saida WHERE criado_em >= ? ORDER BY criado_em ASC`)
+      .all(agora.getTime() - horas * 3_600_000) as Array<{ chave: string; loja: string; texto: string; imagem: string | null; link: string; criado_em: number }>;
+    return linhas.map((l) => ({ chave: l.chave, loja: l.loja, texto: l.texto, imagem: l.imagem ?? undefined, link: l.link, criadoEm: l.criado_em }));
   }
 
   /** Guarda a última versão de uma oferta boa. O blog lê daqui. */
@@ -306,6 +341,7 @@ export class Banco {
     const t = agora.getTime();
     this.db.prepare(`DELETE FROM precos WHERE dia < ?`).run(diasAtras(agora, 90));
     this.db.prepare(`DELETE FROM postados WHERE postado_em < ?`).run(t - 90 * 86_400_000);
+    this.db.prepare(`DELETE FROM whatsapp_saida WHERE criado_em < ?`).run(t - 2 * 86_400_000);
     this.db.prepare(`DELETE FROM produtos WHERE visto_em < ?`).run(t - 7 * 86_400_000);
     this.db.prepare(`DELETE FROM guia_produtos WHERE visto_em < ?`).run(t - 30 * 86_400_000);
     this.db.prepare(`DELETE FROM textos WHERE criado_em < ? AND chave LIKE 'produto:%'`).run(t - 30 * 86_400_000);

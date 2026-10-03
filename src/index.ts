@@ -3,6 +3,7 @@ import { appendFileSync } from 'node:fs';
 import { FonteSimulada, OFERTAS_SIMULADAS } from './fontes/simulada.ts';
 import { iniciarPainel } from './painel.ts';
 import { Robo } from './robo.ts';
+import { publicarControle, type DadosDaRodada } from './exportar.ts';
 import { PublicadorDeTeste } from './telegram.ts';
 
 const pausa = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -52,6 +53,7 @@ function criarRoboDeDemonstracao(): Robo {
  */
 async function modoNuvem(): Promise<void> {
   const robo = new Robo({ caminhoEnv: 'ajustes.env', modeloEnv: '' });
+  const rodada: DadosDaRodada = { postados: 0 };
   const resumo: string[] = ['## Rodada do robô', ''];
   const dizer = (linha: string) => {
     resumo.push(linha);
@@ -65,6 +67,7 @@ async function modoNuvem(): Promise<void> {
     process.exitCode = 1;
   } else {
     const coleta = await robo.coletarAgora();
+    rodada.coleta = coleta;
     dizer(`- Coleta: ${coleta.coletadas} ofertas vistas, ${coleta.aprovadas} aprovadas.`);
     for (const [fonte, erro] of Object.entries(coleta.errosPorFonte)) dizer(`- **Erro em ${fonte}:** ${erro}`);
     // Se nenhuma loja respondeu, a rodada termina em vermelho para chamar atenção, mas o blog e o banco seguem.
@@ -83,15 +86,26 @@ async function modoNuvem(): Promise<void> {
       }
       postados++;
     }
+    rodada.postados = postados;
+    rodada.parou = motivoDaParada;
     dizer(`- Telegram: ${postados} ofertas postadas${motivoDaParada ? ` (parou por: ${motivoDaParada})` : ''}. Na fila: ${robo.banco.tamanhoDaFila()}.`);
   }
 
   // O blog é gravado mesmo sem chaves: assim o site existe desde a primeira execução.
   if (robo.config.blog.ativo) {
     const blog = await robo.gerarBlogAgora();
+    rodada.blog = blog;
     dizer(`- Blog: ${blog.guias ?? 0} guias, ${blog.postsDeHoje} posts de hoje, ${blog.postsNoAr} no ar${blog.textosDeIA ? `, ${blog.textosDeIA} textos novos da IA (${blog.modeloDeIA})` : ''}.`);
     for (const aviso of blog.avisos) dizer(`- Aviso do blog: ${aviso}`);
     if (robo.config.blog.url) dizer(`- Endereço: ${robo.config.blog.url}`);
+  }
+
+  // Painel, status e fila do WhatsApp vão para a pasta do blog e sobem junto com o site.
+  try {
+    publicarControle(robo.banco, robo.config, rodada, new Date());
+    if (robo.config.whatsapp.ativo) dizer(`- WhatsApp: ${robo.banco.mensagensDoWhatsapp(12, new Date()).length} mensagens na fila do enviador.`);
+  } catch (e) {
+    dizer(`- Aviso: não consegui gravar o painel (${(e as Error).message}).`);
   }
 
   robo.banco.limpar(new Date());

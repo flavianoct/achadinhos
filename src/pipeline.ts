@@ -1,5 +1,6 @@
 import type { Config } from './config.ts';
 import { horaDe, type Banco } from './db.ts';
+import { montarMensagemWhatsapp } from './mensagem.ts';
 import { contemPalavra, normalizar } from './categoria.ts';
 import { avaliar } from './filtro.ts';
 import { elegivelParaGuia, tipoDeGuia } from './guias.ts';
@@ -79,6 +80,8 @@ export async function postarProxima(publicador: Publicador, banco: Banco, config
   }
 
   banco.registrarPost(oferta, agora);
+  // A mesma oferta que saiu no Telegram também vira mensagem de WhatsApp (o enviador do PC é quem posta).
+  if (config.whatsapp.ativo) banco.guardarParaWhatsapp(oferta, montarMensagemWhatsapp(oferta), agora);
   banco.removerDaFila(oferta.loja, oferta.idProduto);
   return { postou: true, oferta };
 }

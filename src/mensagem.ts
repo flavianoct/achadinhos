@@ -56,3 +56,28 @@ export function montarMensagem(o: OfertaAvaliada): string {
   linhas.push(`#${o.categoria} · <i>preço pode mudar a qualquer momento</i>`);
   return linhas.join('\n');
 }
+
+/**
+ * Texto do WhatsApp: formatação própria (*negrito*, ~riscado~, _itálico_) e o link solto,
+ * porque o WhatsApp não tem botão como o Telegram.
+ */
+export function montarMensagemWhatsapp(o: OfertaAvaliada): string {
+  const linhas: string[] = [];
+  linhas.push(`🔥 *${encurtar(o.titulo, 140).replace(/[*_~]/g, '')}*`);
+  linhas.push('');
+  if (o.precoOriginal && o.precoOriginal > o.preco) linhas.push(`~De ${formatarPreco(o.precoOriginal)}~`);
+  const selo = o.desconto && o.desconto > 0 ? ` (-${Math.round(o.desconto)}%)` : '';
+  linhas.push(`💰 *Por ${formatarPreco(o.preco)}*${selo}`);
+  if (o.menorPrecoEmDias) linhas.push(`📉 Menor preço em ${o.menorPrecoEmDias} dias`);
+  if (o.freteGratis) linhas.push('🚚 Frete grátis');
+  const social: string[] = [];
+  if (o.nota && o.nota > 0) social.push(`⭐ ${o.nota.toFixed(1).replace('.', ',')}`);
+  if (o.vendas && o.vendas > 0) social.push(`${formatarVendas(o.vendas)} vendidos`);
+  if (social.length) linhas.push(social.join(' · '));
+  linhas.push(`🏬 ${NOME_DA_LOJA[o.loja] ?? o.loja}`);
+  linhas.push('');
+  linhas.push(`👉 ${o.link}`);
+  linhas.push('');
+  linhas.push('_Preço pode mudar a qualquer momento._');
+  return linhas.join('\n');
+}

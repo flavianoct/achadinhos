@@ -129,3 +129,8 @@ O mesmo robô também roda no seu computador, com um painel no navegador. Precis
 | `npm run checar` | Testa as chaves e sai. |
 | `npm run nuvem` | Uma rodada completa, como o GitHub Actions faz (usa `ajustes.env`). |
 | `npm test` | Testes automáticos. |
+
+## Painel e WhatsApp
+
+- **Painel:** depois de cada rodada o robô publica `painel.html` no seu site (ex.: `.../achadinhos/painel.html`). Mostra fila, posts, erros, ajustes e as mensagens de WhatsApp prontas para copiar. É só leitura; os botões levam ao GitHub (onde só você, logado, altera algo). Não tem senha nem segredo nele.
+- **WhatsApp:** `WHATSAPP_ATIVO=1` (padrão) faz o robô guardar cada oferta postada no Telegram em `whatsapp.json`. Quem posta no WhatsApp é o programa da pasta `enviador/`, no seu PC (veja `enviador/LEIA-ME.txt`). Use `WHATSAPP_ATIVO=0` em `ajustes.env` para desligar.

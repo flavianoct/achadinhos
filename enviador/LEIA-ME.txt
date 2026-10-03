@@ -1,0 +1,30 @@
+ENVIADOR DE WHATSAPP (roda no seu PC)
+=====================================
+O robô no GitHub continua rodando sozinho. Este programa só pega as mensagens
+que o robô deixa prontas (em https://SEU-SITE/whatsapp.json) e posta nos seus
+grupos e no seu canal do WhatsApp.
+
+ANTES DE COMEÇAR
+- Use um chip/número SÓ para isso (não o seu pessoal). Esse tipo de automação
+  não é oficial e o WhatsApp pode banir o número.
+- Crie os grupos com esse número como dono/administrador.
+- Instale o Node.js 20 ou mais novo (nodejs.org), se ainda não tiver.
+
+PRIMEIRO USO
+1. Dê dois cliques em listar-grupos.bat. Na primeira vez ele instala o que
+   precisa e mostra um QR code.
+2. No WhatsApp do número dedicado: Configurações -> Aparelhos conectados ->
+   Conectar um aparelho -> escaneie o QR.
+3. Ele lista seus grupos com um "código" (termina em @g.us). Copie o código.
+4. Abra o arquivo config.json (criado ao rodar) e cole em "destinos", assim:
+     "destinos": [ "1203630000000000@g.us", "https://whatsapp.com/channel/SEU-CANAL" ]
+   (o canal pode ser o link dele; a conta precisa ser dona do canal)
+5. Dê dois cliques em iniciar-enviador.bat e deixe a janela aberta.
+
+COMO ELE SE COMPORTA
+- No máximo 6 mensagens por hora, entre 8h e 22h, com intervalo aleatório de
+  1,5 a 4 minutos entre uma e outra (ajustável no config.json).
+- Mensagens com mais de 3 horas são puladas (preço velho).
+- PC desligado: o WhatsApp pausa; Telegram e blog continuam normais.
+- O login do WhatsApp fica na pasta .achadinhos-enviador do seu usuário, fora
+  deste projeto. NUNCA envie essa pasta para o GitHub.

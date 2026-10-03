@@ -58,6 +58,8 @@ export interface Config {
     /** Link do canal do Telegram mostrado no blog. */
     telegramLink: string;
   };
+  /** Mensagens de WhatsApp para o enviador do PC (ver pasta enviador/). */
+  whatsapp: { ativo: boolean };
   painel: { porta: number };
 }
 
@@ -190,6 +192,7 @@ export function lerConfig(env: Env = process.env): Config {
       publicar: opcao(env, 'BLOG_PUBLICAR', ['nao', 'git'] as const, 'nao'),
       telegramLink: (env.BLOG_TELEGRAM ?? '').trim() || (chatId.startsWith('@') ? `https://t.me/${chatId.slice(1)}` : ''),
     },
+    whatsapp: { ativo: ligado(env, 'WHATSAPP_ATIVO', true) },
     painel: { porta: numero(env, 'PAINEL_PORTA', 3210) },
   };
 }

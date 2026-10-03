@@ -1,0 +1,17 @@
+{
+  "name": "enviador-whatsapp",
+  "version": "0.1.0",
+  "description": "Lê a fila de mensagens do robô e posta nos seus grupos e canal do WhatsApp (roda no seu PC)",
+  "type": "module",
+  "private": true,
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node enviador.mjs",
+    "listar": "node enviador.mjs listar"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "7.0.0-rc14",
+    "pino": "^9.0.0",
+    "qrcode-terminal": "^0.12.0"
+  }
+}

@@ -56,6 +56,20 @@ test('nuvem: rodadas seguidas coletam, postam sem repetir, escrevem o blog com I
   assert.equal(ia.length, 12, 'a IA escreve até o teto da rodada');
   assert.ok(ia.every((c) => c.auth === 'Bearer token-do-workflow' && c.modelo === 'openai/gpt-4o-mini'));
 
+  // Painel e fila do WhatsApp saem junto com o site, sem nenhum segredo.
+  const zap = JSON.parse(readFileSync(join(pasta, 'blog', 'whatsapp.json'), 'utf8'));
+  assert.equal(zap.mensagens.length, 2, 'cada oferta postada no Telegram vira uma mensagem de WhatsApp');
+  assert.match(zap.mensagens[0].texto, /^🔥 \*Fone Bluetooth Modelo 1\*/);
+  assert.ok(zap.mensagens[0].id && zap.mensagens[0].criadoEm && zap.mensagens[0].link);
+  const status = JSON.parse(readFileSync(join(pasta, 'blog', 'status.json'), 'utf8'));
+  assert.equal(status.postsHoje, 2);
+  assert.equal(status.whatsappPendentes, 2);
+  assert.equal(status.canais.telegram, true);
+  assert.equal(status.rodada.postados, 2);
+  const publico = readFileSync(join(pasta, 'blog', 'status.json'), 'utf8') + readFileSync(join(pasta, 'blog', 'whatsapp.json'), 'utf8');
+  for (const segredo of ['123:abc', 'segredo', 'token-do-workflow']) assert.ok(!publico.includes(segredo), `status público não pode conter ${segredo}`);
+  assert.match(readFileSync(join(pasta, 'blog', 'painel.html'), 'utf8'), /noindex/);
+
   const arquivos = readdirSync(join(pasta, 'blog'));
   const postDoDia = arquivos.find((a) => /^post-\d{4}-\d{2}-\d{2}-ofertas-do-dia\.html$/.test(a));
   assert.ok(postDoDia, `post do dia em ${arquivos.join(', ')}`);
