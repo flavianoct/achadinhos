@@ -59,3 +59,10 @@ test('social: foto que falha ou não é imagem é ignorada sem derrubar a rodada
   assert.equal(await baixarImagemComoDataUri('https://x/a.png', (async () => { throw new Error('rede'); }) as typeof fetch), undefined);
   assert.match((await baixarImagemComoDataUri('https://x/a.png', resposta(200, 'image/png', 'abc'))) ?? '', /^data:image\/png;base64,/);
 });
+
+test('social: foto WebP (Mercado Livre) vira JPEG para o conversor de PNG conseguir desenhar', async () => {
+  const { imagemParaPng } = await import('../src/social.ts');
+  assert.equal(await imagemParaPng('data:image/png;base64,AAAA'), 'data:image/png;base64,AAAA');
+  assert.equal(await imagemParaPng(undefined), undefined);
+  assert.equal(await imagemParaPng('data:image/webp;base64,lixo'), undefined);
+});
