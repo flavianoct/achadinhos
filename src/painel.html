@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Painel do Achadinhos Bot</title>
+<style>
+:root{--fundo:#f4f5f7;--cartao:#fff;--texto:#16181d;--suave:#5b6370;--borda:#e0e3e8;--cor:#2f6fed;--cor-texto:#fff;--ok:#0a7d4f;--ok-fundo:#e3f6ec;--alerta:#9a5b00;--alerta-fundo:#fff3d6;--erro:#b3261e;--erro-fundo:#fde8e6}
+@media (prefers-color-scheme:dark){:root{--fundo:#111318;--cartao:#1a1d24;--texto:#eceef2;--suave:#a0a7b4;--borda:#2b303b;--cor:#7aa5ff;--cor-texto:#0d1117;--ok:#51cf8a;--ok-fundo:#12301f;--alerta:#f2c261;--alerta-fundo:#3a2c0c;--erro:#ff8a80;--erro-fundo:#3b1614}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--fundo);color:var(--texto);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.pagina{max-width:1040px;margin:0 auto;padding:20px 16px 48px}
+header{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;margin-bottom:16px}
+h1{font-size:1.375rem;margin:0}
+.pilula{padding:3px 12px;border-radius:999px;font-weight:600;font-size:.8125rem}
+.pilula.rodando{background:var(--ok-fundo);color:var(--ok)}
+.pilula.pausado{background:var(--alerta-fundo);color:var(--alerta)}
+.pilula.configurar{background:var(--erro-fundo);color:var(--erro)}
+.canal{color:var(--suave);font-size:.875rem}
+.aviso{background:var(--alerta-fundo);color:var(--alerta);border-radius:10px;padding:12px 14px;margin-bottom:16px}
+.aviso ul{margin:6px 0 0;padding-left:20px}
+.cartoes{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:16px}
+.cartao{background:var(--cartao);border:1px solid var(--borda);border-radius:12px;padding:14px}
+.cartao .rotulo{color:var(--suave);font-size:.8125rem}
+.cartao .valor{font-size:1.625rem;font-weight:700;line-height:1.2;font-variant-numeric:tabular-nums}
+.cartao .detalhe{color:var(--suave);font-size:.8125rem}
+.acoes{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px}
+button,.botao-link{font:inherit;padding:8px 14px;border-radius:8px;border:1px solid var(--borda);background:var(--cartao);color:var(--texto);cursor:pointer;text-decoration:none;display:inline-block}
+button:hover,.botao-link:hover{border-color:var(--cor)}
+button.principal{background:var(--cor);border-color:var(--cor);color:var(--cor-texto);font-weight:600}
+button:disabled{opacity:.55;cursor:wait}
+button.pequeno{padding:3px 10px;font-size:.8125rem}
+.retorno{min-height:22px;margin-bottom:12px;font-size:.875rem;color:var(--suave);white-space:pre-wrap;overflow-wrap:anywhere}
+.retorno.ok{color:var(--ok)}.retorno.erro{color:var(--erro)}
+.abas{display:flex;flex-wrap:wrap;gap:4px;border-bottom:1px solid var(--borda);margin-bottom:14px}
+.abas button{border:0;border-bottom:3px solid transparent;border-radius:0;background:none;color:var(--suave);padding:8px 12px}
+.abas button[aria-selected=true]{color:var(--texto);border-bottom-color:var(--cor);font-weight:600}
+.rolagem{overflow-x:auto;background:var(--cartao);border:1px solid var(--borda);border-radius:12px}
+table{width:100%;border-collapse:collapse;font-size:.875rem}
+th,td{text-align:left;padding:8px 12px;border-bottom:1px solid var(--borda);vertical-align:top}
+th{color:var(--suave);font-weight:600;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+td.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+td.titulo{min-width:240px;overflow-wrap:anywhere}
+.vazio{padding:20px;color:var(--suave)}
+fieldset{border:1px solid var(--borda);border-radius:12px;background:var(--cartao);margin:0 0 14px;padding:12px 14px 14px}
+legend{font-weight:700;padding:0 6px}
+.campos{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px 16px}
+label{display:block;font-size:.8125rem;color:var(--suave);margin-bottom:3px}
+input,select{font:inherit;width:100%;padding:7px 10px;border-radius:8px;border:1px solid var(--borda);background:var(--fundo);color:var(--texto)}
+.ajuda{font-size:.75rem;color:var(--suave);margin-top:3px}
+.salvar{position:sticky;bottom:0;background:var(--fundo);padding:10px 0;display:flex;gap:12px;align-items:center}
+pre{margin:0;padding:12px;background:var(--cartao);border:1px solid var(--borda);border-radius:12px;font-size:.8125rem;white-space:pre-wrap;overflow-wrap:anywhere;max-height:480px;overflow:auto}
+a{color:var(--cor)}
+.texto{background:var(--cartao);border:1px solid var(--borda);border-radius:12px;padding:14px}
+.texto p{margin:0 0 8px}.texto p:last-child{margin:0}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<div class="pagina">
+  <header>
+    <h1>Achadinhos Bot</h1>
+    <span id="situacao" class="pilula">carregando…</span>
+    <span id="canal" class="canal"></span>
+  </header>
+
+  <div id="aviso" class="aviso" hidden></div>
+
+  <section class="cartoes" aria-label="Resumo">
+    <div class="cartao"><div class="rotulo">Na fila</div><div class="valor" id="c-fila">–</div><div class="detalhe">ofertas aprovadas esperando</div></div>
+    <div class="cartao"><div class="rotulo">Posts hoje</div><div class="valor" id="c-posts">–</div><div class="detalhe" id="c-posts-d"></div></div>
+    <div class="cartao"><div class="rotulo">Próxima coleta</div><div class="valor" id="c-coleta">–</div><div class="detalhe" id="c-coleta-d"></div></div>
+    <div class="cartao"><div class="rotulo">Próximo post</div><div class="valor" id="c-post">–</div><div class="detalhe" id="c-post-d"></div></div>
+  </section>
+
+  <div class="acoes">
+    <button id="b-pausa" class="principal">Pausar</button>
+    <button id="b-coletar">Coletar agora</button>
+    <button id="b-postar">Postar a próxima agora</button>
+    <button id="b-checar">Testar chaves</button>
+  </div>
+  <div id="retorno" class="retorno" role="status"></div>
+
+  <div class="abas" role="tablist">
+    <button role="tab" data-aba="fila" aria-selected="true">Fila</button>
+    <button role="tab" data-aba="postados" aria-selected="false">Postados</button>
+    <button role="tab" data-aba="blog" aria-selected="false">Blog</button>
+    <button role="tab" data-aba="config" aria-selected="false">Configurações</button>
+    <button role="tab" data-aba="registro" aria-selected="false">Registro</button>
+  </div>
+
+  <section id="aba-fila"><div class="rolagem" id="fila"></div></section>
+  <section id="aba-postados" hidden><div class="rolagem" id="postados"></div></section>
+  <section id="aba-blog" hidden>
+    <div class="texto" id="blog-info"></div>
+    <div class="acoes" style="margin-top:12px">
+      <button id="b-blog" class="principal">Gerar blog agora</button>
+      <a id="blog-ver" class="botao-link" href="/blog/" target="_blank" rel="noopener">Ver o blog gerado</a>
+    </div>
+  </section>
+  <section id="aba-config" hidden>
+    <form id="form"></form>
+  </section>
+  <section id="aba-registro" hidden><pre id="registro"></pre></section>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const LOJAS = { shopee: 'Shopee', mercadolivre: 'Mercado Livre', amazon: 'Amazon', simulada: 'Simulada' };
+const reais = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+let estado = null;
+
+function el(tag, props, ...filhos) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(props || {})) {
+    if (k === 'classe') e.className = v;
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+    else if (v !== undefined && v !== false) e.setAttribute(k, v);
+  }
+  for (const f of filhos) if (f !== undefined && f !== null) e.append(f);
+  return e;
+}
+
+async function api(caminho, corpo) {
+  const r = await fetch(caminho, corpo ? { method: 'POST', headers: { 'content-type': 'application/json', 'x-painel': '1' }, body: JSON.stringify(corpo) } : undefined);
+  const d = await r.json();
+  if (!r.ok) throw new Error(d.erro || 'erro');
+  return d;
+}
+
+function retorno(texto, tipo) {
+  const r = $('retorno');
+  r.textContent = texto;
+  r.className = 'retorno' + (tipo ? ' ' + tipo : '');
+}
+
+function falta(ms) {
+  if (ms === undefined) return '–';
+  const s = Math.max(0, Math.round((ms - Date.now()) / 1000));
+  if (s <= 1) return 'agora';
+  const m = Math.floor(s / 60);
+  return m >= 1 ? `${m} min` : `${s} s`;
+}
+
+function hora(ms) {
+  return new Date(ms).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
+function tabela(alvo, colunas, linhas, vazio) {
+  alvo.replaceChildren();
+  if (!linhas.length) return alvo.append(el('div', { classe: 'vazio' }, vazio));
+  const t = el('table', null, el('thead', null, el('tr', null, ...colunas.map((c) => el('th', null, c)))));
+  const corpo = el('tbody');
+  for (const celulas of linhas) corpo.append(el('tr', null, ...celulas));
+  t.append(corpo);
+  alvo.append(t);
+}
+
+function desenhar() {
+  const s = estado;
+  const nomes = { rodando: 'Rodando', pausado: 'Pausado', configurar: 'Falta configurar' };
+  $('situacao').textContent = nomes[s.situacao];
+  $('situacao').className = 'pilula ' + s.situacao;
+  $('canal').textContent = [s.canal, s.lojas.map((l) => LOJAS[l] || l).join(' + ')].filter(Boolean).join(' · ');
+
+  const aviso = $('aviso');
+  aviso.hidden = s.problemas.length === 0;
+  if (s.problemas.length) {
+    aviso.replaceChildren(
+      el('strong', null, 'O robô ainda não está postando. Falta:'),
+      el('ul', null, ...s.problemas.map((p) => el('li', null, p))),
+      el('button', { classe: 'pequeno', onclick: () => abrirAba('config') }, 'Abrir Configurações'),
+    );
+  }
+
+  $('c-fila').textContent = s.fila;
+  $('c-posts').textContent = s.postsHoje;
+  $('c-posts-d').textContent = `limite de ${s.limiteDiario} por dia`;
+  $('c-coleta').textContent = falta(s.proximaColetaEm);
+  $('c-coleta-d').textContent = s.ultimaColeta ? `última: ${s.ultimaColeta.resumo.coletadas} vistas, ${s.ultimaColeta.resumo.aprovadas} aprovadas` : 'ainda não coletou';
+  $('c-post').textContent = s.situacao === 'rodando' && !s.dentroDoHorario ? 'fora do horário' : falta(s.proximoPostEm);
+  $('c-post-d').textContent = `posta das ${s.horario}`;
+  $('b-pausa').textContent = s.situacao === 'pausado' ? 'Retomar' : 'Pausar';
+
+  tabela($('fila'), ['Oferta', 'Loja', 'Categoria', 'Preço', 'Desconto', 'Pontos', ''], s.filaItens.map((o) => [
+    el('td', { classe: 'titulo' }, el('a', { href: o.link, target: '_blank', rel: 'noopener' }, o.titulo)),
+    el('td', null, LOJAS[o.loja] || o.loja),
+    el('td', null, o.categoria),
+    el('td', { classe: 'num' }, reais.format(o.preco)),
+    el('td', { classe: 'num' }, o.desconto ? `-${Math.round(o.desconto)}%` : '–'),
+    el('td', { classe: 'num' }, String(o.pontos)),
+    el('td', null, el('button', { classe: 'pequeno', onclick: () => acao({ acao: 'remover', loja: o.loja, idProduto: o.idProduto }) }, 'Remover')),
+  ]), 'A fila está vazia. As ofertas aprovadas na próxima coleta aparecem aqui.');
+
+  tabela($('postados'), ['Quando', 'Oferta', 'Loja', 'Categoria', 'Preço'], s.posts.map((p) => [
+    el('td', null, hora(p.postadoEm)),
+    el('td', { classe: 'titulo' }, p.titulo),
+    el('td', null, LOJAS[p.loja] || p.loja),
+    el('td', null, p.categoria),
+    el('td', { classe: 'num' }, reais.format(p.preco)),
+  ]), 'Nenhum post ainda.');
+
+  const b = s.blog;
+  const info = $('blog-info');
+  info.replaceChildren(el('p', null, b.ativo ? 'O blog é refeito sozinho. Você também pode gerar na hora.' : 'A geração automática está desligada. Ligue em Configurações, ou gere na hora pelo botão abaixo.'));
+  info.append(el('p', null, b.ia === 'ollama' ? 'Os posts são escritos pela IA local (Ollama).' : 'Os posts usam o texto padrão. Para a IA escrever, escolha "IA local" em Configurações.'));
+  if (b.gerando) info.append(el('p', null, 'Gerando agora… com a IA escrevendo, pode levar alguns minutos.'));
+  if (b.ultimo) {
+    const r = b.ultimo.resultado;
+    info.append(el('p', null, r.gerou ? `Última geração: ${hora(b.ultimo.em)} — ${r.paginas.length} posts, ${r.produtos} produtos${r.textosDeIA ? `, ${r.textosDeIA} textos novos escritos pela IA (${r.modeloDeIA})` : ''}${r.publicacao ? ` — ${r.publicacao}` : ''}.` : `Última tentativa: ${hora(b.ultimo.em)} — não gerou.`));
+    for (const a of r.avisos) info.append(el('p', null, 'Aviso: ' + a));
+  }
+  info.append(el('p', null, `Pasta: ${b.pasta}`, b.url ? ' · Endereço: ' : '', b.url ? el('a', { href: b.url, target: '_blank', rel: 'noopener' }, b.url) : ''));
+
+  const reg = $('registro');
+  const noFim = reg.scrollTop + reg.clientHeight >= reg.scrollHeight - 8;
+  reg.textContent = s.registro.join('\n') || 'Sem registros ainda.';
+  if (noFim) reg.scrollTop = reg.scrollHeight;
+}
+
+async function atualizar() {
+  try {
+    estado = await api('/api/estado');
+    desenhar();
+  } catch (e) {
+    $('situacao').textContent = 'Sem conexão com o robô';
+    $('situacao').className = 'pilula configurar';
+  }
+}
+
+async function acao(corpo, botao, esperando) {
+  if (botao) botao.disabled = true;
+  if (esperando) retorno(esperando);
+  try {
+    const r = await api('/api/acao', corpo);
+    if (corpo.acao === 'checar') retorno(r.linhas.map((l) => (l.ok ? '✓ ' : '✗ ') + l.texto).join('\n'), r.linhas.every((l) => l.ok) ? 'ok' : 'erro');
+    else if (corpo.acao === 'coletar') {
+      const erros = Object.entries(r.resumo.errosPorFonte).map(([f, e]) => `\n✗ ${LOJAS[f] || f}: ${e}`).join('');
+      retorno(`Coleta feita: ${r.resumo.coletadas} ofertas vistas, ${r.resumo.aprovadas} aprovadas.${erros}`, erros ? 'erro' : 'ok');
+    } else if (corpo.acao === 'postar') retorno(r.mensagem, r.ok ? 'ok' : 'erro');
+    else if (corpo.acao === 'blog') retorno(r.ok ? `Blog gerado: ${r.resultado.paginas.length} posts${r.resultado.textosDeIA ? `, ${r.resultado.textosDeIA} textos novos da IA` : ''}.${r.resultado.avisos.length ? '\n' + r.resultado.avisos.join('\n') : ''}` : r.resultado.avisos.join('\n'), r.ok ? 'ok' : 'erro');
+    else retorno('');
+  } catch (e) {
+    retorno('Erro: ' + e.message, 'erro');
+  } finally {
+    if (botao) botao.disabled = false;
+    atualizar();
+  }
+}
+
+function abrirAba(nome) {
+  for (const b of document.querySelectorAll('.abas button')) {
+    const ativa = b.dataset.aba === nome;
+    b.setAttribute('aria-selected', String(ativa));
+    $('aba-' + b.dataset.aba).hidden = !ativa;
+  }
+  if (nome === 'config') carregarConfig();
+}
+
+async function carregarConfig() {
+  const { campos } = await api('/api/config');
+  const form = $('form');
+  form.replaceChildren();
+  const grupos = [...new Set(campos.map((c) => c.grupo))];
+  for (const g of grupos) {
+    const caixa = el('div', { classe: 'campos' });
+    for (const c of campos.filter((x) => x.grupo === g)) {
+      let entrada;
+      if (c.tipo === 'simnao') {
+        const ligado = ['1', 'true', 'sim', 's', 'on'].includes(String(c.valor).toLowerCase());
+        entrada = el('select', { name: c.chave, id: c.chave }, el('option', { value: '1', selected: ligado }, 'Sim'), el('option', { value: '0', selected: !ligado }, 'Não'));
+      } else if (c.tipo === 'opcao') {
+        entrada = el('select', { name: c.chave, id: c.chave }, ...c.opcoes.map((o) => el('option', { value: o.valor, selected: o.valor === c.valor }, o.rotulo)));
+      } else if (c.tipo === 'segredo') {
+        entrada = el('input', { name: c.chave, id: c.chave, type: 'password', autocomplete: 'off', placeholder: c.preenchido ? 'já salvo (em branco = manter)' : 'cole aqui' });
+      } else {
+        entrada = el('input', { name: c.chave, id: c.chave, type: 'text', inputmode: c.tipo === 'numero' ? 'decimal' : undefined, value: c.valor, autocomplete: 'off' });
+      }
+      caixa.append(el('div', null, el('label', { for: c.chave }, c.rotulo), entrada, c.ajuda ? el('div', { classe: 'ajuda' }, c.ajuda) : null));
+    }
+    form.append(el('fieldset', null, el('legend', null, g), caixa));
+  }
+  form.append(el('div', { classe: 'salvar' }, el('button', { classe: 'principal', type: 'submit' }, 'Salvar configurações'), el('span', { id: 'salvo', classe: 'retorno' })));
+}
+
+$('form').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const valores = Object.fromEntries(new FormData(ev.target).entries());
+  const aviso = $('salvo');
+  try {
+    const r = await api('/api/config', { valores });
+    aviso.textContent = r.problemas.length ? 'Salvo. Ainda falta: ' + r.problemas.join(' ') : 'Salvo. O robô já está usando os novos valores.';
+    aviso.className = 'retorno ' + (r.problemas.length ? 'erro' : 'ok');
+    for (const campo of ev.target.querySelectorAll('input[type=password]')) if (campo.value) { campo.value = ''; campo.placeholder = 'já salvo (em branco = manter)'; }
+  } catch (e) {
+    aviso.textContent = 'Não salvou: ' + e.message;
+    aviso.className = 'retorno erro';
+  }
+  atualizar();
+});
+
+for (const b of document.querySelectorAll('.abas button')) b.addEventListener('click', () => abrirAba(b.dataset.aba));
+$('b-pausa').addEventListener('click', (e) => acao({ acao: estado && estado.situacao === 'pausado' ? 'retomar' : 'pausar' }, e.target));
+$('b-coletar').addEventListener('click', (e) => acao({ acao: 'coletar' }, e.target, 'Coletando ofertas… pode levar um minuto.'));
+$('b-postar').addEventListener('click', (e) => acao({ acao: 'postar' }, e.target, 'Postando…'));
+$('b-checar').addEventListener('click', (e) => acao({ acao: 'checar' }, e.target, 'Testando as chaves… pode levar um minuto.'));
+$('b-blog').addEventListener('click', (e) => acao({ acao: 'blog' }, e.target, 'Gerando o blog… com a IA escrevendo, pode levar alguns minutos.'));
+
+atualizar();
+setInterval(atualizar, 4000);
+setInterval(() => { if (estado) { $('c-coleta').textContent = falta(estado.proximaColetaEm); if (!(estado.situacao === 'rodando' && !estado.dentroDoHorario)) $('c-post').textContent = falta(estado.proximoPostEm); } }, 1000);
+</script>
+</body>
+</html>

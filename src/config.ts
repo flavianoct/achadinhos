@@ -1,0 +1,203 @@
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { parseEnv } from 'node:util';
+
+export interface Config {
+  telegram: { token: string; chatId: string };
+  shopee: { ativo: boolean; appId: string; secret: string; palavras: string[]; paginas: number };
+  ml: {
+    ativo: boolean;
+    clientId: string;
+    clientSecret: string;
+    mattWord: string;
+    mattTool: string;
+    categorias: string[];
+    porCategoria: number;
+  };
+  amazon: { ativo: boolean; tag: string };
+  filtro: {
+    descontoMinimo: number;
+    quedaMinima: number;
+    precoMinimo: number;
+    precoMaximo: number;
+    notaMinima: number;
+    vendasMinimas: number;
+    palavrasBloqueadas: string[];
+    diasSemRepetir: number;
+  };
+  ritmo: {
+    minutosEntreColetas: number;
+    minutosEntrePosts: number;
+    horaInicio: number;
+    horaFim: number;
+    maxPostsPorDia: number;
+  };
+  blog: {
+    ativo: boolean;
+    nome: string;
+    /** Endereço público do blog (ex.: https://usuario.github.io/achadinhos). Vazio = ainda não publicado. */
+    url: string;
+    pasta: string;
+    /** De quantas em quantas horas o blog é refeito. */
+    horas: number;
+    ia: 'nenhuma' | 'ollama';
+    ollamaUrl: string;
+    ollamaModelo: string;
+    publicar: 'nao' | 'git';
+    /** Link do canal do Telegram mostrado no blog. */
+    telegramLink: string;
+  };
+  painel: { porta: number };
+}
+
+export type Env = Record<string, string | undefined>;
+
+function lista(valor: string | undefined): string[] {
+  return (valor ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function numero(env: Env, chave: string, padrao: number): number {
+  const bruto = env[chave];
+  if (bruto === undefined || bruto.trim() === '') return padrao;
+  const n = Number(bruto.replace(',', '.'));
+  if (!Number.isFinite(n)) throw new Error(`Valor inválido em ${chave}: "${bruto}" (esperado um número)`);
+  return n;
+}
+
+function ligado(env: Env, chave: string, padrao: boolean): boolean {
+  const bruto = env[chave];
+  if (bruto === undefined || bruto.trim() === '') return padrao;
+  return ['1', 'true', 'sim', 's', 'on'].includes(bruto.trim().toLowerCase());
+}
+
+function opcao<T extends string>(env: Env, chave: string, validas: readonly T[], padrao: T): T {
+  const bruto = (env[chave] ?? '').trim().toLowerCase();
+  if (!bruto) return padrao;
+  if (!(validas as readonly string[]).includes(bruto)) throw new Error(`Valor inválido em ${chave}: "${bruto}" (use: ${validas.join(' ou ')})`);
+  return bruto as T;
+}
+
+/** Lê o arquivo .env. Devolve undefined se ele não existir. */
+export function lerArquivoEnv(caminho = '.env'): Record<string, string> | undefined {
+  if (!existsSync(caminho)) return undefined;
+  return parseEnv(readFileSync(caminho, 'utf8')) as Record<string, string>;
+}
+
+/** Valor pronto para uma linha do .env (com aspas quando necessário). */
+function valorParaEnv(valor: string): string {
+  if (/[\r\n]/.test(valor)) throw new Error('O valor não pode ter quebra de linha.');
+  // Valor simples vai sem aspas; com #, aspas, barra ou espaço nas pontas, vai entre aspas.
+  if (valor === valor.trim() && !/[#'"`\\]/.test(valor)) return valor;
+  if (!valor.includes("'")) return `'${valor}'`;
+  if (!valor.includes('"')) return `"${valor}"`;
+  throw new Error('O valor não pode misturar aspas simples e duplas.');
+}
+
+/**
+ * Grava alterações no .env sem apagar os comentários.
+ * Se o .env ainda não existe, parte do .env.example.
+ */
+export function salvarNoEnv(alteracoes: Record<string, string>, caminho = '.env', modelo = '.env.example'): void {
+  let texto = existsSync(caminho) ? readFileSync(caminho, 'utf8') : existsSync(modelo) ? readFileSync(modelo, 'utf8') : '';
+  const fimDeLinha = texto.includes('\r\n') ? '\r\n' : '\n';
+  const linhas = texto.split(/\r?\n/);
+  for (const [chave, valor] of Object.entries(alteracoes)) {
+    if (!/^[A-Z][A-Z0-9_]*$/.test(chave)) throw new Error(`Nome de ajuste inválido: ${chave}`);
+    const nova = `${chave}=${valorParaEnv(valor)}`;
+    const i = linhas.findIndex((l) => new RegExp(`^\\s*${chave}\\s*=`).test(l));
+    if (i >= 0) linhas[i] = nova;
+    else {
+      if (linhas.length && linhas[linhas.length - 1] === '') linhas.pop();
+      linhas.push(nova, '');
+    }
+  }
+  texto = linhas.join(fimDeLinha);
+  writeFileSync(caminho, texto, 'utf8');
+}
+
+export function lerConfig(env: Env = process.env): Config {
+  const chatId = (env.TELEGRAM_CHAT_ID ?? '').trim();
+  return {
+    telegram: {
+      token: (env.TELEGRAM_BOT_TOKEN ?? '').trim(),
+      chatId,
+    },
+    shopee: {
+      ativo: ligado(env, 'SHOPEE_ATIVO', true),
+      appId: (env.SHOPEE_APP_ID ?? '').trim(),
+      secret: (env.SHOPEE_SECRET ?? '').trim(),
+      palavras: lista(env.SHOPEE_PALAVRAS),
+      paginas: numero(env, 'SHOPEE_PAGINAS', 2),
+    },
+    ml: {
+      ativo: ligado(env, 'ML_ATIVO', false),
+      clientId: (env.ML_CLIENT_ID ?? '').trim(),
+      clientSecret: (env.ML_CLIENT_SECRET ?? '').trim(),
+      mattWord: (env.ML_MATT_WORD ?? '').trim(),
+      mattTool: (env.ML_MATT_TOOL ?? '').trim(),
+      categorias: lista(env.ML_CATEGORIAS ?? 'MLB1648,MLB1051,MLB1000,MLB5726,MLB1574,MLB1144,MLB1246,MLB1276'),
+      porCategoria: numero(env, 'ML_POR_CATEGORIA', 10),
+    },
+    amazon: {
+      ativo: ligado(env, 'AMAZON_ATIVO', false),
+      tag: (env.AMAZON_TAG ?? '').trim(),
+    },
+    filtro: {
+      descontoMinimo: numero(env, 'DESCONTO_MINIMO', 25),
+      quedaMinima: numero(env, 'QUEDA_MINIMA', 10),
+      precoMinimo: numero(env, 'PRECO_MINIMO', 15),
+      precoMaximo: numero(env, 'PRECO_MAXIMO', 5000),
+      notaMinima: numero(env, 'NOTA_MINIMA', 4.5),
+      vendasMinimas: numero(env, 'VENDAS_MINIMAS', 50),
+      palavrasBloqueadas: lista(env.PALAVRAS_BLOQUEADAS ?? 'réplica,replica,usado,recondicionado,erótico'),
+      diasSemRepetir: numero(env, 'DIAS_SEM_REPETIR', 7),
+    },
+    ritmo: {
+      minutosEntreColetas: numero(env, 'MINUTOS_ENTRE_COLETAS', 30),
+      minutosEntrePosts: numero(env, 'MINUTOS_ENTRE_POSTS', 12),
+      horaInicio: numero(env, 'HORA_INICIO', 8),
+      horaFim: numero(env, 'HORA_FIM', 23),
+      maxPostsPorDia: numero(env, 'MAX_POSTS_POR_DIA', 60),
+    },
+    blog: {
+      ativo: ligado(env, 'BLOG_ATIVO', false),
+      nome: (env.BLOG_NOME ?? '').trim() || 'Achadinhos do Dia',
+      url: (env.BLOG_URL ?? '').trim().replace(/\/+$/, ''),
+      pasta: (env.BLOG_PASTA ?? '').trim() || 'blog',
+      horas: numero(env, 'BLOG_HORAS', 6),
+      ia: opcao(env, 'BLOG_IA', ['nenhuma', 'ollama'] as const, 'nenhuma'),
+      ollamaUrl: ((env.OLLAMA_URL ?? '').trim() || 'http://localhost:11434').replace(/\/+$/, ''),
+      ollamaModelo: (env.OLLAMA_MODELO ?? '').trim(),
+      publicar: opcao(env, 'BLOG_PUBLICAR', ['nao', 'git'] as const, 'nao'),
+      telegramLink: (env.BLOG_TELEGRAM ?? '').trim() || (chatId.startsWith('@') ? `https://t.me/${chatId.slice(1)}` : ''),
+    },
+    painel: { porta: numero(env, 'PAINEL_PORTA', 3210) },
+  };
+}
+
+/** Lista o que falta preencher para o robô postar de verdade. Vazio = tudo certo. */
+export function problemasDeConfig(c: Config): string[] {
+  const p: string[] = [];
+  if (!c.telegram.token) p.push('TELEGRAM_BOT_TOKEN está vazio (crie o bot no @BotFather).');
+  if (!c.telegram.chatId) p.push('TELEGRAM_CHAT_ID está vazio (ex.: @seucanal).');
+  if (!c.shopee.ativo && !c.ml.ativo && !c.amazon.ativo) p.push('Nenhuma loja está ativa.');
+  if (c.shopee.ativo && (!c.shopee.appId || !c.shopee.secret)) {
+    p.push('Shopee ativa, mas SHOPEE_APP_ID ou SHOPEE_SECRET estão vazios.');
+  }
+  if (c.ml.ativo) {
+    if (!c.ml.clientId || !c.ml.clientSecret) p.push('Mercado Livre ativo, mas ML_CLIENT_ID ou ML_CLIENT_SECRET estão vazios.');
+    if (!c.ml.mattWord || !c.ml.mattTool) p.push('Mercado Livre ativo, mas ML_MATT_WORD ou ML_MATT_TOOL estão vazios (sem eles o link não leva seu código).');
+  }
+  if (c.amazon.ativo) p.push('A Amazon ainda não coleta ofertas sozinha (fase 2). Deixe AMAZON_ATIVO=0 por enquanto.');
+  if (c.ritmo.horaInicio >= c.ritmo.horaFim) p.push('HORA_INICIO precisa ser menor que HORA_FIM.');
+  return p;
+}
+
+/** Problemas que só afetam o blog (não impedem o robô de postar no Telegram). */
+export function problemasDoBlog(c: Config): string[] {
+  const p: string[] = [];
+  if (c.blog.publicar === 'git' && !c.blog.url) p.push('BLOG_PUBLICAR=git, mas BLOG_URL está vazio (o endereço público do blog).');
+  return p;
+}

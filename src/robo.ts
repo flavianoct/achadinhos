@@ -1,0 +1,257 @@
+import { gerarBlog, modelosDoOllama, type ResultadoDoBlog } from './blog.ts';
+import { lerArquivoEnv, lerConfig, problemasDeConfig, problemasDoBlog, salvarNoEnv, type Config, type Env } from './config.ts';
+import { Banco, horaDe } from './db.ts';
+import { FonteAmazon } from './fontes/amazon.ts';
+import { FonteMercadoLivre } from './fontes/mercadolivre.ts';
+import { FonteShopee } from './fontes/shopee.ts';
+import { coletar, postarProxima, type ResultadoDoPost, type ResumoDaColeta } from './pipeline.ts';
+import { Telegram, type Publicador } from './telegram.ts';
+import type { Fonte, Loja } from './types.ts';
+
+export interface LinhaDeChecagem {
+  ok: boolean;
+  texto: string;
+}
+
+export interface OpcoesDoRobo {
+  caminhoEnv?: string;
+  caminhoBanco?: string;
+  /** Arquivo usado como ponto de partida quando o .env ainda não existe. */
+  modeloEnv?: string;
+  /** Variáveis de ambiente de base; o arquivo .env tem prioridade sobre elas. */
+  envBase?: Env;
+  /** Trocáveis nos testes. */
+  criarFontes?: (config: Config) => Fonte[];
+  criarPublicador?: (config: Config) => Publicador & { checar?: () => Promise<string> };
+  silencioso?: boolean;
+}
+
+function fontesReais(config: Config): Fonte[] {
+  const fontes: Fonte[] = [];
+  if (config.shopee.ativo) fontes.push(new FonteShopee(config.shopee));
+  if (config.ml.ativo) fontes.push(new FonteMercadoLivre(config.ml));
+  if (config.amazon.ativo) fontes.push(new FonteAmazon());
+  return fontes;
+}
+
+/** O robô em si: guarda o estado, respeita o ritmo e expõe as ações usadas pelo painel. */
+export class Robo {
+  config!: Config;
+  env: Env = {};
+  banco: Banco;
+  pausado = false;
+  /** Preenchido quando o .env tem um valor que não dá para ler (ex.: letra onde devia ser número). */
+  erroDeConfig?: string;
+  temArquivoEnv = false;
+  ultimaColeta?: { em: number; resumo: ResumoDaColeta };
+  ultimoBlog?: { em: number; resultado: ResultadoDoBlog };
+  registro: string[] = [];
+
+  private opcoes: OpcoesDoRobo;
+  private fontes: Fonte[] = [];
+  private publicador?: Publicador & { checar?: () => Promise<string> };
+  private coletaEm = 0;
+  private postEm = 0;
+  private blogEm = 0;
+  private trava: Promise<unknown> = Promise.resolve();
+  private blogRodando?: Promise<ResultadoDoBlog>;
+
+  constructor(opcoes: OpcoesDoRobo = {}) {
+    this.opcoes = opcoes;
+    this.banco = new Banco(opcoes.caminhoBanco ?? 'dados.db');
+    this.recarregar();
+  }
+
+  log(msg: string): void {
+    const hora = new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+    const linha = `[${hora}] ${msg}`;
+    this.registro.push(linha);
+    if (this.registro.length > 300) this.registro.splice(0, this.registro.length - 300);
+    if (!this.opcoes.silencioso) console.log(linha);
+  }
+
+  /** Lê o .env de novo e remonta lojas e Telegram. Chamado ao iniciar e depois de salvar no painel. */
+  recarregar(): void {
+    const arquivo = lerArquivoEnv(this.opcoes.caminhoEnv ?? '.env');
+    this.temArquivoEnv = arquivo !== undefined;
+    // O arquivo tem prioridade, mas uma linha vazia ("CHAVE=") não apaga um valor vindo do ambiente.
+    const preenchidos = Object.fromEntries(Object.entries(arquivo ?? {}).filter(([, v]) => v.trim() !== ''));
+    this.env = { ...(this.opcoes.envBase ?? process.env), ...preenchidos };
+    try {
+      this.config = lerConfig(this.env);
+      this.erroDeConfig = undefined;
+    } catch (e) {
+      this.erroDeConfig = (e as Error).message;
+      if (!this.config) this.config = lerConfig({});
+      return;
+    }
+    this.fontes = (this.opcoes.criarFontes ?? fontesReais)(this.config);
+    this.publicador = this.config.telegram.token && this.config.telegram.chatId
+      ? (this.opcoes.criarPublicador ?? ((c) => new Telegram(c.telegram.token, c.telegram.chatId)))(this.config)
+      : undefined;
+  }
+
+  /** O que impede o robô de postar. Vazio = pronto. */
+  problemas(): string[] {
+    return this.erroDeConfig ? [this.erroDeConfig] : problemasDeConfig(this.config);
+  }
+
+  /** Valida e grava alterações de configuração vindas do painel. */
+  salvarConfig(alteracoes: Record<string, string>): void {
+    lerConfig({ ...this.env, ...alteracoes }); // lança erro se algum valor for inválido, antes de gravar
+    salvarNoEnv(alteracoes, this.opcoes.caminhoEnv ?? '.env', this.opcoes.modeloEnv ?? '.env.example');
+    this.recarregar();
+    this.coletaEm = 0; // novas chaves ou filtros valem já na próxima rodada
+    this.log(`configuração salva: ${Object.keys(alteracoes).join(', ')}`);
+  }
+
+  /** Garante que coleta, post e blog nunca rodem ao mesmo tempo. */
+  private emSerie<T>(fn: () => Promise<T>): Promise<T> {
+    const proxima = this.trava.then(fn, fn);
+    this.trava = proxima.catch(() => undefined);
+    return proxima;
+  }
+
+  coletarAgora(agora: Date = new Date()): Promise<ResumoDaColeta> {
+    return this.emSerie(async () => {
+      this.coletaEm = agora.getTime();
+      const resumo = await coletar(this.fontes, this.banco, this.config, agora);
+      this.ultimaColeta = { em: agora.getTime(), resumo };
+      this.log(`coleta: ${resumo.coletadas} ofertas vistas, ${resumo.aprovadas} aprovadas`);
+      for (const [fonte, erro] of Object.entries(resumo.errosPorFonte)) this.log(`ERRO em ${fonte}: ${erro}`);
+      return resumo;
+    });
+  }
+
+  /** `forcar` ignora horário e limite diário (botão "postar agora" do painel). */
+  postarAgora(agora: Date = new Date(), forcar = false): Promise<ResultadoDoPost> {
+    return this.emSerie(async () => {
+      this.postEm = agora.getTime();
+      if (!this.publicador) return { postou: false, motivo: 'erro', detalhe: 'Telegram não configurado' } as ResultadoDoPost;
+      const config: Config = forcar ? { ...this.config, ritmo: { ...this.config.ritmo, horaInicio: 0, horaFim: 24, maxPostsPorDia: Number.MAX_SAFE_INTEGER } } : this.config;
+      const r = await postarProxima(this.publicador, this.banco, config, agora);
+      if (r.postou) this.log(`postado: [${r.oferta.loja}] ${r.oferta.titulo.slice(0, 60)}`);
+      else if (r.motivo === 'erro') this.log(`ERRO ao postar: ${r.detalhe}`);
+      return r;
+    });
+  }
+
+  /**
+   * Gera (e publica) o blog. Roda em paralelo com coleta e posts, porque a IA pode levar minutos
+   * escrevendo; se já houver uma geração em andamento, devolve a mesma em vez de começar outra.
+   */
+  gerarBlogAgora(agora: Date = new Date()): Promise<ResultadoDoBlog> {
+    if (this.blogRodando) return this.blogRodando;
+    this.blogEm = agora.getTime();
+    const config = this.config;
+    this.blogRodando = (async () => {
+      try {
+        const resultado = await gerarBlog(this.banco, config, agora);
+        resultado.avisos.unshift(...problemasDoBlog(config));
+        this.ultimoBlog = { em: agora.getTime(), resultado };
+        const ia = resultado.textosDeIA ? `, ${resultado.textosDeIA} textos novos de IA (${resultado.modeloDeIA})` : '';
+        this.log(resultado.gerou ? `blog: ${resultado.paginas.length} posts, ${resultado.produtos} produtos${ia}${resultado.publicacao ? `, ${resultado.publicacao}` : ''}` : 'blog: não gerado');
+        for (const aviso of resultado.avisos) this.log(`blog: ${aviso}`);
+        return resultado;
+      } finally {
+        this.blogRodando = undefined;
+      }
+    })();
+    return this.blogRodando;
+  }
+
+  removerDaFila(loja: Loja, idProduto: string): void {
+    this.banco.removerDaFila(loja, idProduto);
+  }
+
+  /** Testa cada chave sem postar nada. */
+  async checar(): Promise<LinhaDeChecagem[]> {
+    const linhas: LinhaDeChecagem[] = this.problemas().map((p) => ({ ok: false, texto: p }));
+    if (this.erroDeConfig) return linhas;
+
+    if (this.publicador?.checar) {
+      try {
+        linhas.push({ ok: true, texto: `Telegram: ${await this.publicador.checar()}` });
+      } catch (e) {
+        linhas.push({ ok: false, texto: `Telegram: ${(e as Error).message}` });
+      }
+    }
+    for (const fonte of this.fontes) {
+      if (fonte.nome === 'amazon') continue;
+      try {
+        const ofertas = await fonte.coletar();
+        linhas.push({ ok: ofertas.length > 0, texto: `${fonte.nome}: ${ofertas.length} ofertas recebidas` });
+        if (ofertas[0]) linhas.push({ ok: true, texto: `exemplo de ${fonte.nome}: ${ofertas[0].titulo.slice(0, 70)} — ${ofertas[0].link}` });
+      } catch (e) {
+        linhas.push({ ok: false, texto: `${fonte.nome}: ${(e as Error).message}` });
+      }
+    }
+    if (this.config.blog.ia === 'ollama') {
+      try {
+        const modelos = await modelosDoOllama(this.config.blog.ollamaUrl);
+        const escolhido = this.config.blog.ollamaModelo || modelos[0];
+        if (!escolhido) linhas.push({ ok: false, texto: 'IA do blog: o Ollama está aberto, mas sem nenhum modelo instalado (ex.: ollama pull llama3.1).' });
+        else if (!modelos.includes(escolhido) && !modelos.includes(`${escolhido}:latest`)) linhas.push({ ok: false, texto: `IA do blog: o modelo "${escolhido}" não está instalado. Instalados: ${modelos.join(', ') || 'nenhum'}.` });
+        else linhas.push({ ok: true, texto: `IA do blog: Ollama no ar, usando o modelo ${escolhido}` });
+      } catch (e) {
+        linhas.push({ ok: false, texto: `IA do blog: não consegui falar com o Ollama (${(e as Error).message}). Ele está aberto?` });
+      }
+    }
+    return linhas;
+  }
+
+  /** Um passo do relógio: faz o que estiver na hora de fazer. Chamado a cada poucos segundos. */
+  async tick(agora: Date = new Date()): Promise<void> {
+    if (this.pausado || this.problemas().length > 0) return;
+    const t = agora.getTime();
+    const r = this.config.ritmo;
+    if (t - this.coletaEm >= r.minutosEntreColetas * 60_000) await this.coletarAgora(agora);
+    if (t - this.postEm >= r.minutosEntrePosts * 60_000) await this.postarAgora(agora);
+    if (this.config.blog.ativo && t - this.blogEm >= this.config.blog.horas * 3_600_000) {
+      // Não espera: a IA escrevendo o blog não pode atrasar os posts do Telegram.
+      this.gerarBlogAgora(agora).catch((e) => this.log(`ERRO no blog: ${(e as Error).message}`));
+    }
+  }
+
+  /** Tudo o que o painel mostra. */
+  estado(agora: Date = new Date()) {
+    const r = this.config.ritmo;
+    const hora = horaDe(agora);
+    const problemas = this.problemas();
+    const ativo = !this.pausado && problemas.length === 0;
+    return {
+      agora: agora.getTime(),
+      situacao: problemas.length > 0 ? 'configurar' : this.pausado ? 'pausado' : 'rodando',
+      problemas,
+      temArquivoEnv: this.temArquivoEnv,
+      lojas: this.fontes.map((f) => f.nome),
+      canal: this.config.telegram.chatId,
+      fila: this.banco.tamanhoDaFila(),
+      postsHoje: this.banco.postsNoDia(agora),
+      limiteDiario: r.maxPostsPorDia,
+      dentroDoHorario: hora >= r.horaInicio && hora < r.horaFim,
+      horario: `${r.horaInicio}h às ${r.horaFim}h`,
+      proximaColetaEm: ativo ? Math.max(this.coletaEm + r.minutosEntreColetas * 60_000, agora.getTime()) : undefined,
+      proximoPostEm: ativo ? Math.max(this.postEm + r.minutosEntrePosts * 60_000, agora.getTime()) : undefined,
+      ultimaColeta: this.ultimaColeta,
+      filaItens: this.banco.itensDaFila(40).map((o) => ({
+        loja: o.loja, idProduto: o.idProduto, titulo: o.titulo, preco: o.preco, desconto: o.desconto, pontos: o.pontos, categoria: o.categoria, link: o.link,
+      })),
+      posts: this.banco.ultimosPosts(40),
+      blog: {
+        ativo: this.config.blog.ativo,
+        pasta: this.config.blog.pasta,
+        url: this.config.blog.url,
+        ia: this.config.blog.ia,
+        publicar: this.config.blog.publicar,
+        gerando: this.blogRodando !== undefined,
+        ultimo: this.ultimoBlog,
+      },
+      registro: this.registro.slice(-120),
+    };
+  }
+
+  fechar(): void {
+    this.banco.fechar();
+  }
+}
