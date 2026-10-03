@@ -200,9 +200,10 @@ export async function gravarPngs(banco: Banco, config: Config, agora: Date): Pro
   for (const l of banco.socialRecentes(HORAS_DO_SOCIAL, MAXIMO_DE_ARTES, agora)) {
     if (!l.svg) continue;
     const oferta = JSON.parse(l.dados) as OfertaAvaliada;
-    const story = await renderizarPng(l.svg, 1080);
+    const foto = await imagemParaPng(l.imagem);
+    const story = await renderizarPng(foto === l.imagem ? l.svg : montarSvgDoStory(oferta, foto, config), 1080);
     if (!story) return { gravados, semConversor: true };
-    const feed = await renderizarPng(montarSvgDoFeed(oferta, l.imagem, config), 1080);
+    const feed = await renderizarPng(montarSvgDoFeed(oferta, foto, config), 1080);
     writeFileSync(join(pasta, arquivoDaArte(l.chave, 'story')), story);
     gravados++;
     if (feed) {
@@ -215,6 +216,22 @@ export async function gravarPngs(banco: Banco, config: Config, agora: Date): Pro
 
 const LIMITE_DA_IMAGEM = 400_000;
 
+/**
+ * O conversor de PNG (resvg) não lê WebP, o formato das fotos do Mercado Livre: a foto sumia da arte do Instagram.
+ * Aqui o WebP vira JPEG com o "sharp". Se o sharp não estiver instalado, devolve undefined (a arte sai sem foto, como antes).
+ */
+export async function imagemParaPng(dataUri: string | undefined): Promise<string | undefined> {
+  if (!dataUri || !dataUri.startsWith('data:image/webp')) return dataUri;
+  try {
+    const sharp = (await import('sharp')).default;
+    const entrada = Buffer.from(dataUri.slice(dataUri.indexOf(',') + 1), 'base64');
+    const saida = await sharp(entrada).flatten({ background: '#ffffff' }).jpeg({ quality: 88 }).toBuffer();
+    return `data:image/jpeg;base64,${saida.toString('base64')}`;
+  } catch {
+    return undefined;
+  }
+}
+
 /** Baixa a foto do produto e devolve como data URI; se algo der errado, devolve undefined (a arte sai sem foto). */
 export async function baixarImagemComoDataUri(url: string | undefined, fetchFn: Fetch = fetch): Promise<string | undefined> {
   if (!url || !/^https:\/\//.test(url)) return undefined;
@@ -225,7 +242,7 @@ export async function baixarImagemComoDataUri(url: string | undefined, fetchFn: 
     if (!/^image\/(png|jpe?g|webp)$/.test(tipo)) return undefined;
     const bytes = Buffer.from(await r.arrayBuffer());
     if (!bytes.length || bytes.length > LIMITE_DA_IMAGEM) return undefined;
-    return `data:${tipo};base64,${bytes.toString('base64')}`;
+    return await imagemParaPng(`data:${tipo};base64,${bytes.toString('base64')}`);
   } catch {
     return undefined;
   }
