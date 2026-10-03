@@ -89,7 +89,7 @@ async function modoNuvem(): Promise<void> {
   // O blog é gravado mesmo sem chaves: assim o site existe desde a primeira execução.
   if (robo.config.blog.ativo) {
     const blog = await robo.gerarBlogAgora();
-    dizer(`- Blog: ${blog.postsDeHoje} posts de hoje, ${blog.postsNoAr} no ar${blog.textosDeIA ? `, ${blog.textosDeIA} textos novos da IA (${blog.modeloDeIA})` : ''}.`);
+    dizer(`- Blog: ${blog.guias ?? 0} guias, ${blog.postsDeHoje} posts de hoje, ${blog.postsNoAr} no ar${blog.textosDeIA ? `, ${blog.textosDeIA} textos novos da IA (${blog.modeloDeIA})` : ''}.`);
     for (const aviso of blog.avisos) dizer(`- Aviso do blog: ${aviso}`);
     if (robo.config.blog.url) dizer(`- Endereço: ${robo.config.blog.url}`);
   }

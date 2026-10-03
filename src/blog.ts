@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readdirSync, unlinkSync, writeFileSync } from 'n
 import { join } from 'node:path';
 import type { Config } from './config.ts';
 import { diaDe, type Banco, type PostSalvo } from './db.ts';
+import { escolherParaGuia, perguntasDoGuia, TIPOS_DE_GUIA, type PerguntaFrequente, type ProdutoDoGuia, type TipoDeGuia } from './guias.ts';
 import { formatarPreco, formatarVendas } from './mensagem.ts';
 import type { OfertaAvaliada } from './types.ts';
 
@@ -15,6 +16,10 @@ const DIAS_DO_GRAFICO = 30;
 /** O texto de um produto é reaproveitado por este tempo antes de ser reescrito. */
 const DIAS_DO_TEXTO_DE_PRODUTO = 14;
 const DIAS_DO_TEXTO_DE_POST = 400;
+/** Produto visto há mais que isso não entra no guia (o preço pode ter mudado muito). */
+const DIAS_DE_VALIDADE_NO_GUIA = 14;
+/** O texto de abertura e de fechamento de um guia é reescrito neste intervalo. */
+const DIAS_DO_TEXTO_DE_GUIA = 30;
 /** Tema do post geral do dia (os outros temas são as categorias). */
 const TEMA_GERAL = 'todas';
 
@@ -38,6 +43,8 @@ export interface ResultadoDoBlog {
   pasta: string;
   /** Todos os arquivos HTML gravados nesta rodada. */
   paginas: string[];
+  /** Guias "Melhores X" no ar. */
+  guias?: number;
   /** Posts criados ou atualizados hoje. */
   postsDeHoje: number;
   /** Posts no ar, contando os dos dias anteriores. */
@@ -55,6 +62,25 @@ export interface ResultadoDoBlog {
 interface ItemDoPost extends OfertaAvaliada {
   grafico: Array<{ dia: string; preco: number }>;
   texto?: string;
+  /** Só nos guias: selos calculados dos dados e a data em que o preço foi visto. */
+  destaques?: string[];
+  vistoEm?: number;
+}
+
+interface DadosDoGuia {
+  itens: ItemDoPost[];
+  intro: string;
+  fim?: string;
+  temIA: boolean;
+  ano: string;
+}
+
+interface Guia {
+  arquivo: string;
+  tipo: TipoDeGuia;
+  titulo: string;
+  atualizadoEm: number;
+  dados: DadosDoGuia;
 }
 
 interface DadosDoPost {
@@ -150,12 +176,13 @@ interface Site {
   agora: Date;
   /** Temas que têm pelo menos um post no ar, na ordem do menu. */
   temas: string[];
+  guias: Guia[];
 }
 
 function moldura(site: Site, p: { arquivo: string; titulo: string; descricao: string; corpo: string; imagem?: string; tipo?: string; dadosEstruturados?: unknown; rodapeExtra?: string }): string {
   const b = site.config.blog;
   const canonica = b.url ? `${b.url}/${p.arquivo === 'index.html' ? '' : p.arquivo}` : '';
-  const itensDoMenu: Array<[string, string]> = [['index.html', 'Início'], ...site.temas.map((t): [string, string] => [`categoria-${t}.html`, nomeDoTema(t)]), ['arquivo.html', 'Arquivo']];
+  const itensDoMenu: Array<[string, string]> = [['index.html', 'Início'], ...(site.guias.length ? [['guias.html', 'Guias'] as [string, string]] : []), ...site.temas.map((t): [string, string] => [`categoria-${t}.html`, nomeDoTema(t)]), ['arquivo.html', 'Arquivo']];
   const nav = itensDoMenu.map(([arquivo, rotulo]) => `<a href="${arquivo}"${arquivo === p.arquivo ? ' aria-current="page"' : ''}>${esc(rotulo)}</a>`).join('');
   const tituloCompleto = p.arquivo === 'index.html' ? `${b.nome} — ${p.titulo}` : `${p.titulo} | ${b.nome}`;
   return `<!doctype html>
@@ -198,6 +225,7 @@ function cartaoDoProduto(o: ItemDoPost, posicao: number): string {
   const imagem = urlSegura(o.imagem);
   const selos: string[] = [];
   if (o.desconto && o.desconto > 0) selos.push(`<span class="selo destaque">-${Math.round(o.desconto)}%</span>`);
+  for (const d of o.destaques ?? []) selos.push(`<span class="selo destaque">${esc(d)}</span>`);
   if (o.menorPrecoEmDias) selos.push(`<span class="selo">Menor preço em ${o.menorPrecoEmDias} dias</span>`);
   if (o.freteGratis) selos.push('<span class="selo">Frete grátis</span>');
 
@@ -214,7 +242,7 @@ function cartaoDoProduto(o: ItemDoPost, posicao: number): string {
     <h2>${esc(o.titulo)}</h2>
     <p class="preco">${de}<strong>${formatarPreco(o.preco)}</strong></p>
     ${selos.length ? `<p class="selos">${selos.join(' ')}</p>` : ''}
-    <p class="social">${esc(social.join(' · '))}</p>
+    <p class="social">${esc(social.join(' · '))}${o.vistoEm ? ` · preço visto em ${esc(dataBr(diaDe(new Date(o.vistoEm))))}` : ''}</p>
     ${o.texto ? `<p class="analise">${esc(o.texto)}</p>` : ''}
     ${graficoDePreco(o.grafico ?? [])}
     <a class="botao" href="${esc(o.link)}" target="_blank" rel="sponsored nofollow noopener">Ver oferta na ${esc(loja)}</a>
@@ -253,6 +281,84 @@ ${d.itens.map((o, i) => cartaoDoProduto(o, i + 1)).join('\n')}
   return moldura(site, { arquivo: post.arquivo, titulo: post.titulo, descricao, corpo, imagem: urlSegura(d.itens[0]?.imagem), tipo: 'article', dadosEstruturados, rodapeExtra });
 }
 
+function anoDe(agora: Date): string {
+  return diaDe(agora).slice(0, 4);
+}
+
+function tituloDoGuia(tipo: TipoDeGuia, n: number, ano: string): string {
+  return `Melhores ${tipo.nome} de ${ano}: top ${n} comparados`;
+}
+
+function tabelaComparativa(itens: ItemDoPost[]): string {
+  const linhas = itens.map((o, i) => {
+    const nota = o.nota && o.nota > 0 ? o.nota.toFixed(1).replace('.', ',') : '—';
+    const vendas = o.vendas && o.vendas > 0 ? formatarVendas(o.vendas) : '—';
+    return `<tr><td>${i + 1}</td><td><a href="${esc(o.link)}" target="_blank" rel="sponsored nofollow noopener">${esc(encurtar(o.titulo, 80))}</a></td><td>${formatarPreco(o.preco)}</td><td>${nota}</td><td>${vendas}</td><td>${esc((o.destaques ?? []).join(', ') || '—')}</td></tr>`;
+  });
+  return `<div class="tabela"><table>
+<thead><tr><th>#</th><th>Produto</th><th>Preço</th><th>Nota</th><th>Vendidos</th><th>Destaque</th></tr></thead>
+<tbody>
+${linhas.join('\n')}
+</tbody></table></div>`;
+}
+
+function paginaDoGuia(site: Site, guia: Guia): string {
+  const d = guia.dados;
+  const b = site.config.blog;
+  const atualizado = dataEHora(guia.atualizadoEm);
+  const faq: PerguntaFrequente[] = perguntasDoGuia(guia.tipo, d.itens.length, d.ano);
+  const outros = site.guias.filter((g) => g.arquivo !== guia.arquivo);
+  const relacionados = [...outros.filter((g) => g.tipo.categoria === guia.tipo.categoria), ...outros.filter((g) => g.tipo.categoria !== guia.tipo.categoria)].slice(0, 6);
+  const descricao = encurtar(`${guia.titulo}. Comparamos ${d.itens.length} opções por nota, vendas e preço: ${d.itens.slice(0, 3).map((i) => encurtar(i.titulo, 45)).join('; ')}.`, 300);
+  const dadosEstruturados = {
+    '@context': 'https://schema.org',
+    '@graph': [
+      { '@type': 'Article', headline: guia.titulo, dateModified: new Date(guia.atualizadoEm).toISOString(), author: { '@type': 'Organization', name: b.nome }, publisher: { '@type': 'Organization', name: b.nome } },
+      { '@type': 'ItemList', name: guia.titulo, numberOfItems: d.itens.length, itemListElement: d.itens.map((o, i) => ({ '@type': 'ListItem', position: i + 1, name: o.titulo, url: o.link })) },
+      { '@type': 'FAQPage', mainEntity: faq.map((f) => ({ '@type': 'Question', name: f.pergunta, acceptedAnswer: { '@type': 'Answer', text: f.resposta } })) },
+    ],
+  };
+  const corpo = `  <article>
+  <h1>${esc(guia.titulo)}</h1>
+  <p class="data"><a href="guias.html">Guias de compra</a> · Atualizado em <time datetime="${new Date(guia.atualizadoEm).toISOString()}">${esc(atualizado)}</time> · ${d.itens.length} produtos comparados</p>
+  <p class="intro">${esc(d.intro)}</p>
+  <h2 class="secao">Comparativo rápido</h2>
+  ${tabelaComparativa(d.itens)}
+  <h2 class="secao">Os ${d.itens.length} melhores, em detalhe</h2>
+  <ol class="lista">
+${d.itens.map((o, i) => cartaoDoProduto(o, i + 1)).join('\n')}
+  </ol>
+  <section class="fim"><h2>O que observar antes de comprar</h2><ul>${guia.tipo.criterios.map((c) => `<li>${esc(c)}</li>`).join('')}</ul>${d.fim ? `<p>${esc(d.fim)}</p>` : ''}</section>
+  <section class="faq"><h2>Perguntas frequentes</h2>
+${faq.map((f) => `  <h3>${esc(f.pergunta)}</h3>\n  <p>${esc(f.resposta)}</p>`).join('\n')}
+  </section>
+  ${relacionados.length ? `<section class="fim"><h2>Veja também</h2><ul>${relacionados.map((g) => `<li><a href="${g.arquivo}">${esc(g.titulo)}</a></li>`).join('')}</ul></section>` : ''}
+  </article>`;
+  const rodapeExtra = `<p>Preços vistos pelo nosso robô nas datas indicadas em cada produto. Eles mudam a qualquer momento; vale o preço mostrado na loja.</p>${d.temIA ? '\n  <p>Alguns textos desta página são escritos por inteligência artificial a partir do nome e dos dados de cada produto. Confira os detalhes na página da loja antes de comprar.</p>' : ''}`;
+  return moldura(site, { arquivo: guia.arquivo, titulo: guia.titulo, descricao, corpo, imagem: urlSegura(d.itens[0]?.imagem), tipo: 'article', dadosEstruturados, rodapeExtra });
+}
+
+function cartaoDeGuia(g: Guia): string {
+  const imagem = urlSegura(g.dados.itens[0]?.imagem);
+  return `<li class="resumo">
+  ${imagem ? `<img src="${esc(imagem)}" alt="" width="88" height="88" loading="lazy" referrerpolicy="no-referrer">` : ''}
+  <div>
+    <h3><a href="${g.arquivo}">${esc(g.titulo)}</a></h3>
+    <p class="data">${esc(NOME_DA_CATEGORIA[g.tipo.categoria] ?? g.tipo.categoria)} · ${g.dados.itens.length} produtos · atualizado em ${esc(dataBr(diaDe(new Date(g.atualizadoEm))))}</p>
+  </div>
+</li>`;
+}
+
+function paginaDosGuias(site: Site): string {
+  const b = site.config.blog;
+  const categorias = [...new Set(site.guias.map((g) => g.tipo.categoria))];
+  const blocos = categorias.map((c) => `<h2 class="secao">${esc(NOME_DA_CATEGORIA[c] ?? c)}</h2>\n  <ul class="posts">\n${site.guias.filter((g) => g.tipo.categoria === c).map(cartaoDeGuia).join('\n')}\n  </ul>`);
+  const corpo = `  <h1>Guias de compra</h1>
+  <p class="intro">Comparativos dos melhores produtos de cada tipo, ordenados pela nota de quem comprou, pelas vendas e pelo preço. Atualizados automaticamente.</p>
+  ${blocos.join('\n  ')}`;
+  return moldura(site, { arquivo: 'guias.html', titulo: 'Guias de compra: os melhores produtos comparados', descricao: `${b.nome}: guias com os melhores produtos de cada tipo, comparados por nota, vendas e preço.`, corpo });
+}
+
 function resumoDoPost(post: Post, site: Site): string {
   const imagem = urlSegura(post.dados.itens[0]?.imagem);
   const hoje = post.dia === site.hoje;
@@ -270,18 +376,27 @@ function listaDePosts(posts: Post[], site: Site): string {
   return `<ul class="posts">\n${posts.map((p) => resumoDoPost(p, site)).join('\n')}\n</ul>`;
 }
 
+function secaoDeGuiasDaHome(site: Site): string {
+  const guiasDaHome = site.guias.slice(0, 8);
+  if (guiasDaHome.length === 0) return '';
+  return `<h2 class="secao">Guias de compra</h2>\n  <ul class="posts">\n${guiasDaHome.map(cartaoDeGuia).join('\n')}\n  </ul>\n  <p><a href="guias.html">Ver todos os guias</a></p>\n  `;
+}
+
 function paginaInicial(site: Site): string {
   const b = site.config.blog;
   if (site.posts.length === 0) {
-    return moldura(site, { arquivo: 'index.html', titulo: 'ofertas do dia', descricao: `${b.nome}: as melhores ofertas do dia, com histórico de preço.`, corpo: `  <h1>${esc(b.nome)}</h1>\n  <p class="intro">Os primeiros posts chegam em breve. O robô publica aqui as melhores ofertas de cada dia.</p>` });
+    const guias = secaoDeGuiasDaHome(site);
+    const intro = guias ? 'Comparativos dos melhores produtos de cada tipo. As ofertas do dia chegam em breve.' : 'Os primeiros posts chegam em breve. O robô publica aqui as melhores ofertas de cada dia.';
+    return moldura(site, { arquivo: 'index.html', titulo: 'ofertas do dia', descricao: `${b.nome}: as melhores ofertas do dia, com histórico de preço.`, corpo: `  <h1>${esc(b.nome)}</h1>\n  <p class="intro">${intro}</p>\n  ${guias}` });
   }
   const diaMaisNovo = site.posts[0].dia;
   const recentes = site.posts.filter((p) => p.dia === diaMaisNovo);
   const anteriores = site.posts.filter((p) => p.dia !== diaMaisNovo).slice(0, 24);
   const titulo = diaMaisNovo === site.hoje ? 'Ofertas de hoje' : `Ofertas de ${dataBr(diaMaisNovo)}`;
+  const secaoDeGuias = secaoDeGuiasDaHome(site);
   const corpo = `  <h1>${esc(titulo)}</h1>
   <p class="intro">As melhores ofertas de cada dia em listas Top 3, 5 e 10, escolhidas pelo desconto, pela avaliação de quem comprou e pelo histórico de preços.</p>
-  ${listaDePosts(recentes, site)}
+  ${secaoDeGuias}${listaDePosts(recentes, site)}
   ${anteriores.length ? `<h2 class="secao">Dias anteriores</h2>\n  ${listaDePosts(anteriores, site)}\n  <p><a href="arquivo.html">Ver todos os posts</a></p>` : ''}`;
   return moldura(site, { arquivo: 'index.html', titulo: 'ofertas do dia em listas Top 3, 5 e 10', descricao: encurtar(`${b.nome}: ${recentes.map((p) => p.titulo).join('; ')}.`, 300), corpo, imagem: urlSegura(recentes[0]?.dados.itens[0]?.imagem) });
 }
@@ -352,6 +467,13 @@ h1{font-size:1.75rem;line-height:1.2;margin:8px 0 4px}
 .fim p{margin:0}
 .chamada{margin:24px 0 0;padding:14px;border:1px dashed var(--borda);border-radius:12px}
 a{color:var(--cor)}
+.tabela{overflow-x:auto}
+table{width:100%;border-collapse:collapse;background:var(--cartao);border:1px solid var(--borda);border-radius:12px;font-size:.875rem}
+th,td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--borda);vertical-align:top}
+th{color:var(--suave);font-weight:600}
+.faq h3{font-size:1rem;margin:16px 0 4px}
+.faq p{margin:0}
+.fim ul{margin:0 0 10px;padding-left:20px}
 footer{color:var(--suave);font-size:.8125rem;border-top:1px solid var(--borda);margin-top:24px}
 @media (max-width:520px){.cartao{flex-direction:column}.cartao img{width:100%;height:180px}.semimagem{display:none}.resumo img{width:64px;height:64px}}
 `;
@@ -401,7 +523,7 @@ const ENDERECO_DO_GITHUB_MODELS = 'https://models.github.ai/inference/chat/compl
 export async function pedirAoGitHub(token: string, modelo: string, prompt: string, fetchFn: Fetch = fetch): Promise<string> {
   const resposta = await fetchFn(ENDERECO_DO_GITHUB_MODELS, {
     method: 'POST',
-    headers: { 'content-type': 'application/json', accept: 'application/vnd.github+json', authorization: `Bearer ${token}` },
+    headers: { 'content-type': 'application/json', accept: 'application/vnd.github+json', authorization: `Bearer ${token}`, 'x-github-api-version': '2022-11-28' },
     body: JSON.stringify({
       model: modelo,
       messages: [
@@ -419,7 +541,13 @@ export async function pedirAoGitHub(token: string, modelo: string, prompt: strin
     const detalhe = await resposta.text().catch(() => '');
     throw new Error(`GitHub Models respondeu ${resposta.status}${/model/i.test(detalhe) ? ` (o modelo "${modelo}" existe?)` : ''}`);
   }
-  const dados = (await resposta.json()) as { choices?: Array<{ message?: { content?: string } }> };
+  const corpo = await resposta.text();
+  let dados: { choices?: Array<{ message?: { content?: string } }> };
+  try {
+    dados = JSON.parse(corpo);
+  } catch {
+    throw new Error(`GitHub Models devolveu algo que não é JSON (${resposta.status}): "${corpo.replace(/\s+/g, ' ').slice(0, 120)}"`);
+  }
   return dados.choices?.[0]?.message?.content ?? '';
 }
 
@@ -491,6 +619,24 @@ Produtos do post:
 ${listaParaPrompt(itens)}`;
 }
 
+function promptDaIntroGuia(titulo: string, itens: OfertaAvaliada[]): string {
+  return `Você escreve para um blog brasileiro de comparativos de produtos. Escreva a introdução do guia "${titulo}", explicando em geral o que o leitor deve ter em mente ao comprar esse tipo de produto.
+
+${REGRAS_DE_ESCRITA}
+
+Produtos comparados:
+${listaParaPrompt(itens)}`;
+}
+
+function promptDoFimGuia(titulo: string, itens: OfertaAvaliada[]): string {
+  return `Você escreve para um blog brasileiro de comparativos de produtos. Escreva o parágrafo final do guia "${titulo}", com uma recomendação prática de como decidir entre os produtos comparados conforme o perfil de uso.
+
+${REGRAS_DE_ESCRITA}
+
+Produtos comparados:
+${listaParaPrompt(itens)}`;
+}
+
 function promptDoProduto(o: OfertaAvaliada): string {
   const dados = [`Produto: ${o.titulo.slice(0, 160)}`, `Categoria: ${NOME_DA_CATEGORIA[o.categoria] ?? o.categoria}`, `Loja: ${NOME_DA_LOJA[o.loja] ?? o.loja}`];
   if (o.nota && o.nota > 0) dados.push(`Avaliação dos compradores: ${o.nota.toFixed(1).replace('.', ',')} de 5`);
@@ -546,6 +692,21 @@ function paraPost(salvo: PostSalvo): Post | undefined {
   }
 }
 
+function paraGuia(salvo: { arquivo: string; tipo: string; titulo: string; dados: string; atualizadoEm: number }): Guia | undefined {
+  try {
+    const tipo = TIPOS_DE_GUIA.find((t) => t.slug === salvo.tipo);
+    const dados = JSON.parse(salvo.dados) as DadosDoGuia;
+    if (!tipo || !Array.isArray(dados.itens) || dados.itens.length === 0) return undefined;
+    return { arquivo: salvo.arquivo, tipo, titulo: salvo.titulo, atualizadoEm: salvo.atualizadoEm, dados };
+  } catch {
+    return undefined;
+  }
+}
+
+function introPadraoDoGuia(tipo: TipoDeGuia, itens: OfertaAvaliada[]): string {
+  return `Reunimos ${itens.length} ${tipo.nome} bem avaliados que apareceram nas lojas nos últimos dias (${listarLojas(itens)}). A lista é ordenada pela nota de quem comprou, pelo volume de vendas e pelo preço, e cada produto mostra a data em que o preço foi visto.`;
+}
+
 function diaMenos(agora: Date, dias: number): string {
   return diaDe(new Date(agora.getTime() - dias * 86_400_000));
 }
@@ -580,8 +741,19 @@ export async function gerarBlog(banco: Banco, config: Config, agora: Date = new 
     resultado.avisos.push('Ainda não há ofertas recentes suficientes para um post novo hoje (mínimo de 3).');
   }
 
+  // 1b. Guias "Melhores X": um por tipo de produto que tem itens suficientes no acervo.
+  const ano = anoDe(agora);
+  const guiaRascunhos: Array<{ tipo: TipoDeGuia; arquivo: string; titulo: string; itens: ProdutoDoGuia[] }> = [];
+  for (const { tipo: slug } of banco.tiposComProdutos(DIAS_DE_VALIDADE_NO_GUIA, agora)) {
+    const tipo = TIPOS_DE_GUIA.find((t) => t.slug === slug);
+    if (!tipo) continue;
+    const itens = escolherParaGuia(banco.produtosDoGuia(slug, DIAS_DE_VALIDADE_NO_GUIA, 80, agora), tipo);
+    if (itens.length === 0) continue;
+    guiaRascunhos.push({ tipo, arquivo: `melhores-${slug}.html`, titulo: tituloDoGuia(tipo, itens.length, ano), itens });
+  }
+
   // 2. A IA escreve o que ainda não foi escrito. Qualquer falha só desliga a IA nesta rodada.
-  let escritor = rascunhos.length ? await prepararEscritor(config, fetchFn, resultado.avisos) : undefined;
+  let escritor = rascunhos.length || guiaRascunhos.length ? await prepararEscritor(config, fetchFn, resultado.avisos) : undefined;
   let pedidos = 0;
   let avisouLimite = false;
   const escrever = async (chave: string, validadeEmDias: number, prompt: () => string): Promise<string | undefined> => {
@@ -610,6 +782,19 @@ export async function gerarBlog(banco: Banco, config: Config, agora: Date = new 
     }
   };
 
+  // Os guias vêm primeiro: são as páginas que podem aparecer nas buscas, então ganham os textos de IA antes dos "Top do dia".
+  for (const g of guiaRascunhos) {
+    const introDeIA = await escrever(`guia:${g.tipo.slug}:${g.itens.length}:intro`, DIAS_DO_TEXTO_DE_GUIA, () => promptDaIntroGuia(g.titulo, g.itens));
+    const itens: ItemDoPost[] = [];
+    for (const o of g.itens) {
+      const texto = await escrever(`produto:${idDe(o)}`, DIAS_DO_TEXTO_DE_PRODUTO, () => promptDoProduto(o));
+      itens.push({ ...o, texto, grafico: banco.historicoDiario(o.loja, o.idProduto, DIAS_DO_GRAFICO, agora) });
+    }
+    const fim = await escrever(`guia:${g.tipo.slug}:${g.itens.length}:fim`, DIAS_DO_TEXTO_DE_GUIA, () => promptDoFimGuia(g.titulo, g.itens));
+    const dados: DadosDoGuia = { itens, intro: introDeIA ?? introPadraoDoGuia(g.tipo, g.itens), fim, temIA: Boolean(introDeIA || fim || itens.some((i) => i.texto)), ano };
+    banco.salvarGuia({ arquivo: g.arquivo, tipo: g.tipo.slug, titulo: g.titulo, dados: JSON.stringify(dados), atualizadoEm: agora.getTime() });
+  }
+
   for (const r of rascunhos) {
     // A abertura e o fechamento são reescritos quando a lista muda de tamanho (Top 3 → 5 → 10) ao longo do dia.
     const introDeIA = await escrever(`post:${r.arquivo}:${r.itens.length}:intro`, DIAS_DO_TEXTO_DE_POST, () => promptDaIntro(r.titulo, r.itens));
@@ -633,7 +818,12 @@ export async function gerarBlog(banco: Banco, config: Config, agora: Date = new 
   const temasComPost = new Set(posts.map((p) => p.tema));
   const temas = [TEMA_GERAL, ...Object.keys(NOME_DA_CATEGORIA)].filter((t) => temasComPost.has(t));
   for (const t of temasComPost) if (!temas.includes(t)) temas.push(t);
-  const site: Site = { config, posts, hoje, agora, temas };
+  const guias = banco
+    .guiasSalvos()
+    .map(paraGuia)
+    .filter((g): g is Guia => g !== undefined)
+    .sort((a, b) => b.dados.itens.length - a.dados.itens.length || a.titulo.localeCompare(b.titulo, 'pt-BR'));
+  const site: Site = { config, posts, hoje, agora, temas, guias };
 
   mkdirSync(b.pasta, { recursive: true });
   const gravar = (arquivo: string, html: string) => {
@@ -641,6 +831,8 @@ export async function gerarBlog(banco: Banco, config: Config, agora: Date = new 
     resultado.paginas.push(arquivo);
   };
   for (const post of posts) gravar(post.arquivo, paginaDoPost(site, post));
+  for (const guia of guias) gravar(guia.arquivo, paginaDoGuia(site, guia));
+  if (guias.length) gravar('guias.html', paginaDosGuias(site));
   for (const tema of temas) gravar(`categoria-${tema}.html`, paginaDoTema(site, tema));
   gravar('arquivo.html', paginaDoArquivo(site));
   gravar('index.html', paginaInicial(site));
@@ -648,7 +840,7 @@ export async function gerarBlog(banco: Banco, config: Config, agora: Date = new 
 
   // Remove páginas que não existem mais (posts vencidos, categorias vazias, formato antigo), para não ficar oferta velha no ar.
   for (const arquivo of readdirSync(b.pasta)) {
-    if (/^(post|categoria|ofertas)-[a-z0-9-]+\.html$/.test(arquivo) && !resultado.paginas.includes(arquivo)) unlinkSync(join(b.pasta, arquivo));
+    if (/^(post|categoria|ofertas|melhores)-[a-z0-9-]+\.html$/.test(arquivo) && !resultado.paginas.includes(arquivo)) unlinkSync(join(b.pasta, arquivo));
   }
 
   writeFileSync(join(b.pasta, 'estilo.css'), ESTILO, 'utf8');
@@ -657,8 +849,8 @@ export async function gerarBlog(banco: Banco, config: Config, agora: Date = new 
     const endereco = (arquivo: string) => `${b.url}/${arquivo === 'index.html' ? '' : arquivo}`;
     const noMapa = resultado.paginas.filter((a) => a !== '404.html');
     const urls = noMapa.map((a) => {
-      const post = posts.find((p) => p.arquivo === a);
-      return `  <url><loc>${esc(endereco(a))}</loc><lastmod>${new Date(post ? post.atualizadoEm : agora.getTime()).toISOString()}</lastmod></url>`;
+      const alterado = posts.find((p) => p.arquivo === a)?.atualizadoEm ?? guias.find((g) => g.arquivo === a)?.atualizadoEm;
+      return `  <url><loc>${esc(endereco(a))}</loc><lastmod>${new Date(alterado ?? agora.getTime()).toISOString()}</lastmod></url>`;
     });
     writeFileSync(join(b.pasta, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join('\n')}\n</urlset>\n`, 'utf8');
     writeFileSync(join(b.pasta, 'robots.txt'), `User-agent: *\nAllow: /\nSitemap: ${b.url}/sitemap.xml\n`, 'utf8');
@@ -670,6 +862,7 @@ export async function gerarBlog(banco: Banco, config: Config, agora: Date = new 
 
   resultado.gerou = true;
   resultado.postsNoAr = posts.length;
+  resultado.guias = guias.length;
   resultado.produtos = new Set(posts.filter((p) => p.dia === hoje).flatMap((p) => p.dados.itens.map(idDe))).size;
 
   if (b.publicar === 'git') {

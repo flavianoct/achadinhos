@@ -30,7 +30,8 @@ globalThis.fetch = async (url, init = {}) => {
     return json({ ok: true, result: {} });
   }
   if (endereco.startsWith('https://models.github.ai/')) {
-    anotar({ servico: 'ia', auth: init.headers.authorization, modelo: JSON.parse(init.body).model });
+    const corpo = JSON.parse(init.body);
+    anotar({ servico: 'ia', auth: init.headers.authorization, modelo: corpo.model, prompt: corpo.messages?.[1]?.content });
     return json({ choices: [{ message: { content: 'Texto da IA de teste, escrito para ajudar o leitor a decidir a compra.' } }] });
   }
   throw new Error(`fetch inesperado nos testes: ${endereco}`);

@@ -75,7 +75,9 @@ test('nuvem: rodadas seguidas coletam, postam sem repetir, escrevem o blog com I
   const posts2 = chamadas(pasta).filter((c) => c.servico === 'telegram');
   assert.equal(posts2.length, 4);
   assert.equal(new Set(posts2.map((p) => p.texto.split('\n')[0])).size, 4, 'quatro ofertas diferentes');
-  assert.ok(chamadas(pasta).filter((c) => c.servico === 'ia').length <= 14, 'os textos já escritos são reaproveitados');
+  const prompts = chamadas(pasta).filter((c) => c.servico === 'ia').map((c) => c.prompt);
+  assert.ok(prompts.length > 12, 'a segunda rodada escreve o que faltou no teto da primeira');
+  assert.equal(new Set(prompts).size, prompts.length, 'nenhum texto já escrito é pedido de novo');
 
   // Loja fora do ar: a rodada termina em vermelho, mas o blog continua lá e a fila segue sendo postada.
   const r3 = await rodarNaNuvem(pasta, { ...SEGREDOS, SHOPEE_FORA_DO_AR: '1' });

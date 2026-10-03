@@ -1,6 +1,8 @@
 import type { Config } from './config.ts';
 import { horaDe, type Banco } from './db.ts';
+import { contemPalavra, normalizar } from './categoria.ts';
 import { avaliar } from './filtro.ts';
+import { elegivelParaGuia, tipoDeGuia } from './guias.ts';
 import { ErroTelegram, type Publicador } from './telegram.ts';
 import type { Fonte, OfertaAvaliada } from './types.ts';
 
@@ -33,6 +35,11 @@ export async function coletar(fontes: Fonte[], banco: Banco, config: Config, ago
       const resultado = avaliar(oferta, banco, config, agora);
       // O preço entra no histórico mesmo quando a oferta é reprovada: é assim que detectamos quedas depois.
       if (Number.isFinite(oferta.preco) && oferta.preco > 0 && oferta.idProduto) banco.registrarPreco(oferta, agora);
+
+      // Os guias "Melhores X" usam todo produto de boa avaliação, mesmo sem desconto grande: guia é sobre qualidade, não só promoção.
+      const tipo = tipoDeGuia(oferta.titulo);
+      const bloqueada = config.filtro.palavrasBloqueadas.some((p) => contemPalavra(normalizar(oferta.titulo), p));
+      if (tipo && !bloqueada && elegivelParaGuia(oferta, config.filtro.notaMinima)) banco.guardarParaGuia(tipo.slug, oferta, agora);
 
       // Toda oferta boa fica guardada como produto: é disso que o blog monta as listas "Top N".
       if (resultado.oferta) banco.guardarProduto(resultado.oferta, agora);

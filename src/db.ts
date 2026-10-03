@@ -81,6 +81,22 @@ export class Banco {
         atualizado_em INTEGER NOT NULL
       );
       CREATE INDEX IF NOT EXISTS posts_dia ON posts (dia);
+      CREATE TABLE IF NOT EXISTS guia_produtos (
+        tipo TEXT NOT NULL,
+        loja TEXT NOT NULL,
+        id_produto TEXT NOT NULL,
+        dados TEXT NOT NULL,
+        visto_em INTEGER NOT NULL,
+        PRIMARY KEY (tipo, loja, id_produto)
+      );
+      CREATE INDEX IF NOT EXISTS guia_produtos_visto ON guia_produtos (tipo, visto_em);
+      CREATE TABLE IF NOT EXISTS guias (
+        arquivo TEXT PRIMARY KEY,
+        tipo TEXT NOT NULL,
+        titulo TEXT NOT NULL,
+        dados TEXT NOT NULL,
+        atualizado_em INTEGER NOT NULL
+      );
       CREATE TABLE IF NOT EXISTS textos (
         chave TEXT PRIMARY KEY,
         texto TEXT NOT NULL,
@@ -208,6 +224,46 @@ export class Banco {
       .all(loja, idProduto, diasAtras(agora, dias)) as Array<{ dia: string; preco: number }>;
   }
 
+  /** Guarda o produto no acervo do guia do seu tipo (é de onde saem os "Melhores X"). */
+  guardarParaGuia(tipo: string, o: Oferta, agora: Date): void {
+    this.db
+      .prepare(
+        `INSERT INTO guia_produtos (tipo, loja, id_produto, dados, visto_em) VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT (tipo, loja, id_produto) DO UPDATE SET dados = excluded.dados, visto_em = excluded.visto_em`,
+      )
+      .run(tipo, o.loja, o.idProduto, JSON.stringify(o), agora.getTime());
+  }
+
+  /** Produtos de um tipo vistos nos últimos `dias`, do mais recente para o mais antigo. */
+  produtosDoGuia(tipo: string, dias: number, limite: number, agora: Date): Array<{ oferta: Oferta; vistoEm: number }> {
+    const linhas = this.db
+      .prepare(`SELECT dados, visto_em FROM guia_produtos WHERE tipo = ? AND visto_em >= ? ORDER BY visto_em DESC LIMIT ?`)
+      .all(tipo, agora.getTime() - dias * 86_400_000, limite) as Array<{ dados: string; visto_em: number }>;
+    return linhas.map((l) => ({ oferta: JSON.parse(l.dados) as Oferta, vistoEm: l.visto_em }));
+  }
+
+  /** Tipos de guia que têm produtos recentes, com a contagem. */
+  tiposComProdutos(dias: number, agora: Date): Array<{ tipo: string; total: number }> {
+    return this.db
+      .prepare(`SELECT tipo, COUNT(*) AS total FROM guia_produtos WHERE visto_em >= ? GROUP BY tipo ORDER BY total DESC, tipo ASC`)
+      .all(agora.getTime() - dias * 86_400_000) as Array<{ tipo: string; total: number }>;
+  }
+
+  salvarGuia(g: { arquivo: string; tipo: string; titulo: string; dados: string; atualizadoEm: number }): void {
+    this.db
+      .prepare(
+        `INSERT INTO guias (arquivo, tipo, titulo, dados, atualizado_em) VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT (arquivo) DO UPDATE SET tipo = excluded.tipo, titulo = excluded.titulo, dados = excluded.dados, atualizado_em = excluded.atualizado_em`,
+      )
+      .run(g.arquivo, g.tipo, g.titulo, g.dados, g.atualizadoEm);
+  }
+
+  /** Guias publicados (a última versão boa de cada um). Eles não saem do ar por falta de produtos novos. */
+  guiasSalvos(): Array<{ arquivo: string; tipo: string; titulo: string; dados: string; atualizadoEm: number }> {
+    const linhas = this.db.prepare(`SELECT arquivo, tipo, titulo, dados, atualizado_em FROM guias ORDER BY arquivo ASC`).all() as Array<{ arquivo: string; tipo: string; titulo: string; dados: string; atualizado_em: number }>;
+    return linhas.map((l) => ({ arquivo: l.arquivo, tipo: l.tipo, titulo: l.titulo, dados: l.dados, atualizadoEm: l.atualizado_em }));
+  }
+
   /** Texto guardado sob a chave, desde que tenha sido escrito há no máximo `validadeEmDias`. */
   textoSalvo(chave: string, validadeEmDias: number, agora: Date): string | undefined {
     const linha = this.db.prepare(`SELECT texto FROM textos WHERE chave = ? AND criado_em >= ?`).get(chave, agora.getTime() - validadeEmDias * 86_400_000) as { texto: string } | undefined;
@@ -251,6 +307,7 @@ export class Banco {
     this.db.prepare(`DELETE FROM precos WHERE dia < ?`).run(diasAtras(agora, 90));
     this.db.prepare(`DELETE FROM postados WHERE postado_em < ?`).run(t - 90 * 86_400_000);
     this.db.prepare(`DELETE FROM produtos WHERE visto_em < ?`).run(t - 7 * 86_400_000);
+    this.db.prepare(`DELETE FROM guia_produtos WHERE visto_em < ?`).run(t - 30 * 86_400_000);
     this.db.prepare(`DELETE FROM textos WHERE criado_em < ? AND chave LIKE 'produto:%'`).run(t - 30 * 86_400_000);
     this.db.prepare(`DELETE FROM textos WHERE criado_em < ? AND chave NOT LIKE 'produto:%'`).run(t - 3 * 86_400_000);
     this.db.exec('VACUUM');
