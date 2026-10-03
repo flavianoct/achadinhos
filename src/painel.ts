@@ -26,12 +26,9 @@ export const CAMPOS: Campo[] = [
   { grupo: 'Shopee', chave: 'SHOPEE_PAGINAS', rotulo: 'Páginas por rodada', tipo: 'numero', padrao: '2', ajuda: '50 ofertas por página.' },
 
   { grupo: 'Mercado Livre', chave: 'ML_ATIVO', rotulo: 'Usar o Mercado Livre', tipo: 'simnao', padrao: '0' },
-  { grupo: 'Mercado Livre', chave: 'ML_CLIENT_ID', rotulo: 'Client ID do app', tipo: 'texto', padrao: '' },
-  { grupo: 'Mercado Livre', chave: 'ML_CLIENT_SECRET', rotulo: 'Client Secret do app', tipo: 'segredo', padrao: '' },
   { grupo: 'Mercado Livre', chave: 'ML_MATT_WORD', rotulo: 'matt_word', tipo: 'texto', padrao: '', ajuda: 'Copie da URL de um link de afiliado gerado no painel do Mercado Livre.' },
   { grupo: 'Mercado Livre', chave: 'ML_MATT_TOOL', rotulo: 'matt_tool', tipo: 'texto', padrao: '' },
-  { grupo: 'Mercado Livre', chave: 'ML_CATEGORIAS', rotulo: 'Categorias', tipo: 'texto', padrao: 'MLB1648,MLB1051,MLB1000,MLB5726,MLB1574,MLB1144,MLB1246,MLB1276', ajuda: 'IDs de categoria, separados por vírgula.' },
-  { grupo: 'Mercado Livre', chave: 'ML_POR_CATEGORIA', rotulo: 'Produtos por categoria', tipo: 'numero', padrao: '10' },
+  { grupo: 'Mercado Livre', chave: 'ML_PAGINAS', rotulo: 'Páginas de ofertas por rodada', tipo: 'numero', padrao: '3', ajuda: 'Cerca de 48 produtos por página.' },
 
   { grupo: 'Filtro de ofertas', chave: 'DESCONTO_MINIMO', rotulo: 'Desconto mínimo (%)', tipo: 'numero', padrao: '25' },
   { grupo: 'Filtro de ofertas', chave: 'QUEDA_MINIMA', rotulo: 'Queda mínima no histórico (%)', tipo: 'numero', padrao: '10', ajuda: 'Também aprova a oferta, mesmo sem desconto anunciado.' },

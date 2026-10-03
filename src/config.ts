@@ -6,12 +6,10 @@ export interface Config {
   shopee: { ativo: boolean; appId: string; secret: string; palavras: string[]; paginas: number };
   ml: {
     ativo: boolean;
-    clientId: string;
-    clientSecret: string;
     mattWord: string;
     mattTool: string;
-    categorias: string[];
-    porCategoria: number;
+    /** Quantas páginas da vitrine de ofertas ler a cada rodada (cerca de 48 produtos por página). */
+    paginas: number;
   };
   amazon: { ativo: boolean; tag: string };
   filtro: {
@@ -142,12 +140,9 @@ export function lerConfig(env: Env = process.env): Config {
     },
     ml: {
       ativo: ligado(env, 'ML_ATIVO', false),
-      clientId: (env.ML_CLIENT_ID ?? '').trim(),
-      clientSecret: (env.ML_CLIENT_SECRET ?? '').trim(),
       mattWord: (env.ML_MATT_WORD ?? '').trim(),
       mattTool: (env.ML_MATT_TOOL ?? '').trim(),
-      categorias: lista(env.ML_CATEGORIAS ?? 'MLB1648,MLB1051,MLB1000,MLB5726,MLB1574,MLB1144,MLB1246,MLB1276'),
-      porCategoria: numero(env, 'ML_POR_CATEGORIA', 10),
+      paginas: numero(env, 'ML_PAGINAS', 3),
     },
     amazon: {
       ativo: ligado(env, 'AMAZON_ATIVO', false),
@@ -201,7 +196,6 @@ export function problemasDeConfig(c: Config): string[] {
     p.push('Shopee ativa, mas SHOPEE_APP_ID ou SHOPEE_SECRET estão vazios.');
   }
   if (c.ml.ativo) {
-    if (!c.ml.clientId || !c.ml.clientSecret) p.push('Mercado Livre ativo, mas ML_CLIENT_ID ou ML_CLIENT_SECRET estão vazios.');
     if (!c.ml.mattWord || !c.ml.mattTool) p.push('Mercado Livre ativo, mas ML_MATT_WORD ou ML_MATT_TOOL estão vazios (sem eles o link não leva seu código).');
   }
   if (c.amazon.ativo) p.push('A Amazon ainda não coleta ofertas sozinha (fase 2). Deixe AMAZON_ATIVO=0 por enquanto.');

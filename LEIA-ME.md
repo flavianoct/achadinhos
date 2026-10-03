@@ -96,10 +96,10 @@ O histórico, a fila e os posts ficam num banco de dados (`dados.db`) guardado n
 
 O Mercado Livre não tem API oficial para gerar link de afiliado. O robô faz assim:
 
-- **Dados dos produtos:** API oficial, com um app seu. Crie em https://developers.mercadolivre.com.br.
+- **Dados dos produtos:** o robô lê a página pública de ofertas do Mercado Livre (a API oficial bloqueia a listagem para apps comuns). Não precisa de app.
 - **Seu código de afiliado:** gere um link qualquer no painel de afiliados, abra esse link no navegador e olhe a URL final. Copie os valores de `matt_word` e `matt_tool`.
 
-Cadastre os secrets `ML_CLIENT_ID`, `ML_CLIENT_SECRET`, `ML_MATT_WORD` e `ML_MATT_TOOL` e mude `ML_ATIVO=1` em `ajustes.env`.
+Cadastre os secrets `ML_MATT_WORD` e `ML_MATT_TOOL` e mude `ML_ATIVO=1` em `ajustes.env`.
 
 **Valide antes de confiar:** clique num link do Mercado Livre postado pelo robô e confira no painel de afiliados se o clique foi contado. Se não contar, desligue (`ML_ATIVO=0`) até o formato do link ser ajustado.
 

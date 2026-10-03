@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { extrairAsin, linkAfiliadoAmazon } from '../src/fontes/amazon.ts';
-import { converterAnuncioML, converterProdutoML, FonteMercadoLivre, linkAfiliadoML } from '../src/fontes/mercadolivre.ts';
+import { converterCartaoML, FonteMercadoLivre, linkAfiliadoML } from '../src/fontes/mercadolivre.ts';
 import { assinarShopee, cabecalhoShopee, converterItemShopee, FonteShopee } from '../src/fontes/shopee.ts';
 
 function json(corpo: unknown, status = 200): Response {
@@ -71,64 +71,79 @@ test('ml: link de afiliado acrescenta os parâmetros sem perder os que já exist
   );
 });
 
-test('ml: converte produto de catálogo e anúncio comum', () => {
-  const p = converterProdutoML(
-    { id: 'MLB1', name: 'SSD', pictures: [{ url: 'http://img/a.jpg' }] },
-    { price: 399, original_price: 599, shipping: { free_shipping: true } },
-    'w', 't',
-  );
-  assert.deepEqual(p, {
-    loja: 'mercadolivre', idProduto: 'MLB1', titulo: 'SSD', preco: 399, precoOriginal: 599, imagem: 'https://img/a.jpg',
-    link: 'https://www.mercadolivre.com.br/p/MLB1?matt_word=w&matt_tool=t', freteGratis: true,
-  });
-  assert.equal(converterProdutoML({ id: 'MLB1', name: 'Sem preço' }, undefined, 'w', 't'), undefined);
+const CARTAO_ML = {
+  unique_id: 'x',
+  metadata: { id: 'MLB2793858589', product_id: 'MLB15345686', url: 'www.mercadolivre.com.br/lavadora-wap/p/MLB15345686', url_fragments: '#polycard_client=offers' },
+  pictures: { pictures: [{ id: '694471-MLA96077668763_102025' }] },
+  components: [
+    { type: 'title', title: { text: 'Lavadora de Alta Pressão WAP' } },
+    { type: 'seller', seller: { values: [{ key: 'icon_cockade', type: 'icon' }, { key: 'label', type: 'label', label: { text: 'WAP' } }] } },
+    {
+      type: 'review_compacted',
+      review_compacted: { alt_text: 'Classificação 4.7 de 5 estrelas. Mais de 100mil produtos vendidos.', values: [{ key: 'icon_star_fill', type: 'icon' }, { key: 'label', type: 'label', label: { text: '4.7' } }, { key: 'label2', type: 'label', label: { text: '| +100mil vendidos' } }] },
+    },
+    {
+      type: 'price',
+      price: {
+        price_labels: [{ values: [{ type: 'price', key: 'previous_price', price: { value: 649, previous: true } }] }],
+        current_price: { value: 431.1, currency: 'BRL' },
+      },
+    },
+    { type: 'shipping_v2', shipping_v2: [{ values: [{ type: 'pill', pill: { text: 'Chegará grátis amanhã' } }] }] },
+  ],
+};
 
-  const a = converterAnuncioML({ id: 'MLB2', title: 'Mouse', price: 50, original_price: null, permalink: 'https://produto.mercadolivre.com.br/MLB-2-mouse', thumbnail: 'http://img/m.jpg' }, 'w', 't');
-  assert.equal(a?.precoOriginal, undefined);
-  assert.equal(a?.link, 'https://produto.mercadolivre.com.br/MLB-2-mouse?matt_word=w&matt_tool=t');
-});
-
-function mlFalso(rotas: Record<string, () => Response>) {
-  const chamadas: string[] = [];
-  const fetchFalso = (async (url: any, init: any) => {
-    const caminho = String(url).replace('https://api.mercadolibre.com', '');
-    chamadas.push(caminho);
-    if (caminho === '/oauth/token') {
-      assert.match(init.body, /grant_type=client_credentials&client_id=ID&client_secret=SEG/);
-      return json({ access_token: 'TOKEN', expires_in: 21600 });
-    }
-    assert.equal(init.headers.authorization, 'Bearer TOKEN');
-    return (rotas[caminho] ?? (() => json({}, 404)))();
-  }) as typeof fetch;
-  return { fetchFalso, chamadas };
+/** Monta uma página de ofertas parecida com a real: o JSON vem em `_n.ctx.r=...;` dentro de um script. */
+function paginaDeOfertasML(cartoes: unknown[]): string {
+  const dados = { appProps: { pageProps: { data: { items: cartoes.map((card) => ({ card })) } } } };
+  const script = `_n.ctx.r=${JSON.stringify(dados)};_n.ctx.r.assets.mainAssetsNames={};`;
+  return `<html><body><script type="application/json" id="__NORDIC_RENDERING_CTX__" nonce="abc">${script}</script></body></html>`;
 }
 
-test('ml: coleta destaques, usa /items quando não há buy_box_winner e pula o que dá 403', async () => {
-  const { fetchFalso, chamadas } = mlFalso({
-    '/highlights/MLB/category/C1': () => json({ content: [{ id: 'MLB1', type: 'PRODUCT' }, { id: 'MLB2', type: 'PRODUCT' }, { id: 'MLB3', type: 'ITEM' }, { id: 'MLB4', type: 'PRODUCT' }] }),
-    '/products/MLB1': () => json({ id: 'MLB1', name: 'Com buy box', buy_box_winner: { price: 100, original_price: 150 } }),
-    '/products/MLB2': () => json({ id: 'MLB2', name: 'Sem buy box', buy_box_winner: null }),
-    '/products/MLB2/items': () => json({ results: [{ price: 80 }, { price: 95 }] }),
-    '/items/MLB3': () => json({}, 403),
-    '/products/MLB4': () => json({ id: 'MLB4', name: 'Fora do limite', buy_box_winner: { price: 10 } }),
-    '/highlights/MLB/category/C2': () => json({}, 404),
+test('ml: converte um cartão da página de ofertas (preço, desconto, foto, nota, vendas, frete)', () => {
+  const o = converterCartaoML(CARTAO_ML, 'w', 't');
+  assert.deepEqual(o, {
+    loja: 'mercadolivre',
+    idProduto: 'MLB15345686',
+    titulo: 'Lavadora de Alta Pressão WAP',
+    preco: 431.1,
+    precoOriginal: 649,
+    desconto: 34,
+    imagem: 'https://http2.mlstatic.com/D_Q_NP_2X_694471-MLA96077668763_102025-AB.webp',
+    link: 'https://www.mercadolivre.com.br/lavadora-wap/p/MLB15345686?matt_word=w&matt_tool=t',
+    nota: 4.7,
+    vendas: 100000,
+    nomeLoja: 'WAP',
+    freteGratis: true,
   });
-  const fonte = new FonteMercadoLivre({ clientId: 'ID', clientSecret: 'SEG', mattWord: 'w', mattTool: 't', categorias: ['C1', 'C2'], porCategoria: 3, intervaloMs: 0 }, fetchFalso);
-  const ofertas = await fonte.coletar();
-
-  assert.deepEqual(ofertas.map((o) => [o.idProduto, o.preco, o.precoOriginal]), [['MLB1', 100, 150], ['MLB2', 80, undefined]]);
-  assert.equal(chamadas.filter((c) => c === '/oauth/token').length, 1, 'token é reaproveitado');
-  assert.ok(!chamadas.includes('/products/MLB4'), 'respeita o limite por categoria');
+  assert.equal(converterCartaoML({ ...CARTAO_ML, components: [] }, 'w', 't'), undefined, 'sem título nem preço');
 });
 
-test('ml: avisa quando nenhuma categoria responde e quando o login do app falha', async () => {
-  const semAcesso = mlFalso({});
-  const fonte = new FonteMercadoLivre({ clientId: 'ID', clientSecret: 'SEG', mattWord: 'w', mattTool: 't', categorias: ['C1'], intervaloMs: 0 }, semAcesso.fetchFalso);
-  await assert.rejects(fonte.coletar(), /nenhuma categoria respondeu/);
+test('ml: lê as páginas de ofertas, ignora repetidos e cartões incompletos', async () => {
+  const outro = { ...CARTAO_ML, metadata: { ...CARTAO_ML.metadata, id: 'MLB9', product_id: 'MLB99', url: 'www.mercadolivre.com.br/x/p/MLB99' } };
+  const chamadas: string[] = [];
+  const fetchFalso = (async (url: any, init: any) => {
+    chamadas.push(String(url));
+    assert.match(init.headers['user-agent'], /Mozilla/);
+    const pagina = String(url).includes('page=2') ? [CARTAO_ML, outro] : [CARTAO_ML, { ...CARTAO_ML, components: [] }];
+    return new Response(paginaDeOfertasML(pagina), { status: 200 });
+  }) as typeof fetch;
+  const fonte = new FonteMercadoLivre({ mattWord: 'w', mattTool: 't', paginas: 2, intervaloMs: 0 }, fetchFalso);
+  const ofertas = await fonte.coletar();
+  assert.deepEqual(chamadas, ['https://www.mercadolivre.com.br/ofertas', 'https://www.mercadolivre.com.br/ofertas?page=2']);
+  assert.deepEqual(ofertas.map((o) => o.idProduto), ['MLB15345686', 'MLB99']);
+});
 
-  const loginRuim = (async () => json({ message: 'invalid client' }, 401)) as typeof fetch;
-  const fonte2 = new FonteMercadoLivre({ clientId: 'x', clientSecret: 'y', mattWord: 'w', mattTool: 't', categorias: ['C1'], intervaloMs: 0 }, loginRuim);
-  await assert.rejects(fonte2.coletar(), /recusou o login do app \(401\): invalid client/);
+test('ml: avisa quando o site barra o acesso ou muda de formato', async () => {
+  const barrado = (async () => new Response('forbidden', { status: 403 })) as typeof fetch;
+  await assert.rejects(new FonteMercadoLivre({ mattWord: 'w', mattTool: 't', intervaloMs: 0 }, barrado).coletar(), /não consegui ler a página de ofertas \(o site respondeu 403\)/);
+  const semDados = (async () => new Response('<html>nada</html>', { status: 200 })) as typeof fetch;
+  await assert.rejects(new FonteMercadoLivre({ mattWord: 'w', mattTool: 't', intervaloMs: 0 }, semDados).coletar(), /sem ofertas legíveis/);
+  // Se a primeira página deu certo e a segunda falhou, aproveita o que veio.
+  let n = 0;
+  const metade = (async () => (++n === 1 ? new Response(paginaDeOfertasML([CARTAO_ML]), { status: 200 }) : new Response('x', { status: 500 }))) as typeof fetch;
+  const ofertas = await new FonteMercadoLivre({ mattWord: 'w', mattTool: 't', paginas: 3, intervaloMs: 0 }, metade).coletar();
+  assert.equal(ofertas.length, 1);
 });
 
 // ───────────── Amazon ─────────────

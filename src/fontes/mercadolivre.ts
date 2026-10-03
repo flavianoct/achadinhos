@@ -2,7 +2,8 @@ import type { Fonte, Oferta } from '../types.ts';
 
 type Fetch = typeof fetch;
 
-const API = 'https://api.mercadolibre.com';
+const SITE = 'https://www.mercadolivre.com.br';
+const NAVEGADOR = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
 const pausa = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
@@ -19,144 +20,140 @@ export function linkAfiliadoML(url: string, mattWord: string, mattTool: string):
   return u.toString();
 }
 
-function imagemDe(dados: any): string | undefined {
-  const url: string | undefined = dados?.pictures?.[0]?.secure_url ?? dados?.pictures?.[0]?.url ?? dados?.thumbnail;
-  return url ? url.replace(/^http:/, 'https:') : undefined;
+/** "+100mil vendidos" -> 100000, "+50 vendidos" -> 50. */
+function lerVendas(texto: string | undefined): number | undefined {
+  const m = /\+?\s*([\d.,]+)\s*(mil|mi)?\s*vendid/i.exec(texto ?? '');
+  if (!m) return undefined;
+  const n = Number((m[1] as string).replace(/\./g, '').replace(',', '.'));
+  if (!Number.isFinite(n)) return undefined;
+  const fator = !m[2] ? 1 : m[2].toLowerCase() === 'mil' ? 1_000 : 1_000_000;
+  return Math.round(n * fator);
 }
 
-/** Junta os dados do produto de catálogo com a oferta vencedora (preço). */
-export function converterProdutoML(produto: any, ofertaVencedora: any, mattWord: string, mattTool: string): Oferta | undefined {
-  const preco = Number(ofertaVencedora?.price);
-  if (!produto?.id || !produto?.name || !Number.isFinite(preco) || preco <= 0) return undefined;
-  const original = Number(ofertaVencedora?.original_price);
-  const base = produto.permalink || `https://www.mercadolivre.com.br/p/${produto.id}`;
+/** Procura, dentro do cartão, um componente pelo tipo (title, price, review_compacted...). */
+function componente(cartao: any, tipo: string): any {
+  return (cartao.components ?? []).find((c: any) => c?.type === tipo);
+}
+
+/** Converte um cartão da página de ofertas do Mercado Livre. Devolve undefined se faltar título, preço ou link. */
+export function converterCartaoML(cartao: any, mattWord: string, mattTool: string): Oferta | undefined {
+  const meta = cartao?.metadata;
+  const id = String(meta?.product_id ?? meta?.id ?? '');
+  const titulo = componente(cartao, 'title')?.title?.text;
+  const dadosDePreco = componente(cartao, 'price')?.price;
+  const preco = Number(dadosDePreco?.current_price?.value);
+  if (!id || !titulo || !meta?.url || !Number.isFinite(preco) || preco <= 0) return undefined;
+
+  const anterior = Number(dadosDePreco?.price_labels?.[0]?.values?.find((v: any) => v?.price)?.price?.value);
+  const precoOriginal = Number.isFinite(anterior) && anterior > preco ? anterior : undefined;
+  const desconto = precoOriginal ? Math.round((1 - preco / precoOriginal) * 100) : undefined;
+
+  const avaliacao = componente(cartao, 'review_compacted')?.review_compacted;
+  const rotulos: any[] = (avaliacao?.values ?? []).filter((v: any) => v?.type === 'label');
+  const nota = Number(String(rotulos[0]?.label?.text ?? '').replace(',', '.'));
+  const vendas = lerVendas(rotulos[1]?.label?.text) ?? lerVendas(avaliacao?.alt_text);
+
+  const fotoId: string | undefined = cartao.pictures?.pictures?.[0]?.id;
+  const loja: string | undefined = componente(cartao, 'seller')?.seller?.values?.find((v: any) => v?.key === 'label')?.label?.text;
+  const frete = JSON.stringify(componente(cartao, 'shipping_v2') ?? '');
+
+  const url = String(meta.url).startsWith('http') ? String(meta.url) : `https://${meta.url}`;
   return {
     loja: 'mercadolivre',
-    idProduto: String(produto.id),
-    titulo: String(produto.name),
+    idProduto: id,
+    titulo: String(titulo),
     preco,
-    precoOriginal: Number.isFinite(original) && original > preco ? original : undefined,
-    imagem: imagemDe(produto),
-    link: linkAfiliadoML(base, mattWord, mattTool),
-    freteGratis: ofertaVencedora?.shipping?.free_shipping === true ? true : undefined,
+    precoOriginal,
+    desconto,
+    imagem: fotoId ? `https://http2.mlstatic.com/D_Q_NP_2X_${fotoId}-AB.webp` : undefined,
+    link: linkAfiliadoML(url, mattWord, mattTool),
+    nota: Number.isFinite(nota) && nota > 0 && nota <= 5 ? nota : undefined,
+    vendas,
+    nomeLoja: loja,
+    freteGratis: /gr[aá]tis/i.test(frete) ? true : undefined,
   };
 }
 
-/** Converte um anúncio comum (não catálogo). */
-export function converterAnuncioML(item: any, mattWord: string, mattTool: string): Oferta | undefined {
-  const preco = Number(item?.price);
-  if (!item?.id || !item?.title || !item?.permalink || !Number.isFinite(preco) || preco <= 0) return undefined;
-  const original = Number(item.original_price);
-  return {
-    loja: 'mercadolivre',
-    idProduto: String(item.id),
-    titulo: String(item.title),
-    preco,
-    precoOriginal: Number.isFinite(original) && original > preco ? original : undefined,
-    imagem: imagemDe(item),
-    link: linkAfiliadoML(item.permalink, mattWord, mattTool),
-    vendas: Number.isFinite(Number(item.sold_quantity)) ? Number(item.sold_quantity) : undefined,
-    freteGratis: item.shipping?.free_shipping === true ? true : undefined,
+/** Lê o JSON que a página de ofertas traz embutido e devolve os cartões de produto. */
+export function extrairCartoesML(html: string): any[] {
+  const script = /<script[^>]*id="__NORDIC_RENDERING_CTX__"[^>]*>([\s\S]*?)<\/script>/.exec(html)?.[1];
+  if (!script) return [];
+  const ini = script.indexOf('{');
+  const fim = script.indexOf('};_n.ctx.r.');
+  if (ini < 0 || fim < 0) return [];
+  let dados: any;
+  try {
+    dados = JSON.parse(script.slice(ini, fim + 1));
+  } catch {
+    return [];
+  }
+  const cartoes: any[] = [];
+  const percorrer = (o: any) => {
+    if (!o || typeof o !== 'object') return;
+    if (o.metadata?.id && o.pictures && Array.isArray(o.components)) {
+      cartoes.push(o);
+      return;
+    }
+    for (const k of Object.keys(o)) percorrer(o[k]);
   };
+  percorrer(dados);
+  return cartoes;
 }
 
+/**
+ * Mercado Livre pela página pública de ofertas.
+ * A API oficial (pesquisa, mais vendidos, produtos) responde 403 para apps comuns, então o robô lê
+ * a mesma página de ofertas que qualquer visitante vê: título, preço, preço antigo, foto, nota e vendas.
+ */
 export class FonteMercadoLivre implements Fonte {
   nome = 'mercadolivre' as const;
-  private clientId: string;
-  private clientSecret: string;
   private mattWord: string;
   private mattTool: string;
-  private categorias: string[];
-  private ultimaFalha = '';
-  private porCategoria: number;
-  private fetchFn: Fetch;
-  private token?: { valor: string; expiraEm: number };
-  /** Intervalo entre chamadas, para não sobrecarregar a API. */
+  private paginas: number;
   private intervaloMs: number;
+  private fetchFn: Fetch;
 
-  constructor(
-    opcoes: { clientId: string; clientSecret: string; mattWord: string; mattTool: string; categorias: string[]; porCategoria?: number; intervaloMs?: number },
-    fetchFn: Fetch = fetch,
-  ) {
-    this.clientId = opcoes.clientId;
-    this.clientSecret = opcoes.clientSecret;
+  constructor(opcoes: { mattWord: string; mattTool: string; paginas?: number; intervaloMs?: number }, fetchFn: Fetch = fetch) {
     this.mattWord = opcoes.mattWord;
     this.mattTool = opcoes.mattTool;
-    this.categorias = opcoes.categorias;
-    this.porCategoria = opcoes.porCategoria ?? 10;
-    this.intervaloMs = opcoes.intervaloMs ?? 350;
+    this.paginas = Math.max(1, opcoes.paginas ?? 3);
+    this.intervaloMs = opcoes.intervaloMs ?? 1500;
     this.fetchFn = fetchFn;
   }
 
-  private async obterToken(): Promise<string> {
-    if (this.token && this.token.expiraEm > Date.now() + 60_000) return this.token.valor;
-    const resposta = await this.fetchFn(`${API}/oauth/token`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' },
-      body: new URLSearchParams({ grant_type: 'client_credentials', client_id: this.clientId, client_secret: this.clientSecret }).toString(),
+  private async baixar(pagina: number): Promise<string> {
+    const url = pagina <= 1 ? `${SITE}/ofertas` : `${SITE}/ofertas?page=${pagina}`;
+    const resposta = await this.fetchFn(url, {
+      headers: { 'user-agent': NAVEGADOR, 'accept-language': 'pt-BR,pt;q=0.9', accept: 'text/html' },
       signal: AbortSignal.timeout(30_000),
     });
-    const dados = (await resposta.json().catch(() => ({}))) as any;
-    if (!resposta.ok || !dados.access_token) {
-      throw new Error(`Mercado Livre recusou o login do app (${resposta.status}): ${dados.message ?? dados.error ?? 'confira ML_CLIENT_ID e ML_CLIENT_SECRET'}`);
-    }
-    this.token = { valor: dados.access_token, expiraEm: Date.now() + Number(dados.expires_in ?? 21_600) * 1000 };
-    return this.token.valor;
-  }
-
-  /** GET na API. Devolve undefined em 403/404 (item indisponível para o app), para a coleta seguir. */
-  private async get(caminho: string): Promise<any | undefined> {
-    const token = await this.obterToken();
-    await pausa(this.intervaloMs);
-    const resposta = await this.fetchFn(`${API}${caminho}`, {
-      headers: { authorization: `Bearer ${token}`, accept: 'application/json' },
-      signal: AbortSignal.timeout(30_000),
-    });
-    if (resposta.status === 403 || resposta.status === 404) {
-      const corpo = (await resposta.text().catch(() => '')).replace(/\s+/g, ' ').slice(0, 160);
-      this.ultimaFalha = `${resposta.status} em ${caminho}: ${corpo}`;
-      return undefined;
-    }
-    if (resposta.status === 429) throw new Error('Mercado Livre: limite de requisições atingido, tente um intervalo maior');
-    if (!resposta.ok) throw new Error(`Mercado Livre respondeu ${resposta.status} em ${caminho}`);
-    return resposta.json();
-  }
-
-  private async detalhar(entrada: { id: string; type?: string }): Promise<Oferta | undefined> {
-    if (entrada.type === 'ITEM') {
-      const item = await this.get(`/items/${entrada.id}`);
-      return item ? converterAnuncioML(item, this.mattWord, this.mattTool) : undefined;
-    }
-    const produto = await this.get(`/products/${entrada.id}`);
-    if (!produto) return undefined;
-    let vencedora = produto.buy_box_winner;
-    if (!vencedora?.price) {
-      const lista = await this.get(`/products/${entrada.id}/items`);
-      vencedora = lista?.results?.[0];
-    }
-    return converterProdutoML(produto, vencedora, this.mattWord, this.mattTool);
+    if (!resposta.ok) throw new Error(`o site respondeu ${resposta.status}`);
+    return resposta.text();
   }
 
   async coletar(): Promise<Oferta[]> {
     const vistos = new Map<string, Oferta>();
-    let categoriasComErro = 0;
-    for (const categoria of this.categorias) {
-      // Mais vendidos da categoria: é a listagem que a API oficial ainda libera.
-      const destaques = await this.get(`/highlights/MLB/category/${categoria}`);
-      if (!destaques) {
-        categoriasComErro++;
-        continue;
-      }
-      const entradas: Array<{ id: string; type?: string }> = (destaques?.content ?? []).slice(0, this.porCategoria);
-      for (const entrada of entradas) {
-        if (!entrada?.id || vistos.has(entrada.id)) continue;
-        const oferta = await this.detalhar(entrada);
-        if (oferta) vistos.set(entrada.id, oferta);
+    let ultimoErro = '';
+    let paginasLidas = 0;
+    for (let pagina = 1; pagina <= this.paginas; pagina++) {
+      if (pagina > 1) await pausa(this.intervaloMs);
+      try {
+        const cartoes = extrairCartoesML(await this.baixar(pagina));
+        if (cartoes.length === 0) {
+          ultimoErro = 'a página abriu, mas sem ofertas legíveis (o site pode ter mudado ou barrado o acesso)';
+          break;
+        }
+        paginasLidas++;
+        for (const c of cartoes) {
+          const oferta = converterCartaoML(c, this.mattWord, this.mattTool);
+          if (oferta && !vistos.has(oferta.idProduto)) vistos.set(oferta.idProduto, oferta);
+        }
+      } catch (e) {
+        ultimoErro = (e as Error).message;
+        break;
       }
     }
-    if (this.categorias.length > 0 && categoriasComErro === this.categorias.length) {
-      throw new Error(`Mercado Livre: nenhuma categoria respondeu (403/404). O app pode não ter acesso a essa listagem. Última resposta: ${this.ultimaFalha}`);
-    }
+    if (paginasLidas === 0) throw new Error(`Mercado Livre: não consegui ler a página de ofertas (${ultimoErro}).`);
     return [...vistos.values()];
   }
 }
