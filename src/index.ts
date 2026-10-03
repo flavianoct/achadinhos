@@ -4,6 +4,8 @@ import { FonteSimulada, OFERTAS_SIMULADAS } from './fontes/simulada.ts';
 import { iniciarPainel } from './painel.ts';
 import { Robo } from './robo.ts';
 import { publicarControle, type DadosDaRodada } from './exportar.ts';
+import { publicarNoInstagram } from './instagram.ts';
+import { gravarPngs, prepararSocial } from './social.ts';
 import { PublicadorDeTeste } from './telegram.ts';
 
 const pausa = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -102,7 +104,15 @@ async function modoNuvem(): Promise<void> {
 
   // Painel, status e fila do WhatsApp vão para a pasta do blog e sobem junto com o site.
   try {
+    const artes = await prepararSocial(robo.banco, robo.config, new Date());
+    const pngs = await gravarPngs(robo.banco, robo.config, new Date());
+    if (pngs.semConversor) dizer('- Aviso: faltou instalar o conversor de imagens (@resvg/resvg-js); o Instagram não terá imagens.');
+    const ig = await publicarNoInstagram(robo.banco, robo.config, new Date());
+    if (robo.config.instagram.ativo) dizer(`- Instagram: ${ig.feed} posts de feed e ${ig.stories} stories publicados.`);
+    for (const a of ig.avisos) dizer(`- Aviso do Instagram: ${a}`);
+    rodada.instagram = ig;
     publicarControle(robo.banco, robo.config, rodada, new Date());
+    if (artes) dizer(`- Redes sociais: ${artes} artes de Story novas.`);
     if (robo.config.whatsapp.ativo) dizer(`- WhatsApp: ${robo.banco.mensagensDoWhatsapp(12, new Date()).length} mensagens na fila do enviador.`);
   } catch (e) {
     dizer(`- Aviso: não consegui gravar o painel (${(e as Error).message}).`);

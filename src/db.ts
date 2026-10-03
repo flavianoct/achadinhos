@@ -105,12 +105,29 @@ export class Banco {
         link TEXT NOT NULL,
         criado_em INTEGER NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS social_saida (
+        chave TEXT PRIMARY KEY,
+        dados TEXT NOT NULL,
+        svg TEXT,
+        imagem TEXT,
+        ig_feed_em INTEGER,
+        ig_story_em INTEGER,
+        criado_em INTEGER NOT NULL
+      );
       CREATE TABLE IF NOT EXISTS textos (
         chave TEXT PRIMARY KEY,
         texto TEXT NOT NULL,
         criado_em INTEGER NOT NULL
       );
     `);
+    // Bancos criados antes do Instagram não têm estas colunas.
+    for (const coluna of ['imagem TEXT', 'ig_feed_em INTEGER', 'ig_story_em INTEGER']) {
+      try {
+        this.db.exec(`ALTER TABLE social_saida ADD COLUMN ${coluna}`);
+      } catch {
+        // já existe
+      }
+    }
   }
 
   /** Guarda o menor preço visto no dia. É isso que forma o histórico. */
@@ -214,6 +231,43 @@ export class Banco {
     this.db
       .prepare(`INSERT OR REPLACE INTO whatsapp_saida (chave, loja, texto, imagem, link, criado_em) VALUES (?, ?, ?, ?, ?, ?)`)
       .run(`${o.loja}:${o.idProduto}:${agora.getTime()}`, o.loja, texto, o.imagem ?? null, o.link, agora.getTime());
+  }
+
+  /** Guarda a oferta postada para virar conteúdo de Stories e Reels. A arte é feita depois (precisa baixar a foto). */
+  guardarParaSocial(o: OfertaAvaliada, agora: Date): void {
+    this.db
+      .prepare(`INSERT OR REPLACE INTO social_saida (chave, dados, svg, criado_em) VALUES (?, ?, NULL, ?)`)
+      .run(`${o.loja}:${o.idProduto}:${agora.getTime()}`, JSON.stringify(o), agora.getTime());
+  }
+
+  socialSemArte(limite: number, horas: number, agora: Date): Array<{ chave: string; dados: string }> {
+    return this.db
+      .prepare(`SELECT chave, dados FROM social_saida WHERE svg IS NULL AND criado_em >= ? ORDER BY criado_em DESC LIMIT ?`)
+      .all(agora.getTime() - horas * 3_600_000, limite) as Array<{ chave: string; dados: string }>;
+  }
+
+  salvarArteSocial(chave: string, svg: string, imagem?: string): void {
+    this.db.prepare(`UPDATE social_saida SET svg = ?, imagem = ? WHERE chave = ?`).run(svg, imagem ?? null, chave);
+  }
+
+  socialRecentes(horas: number, limite: number, agora: Date): Array<{ chave: string; dados: string; svg?: string; imagem?: string; criadoEm: number; igFeedEm?: number; igStoryEm?: number }> {
+    const linhas = this.db
+      .prepare(`SELECT chave, dados, svg, imagem, ig_feed_em, ig_story_em, criado_em FROM social_saida WHERE criado_em >= ? ORDER BY criado_em DESC LIMIT ?`)
+      .all(agora.getTime() - horas * 3_600_000, limite) as Array<{ chave: string; dados: string; svg: string | null; imagem: string | null; ig_feed_em: number | null; ig_story_em: number | null; criado_em: number }>;
+    return linhas.map((l) => ({ chave: l.chave, dados: l.dados, svg: l.svg ?? undefined, imagem: l.imagem ?? undefined, criadoEm: l.criado_em, igFeedEm: l.ig_feed_em ?? undefined, igStoryEm: l.ig_story_em ?? undefined }));
+  }
+
+  marcarInstagram(chave: string, tipo: 'feed' | 'story', agora: Date): void {
+    const coluna = tipo === 'feed' ? 'ig_feed_em' : 'ig_story_em';
+    this.db.prepare(`UPDATE social_saida SET ${coluna} = ? WHERE chave = ?`).run(agora.getTime(), chave);
+  }
+
+  /** Quantas publicações do tipo já saíram no Instagram no dia (horário de Brasília). */
+  instagramNoDia(tipo: 'feed' | 'story', agora: Date): number {
+    const coluna = tipo === 'feed' ? 'ig_feed_em' : 'ig_story_em';
+    const linhas = this.db.prepare(`SELECT ${coluna} AS t FROM social_saida WHERE ${coluna} IS NOT NULL`).all() as Array<{ t: number }>;
+    const hoje = diaDe(agora);
+    return linhas.filter((l) => diaDe(new Date(l.t)) === hoje).length;
   }
 
   /** Mensagens de WhatsApp criadas nas últimas `horas` horas, da mais antiga para a mais nova. */
@@ -342,6 +396,7 @@ export class Banco {
     this.db.prepare(`DELETE FROM precos WHERE dia < ?`).run(diasAtras(agora, 90));
     this.db.prepare(`DELETE FROM postados WHERE postado_em < ?`).run(t - 90 * 86_400_000);
     this.db.prepare(`DELETE FROM whatsapp_saida WHERE criado_em < ?`).run(t - 2 * 86_400_000);
+    this.db.prepare(`DELETE FROM social_saida WHERE criado_em < ?`).run(t - 2 * 86_400_000);
     this.db.prepare(`DELETE FROM produtos WHERE visto_em < ?`).run(t - 7 * 86_400_000);
     this.db.prepare(`DELETE FROM guia_produtos WHERE visto_em < ?`).run(t - 30 * 86_400_000);
     this.db.prepare(`DELETE FROM textos WHERE criado_em < ? AND chave LIKE 'produto:%'`).run(t - 30 * 86_400_000);

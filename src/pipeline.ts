@@ -82,6 +82,7 @@ export async function postarProxima(publicador: Publicador, banco: Banco, config
   banco.registrarPost(oferta, agora);
   // A mesma oferta que saiu no Telegram também vira mensagem de WhatsApp (o enviador do PC é quem posta).
   if (config.whatsapp.ativo) banco.guardarParaWhatsapp(oferta, montarMensagemWhatsapp(oferta), agora);
+  if (config.social.ativo) banco.guardarParaSocial(oferta, agora);
   banco.removerDaFila(oferta.loja, oferta.idProduto);
   return { postou: true, oferta };
 }

@@ -34,5 +34,18 @@ globalThis.fetch = async (url, init = {}) => {
     anotar({ servico: 'ia', auth: init.headers.authorization, modelo: corpo.model, prompt: corpo.messages?.[1]?.content });
     return json({ choices: [{ message: { content: 'Texto da IA de teste, escrito para ajudar o leitor a decidir a compra.' } }] });
   }
+  if (endereco.startsWith('https://graph.instagram.com/')) {
+    anotar({ servico: 'instagram', metodo: init.method ?? 'GET', url: endereco.replace(/\?.*/, '') });
+    if (endereco.endsWith('/media_publish')) return json({ id: 'post-1' });
+    if (endereco.endsWith('/media')) return json({ id: 'cont-1' });
+    return json({ status_code: 'FINISHED', username: 'conta_teste' });
+  }
+  if (init.method === 'HEAD' && endereco.includes('/social/')) return new Response(null, { status: 200 });
+  if (endereco.startsWith('https://img.exemplo/')) {
+    anotar({ servico: 'imagem' });
+    // PNG 1x1
+    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+    return new Response(png, { status: 200, headers: { 'content-type': 'image/png' } });
+  }
   throw new Error(`fetch inesperado nos testes: ${endereco}`);
 };

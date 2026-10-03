@@ -60,6 +60,10 @@ export interface Config {
   };
   /** Mensagens de WhatsApp para o enviador do PC (ver pasta enviador/). */
   whatsapp: { ativo: boolean };
+  /** Arte de Story, legenda e roteiro de vídeo das ofertas postadas (aparecem no painel). */
+  social: { ativo: boolean };
+  /** Publicação automática no Instagram (conta profissional). Token e ID ficam nos Secrets. */
+  instagram: { ativo: boolean; token: string; userId: string; feedPorDia: number; storiesPorDia: number; tokenData: string };
   painel: { porta: number };
 }
 
@@ -193,6 +197,15 @@ export function lerConfig(env: Env = process.env): Config {
       telegramLink: (env.BLOG_TELEGRAM ?? '').trim() || (chatId.startsWith('@') ? `https://t.me/${chatId.slice(1)}` : ''),
     },
     whatsapp: { ativo: ligado(env, 'WHATSAPP_ATIVO', true) },
+    social: { ativo: ligado(env, 'SOCIAL_ATIVO', true) },
+    instagram: {
+      ativo: ligado(env, 'INSTAGRAM_ATIVO', false),
+      token: (env.INSTAGRAM_TOKEN ?? '').trim(),
+      userId: (env.INSTAGRAM_USER_ID ?? '').trim(),
+      feedPorDia: numero(env, 'INSTAGRAM_FEED_POR_DIA', 3),
+      storiesPorDia: numero(env, 'INSTAGRAM_STORIES_POR_DIA', 6),
+      tokenData: (env.INSTAGRAM_TOKEN_DATA ?? '').trim(),
+    },
     painel: { porta: numero(env, 'PAINEL_PORTA', 3210) },
   };
 }

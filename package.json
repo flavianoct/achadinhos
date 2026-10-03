@@ -15,5 +15,8 @@
     "blog": "node --disable-warning=ExperimentalWarning src/index.ts --blog",
     "nuvem": "node --disable-warning=ExperimentalWarning src/index.ts --nuvem",
     "test": "node --disable-warning=ExperimentalWarning --test \"test/*.test.ts\""
+  },
+  "dependencies": {
+    "@resvg/resvg-js": "^2.6.2"
   }
 }

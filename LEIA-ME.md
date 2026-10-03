@@ -134,3 +134,11 @@ O mesmo robô também roda no seu computador, com um painel no navegador. Precis
 
 - **Painel:** depois de cada rodada o robô publica `painel.html` no seu site (ex.: `.../achadinhos/painel.html`). Mostra fila, posts, erros, ajustes e as mensagens de WhatsApp prontas para copiar. É só leitura; os botões levam ao GitHub (onde só você, logado, altera algo). Não tem senha nem segredo nele.
 - **WhatsApp:** `WHATSAPP_ATIVO=1` (padrão) faz o robô guardar cada oferta postada no Telegram em `whatsapp.json`. Quem posta no WhatsApp é o programa da pasta `enviador/`, no seu PC (veja `enviador/LEIA-ME.txt`). Use `WHATSAPP_ATIVO=0` em `ajustes.env` para desligar.
+
+## Conteúdo para Stories e Reels
+
+Para cada oferta postada no Telegram o robô cria, no painel, a arte do Story (1080x1920, com a foto do produto), a legenda (com aviso de publi e hashtags) e o roteiro de 15 segundos. No painel você baixa o PNG e copia os textos. `SOCIAL_ATIVO=0` em `ajustes.env` desliga. A publicação automática no Instagram e no TikTok depende das APIs oficiais (conta profissional, app aprovado) e fica para uma próxima etapa.
+
+## Instagram automático
+
+Veja `INSTAGRAM.md`. Desligado por padrão (`INSTAGRAM_ATIVO=0`). Precisa de conta profissional e de dois Secrets (`INSTAGRAM_TOKEN`, `INSTAGRAM_USER_ID`).

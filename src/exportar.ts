@@ -4,6 +4,8 @@ import type { ResultadoDoBlog } from './blog.ts';
 import type { Config } from './config.ts';
 import type { Banco } from './db.ts';
 import type { ResumoDaColeta } from './pipeline.ts';
+import type { ResumoDoInstagram } from './instagram.ts';
+import { conteudoSocialRecente } from './social.ts';
 
 /** Quanto tempo uma mensagem de WhatsApp continua valendo (preço velho não deve ser postado). */
 export const HORAS_DO_WHATSAPP = 12;
@@ -13,6 +15,7 @@ export interface DadosDaRodada {
   postados: number;
   parou?: string;
   blog?: ResultadoDoBlog;
+  instagram?: ResumoDoInstagram;
 }
 
 export interface StatusPublico {
@@ -20,13 +23,14 @@ export interface StatusPublico {
   repo: string;
   blogUrl: string;
   telegramLink: string;
-  canais: { telegram: boolean; whatsapp: boolean; blog: boolean };
+  canais: { telegram: boolean; whatsapp: boolean; blog: boolean; instagram: boolean };
   lojas: { shopee: boolean; mercadolivre: boolean; amazon: boolean };
   fila: number;
   postsHoje: number;
   maxPostsPorDia: number;
   postsPorDia: Array<{ dia: string; posts: number }>;
   whatsappPendentes: number;
+  instagram?: { feedHoje: number; storiesHoje: number; avisos: string[] };
   coleta?: { vistas: number; aprovadas: number; erros: Record<string, string> };
   rodada: { postados: number; parou?: string };
   blog?: { guias: number; postsNoAr: number; postsDeHoje: number; textosDeIA: number; modelo?: string; avisos: string[] };
@@ -41,13 +45,14 @@ export function montarStatus(banco: Banco, config: Config, dados: DadosDaRodada,
     repo,
     blogUrl: config.blog.url,
     telegramLink: config.blog.telegramLink,
-    canais: { telegram: Boolean(config.telegram.token && config.telegram.chatId), whatsapp: config.whatsapp.ativo, blog: config.blog.ativo },
+    canais: { telegram: Boolean(config.telegram.token && config.telegram.chatId), whatsapp: config.whatsapp.ativo, blog: config.blog.ativo, instagram: config.instagram.ativo },
     lojas: { shopee: config.shopee.ativo, mercadolivre: config.ml.ativo, amazon: config.amazon.ativo },
     fila: banco.tamanhoDaFila(),
     postsHoje: banco.postsNoDia(agora),
     maxPostsPorDia: config.ritmo.maxPostsPorDia,
     postsPorDia: banco.postsPorDia(7, agora),
     whatsappPendentes: banco.mensagensDoWhatsapp(HORAS_DO_WHATSAPP, agora).length,
+    instagram: config.instagram.ativo ? { feedHoje: banco.instagramNoDia('feed', agora), storiesHoje: banco.instagramNoDia('story', agora), avisos: dados.instagram?.avisos ?? [] } : undefined,
     coleta: dados.coleta ? { vistas: dados.coleta.coletadas, aprovadas: dados.coleta.aprovadas, erros: dados.coleta.errosPorFonte } : undefined,
     rodada: { postados: dados.postados, parou: dados.parou || undefined },
     blog: dados.blog
@@ -89,6 +94,7 @@ export function publicarControle(banco: Banco, config: Config, dados: DadosDaRod
     : [];
   writeFileSync(join(pasta, 'status.json'), JSON.stringify(status, null, 2), 'utf8');
   writeFileSync(join(pasta, 'whatsapp.json'), JSON.stringify({ atualizadoEm: agora.toISOString(), mensagens }, null, 2), 'utf8');
+  writeFileSync(join(pasta, 'social.json'), JSON.stringify({ atualizadoEm: agora.toISOString(), itens: conteudoSocialRecente(banco, config, agora) }), 'utf8');
   writeFileSync(join(pasta, 'painel.html'), PAGINA_DO_PAINEL, 'utf8');
 }
 
@@ -126,6 +132,10 @@ tr:last-child td{border-bottom:0}
 .aviso{background:var(--avbg);color:var(--av);border-radius:8px;padding:8px 12px;margin-bottom:8px;font-size:14px}
 .erro{background:var(--erbg);color:var(--er);border-radius:8px;padding:8px 12px;margin-bottom:8px;font-size:14px}
 .nota{color:var(--mut);font-size:13px;margin-top:8px}
+.social{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;margin-top:10px}
+.sc{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px}
+.sc img{width:100%;border-radius:8px;display:block;margin-bottom:10px;background:var(--bd)}
+.sc .btns{flex-direction:column}.sc .b{text-align:center}
 </style>
 </head>
 <body>
@@ -150,6 +160,10 @@ tr:last-child td{border-bottom:0}
 <h2>Últimas ofertas postadas</h2>
 <table id="posts"></table>
 
+<h2>Stories e Reels: conteúdo pronto</h2>
+<div class="nota">Para cada oferta postada: a arte do Story (baixe em PNG), a legenda e o roteiro de 15 segundos. Publique no Instagram e no TikTok.</div>
+<div class="social" id="social"></div>
+
 <h2>WhatsApp: mensagens prontas</h2>
 <div class="nota" id="zapnota"></div>
 <div id="zap"></div>
@@ -162,7 +176,8 @@ const carregar=u=>fetch(u+'?t='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok
 async function iniciar(){
   let s,w;
   try{[s,w]=await Promise.all([carregar('status.json'),carregar('whatsapp.json')])}catch(e){document.getElementById('atualizado').textContent='Ainda não há dados: espere a próxima rodada do robô terminar.';return}
-  const t=new Date(s.atualizadoEm).getTime();
+  try{so=await carregar('social.json')}catch(e){so={itens:[]}}
+const t=new Date(s.atualizadoEm).getTime();
   document.getElementById('atualizado').textContent='Última rodada '+quando(t)+' · '+new Date(t).toLocaleString('pt-BR');
   const idade=(Date.now()-t)/60000;
   const saude=document.getElementById('saude');
@@ -173,11 +188,12 @@ async function iniciar(){
   erros.forEach(([l,m])=>av.append(el('div','erro','Erro em '+l+': '+m)));
   if(idade>120)av.append(el('div','erro','A última rodada foi '+quando(t)+'. O normal é a cada 30 minutos. Veja a aba Actions do GitHub.'));
   ((s.blog&&s.blog.avisos)||[]).forEach(m=>av.append(el('div','aviso',m)));
-  const nums=[[s.fila,'ofertas na fila'],[s.postsHoje+' / '+s.maxPostsPorDia,'posts hoje'],[s.coleta?s.coleta.aprovadas+' de '+s.coleta.vistas:'-','aprovadas na última coleta'],[s.blog?s.blog.guias:'-','guias no ar'],[s.blog?s.blog.textosDeIA:'-','textos de IA na rodada'],[s.whatsappPendentes,'mensagens de WhatsApp na fila']];
+((s.instagram&&s.instagram.avisos)||[]).forEach(m=>av.append(el('div','aviso',m)));
+  const nums=[[s.fila,'ofertas na fila'],[s.postsHoje+' / '+s.maxPostsPorDia,'posts hoje'],[s.coleta?s.coleta.aprovadas+' de '+s.coleta.vistas:'-','aprovadas na última coleta'],[s.blog?s.blog.guias:'-','guias no ar'],[s.blog?s.blog.textosDeIA:'-','textos de IA na rodada'],[s.whatsappPendentes,'mensagens de WhatsApp na fila']].concat(s.instagram?[[s.instagram.feedHoje+' + '+s.instagram.storiesHoje,'Instagram hoje (feed + stories)']]:[]);
   const g=document.getElementById('numeros');
   nums.forEach(([n,l])=>{const c=el('div','card');c.append(el('div','n',String(n)),el('div','l',l));g.append(c)});
   const ch=document.getElementById('chips');
-  [['Telegram',s.canais.telegram],['WhatsApp',s.canais.whatsapp],['Blog',s.canais.blog],['Mercado Livre',s.lojas.mercadolivre],['Shopee',s.lojas.shopee],['Amazon',s.lojas.amazon]].forEach(([n,on])=>ch.append(el('span','pill '+(on?'ok':'of'),n+': '+(on?'ligado':'desligado'))));
+  [['Telegram',s.canais.telegram],['WhatsApp',s.canais.whatsapp],['Instagram',s.canais.instagram],['Blog',s.canais.blog],['Mercado Livre',s.lojas.mercadolivre],['Shopee',s.lojas.shopee],['Amazon',s.lojas.amazon]].forEach(([n,on])=>ch.append(el('span','pill '+(on?'ok':'of'),n+': '+(on?'ligado':'desligado'))));
   const max=Math.max(1,...s.postsPorDia.map(d=>d.posts));
   const b=document.getElementById('barras');
   s.postsPorDia.forEach(d=>{const x=el('div','bar');const i=el('i');i.style.height=Math.round(d.posts/max*80)+'px';x.append(i,el('div','',d.posts+''),el('div','',d.dia.slice(8)+'/'+d.dia.slice(5,7)));b.append(x)});
@@ -195,7 +211,20 @@ async function iniciar(){
   s.ultimosPosts.forEach(p=>{const r=el('tr');r.append(el('td','',quando(p.postadoEm)),el('td','',p.loja),el('td','',p.titulo.slice(0,90)),el('td','',reais(p.preco)));po.append(r)});
   if(!s.ultimosPosts.length){const r=el('tr');r.append(el('td','','Nenhum post ainda.'));po.append(r)}
   document.getElementById('zapnota').textContent=s.canais.whatsapp?'O enviador do seu PC busca estas mensagens sozinho. Aqui você também pode copiar uma e mandar na mão, se preferir.':'WhatsApp desligado (WHATSAPP_ATIVO=0).';
-  const z=document.getElementById('zap');
+  const sc=document.getElementById('social');
+const copiar=(btn,txt,rot)=>btn.onclick=()=>navigator.clipboard.writeText(txt).then(()=>{btn.textContent='Copiado!';setTimeout(()=>btn.textContent=rot,1500)});
+so.itens.forEach(it=>{
+const d=el('div','sc');
+const url='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(it.svg);
+const im=el('img');im.src=url;im.alt='Arte do Story';im.loading='lazy';
+const bt=el('div','btns');
+const png=el('button','b','Baixar Story (PNG)');
+png.onclick=()=>{const i=new Image();i.onload=()=>{const c=document.createElement('canvas');c.width=1080;c.height=1920;c.getContext('2d').drawImage(i,0,0,1080,1920);c.toBlob(bl=>{const a=document.createElement('a');a.href=URL.createObjectURL(bl);a.download='story-'+it.id.replace(/[^a-z0-9]/gi,'-')+'.png';a.click()},'image/png')};i.src=url};
+const lg=el('button','b s','Copiar legenda');copiar(lg,it.legenda,'Copiar legenda');
+const ro=el('button','b s','Copiar roteiro do vídeo');copiar(ro,it.roteiro,'Copiar roteiro do vídeo');
+bt.append(png,lg,ro);d.append(im,el('div','sub',quando(it.criadoEm)),bt);sc.append(d)});
+if(!so.itens.length)sc.append(el('div','sub','Nenhum conteúdo ainda: aparece depois da próxima postagem.'));
+const z=document.getElementById('zap');
   w.mensagens.slice().reverse().slice(0,10).forEach(m=>{
     const d=el('div','msg');d.append(el('pre','',m.texto));
     const bt=el('div','btns');
