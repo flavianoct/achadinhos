@@ -68,6 +68,7 @@ jobs:
           ML_MATT_TOOL: ${{ secrets.ML_MATT_TOOL }}
           AMAZON_TAG: ${{ secrets.AMAZON_TAG }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           BLOG_URL: ${{ steps.pages.outputs.base_url }}
         run: node --disable-warning=ExperimentalWarning src/index.ts --nuvem
 
