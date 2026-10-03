@@ -67,17 +67,21 @@ test('guias: a página sai com tabela, comparativo, perguntas frequentes, dados 
 
   const html = readFileSync(join(dir, 'melhores-fones-bluetooth.html'), 'utf8');
   assert.match(html, /<h1>Melhores fones de ouvido bluetooth de 2026: top 5 comparados<\/h1>/);
-  assert.equal((html.match(/<li class="cartao">/g) ?? []).length, 5);
+  assert.equal((html.match(/<li class="cartao( primeiro)?">/g) ?? []).length, 5);
   assert.ok(html.includes('<table>') && html.includes('Comparativo rápido') && html.includes('Melhor custo-benefício'));
   assert.ok(html.includes('O que observar antes de comprar') && html.includes('Autonomia da bateria'));
   assert.ok(html.includes('Perguntas frequentes') && html.includes('preço visto em 03/10/2026'));
   assert.ok(html.includes('<a href="melhores-air-fryers.html">'), 'link para outro guia');
   assert.ok(html.includes('<link rel="canonical" href="https://exemplo.github.io/achados/melhores-fones-bluetooth.html">'));
   const ld = JSON.parse(/<script type="application\/ld\+json">(.*?)<\/script>/s.exec(html)![1])['@graph'];
-  assert.deepEqual(ld.map((x: any) => x['@type']), ['Article', 'ItemList', 'FAQPage']);
+  assert.deepEqual(ld.map((x: any) => x['@type']), ['Article', 'ItemList', 'FAQPage', 'BreadcrumbList']);
+  assert.equal(ld[1].itemListElement[0].item['@type'], 'Product');
+  assert.equal(ld[1].itemListElement[0].item.offers.priceCurrency, 'BRL');
+  assert.deepEqual(ld[3].itemListElement.map((x: any) => x.name), ['Início', 'Guias', 'Melhores fones de ouvido bluetooth de 2026: top 5 comparados']);
+  assert.ok(html.includes('name="twitter:card"') && html.includes('property="og:site_name"') && html.includes('class="escolhas"'), 'redes sociais e resumo das escolhas');
   assert.equal(ld[1].numberOfItems, 5);
   assert.equal(ld[2].mainEntity.length, 3);
-  assert.equal((html.match(/rel="sponsored nofollow noopener"/g) ?? []).length, 10, 'tabela e cartões usam rel sponsored');
+  assert.ok((html.match(/rel="sponsored nofollow noopener"/g) ?? []).length >= 10, 'tabela, escolhas e cartões usam rel sponsored');
 
   const air = readFileSync(join(dir, 'melhores-air-fryers.html'), 'utf8');
   assert.match(air, /top 3 comparados/);
@@ -86,7 +90,9 @@ test('guias: a página sai com tabela, comparativo, perguntas frequentes, dados 
   const inicio = readFileSync(join(dir, 'index.html'), 'utf8');
   assert.ok(inicio.includes('Guias de compra') && inicio.includes('href="guias.html"'));
   const mapa = readFileSync(join(dir, 'sitemap.xml'), 'utf8');
-  assert.ok(mapa.includes('/melhores-fones-bluetooth.html') && mapa.includes('/guias.html'));
+  assert.ok(mapa.includes('/melhores-fones-bluetooth.html') && mapa.includes('/guias.html') && mapa.includes('/sobre.html') && mapa.includes('/privacidade.html'));
+  assert.ok(readFileSync(join(dir, 'sobre.html'), 'utf8').includes('Como escolhemos os produtos') && readFileSync(join(dir, 'privacidade.html'), 'utf8').includes('rel="sponsored"'));
+  assert.ok(readFileSync(join(dir, 'robots.txt'), 'utf8').includes('Sitemap:'));
 });
 
 test('guias: sem produtos novos o guia continua no ar com a última versão boa', async () => {

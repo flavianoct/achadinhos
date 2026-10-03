@@ -186,14 +186,14 @@ test('blog: cria os posts do dia, página inicial, categorias e arquivo; escapa 
   assert.equal(r.postsDeHoje, 3); // geral, tech e casa; pet tem só 2 produtos e não vira post
   assert.deepEqual([...r.paginas].sort(), [
     '404.html', 'arquivo.html', 'categoria-casa.html', 'categoria-tech.html', 'categoria-todas.html', 'index.html',
-    'post-2026-10-03-casa.html', 'post-2026-10-03-ofertas-do-dia.html', 'post-2026-10-03-tech.html',
+    'post-2026-10-03-casa.html', 'post-2026-10-03-ofertas-do-dia.html', 'post-2026-10-03-tech.html', 'privacidade.html', 'sobre.html',
   ]);
   assert.equal(existsSync(join(dir, 'ofertas-antiga.html')), false, 'página que não faz mais parte do site é removida');
   for (const arquivo of ['estilo.css', '.nojekyll', 'sitemap.xml', 'robots.txt', 'feed.xml']) assert.ok(existsSync(join(dir, arquivo)), arquivo);
 
   const post = ler(dir, 'post-2026-10-03-ofertas-do-dia.html');
   assert.match(post, /<h1>Top 10 ofertas do dia 03\/10\/2026<\/h1>/);
-  assert.equal((post.match(/<li class="cartao">/g) ?? []).length, 10);
+  assert.equal((post.match(/<li class="cartao( primeiro)?">/g) ?? []).length, 10);
   assert.ok(!post.includes('<script>alert'), 'título malicioso não vira tag');
   assert.ok(post.includes('&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; &quot;aspas&quot;'));
   assert.ok(!post.includes('javascript:'), 'link que não é https fica de fora');
@@ -214,7 +214,7 @@ test('blog: cria os posts do dia, página inicial, categorias e arquivo; escapa 
   assert.ok(casa.includes('<s>R$ 300,00</s>') && casa.includes('Frete grátis') && casa.includes('Menor preço em 12 dias') && casa.includes('Ver oferta na Mercado Livre'));
 
   const inicio = ler(dir, 'index.html');
-  assert.match(inicio, /<h1>Ofertas de hoje<\/h1>/);
+  assert.match(inicio, /<h2 class="secao">Ofertas de hoje<\/h2>/);
   for (const a of ['post-2026-10-03-ofertas-do-dia.html', 'post-2026-10-03-tech.html', 'post-2026-10-03-casa.html']) assert.ok(inicio.includes(`<a href="${a}">`), a);
   assert.ok(inicio.indexOf('ofertas-do-dia.html') < inicio.indexOf('post-2026-10-03-casa.html'), 'o post geral vem primeiro');
   assert.ok(inicio.includes('<a href="index.html" aria-current="page">Início</a>') && inicio.includes('<a href="categoria-tech.html">Tecnologia</a>') && inicio.includes('<a href="arquivo.html">Arquivo</a>'));
@@ -253,7 +253,7 @@ test('blog: cada dia ganha posts novos; os antigos ficam no arquivo com aviso e 
   assert.ok(novo.includes('R$ 80,00') && !novo.includes('class="antigo"'));
 
   const inicio = ler(dir, 'index.html');
-  assert.match(inicio, /<h1>Ofertas de hoje<\/h1>/);
+  assert.match(inicio, /<h2 class="secao">Ofertas de hoje<\/h2>/);
   assert.ok(inicio.indexOf('post-2026-10-04-tech.html') < inicio.indexOf('Dias anteriores') && inicio.indexOf('Dias anteriores') < inicio.indexOf('post-2026-10-03-tech.html'));
   const arquivo = ler(dir, 'arquivo.html');
   assert.ok(arquivo.includes('>Hoje</h2>') && arquivo.includes('>03/10/2026</h2>'));
@@ -263,7 +263,7 @@ test('blog: cada dia ganha posts novos; os antigos ficam no arquivo com aviso e 
   assert.equal(r3.gerou, true);
   assert.equal(r3.postsDeHoje, 0);
   assert.match(r3.avisos.join(' '), /mínimo de 3/);
-  assert.match(ler(dir, 'index.html'), /<h1>Ofertas de 04\/10\/2026<\/h1>/);
+  assert.match(ler(dir, 'index.html'), /<h2 class="secao">Ofertas de 04\/10\/2026<\/h2>/);
   assert.ok(ler(dir, 'post-2026-10-04-tech.html').includes('class="antigo"'));
 
   // Prazo de 2 dias: no dia 3, os posts do dia 0 saem do banco, da pasta e do sitemap.

@@ -179,12 +179,33 @@ interface Site {
   guias: Guia[];
 }
 
-function moldura(site: Site, p: { arquivo: string; titulo: string; descricao: string; corpo: string; imagem?: string; tipo?: string; dadosEstruturados?: unknown; rodapeExtra?: string }): string {
+const ICONE_DO_SITE = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23d6336c'/%3E%3Cpath d='M8 17l8-8h8v8l-8 8z' fill='%23fff'/%3E%3Ccircle cx='20.5' cy='11.5' r='2' fill='%23d6336c'/%3E%3C/svg%3E";
+const LOGO = '<svg class="logo" viewBox="0 0 32 32" width="30" height="30" aria-hidden="true"><rect width="32" height="32" rx="8" fill="currentColor"/><path d="M8 17l8-8h8v8l-8 8z" fill="#fff"/><circle cx="20.5" cy="11.5" r="2" fill="currentColor"/></svg>';
+
+type Trilha = Array<[string, string?]>;
+
+function moldura(site: Site, p: { arquivo: string; titulo: string; descricao: string; corpo: string; imagem?: string; tipo?: string; dadosEstruturados?: unknown; rodapeExtra?: string; trilha?: Trilha; largo?: boolean }): string {
   const b = site.config.blog;
-  const canonica = b.url ? `${b.url}/${p.arquivo === 'index.html' ? '' : p.arquivo}` : '';
+  const endereco = (arquivo: string) => (b.url ? `${b.url}/${arquivo === 'index.html' ? '' : arquivo}` : '');
+  const canonica = endereco(p.arquivo);
   const itensDoMenu: Array<[string, string]> = [['index.html', 'Início'], ...(site.guias.length ? [['guias.html', 'Guias'] as [string, string]] : []), ...site.temas.map((t): [string, string] => [`categoria-${t}.html`, nomeDoTema(t)]), ['arquivo.html', 'Arquivo']];
   const nav = itensDoMenu.map(([arquivo, rotulo]) => `<a href="${arquivo}"${arquivo === p.arquivo ? ' aria-current="page"' : ''}>${esc(rotulo)}</a>`).join('');
   const tituloCompleto = p.arquivo === 'index.html' ? `${b.nome} — ${p.titulo}` : `${p.titulo} | ${b.nome}`;
+
+  // Dados estruturados: o que a página trouxe + trilha de navegação (+ identidade do site, na página inicial).
+  const grafo: unknown[] = [...(((p.dadosEstruturados as { '@graph'?: unknown[] } | undefined)?.['@graph']) ?? [])];
+  if (b.url && p.trilha?.length) {
+    const passos: Trilha = [['Início', 'index.html'], ...p.trilha];
+    grafo.push({ '@type': 'BreadcrumbList', itemListElement: passos.map(([nome, arquivo], i) => ({ '@type': 'ListItem', position: i + 1, name: nome, item: arquivo ? endereco(arquivo) : canonica })) });
+  }
+  if (b.url && p.arquivo === 'index.html') {
+    grafo.push({ '@type': 'WebSite', '@id': `${b.url}/#site`, url: `${b.url}/`, name: b.nome, inLanguage: 'pt-BR' });
+    grafo.push({ '@type': 'Organization', '@id': `${b.url}/#org`, name: b.nome, url: `${b.url}/`, logo: ICONE_DO_SITE, ...(b.telegramLink && urlSegura(b.telegramLink) ? { sameAs: [b.telegramLink] } : {}) });
+  }
+  const ld = grafo.length ? { '@context': 'https://schema.org', '@graph': grafo } : undefined;
+  const migalhas = p.trilha?.length
+    ? `<nav class="trilha" aria-label="Você está em"><a href="index.html">Início</a>${p.trilha.map(([nome, arquivo]) => ` <span aria-hidden="true">›</span> ${arquivo ? `<a href="${arquivo}">${esc(nome)}</a>` : `<span aria-current="page">${esc(encurtar(nome, 60))}</span>`}`).join('')}</nav>\n`
+    : '';
   return `<!doctype html>
 <html lang="pt-BR">
 <head>
@@ -192,28 +213,45 @@ function moldura(site: Site, p: { arquivo: string; titulo: string; descricao: st
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(tituloCompleto)}</title>
 <meta name="description" content="${esc(p.descricao)}">
+<meta name="robots" content="${p.arquivo === '404.html' ? 'noindex' : 'index,follow,max-image-preview:large'}">
+<meta name="theme-color" content="#d6336c">
+<link rel="icon" href="${ICONE_DO_SITE}">
 ${canonica ? `<link rel="canonical" href="${esc(canonica)}">` : ''}
+<meta property="og:site_name" content="${esc(b.nome)}">
+<meta property="og:locale" content="pt_BR">
 <meta property="og:type" content="${p.tipo ?? 'website'}">
 <meta property="og:title" content="${esc(p.titulo)}">
 <meta property="og:description" content="${esc(p.descricao)}">
 ${canonica ? `<meta property="og:url" content="${esc(canonica)}">` : ''}
 ${p.imagem ? `<meta property="og:image" content="${esc(p.imagem)}">` : ''}
+<meta name="twitter:card" content="${p.imagem ? 'summary_large_image' : 'summary'}">
+<meta name="twitter:title" content="${esc(p.titulo)}">
+<meta name="twitter:description" content="${esc(p.descricao)}">
+${p.imagem ? `<meta name="twitter:image" content="${esc(p.imagem)}">` : ''}
 ${b.url ? `<link rel="alternate" type="application/rss+xml" title="${esc(b.nome)}" href="${esc(`${b.url}/feed.xml`)}">` : ''}
+<link rel="preconnect" href="https://http2.mlstatic.com" crossorigin>
 <link rel="stylesheet" href="estilo.css">
-${p.dadosEstruturados ? `<script type="application/ld+json">${JSON.stringify(p.dadosEstruturados).replace(/</g, '\\u003c')}</script>` : ''}
+${ld ? `<script type="application/ld+json">${JSON.stringify(ld).replace(/</g, '\\u003c')}</script>` : ''}
 </head>
 <body>
-<header>
-  <a class="marca" href="index.html">${esc(b.nome)}</a>
-  <nav aria-label="Seções">${nav}</nav>
+<a class="pular" href="#conteudo">Pular para o conteúdo</a>
+<header class="topo">
+  <div class="topo-miolo">
+    <a class="marca" href="index.html">${LOGO}<span>${esc(b.nome)}</span></a>
+    <nav aria-label="Seções">${nav}</nav>
+  </div>
 </header>
-<main>
-${p.corpo}
-  ${b.telegramLink && urlSegura(b.telegramLink) ? `<p class="chamada">Quer receber as ofertas na hora? <a href="${esc(b.telegramLink)}" target="_blank" rel="noopener">Entre no nosso canal do Telegram</a>.</p>` : ''}
+<main id="conteudo"${p.largo ? ' class="largo"' : ''}>
+${migalhas}${p.corpo}
+  ${b.telegramLink && urlSegura(b.telegramLink) ? `<aside class="chamada"><div><strong>Receba as melhores ofertas na hora</strong><span>Nosso canal do Telegram avisa quando um bom preço aparece.</span></div><a class="botao" href="${esc(b.telegramLink)}" target="_blank" rel="noopener">Entrar no canal</a></aside>` : ''}
 </main>
-<footer>
-  <p><strong>Aviso:</strong> este site participa de programas de afiliados. Ao comprar pelos links, podemos receber uma comissão, sem custo extra para você.</p>
-  ${p.rodapeExtra ?? ''}
+<footer class="rodape">
+  <div class="rodape-miolo">
+    <p class="rodape-nome">${LOGO}<span>${esc(b.nome)}</span></p>
+    <p class="rodape-links"><a href="index.html">Início</a> <a href="guias.html">Guias</a> <a href="sobre.html">Como escolhemos</a> <a href="privacidade.html">Privacidade e afiliados</a>${b.url ? ' <a href="feed.xml">RSS</a>' : ''}</p>
+    <p><strong>Aviso:</strong> este site participa de programas de afiliados. Ao comprar pelos links, podemos receber uma comissão, sem custo extra para você.</p>
+    ${p.rodapeExtra ?? ''}
+  </div>
 </footer>
 </body>
 </html>
@@ -235,9 +273,9 @@ function cartaoDoProduto(o: ItemDoPost, posicao: number): string {
   social.push(loja);
 
   const de = o.precoOriginal && o.precoOriginal > o.preco ? `<s>${formatarPreco(o.precoOriginal)}</s> ` : '';
-  return `<li class="cartao">
+  return `<li class="cartao${posicao === 1 ? ' primeiro' : ''}">
   <span class="posicao">${posicao}</span>
-  ${imagem ? `<img src="${esc(imagem)}" alt="${esc(o.titulo)}" width="120" height="120" loading="lazy" referrerpolicy="no-referrer">` : '<div class="semimagem" aria-hidden="true"></div>'}
+  ${imagem ? `<img src="${esc(imagem)}" alt="${esc(encurtar(o.titulo, 110))}" width="140" height="140" loading="${posicao <= 2 ? 'eager' : 'lazy'}" decoding="async" referrerpolicy="no-referrer">` : '<div class="semimagem" aria-hidden="true"></div>'}
   <div class="corpo">
     <h2>${esc(o.titulo)}</h2>
     <p class="preco">${de}<strong>${formatarPreco(o.preco)}</strong></p>
@@ -278,7 +316,7 @@ ${d.itens.map((o, i) => cartaoDoProduto(o, i + 1)).join('\n')}
   ${d.fim ? `<section class="fim"><h2>Como escolher</h2><p>${esc(d.fim)}</p></section>` : ''}
   </article>`;
   const rodapeExtra = `<p>Preços conferidos em ${esc(atualizado)}. Eles podem mudar a qualquer momento; vale o preço mostrado na loja.</p>${d.temIA ? '\n  <p>Os textos desta página são escritos por inteligência artificial a partir do nome e dos dados de cada produto. Confira os detalhes na página da loja antes de comprar.</p>' : ''}`;
-  return moldura(site, { arquivo: post.arquivo, titulo: post.titulo, descricao, corpo, imagem: urlSegura(d.itens[0]?.imagem), tipo: 'article', dadosEstruturados, rodapeExtra });
+  return moldura(site, { arquivo: post.arquivo, titulo: post.titulo, descricao, corpo, imagem: urlSegura(d.itens[0]?.imagem), tipo: 'article', dadosEstruturados, rodapeExtra, trilha: [[nomeDoTema(post.tema), `categoria-${post.tema}.html`], [post.titulo]] });
 }
 
 function anoDe(agora: Date): string {
@@ -302,6 +340,25 @@ ${linhas.join('\n')}
 </tbody></table></div>`;
 }
 
+/** Os "campeões" do guia (custo-benefício, mais vendido, melhor avaliado...), para o leitor decidir em dez segundos. */
+function melhoresEscolhas(itens: ItemDoPost[]): string {
+  const rotulos = ['Melhor custo-benefício', 'Mais vendido', 'Melhor avaliado', 'Mais barato da lista'];
+  const cartoes: string[] = [];
+  for (const rotulo of rotulos) {
+    const o = itens.find((i) => (i.destaques ?? []).includes(rotulo));
+    if (!o) continue;
+    const imagem = urlSegura(o.imagem);
+    cartoes.push(`<li class="escolha">
+    <span class="escolha-rotulo">${esc(rotulo)}</span>
+    ${imagem ? `<img src="${esc(imagem)}" alt="" width="72" height="72" loading="lazy" decoding="async" referrerpolicy="no-referrer">` : ''}
+    <a class="escolha-nome" href="${esc(o.link)}" target="_blank" rel="sponsored nofollow noopener">${esc(encurtar(o.titulo, 70))}</a>
+    <span class="escolha-preco">${formatarPreco(o.preco)}</span>
+  </li>`);
+  }
+  if (cartoes.length === 0) return '';
+  return `<h2 class="secao">Em resumo: nossas escolhas</h2>\n  <ul class="escolhas">\n  ${cartoes.join('\n  ')}\n  </ul>\n  `;
+}
+
 function paginaDoGuia(site: Site, guia: Guia): string {
   const d = guia.dados;
   const b = site.config.blog;
@@ -309,20 +366,29 @@ function paginaDoGuia(site: Site, guia: Guia): string {
   const faq: PerguntaFrequente[] = perguntasDoGuia(guia.tipo, d.itens.length, d.ano);
   const outros = site.guias.filter((g) => g.arquivo !== guia.arquivo);
   const relacionados = [...outros.filter((g) => g.tipo.categoria === guia.tipo.categoria), ...outros.filter((g) => g.tipo.categoria !== guia.tipo.categoria)].slice(0, 6);
-  const descricao = encurtar(`${guia.titulo}. Comparamos ${d.itens.length} opções por nota, vendas e preço: ${d.itens.slice(0, 3).map((i) => encurtar(i.titulo, 45)).join('; ')}.`, 300);
+  const descricao = encurtar(`${guia.titulo}. Comparamos ${d.itens.length} opções por nota, vendas e preço atual: ${d.itens.slice(0, 3).map((i) => encurtar(i.titulo, 45)).join('; ')}.`, 300);
   const dadosEstruturados = {
     '@context': 'https://schema.org',
     '@graph': [
-      { '@type': 'Article', headline: guia.titulo, dateModified: new Date(guia.atualizadoEm).toISOString(), author: { '@type': 'Organization', name: b.nome }, publisher: { '@type': 'Organization', name: b.nome } },
-      { '@type': 'ItemList', name: guia.titulo, numberOfItems: d.itens.length, itemListElement: d.itens.map((o, i) => ({ '@type': 'ListItem', position: i + 1, name: o.titulo, url: o.link })) },
+      { '@type': 'Article', headline: guia.titulo, description: descricao, inLanguage: 'pt-BR', datePublished: new Date(guia.atualizadoEm).toISOString(), dateModified: new Date(guia.atualizadoEm).toISOString(), ...(urlSegura(d.itens[0]?.imagem) ? { image: [urlSegura(d.itens[0]?.imagem)] } : {}), ...(b.url ? { mainEntityOfPage: `${b.url}/${guia.arquivo}` } : {}), author: { '@type': 'Organization', name: b.nome }, publisher: { '@type': 'Organization', name: b.nome } },
+      {
+        '@type': 'ItemList',
+        name: guia.titulo,
+        numberOfItems: d.itens.length,
+        itemListElement: d.itens.map((o, i) => ({
+          '@type': 'ListItem',
+          position: i + 1,
+          item: { '@type': 'Product', name: o.titulo, ...(urlSegura(o.imagem) ? { image: urlSegura(o.imagem) } : {}), url: o.link, offers: { '@type': 'Offer', url: o.link, price: o.preco.toFixed(2), priceCurrency: 'BRL' } },
+        })),
+      },
       { '@type': 'FAQPage', mainEntity: faq.map((f) => ({ '@type': 'Question', name: f.pergunta, acceptedAnswer: { '@type': 'Answer', text: f.resposta } })) },
     ],
   };
   const corpo = `  <article>
   <h1>${esc(guia.titulo)}</h1>
-  <p class="data"><a href="guias.html">Guias de compra</a> · Atualizado em <time datetime="${new Date(guia.atualizadoEm).toISOString()}">${esc(atualizado)}</time> · ${d.itens.length} produtos comparados</p>
+  <p class="data"><a href="guias.html">Guias de compra</a> · <a href="sobre.html">Como escolhemos</a> · Atualizado em <time datetime="${new Date(guia.atualizadoEm).toISOString()}">${esc(atualizado)}</time> · ${d.itens.length} produtos comparados</p>
   <p class="intro">${esc(d.intro)}</p>
-  <h2 class="secao">Comparativo rápido</h2>
+  ${melhoresEscolhas(d.itens)}<h2 class="secao">Comparativo rápido</h2>
   ${tabelaComparativa(d.itens)}
   <h2 class="secao">Os ${d.itens.length} melhores, em detalhe</h2>
   <ol class="lista">
@@ -335,7 +401,7 @@ ${faq.map((f) => `  <h3>${esc(f.pergunta)}</h3>\n  <p>${esc(f.resposta)}</p>`).j
   ${relacionados.length ? `<section class="fim"><h2>Veja também</h2><ul>${relacionados.map((g) => `<li><a href="${g.arquivo}">${esc(g.titulo)}</a></li>`).join('')}</ul></section>` : ''}
   </article>`;
   const rodapeExtra = `<p>Preços vistos pelo nosso robô nas datas indicadas em cada produto. Eles mudam a qualquer momento; vale o preço mostrado na loja.</p>${d.temIA ? '\n  <p>Alguns textos desta página são escritos por inteligência artificial a partir do nome e dos dados de cada produto. Confira os detalhes na página da loja antes de comprar.</p>' : ''}`;
-  return moldura(site, { arquivo: guia.arquivo, titulo: guia.titulo, descricao, corpo, imagem: urlSegura(d.itens[0]?.imagem), tipo: 'article', dadosEstruturados, rodapeExtra });
+  return moldura(site, { arquivo: guia.arquivo, titulo: guia.titulo, descricao, corpo, imagem: urlSegura(d.itens[0]?.imagem), tipo: 'article', dadosEstruturados, rodapeExtra, trilha: [['Guias', 'guias.html'], [guia.titulo]] });
 }
 
 function cartaoDeGuia(g: Guia): string {
@@ -354,9 +420,9 @@ function paginaDosGuias(site: Site): string {
   const categorias = [...new Set(site.guias.map((g) => g.tipo.categoria))];
   const blocos = categorias.map((c) => `<h2 class="secao">${esc(NOME_DA_CATEGORIA[c] ?? c)}</h2>\n  <ul class="posts">\n${site.guias.filter((g) => g.tipo.categoria === c).map(cartaoDeGuia).join('\n')}\n  </ul>`);
   const corpo = `  <h1>Guias de compra</h1>
-  <p class="intro">Comparativos dos melhores produtos de cada tipo, ordenados pela nota de quem comprou, pelas vendas e pelo preço. Atualizados automaticamente.</p>
+  <p class="intro">Comparativos dos melhores produtos de cada tipo, ordenados pela nota de quem comprou e pelo volume de vendas, com os preços atualizados automaticamente.</p>
   ${blocos.join('\n  ')}`;
-  return moldura(site, { arquivo: 'guias.html', titulo: 'Guias de compra: os melhores produtos comparados', descricao: `${b.nome}: guias com os melhores produtos de cada tipo, comparados por nota, vendas e preço.`, corpo });
+  return moldura(site, { arquivo: 'guias.html', titulo: 'Guias de compra: os melhores produtos comparados', descricao: `${b.nome}: guias com os melhores produtos de cada tipo, comparados por nota, vendas e preço.`, corpo, trilha: [['Guias']], largo: true });
 }
 
 function resumoDoPost(post: Post, site: Site): string {
@@ -382,23 +448,81 @@ function secaoDeGuiasDaHome(site: Site): string {
   return `<h2 class="secao">Guias de compra</h2>\n  <ul class="posts">\n${guiasDaHome.map(cartaoDeGuia).join('\n')}\n  </ul>\n  <p><a href="guias.html">Ver todos os guias</a></p>\n  `;
 }
 
+function heroDaHome(site: Site, titulo: string, texto: string): string {
+  const b = site.config.blog;
+  const produtos = new Set(site.guias.flatMap((g) => g.dados.itens.map(idDe))).size;
+  const numeros = [site.guias.length ? `<li><strong>${site.guias.length}</strong><span>guias de compra</span></li>` : '', produtos ? `<li><strong>${produtos}</strong><span>produtos comparados</span></li>` : '', `<li><strong>30 min</strong><span>para atualizar</span></li>`].join('');
+  const telegram = b.telegramLink && urlSegura(b.telegramLink) ? `<a class="botao claro" href="${esc(b.telegramLink)}" target="_blank" rel="noopener">Canal no Telegram</a>` : '';
+  return `<section class="hero">
+    <h1>${esc(titulo)}</h1>
+    <p>${esc(texto)}</p>
+    <div class="hero-acoes">${site.guias.length ? '<a class="botao" href="guias.html">Ver guias de compra</a>' : ''}${telegram}</div>
+    <ul class="hero-numeros">${numeros}</ul>
+  </section>
+  <p class="confianca">Ranking feito com dados reais de nota e vendas, com preços atualizados a cada 30 minutos. <a href="sobre.html">Veja como escolhemos</a>.</p>`;
+}
+
 function paginaInicial(site: Site): string {
   const b = site.config.blog;
   if (site.posts.length === 0) {
     const guias = secaoDeGuiasDaHome(site);
-    const intro = guias ? 'Comparativos dos melhores produtos de cada tipo. As ofertas do dia chegam em breve.' : 'Os primeiros posts chegam em breve. O robô publica aqui as melhores ofertas de cada dia.';
-    return moldura(site, { arquivo: 'index.html', titulo: 'ofertas do dia', descricao: `${b.nome}: as melhores ofertas do dia, com histórico de preço.`, corpo: `  <h1>${esc(b.nome)}</h1>\n  <p class="intro">${intro}</p>\n  ${guias}` });
+    const intro = guias ? 'Comparativos dos melhores produtos de cada tipo, com nota, vendas e preço. As ofertas do dia chegam em breve.' : 'Os primeiros posts chegam em breve. O robô publica aqui as melhores ofertas de cada dia.';
+    return moldura(site, { arquivo: 'index.html', titulo: 'guias de compra e ofertas do dia', descricao: `${b.nome}: guias com os melhores produtos comparados por nota, vendas e preço, e as melhores ofertas do dia com histórico de preço.`, corpo: `  ${heroDaHome(site, b.nome, intro)}\n  ${guias}`, largo: true });
   }
   const diaMaisNovo = site.posts[0].dia;
   const recentes = site.posts.filter((p) => p.dia === diaMaisNovo);
   const anteriores = site.posts.filter((p) => p.dia !== diaMaisNovo).slice(0, 24);
   const titulo = diaMaisNovo === site.hoje ? 'Ofertas de hoje' : `Ofertas de ${dataBr(diaMaisNovo)}`;
   const secaoDeGuias = secaoDeGuiasDaHome(site);
-  const corpo = `  <h1>${esc(titulo)}</h1>
-  <p class="intro">As melhores ofertas de cada dia em listas Top 3, 5 e 10, escolhidas pelo desconto, pela avaliação de quem comprou e pelo histórico de preços.</p>
-  ${secaoDeGuias}${listaDePosts(recentes, site)}
+  const corpo = `  ${heroDaHome(site, `${b.nome}: guias de compra e ofertas do dia`, 'Comparamos os produtos mais bem avaliados e as melhores ofertas de cada dia, com histórico de preço, para você comprar com mais segurança.')}
+  ${secaoDeGuias}<h2 class="secao">${esc(titulo)}</h2>
+  ${listaDePosts(recentes, site)}
   ${anteriores.length ? `<h2 class="secao">Dias anteriores</h2>\n  ${listaDePosts(anteriores, site)}\n  <p><a href="arquivo.html">Ver todos os posts</a></p>` : ''}`;
-  return moldura(site, { arquivo: 'index.html', titulo: 'ofertas do dia em listas Top 3, 5 e 10', descricao: encurtar(`${b.nome}: ${recentes.map((p) => p.titulo).join('; ')}.`, 300), corpo, imagem: urlSegura(recentes[0]?.dados.itens[0]?.imagem) });
+  return moldura(site, { arquivo: 'index.html', titulo: 'guias de compra e ofertas do dia', descricao: encurtar(`${b.nome}: guias com os melhores produtos comparados e as ofertas do dia. ${recentes.map((p) => p.titulo).join('; ')}.`, 300), corpo, imagem: urlSegura(recentes[0]?.dados.itens[0]?.imagem), largo: true });
+}
+
+function paginaSobre(site: Site): string {
+  const b = site.config.blog;
+  const corpo = `  <article class="texto">
+  <h1>Como escolhemos os produtos</h1>
+  <p class="intro">${esc(b.nome)} é um site de comparativos e ofertas mantido por um sistema automático. Aqui está, sem rodeios, como cada lista é montada.</p>
+  <h2>De onde vêm os produtos</h2>
+  <p>Todos os dias o sistema lê as ofertas publicadas nas lojas parceiras e guarda nome, preço, preço anterior, nota dos compradores e volume de vendas de cada produto. Os preços são os que o robô viu na data indicada em cada produto; eles podem mudar a qualquer momento.</p>
+  <h2>Como montamos o ranking</h2>
+  <p>Só entram produtos com boa avaliação de quem comprou. A ordem leva em conta principalmente a nota dos compradores e a quantidade de vendas; o tamanho do desconto e o frete grátis pesam pouco. Por isso um produto muito barato, mas mal avaliado, não aparece no topo. O preço aparece em cada item e na tabela para você comparar, mas não decide a posição.</p>
+  <h2>O que significam os selos</h2>
+  <ul>
+    <li><strong>Melhor custo-benefício:</strong> o primeiro colocado do ranking: a melhor combinação de nota e vendas entre os produtos da lista.</li>
+    <li><strong>Mais vendido:</strong> o produto com maior volume de vendas informado pela loja.</li>
+    <li><strong>Melhor avaliado:</strong> a maior nota entre os compradores.</li>
+    <li><strong>Mais barato da lista:</strong> o menor preço entre os comparados, que não é necessariamente o melhor produto.</li>
+  </ul>
+  <h2>O que não fazemos</h2>
+  <p>Não recebemos os aparelhos para teste: as comparações usam os dados públicos das lojas, não testes próprios. Alguns textos são escritos por inteligência artificial a partir do nome e dos dados de cada produto, e o sistema é instruído a não inventar especificações. Mesmo assim, confira as características na página da loja antes de comprar.</p>
+  <h2>Como ganhamos dinheiro</h2>
+  <p>Os links para as lojas são links de afiliado: se você comprar depois de clicar, podemos receber uma pequena comissão da loja, sem nenhum custo extra para você. Isso não muda a posição dos produtos nas listas. Veja mais em <a href="privacidade.html">Privacidade e afiliados</a>.</p>
+  ${b.telegramLink && urlSegura(b.telegramLink) ? `<p>Dúvidas, sugestões ou algum erro? Fale com a gente pelo <a href="${esc(b.telegramLink)}" target="_blank" rel="noopener">canal do Telegram</a>.</p>` : ''}
+  </article>`;
+  return moldura(site, { arquivo: 'sobre.html', titulo: 'Como escolhemos os produtos', descricao: `Como o ${b.nome} escolhe e ordena os produtos: critérios do ranking, significado dos selos, origem dos dados e como o site ganha dinheiro.`, corpo, trilha: [['Como escolhemos']] });
+}
+
+function paginaPrivacidade(site: Site): string {
+  const b = site.config.blog;
+  const corpo = `  <article class="texto">
+  <h1>Privacidade e afiliados</h1>
+  <p class="intro">Resumo claro do que acontece com os seus dados e dos links deste site.</p>
+  <h2>Links de afiliado</h2>
+  <p>${esc(b.nome)} participa de programas de afiliados de lojas online. Quando você clica em um botão ou link de produto e compra, a loja pode nos pagar uma comissão. O preço para você é o mesmo. Esses links são marcados como patrocinados (<code>rel="sponsored"</code>).</p>
+  <h2>Dados pessoais</h2>
+  <p>Este site não tem cadastro, comentários nem formulários, e não coleta nome, e-mail ou telefone. Ele não usa cookies próprios de publicidade nem ferramentas de rastreamento. Ao abrir um link de loja, você passa a seguir as regras de privacidade dessa loja.</p>
+  <h2>Imagens e preços</h2>
+  <p>As imagens e os preços pertencem às lojas e são exibidos para facilitar a comparação. O preço correto é sempre o que aparece na página da loja no momento da compra.</p>
+  <h2>Inteligência artificial</h2>
+  <p>Parte dos textos é escrita por inteligência artificial a partir dos dados públicos de cada produto. Eles não substituem a descrição oficial da loja.</p>
+  <h2>Contato</h2>
+  ${b.telegramLink && urlSegura(b.telegramLink) ? `<p>Pelo <a href="${esc(b.telegramLink)}" target="_blank" rel="noopener">canal do Telegram</a>.</p>` : '<p>Pelo canal do Telegram do site.</p>'}
+  </article>`;
+  return moldura(site, { arquivo: 'privacidade.html', titulo: 'Privacidade e afiliados', descricao: `Política de privacidade e transparência sobre links de afiliado do ${b.nome}.`, corpo, trilha: [['Privacidade e afiliados']] });
 }
 
 function paginaDoTema(site: Site, tema: string): string {
@@ -407,7 +531,7 @@ function paginaDoTema(site: Site, tema: string): string {
   const corpo = `  <h1>${esc(nome)}</h1>
   <p class="intro">Todos os posts de ${esc(nome)}, do mais novo para o mais antigo.</p>
   ${listaDePosts(posts, site)}`;
-  return moldura(site, { arquivo: `categoria-${tema}.html`, titulo: `${nome}: ofertas por dia`, descricao: `Posts de ofertas de ${nome}, atualizados todos os dias.`, corpo });
+  return moldura(site, { arquivo: `categoria-${tema}.html`, titulo: `${nome}: ofertas por dia`, descricao: `Posts de ofertas de ${nome}, atualizados todos os dias.`, corpo, trilha: [[nome]], largo: true });
 }
 
 function paginaDoArquivo(site: Site): string {
@@ -416,66 +540,119 @@ function paginaDoArquivo(site: Site): string {
   const corpo = `  <h1>Arquivo</h1>
   <p class="intro">Todos os posts que estão no ar, por dia. Posts antigos mostram os preços do dia em que foram escritos.</p>
   ${blocos.join('\n  ') || '<p>Ainda não há posts.</p>'}`;
-  return moldura(site, { arquivo: 'arquivo.html', titulo: 'Arquivo de posts', descricao: `Todos os posts de ofertas de ${site.config.blog.nome}, por dia.`, corpo });
+  return moldura(site, { arquivo: 'arquivo.html', titulo: 'Arquivo de posts', descricao: `Todos os posts de ofertas de ${site.config.blog.nome}, por dia.`, corpo, trilha: [['Arquivo']], largo: true });
 }
 
-const ESTILO = `:root{--fundo:#f6f7f9;--cartao:#fff;--texto:#16181d;--suave:#5b6370;--borda:#e2e5ea;--cor:#d6336c;--cor-texto:#fff;--ok:#0a7d4f;--aviso-fundo:#fff3d6;--aviso:#7a4a00}
-@media (prefers-color-scheme:dark){:root{--fundo:#111318;--cartao:#1a1d24;--texto:#eceef2;--suave:#a0a7b4;--borda:#2a2e38;--cor:#f06595;--cor-texto:#111318;--ok:#51cf8a;--aviso-fundo:#3a2c0c;--aviso:#f2c261}}
+const ESTILO = `:root{--fundo:#f5f6f8;--cartao:#fff;--texto:#15171c;--suave:#586070;--borda:#e3e6ec;--cor:#d6336c;--cor-forte:#b32459;--cor-texto:#fff;--cor-suave:#fdeaf1;--ok:#0a7d4f;--aviso-fundo:#fff3d6;--aviso:#7a4a00;--sombra:0 1px 2px rgba(20,24,35,.06),0 4px 14px rgba(20,24,35,.05);--raio:14px}
+@media (prefers-color-scheme:dark){:root{--fundo:#0f1116;--cartao:#171a21;--texto:#eceef3;--suave:#a3aab8;--borda:#272b35;--cor:#f06595;--cor-forte:#ff8ab0;--cor-texto:#14161b;--cor-suave:#2a1a22;--ok:#51cf8a;--aviso-fundo:#3a2c0c;--aviso:#f2c261;--sombra:none}}
 *{box-sizing:border-box}
-body{margin:0;background:var(--fundo);color:var(--texto);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-header,main,footer{max-width:820px;margin:0 auto;padding:16px}
-header{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center}
-.marca{font-weight:800;font-size:1.25rem;color:var(--texto);text-decoration:none}
-nav{display:flex;flex-wrap:wrap;gap:6px}
-nav a{padding:4px 10px;border:1px solid var(--borda);border-radius:999px;color:var(--suave);text-decoration:none;font-size:.875rem}
-nav a[aria-current]{background:var(--texto);color:var(--fundo);border-color:var(--texto)}
-h1{font-size:1.75rem;line-height:1.2;margin:8px 0 4px}
-.secao{font-size:1.25rem;margin:28px 0 10px}
-.data{color:var(--suave);margin:0 0 12px;font-size:.875rem}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--fundo);color:var(--texto);font:16px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;-webkit-font-smoothing:antialiased}
+a{color:var(--cor-forte)}
+img{max-width:100%}
+.pular{position:absolute;left:-999px;top:8px;background:var(--texto);color:var(--fundo);padding:8px 12px;border-radius:8px;z-index:20}
+.pular:focus{left:8px}
+.topo{position:sticky;top:0;z-index:10;background:color-mix(in srgb,var(--cartao) 92%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--borda)}
+.topo-miolo{max-width:1040px;margin:0 auto;padding:10px 16px;display:flex;align-items:center;gap:8px 20px;flex-wrap:wrap}
+.marca{display:flex;align-items:center;gap:9px;font-weight:800;font-size:1.15rem;color:var(--texto);text-decoration:none;letter-spacing:-.01em}
+.logo{color:var(--cor);flex:none}
+nav[aria-label="Seções"]{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;flex:1;min-width:0}
+nav[aria-label="Seções"]::-webkit-scrollbar{display:none}
+nav[aria-label="Seções"] a{white-space:nowrap;padding:6px 12px;border-radius:999px;color:var(--suave);text-decoration:none;font-size:.9rem;font-weight:500}
+nav[aria-label="Seções"] a:hover{background:var(--cor-suave);color:var(--cor-forte)}
+nav[aria-label="Seções"] a[aria-current]{background:var(--texto);color:var(--fundo)}
+main{max-width:860px;margin:0 auto;padding:20px 16px 8px}
+main.largo{max-width:1040px}
+.trilha{font-size:.85rem;color:var(--suave);margin:0 0 14px}
+.trilha a{color:var(--suave)}
+h1{font-size:clamp(1.55rem,4.2vw,2.15rem);line-height:1.18;letter-spacing:-.02em;margin:6px 0 8px}
+h2{line-height:1.25}
+.secao{font-size:1.35rem;margin:36px 0 14px;letter-spacing:-.01em}
+.data{color:var(--suave);margin:0 0 14px;font-size:.875rem}
 .data a{color:var(--suave)}
-.intro{margin:0 0 20px}
+.intro{margin:0 0 22px;font-size:1.0625rem;color:var(--texto)}
 .antigo{background:var(--aviso-fundo);color:var(--aviso);border-radius:10px;padding:10px 14px;margin:0 0 16px}
 .antigo a{color:inherit;font-weight:700}
-.lista,.posts{list-style:none;margin:0;padding:0;display:grid;gap:12px}
-.cartao{position:relative;display:flex;gap:14px;background:var(--cartao);border:1px solid var(--borda);border-radius:12px;padding:14px}
-.posicao{position:absolute;top:-8px;left:-8px;width:30px;height:30px;border-radius:50%;background:var(--texto);color:var(--fundo);display:grid;place-items:center;font-weight:700;font-size:.875rem}
-.cartao img,.semimagem{width:120px;height:120px;flex:none;border-radius:8px;object-fit:contain;background:#fff}
+.hero{background:linear-gradient(135deg,var(--cor-suave),var(--cartao));border:1px solid var(--borda);border-radius:20px;padding:clamp(20px,5vw,40px);margin:4px 0 10px;box-shadow:var(--sombra)}
+.hero h1{font-size:clamp(1.7rem,5vw,2.6rem);max-width:20ch}
+.hero p{margin:0 0 18px;max-width:60ch;color:var(--suave);font-size:1.0625rem}
+.hero-acoes{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:22px}
+.hero-numeros{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:10px 32px}
+.hero-numeros li{display:flex;flex-direction:column}
+.hero-numeros strong{font-size:1.5rem;line-height:1.1}
+.hero-numeros span{font-size:.8rem;color:var(--suave)}
+.confianca{color:var(--suave);font-size:.875rem;margin:0 0 6px}
+.lista,.posts{list-style:none;margin:0;padding:0;display:grid;gap:14px}
+.posts{grid-template-columns:repeat(auto-fill,minmax(min(100%,320px),1fr))}
+.cartao{position:relative;display:flex;gap:18px;background:var(--cartao);border:1px solid var(--borda);border-radius:var(--raio);padding:18px;box-shadow:var(--sombra)}
+.cartao.primeiro{border-color:var(--cor);box-shadow:0 0 0 1px var(--cor),var(--sombra)}
+.posicao{position:absolute;top:-10px;left:-8px;min-width:32px;height:32px;border-radius:999px;background:var(--texto);color:var(--fundo);display:grid;place-items:center;font-weight:800;font-size:.9rem;box-shadow:var(--sombra)}
+.cartao.primeiro .posicao{background:var(--cor);color:var(--cor-texto)}
+.cartao img,.semimagem{width:140px;height:140px;flex:none;border-radius:10px;object-fit:contain;background:#fff;border:1px solid var(--borda)}
 .semimagem{background:var(--borda)}
 .corpo{min-width:0;flex:1}
-.cartao h2{font-size:1rem;line-height:1.35;margin:0 0 6px;overflow-wrap:anywhere}
-.preco{margin:0 0 6px}
-.preco s{color:var(--suave)}
-.preco strong{font-size:1.375rem}
-.selos{margin:0 0 6px;display:flex;flex-wrap:wrap;gap:6px}
-.selo{font-size:.75rem;padding:2px 8px;border-radius:999px;border:1px solid var(--borda);color:var(--ok)}
+.cartao h2{font-size:1.02rem;line-height:1.35;margin:0 0 8px;overflow-wrap:anywhere}
+.preco{margin:0 0 8px}
+.preco s{color:var(--suave);font-size:.9rem}
+.preco strong{font-size:1.5rem;letter-spacing:-.01em}
+.selos{margin:0 0 8px;display:flex;flex-wrap:wrap;gap:6px}
+.selo{font-size:.75rem;padding:3px 9px;border-radius:999px;border:1px solid var(--borda);color:var(--ok);background:var(--cartao)}
 .selo.destaque{background:var(--cor);border-color:var(--cor);color:var(--cor-texto);font-weight:700}
-.social{margin:0 0 8px;color:var(--suave);font-size:.875rem}
-.analise{margin:0 0 10px}
-.grafico{margin:0 0 10px;color:var(--ok)}
+.social{margin:0 0 10px;color:var(--suave);font-size:.85rem}
+.analise{margin:0 0 12px}
+.grafico{margin:0 0 12px;color:var(--ok)}
 .grafico svg{display:block}
 .grafico figcaption{color:var(--suave);font-size:.75rem}
-.botao{display:inline-block;background:var(--cor);color:var(--cor-texto);font-weight:700;text-decoration:none;padding:10px 16px;border-radius:8px}
-.resumo{display:flex;gap:14px;background:var(--cartao);border:1px solid var(--borda);border-radius:12px;padding:14px}
-.resumo img{width:88px;height:88px;flex:none;border-radius:8px;object-fit:contain;background:#fff}
+.botao{display:inline-block;background:var(--cor);color:var(--cor-texto);font-weight:700;text-decoration:none;padding:11px 20px;border-radius:10px;transition:transform .12s,background .12s}
+.botao:hover{background:var(--cor-forte);transform:translateY(-1px)}
+.botao.claro{background:var(--cartao);color:var(--texto);border:1px solid var(--borda)}
+.botao.claro:hover{background:var(--cor-suave);color:var(--cor-forte)}
+.botao:focus-visible,a:focus-visible{outline:3px solid var(--cor);outline-offset:2px}
+.resumo{display:flex;gap:14px;background:var(--cartao);border:1px solid var(--borda);border-radius:var(--raio);padding:14px;box-shadow:var(--sombra);transition:border-color .12s,transform .12s}
+.resumo:hover{border-color:var(--cor);transform:translateY(-2px)}
+.resumo img{width:84px;height:84px;flex:none;border-radius:10px;object-fit:contain;background:#fff;border:1px solid var(--borda)}
 .resumo div{min-width:0}
-.resumo h3{font-size:1.0625rem;line-height:1.3;margin:0 0 4px;overflow-wrap:anywhere}
-.resumo h3 a{color:var(--texto)}
-.resumo p{margin:0}
-.resumo .data{margin:0 0 4px}
-.fim{margin:24px 0 0}
-.fim h2{font-size:1.25rem;margin:0 0 6px}
+.resumo h3{font-size:1.02rem;line-height:1.3;margin:0 0 6px;overflow-wrap:anywhere}
+.resumo h3 a{color:var(--texto);text-decoration:none}
+.resumo h3 a::after{content:"";position:absolute;inset:0}
+.resumo{position:relative}
+.resumo p{margin:0;font-size:.9rem;color:var(--suave)}
+.resumo .data{margin:0 0 4px;font-size:.8rem}
+.escolhas{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr));gap:12px}
+.escolha{display:flex;flex-direction:column;gap:6px;background:var(--cartao);border:1px solid var(--borda);border-radius:var(--raio);padding:14px;box-shadow:var(--sombra)}
+.escolha-rotulo{align-self:flex-start;font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--cor-forte);background:var(--cor-suave);padding:3px 9px;border-radius:999px}
+.escolha img{width:72px;height:72px;object-fit:contain;background:#fff;border-radius:8px;border:1px solid var(--borda)}
+.escolha-nome{color:var(--texto);font-weight:600;font-size:.92rem;line-height:1.35;text-decoration:none;overflow-wrap:anywhere}
+.escolha-nome:hover{color:var(--cor-forte)}
+.escolha-preco{font-weight:800;font-size:1.15rem}
+.fim{margin:30px 0 0}
+.fim h2{font-size:1.3rem;margin:0 0 8px}
 .fim p{margin:0}
-.chamada{margin:24px 0 0;padding:14px;border:1px dashed var(--borda);border-radius:12px}
-a{color:var(--cor)}
-.tabela{overflow-x:auto}
-table{width:100%;border-collapse:collapse;background:var(--cartao);border:1px solid var(--borda);border-radius:12px;font-size:.875rem}
-th,td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--borda);vertical-align:top}
-th{color:var(--suave);font-weight:600}
-.faq h3{font-size:1rem;margin:16px 0 4px}
+.fim ul{margin:0 0 12px;padding-left:20px}
+.fim li{margin-bottom:4px}
+.chamada{margin:36px 0 12px;padding:18px 20px;border:1px solid var(--borda);background:var(--cartao);border-radius:var(--raio);display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center;justify-content:space-between;box-shadow:var(--sombra)}
+.chamada div{display:flex;flex-direction:column;min-width:0}
+.chamada span{color:var(--suave);font-size:.9rem}
+.tabela{overflow-x:auto;border:1px solid var(--borda);border-radius:var(--raio);background:var(--cartao);box-shadow:var(--sombra)}
+table{width:100%;border-collapse:collapse;font-size:.9rem}
+th,td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--borda);vertical-align:top}
+tbody tr:last-child td{border-bottom:0}
+tbody tr:nth-child(even){background:color-mix(in srgb,var(--borda) 28%,transparent)}
+td:nth-child(3),td:nth-child(4),td:nth-child(5){white-space:nowrap}
+th{color:var(--suave);font-weight:700;font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+.faq h3{font-size:1.02rem;margin:18px 0 4px}
 .faq p{margin:0}
-.fim ul{margin:0 0 10px;padding-left:20px}
-footer{color:var(--suave);font-size:.8125rem;border-top:1px solid var(--borda);margin-top:24px}
-@media (max-width:520px){.cartao{flex-direction:column}.cartao img{width:100%;height:180px}.semimagem{display:none}.resumo img{width:64px;height:64px}}
+.texto h2{font-size:1.25rem;margin:28px 0 8px}
+.texto p,.texto li{max-width:70ch}
+.texto code{background:var(--borda);padding:1px 6px;border-radius:6px;font-size:.9em}
+.rodape{margin-top:36px;border-top:1px solid var(--borda);background:var(--cartao);color:var(--suave);font-size:.84rem}
+.rodape-miolo{max-width:1040px;margin:0 auto;padding:22px 16px 30px}
+.rodape p{margin:0 0 10px}
+.rodape-nome{display:flex;align-items:center;gap:8px;font-weight:800;color:var(--texto);font-size:1rem}
+.rodape-links{display:flex;flex-wrap:wrap;gap:6px 18px}
+.rodape a{color:var(--suave)}
+@media (max-width:560px){.cartao{flex-direction:column;padding:16px}.cartao img{width:100%;height:190px}.semimagem{display:none}.posicao{left:-4px}.hero-acoes .botao{flex:1;text-align:center}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
 `;
 
 // ───────────── IA ─────────────
@@ -781,7 +958,7 @@ function paraGuia(salvo: { arquivo: string; tipo: string; titulo: string; dados:
 }
 
 function introPadraoDoGuia(tipo: TipoDeGuia, itens: OfertaAvaliada[]): string {
-  return `Reunimos ${itens.length} ${tipo.nome} bem avaliados que apareceram nas lojas nos últimos dias (${listarLojas(itens)}). A lista é ordenada pela nota de quem comprou, pelo volume de vendas e pelo preço, e cada produto mostra a data em que o preço foi visto.`;
+  return `Reunimos ${itens.length} ${tipo.nome} bem avaliados que apareceram nas lojas nos últimos dias (${listarLojas(itens)}). A lista é ordenada pela nota de quem comprou e pelo volume de vendas, e cada produto mostra a data em que o preço foi visto.`;
 }
 
 function diaMenos(agora: Date, dias: number): string {
@@ -912,6 +1089,8 @@ export async function gerarBlog(banco: Banco, config: Config, agora: Date = new 
   if (guias.length) gravar('guias.html', paginaDosGuias(site));
   for (const tema of temas) gravar(`categoria-${tema}.html`, paginaDoTema(site, tema));
   gravar('arquivo.html', paginaDoArquivo(site));
+  gravar('sobre.html', paginaSobre(site));
+  gravar('privacidade.html', paginaPrivacidade(site));
   gravar('index.html', paginaInicial(site));
   gravar('404.html', moldura(site, { arquivo: '404.html', titulo: 'Página não encontrada', descricao: 'Página não encontrada.', corpo: '  <h1>Página não encontrada</h1>\n  <p class="intro">Este post pode ter saído do ar. <a href="index.html">Veja as ofertas mais recentes</a>.</p>' }));
 

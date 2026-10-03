@@ -394,7 +394,7 @@ export function perguntasDoGuia(tipo: TipoDeGuia, quantos: number, ano: string):
     },
     {
       pergunta: `Qual é o melhor entre os ${quantos} ${tipo.nome} de ${ano}?`,
-      resposta: `Depende do uso. O primeiro da lista tem a melhor combinação de nota, vendas e preço entre os que encontramos, mas confira também os selos de mais vendido, melhor avaliado e mais barato, e os pontos de atenção da seção "O que observar antes de comprar".`,
+      resposta: `Depende do uso. O primeiro da lista tem a melhor combinação de nota e vendas entre os que encontramos, mas confira também os selos de mais vendido, melhor avaliado e mais barato, e os pontos de atenção da seção "O que observar antes de comprar".`,
     },
   ];
 }
