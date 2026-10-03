@@ -517,38 +517,45 @@ interface Escritor {
   maxPorRodada: number;
 }
 
-const ENDERECO_DO_GITHUB_MODELS = 'https://models.github.ai/inference/chat/completions';
+const ENDERECOS_DO_GITHUB_MODELS = ['https://models.github.ai/inference/chat/completions', 'https://models.inference.ai.azure.com/chat/completions'];
 
-/** IA gratuita do GitHub (GitHub Models). No GitHub Actions, usa o token do próprio workflow. */
+/** IA gratuita do GitHub (GitHub Models). No GitHub Actions, usa o token do próprio workflow. Tenta o endereço novo e, se ele não responder direito, o antigo. */
 export async function pedirAoGitHub(token: string, modelo: string, prompt: string, fetchFn: Fetch = fetch): Promise<string> {
-  const resposta = await fetchFn(ENDERECO_DO_GITHUB_MODELS, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', accept: 'application/vnd.github+json', authorization: `Bearer ${token}`, 'x-github-api-version': '2022-11-28' },
-    body: JSON.stringify({
-      model: modelo,
-      messages: [
-        { role: 'system', content: 'Você escreve em português do Brasil para um blog de ofertas. Segue as regras à risca e devolve somente o texto pedido.' },
-        { role: 'user', content: prompt },
-      ],
-      temperature: 0.6,
-      max_tokens: 300,
-    }),
-    signal: AbortSignal.timeout(60_000),
-  });
-  if (resposta.status === 429) throw new Error('limite gratuito do GitHub Models atingido por agora');
-  if (resposta.status === 401 || resposta.status === 403) throw new Error('o GitHub recusou o token (no workflow, confira a permissão "models: read")');
-  if (!resposta.ok) {
-    const detalhe = await resposta.text().catch(() => '');
-    throw new Error(`GitHub Models respondeu ${resposta.status}${/model/i.test(detalhe) ? ` (o modelo "${modelo}" existe?)` : ''}`);
+  const falhas: string[] = [];
+  for (const endereco of ENDERECOS_DO_GITHUB_MODELS) {
+    const resposta = await fetchFn(endereco, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: 'application/json', authorization: `Bearer ${token}`, 'x-github-api-version': '2022-11-28' },
+      body: JSON.stringify({
+        model: modelo,
+        messages: [
+          { role: 'system', content: 'Você escreve em português do Brasil para um blog de ofertas. Segue as regras à risca e devolve somente o texto pedido.' },
+          { role: 'user', content: prompt },
+        ],
+        temperature: 0.6,
+        max_tokens: 300,
+      }),
+      signal: AbortSignal.timeout(60_000),
+    });
+    if (resposta.status === 429) throw new Error('limite gratuito do GitHub Models atingido por agora');
+    const corpo = await resposta.text().catch(() => '');
+    const trecho = corpo.replace(/\s+/g, ' ').slice(0, 120);
+    if (resposta.status === 401 || resposta.status === 403) {
+      falhas.push(`${new URL(endereco).host}: recusou o token (${resposta.status}; no workflow, confira a permissão "models: read") "${trecho}"`);
+      continue;
+    }
+    if (!resposta.ok) {
+      falhas.push(`${new URL(endereco).host}: respondeu ${resposta.status}${/model/i.test(corpo) ? ` (o modelo "${modelo}" existe?)` : ''} "${trecho}"`);
+      continue;
+    }
+    try {
+      const dados = JSON.parse(corpo) as { choices?: Array<{ message?: { content?: string } }> };
+      return dados.choices?.[0]?.message?.content ?? '';
+    } catch {
+      falhas.push(`${new URL(endereco).host}: devolveu algo que não é JSON (${resposta.status}) "${trecho}"`);
+    }
   }
-  const corpo = await resposta.text();
-  let dados: { choices?: Array<{ message?: { content?: string } }> };
-  try {
-    dados = JSON.parse(corpo);
-  } catch {
-    throw new Error(`GitHub Models devolveu algo que não é JSON (${resposta.status}): "${corpo.replace(/\s+/g, ' ').slice(0, 120)}"`);
-  }
-  return dados.choices?.[0]?.message?.content ?? '';
+  throw new Error(`GitHub Models indisponível — ${falhas.join(' | ')}`);
 }
 
 async function prepararEscritor(config: Config, fetchFn: Fetch, avisos: string[]): Promise<Escritor | undefined> {
