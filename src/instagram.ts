@@ -140,15 +140,22 @@ export async function publicarNoInstagram(banco: Banco, config: Config, agora: D
     .sort((a, b) => b.oferta.pontos - a.oferta.pontos);
 
   const url = (chave: string, tipo: 'feed' | 'story') => `${config.blog.url}/social/${arquivoDaArte(chave, tipo)}`;
+  if (!candidatos.length) resumo.avisos.push('Instagram: nenhuma oferta recente com arte pronta para publicar.');
+  let esperando = 0;
+  const noAr = async (u: string) => {
+    const ok = await pngNoAr(u, fetchFn);
+    if (!ok) esperando++;
+    return ok;
+  };
   try {
     for (const c of candidatos) {
-      if (!c.igFeedEm && banco.instagramNoDia('feed', agora) < ig.feedPorDia && (await pngNoAr(url(c.chave, 'feed'), fetchFn))) {
+      if (!c.igFeedEm && banco.instagramNoDia('feed', agora) < ig.feedPorDia && (await noAr(url(c.chave, 'feed')))) {
         await api.publicarFoto(url(c.chave, 'feed'), montarLegenda(c.oferta, config));
         banco.marcarInstagram(c.chave, 'feed', agora);
         resumo.feed++;
         await pausa(2000);
       }
-      if (!c.igStoryEm && banco.instagramNoDia('story', agora) < ig.storiesPorDia && (await pngNoAr(url(c.chave, 'story'), fetchFn))) {
+      if (!c.igStoryEm && banco.instagramNoDia('story', agora) < ig.storiesPorDia && (await noAr(url(c.chave, 'story')))) {
         await api.publicarStory(url(c.chave, 'story'));
         banco.marcarInstagram(c.chave, 'story', agora);
         resumo.stories++;
@@ -160,5 +167,6 @@ export async function publicarNoInstagram(banco: Banco, config: Config, agora: D
   } catch (e) {
     resumo.avisos.push((e as Error).message);
   }
+  if (esperando && !resumo.feed && !resumo.stories) resumo.avisos.push(`Instagram: ${esperando} imagens ainda não estão no ar; saem na próxima rodada.`);
   return resumo;
 }
