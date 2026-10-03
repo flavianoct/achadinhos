@@ -18,20 +18,26 @@ export interface ConteudoSocial {
 }
 
 const HASHTAGS: Record<string, string[]> = {
-  tech: ['#tecnologia', '#gadgets', '#celular', '#fone'],
-  casa: ['#casa', '#cozinha', '#utilidades', '#decoracao'],
-  beleza: ['#beleza', '#skincare', '#maquiagem', '#autocuidado'],
-  moda: ['#moda', '#lookdodia', '#estilo'],
-  esporte: ['#fitness', '#treino', '#academia', '#suplementos'],
-  games: ['#games', '#gamer', '#videogame'],
-  bebe: ['#maternidade', '#bebe', '#mamae'],
-  ferramentas: ['#ferramentas', '#bricolagem', '#facavocemesmo'],
-  pet: ['#pet', '#cachorro', '#gato'],
-  geral: ['#achadinhos', '#ofertas'],
+  tech: ['#tecnologia', '#gadgets', '#celular', '#fone', '#fonebluetooth', '#eletronicos', '#smartphone', '#tecnologiabrasil'],
+  casa: ['#casa', '#cozinha', '#utilidades', '#decoracao', '#casaorganizada', '#utilidadesdomesticas', '#lar', '#dicasdecasa'],
+  beleza: ['#beleza', '#skincare', '#maquiagem', '#autocuidado', '#cuidadoscomapele', '#cabelo', '#perfumes', '#makeup'],
+  moda: ['#moda', '#lookdodia', '#estilo', '#modafeminina', '#modamasculina', '#outfit', '#tendencia', '#acessorios'],
+  esporte: ['#fitness', '#treino', '#academia', '#suplementos', '#vidasaudavel', '#whey', '#musculacao', '#saude'],
+  games: ['#games', '#gamer', '#videogame', '#gamebr', '#setupgamer', '#playstation', '#pcgamer', '#gaming'],
+  bebe: ['#maternidade', '#bebe', '#mamae', '#maedeprimeiraviagem', '#enxovalbebe', '#filhos', '#vidademae', '#infantil'],
+  ferramentas: ['#ferramentas', '#bricolagem', '#facavocemesmo', '#diy', '#construcao', '#reforma', '#oficina', '#marcenaria'],
+  pet: ['#pet', '#cachorro', '#gato', '#petshop', '#amopets', '#dogsofinstagram', '#tutordepet', '#cuidadoscompet'],
+  geral: ['#achadinhos', '#ofertas', '#compras', '#dicasdecompra', '#economia'],
 };
 
+/** Hashtags de alcance, comuns a todas as ofertas (ofertas, economia, achadinhos, Mercado Livre). */
+const HASHTAGS_COMUNS = ['#achadinhos', '#achadinhosdodia', '#achadinhosmercadolivre', '#promocao', '#promocaododia', '#ofertas', '#ofertasdodia', '#desconto', '#cupom', '#mercadolivre', '#comprasonline', '#economizar', '#publi'];
+
+/** Até 20 hashtags (o Instagram aceita 30; menos e bem escolhidas rendem mais): as da categoria primeiro, depois as de alcance. */
 export function hashtagsDaCategoria(categoria: string): string[] {
-  return [...(HASHTAGS[categoria] ?? HASHTAGS.geral), '#achadinhos', '#promocao', '#ofertas', '#mercadolivre', '#publi'];
+  const todas = [...(HASHTAGS[categoria] ?? HASHTAGS.geral), ...HASHTAGS_COMUNS];
+  // #publi (aviso de publicidade) nunca sai do corte.
+  return [...new Set(todas.filter((h) => h !== '#publi'))].slice(0, 19).concat('#publi');
 }
 
 /** "@topfera_achadinhos" a partir do link do canal; se não houver, o nome do blog. */
