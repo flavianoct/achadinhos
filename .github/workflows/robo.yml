@@ -12,6 +12,7 @@ permissions:
   pages: write      # publicar o blog
   id-token: write   # exigido pela publicação no GitHub Pages
   models: read      # IA gratuita do GitHub, que escreve os posts
+  actions: write    # a rodada chama a próxima (veja o job "proxima")
 
 # Nunca duas rodadas ao mesmo tempo: a segunda espera a primeira terminar.
 concurrency:
@@ -103,3 +104,19 @@ jobs:
       - name: Aviso sobre o Pages
         if: always() && steps.pages.outcome != 'success'
         run: echo "::warning::O blog não foi publicado porque o GitHub Pages ainda não está ligado. Vá em Settings → Pages e escolha Source = GitHub Actions."
+
+  # O agendamento do GitHub (cron) é impreciso e às vezes não dispara. Para o robô não depender dele,
+  # cada rodada espera um pouco e chama a próxima. O cron acima continua como reserva.
+  # Para PARAR o robô: aba Actions -> Robô de ofertas -> menu ... -> Disable workflow.
+  proxima:
+    needs: rodar
+    if: always() && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Esperar e chamar a próxima rodada
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          sleep 1500
+          gh workflow run robo.yml --repo "$GITHUB_REPOSITORY" --ref main
