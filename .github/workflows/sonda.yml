@@ -1,0 +1,44 @@
+name: Sonda do Mercado Livre
+
+on:
+  workflow_dispatch:
+
+jobs:
+  sonda:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Testar consultas
+        env:
+          ML_CLIENT_ID: ${{ secrets.ML_CLIENT_ID }}
+          ML_CLIENT_SECRET: ${{ secrets.ML_CLIENT_SECRET }}
+        run: |
+          cat > sonda.mjs <<'JS'
+          const API = 'https://api.mercadolibre.com';
+          const r = await fetch(API + '/oauth/token', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ grant_type: 'client_credentials', client_id: process.env.ML_CLIENT_ID, client_secret: process.env.ML_CLIENT_SECRET }) });
+          const t = await r.json();
+          console.log('token:', r.status, t.access_token ? 'ok' : JSON.stringify(t).slice(0, 150));
+          const auth = { authorization: 'Bearer ' + t.access_token, accept: 'application/json' };
+          async function sonda(caminho, comToken = true) {
+            const x = await fetch(caminho.startsWith('http') ? caminho : API + caminho, { headers: comToken ? auth : { accept: 'application/json', 'user-agent': 'Mozilla/5.0' } });
+            const txt = await x.text();
+            console.log((comToken ? '[token] ' : '[sem token] ') + x.status + ' ' + caminho + ' -> ' + txt.replace(/\s+/g, ' ').slice(0, 170));
+            try { return JSON.parse(txt); } catch { return undefined; }
+          }
+          const caminhos = [
+            '/trends/MLB', '/trends/MLB/MLB1648', '/highlights/MLB/category/MLB1648',
+            '/sites/MLB/search?q=fone&limit=3', '/products/search?status=active&site_id=MLB&q=fone%20bluetooth&limit=3',
+            '/sites/MLB/domain_discovery/search?q=fone', '/categories/MLB1648', '/sites/MLB/categories',
+            '/users/me', '/sites/MLB/listing_types',
+          ];
+          for (const c of caminhos) { await sonda(c, true); await sonda(c, false); }
+          const busca = await sonda('/products/search?status=active&site_id=MLB&q=fone%20bluetooth&limit=3', true);
+          const id = busca?.results?.[0]?.id;
+          if (id) { await sonda('/products/' + id); await sonda('/products/' + id + '/items'); }
+          await sonda('https://www.mercadolivre.com.br/ofertas', false);
+          await sonda('https://lista.mercadolivre.com.br/fone', false);
+          JS
+          node sonda.mjs
