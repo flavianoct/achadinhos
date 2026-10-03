@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readdirSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Config } from './config.ts';
@@ -184,6 +185,9 @@ const LOGO = '<svg class="logo" viewBox="0 0 32 32" width="30" height="30" aria-
 
 type Trilha = Array<[string, string?]>;
 
+/** Muda sempre que o CSS muda, para o navegador não usar uma cópia antiga guardada. */
+let VERSAO_DO_ESTILO = '1';
+
 function moldura(site: Site, p: { arquivo: string; titulo: string; descricao: string; corpo: string; imagem?: string; tipo?: string; dadosEstruturados?: unknown; rodapeExtra?: string; trilha?: Trilha; largo?: boolean }): string {
   const b = site.config.blog;
   const endereco = (arquivo: string) => (b.url ? `${b.url}/${arquivo === 'index.html' ? '' : arquivo}` : '');
@@ -230,7 +234,7 @@ ${p.imagem ? `<meta property="og:image" content="${esc(p.imagem)}">` : ''}
 ${p.imagem ? `<meta name="twitter:image" content="${esc(p.imagem)}">` : ''}
 ${b.url ? `<link rel="alternate" type="application/rss+xml" title="${esc(b.nome)}" href="${esc(`${b.url}/feed.xml`)}">` : ''}
 <link rel="preconnect" href="https://http2.mlstatic.com" crossorigin>
-<link rel="stylesheet" href="estilo.css">
+<link rel="stylesheet" href="estilo.css?v=${VERSAO_DO_ESTILO}">
 ${ld ? `<script type="application/ld+json">${JSON.stringify(ld).replace(/</g, '\\u003c')}</script>` : ''}
 </head>
 <body>
@@ -654,6 +658,7 @@ th{color:var(--suave);font-weight:700;font-size:.78rem;text-transform:uppercase;
 @media (max-width:560px){.cartao{flex-direction:column;padding:16px}.cartao img{width:100%;height:190px}.semimagem{display:none}.posicao{left:-4px}.hero-acoes .botao{flex:1;text-align:center}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
 `;
+VERSAO_DO_ESTILO = createHash('sha1').update(ESTILO).digest('hex').slice(0, 8);
 
 // ───────────── IA ─────────────
 
@@ -829,7 +834,7 @@ async function prepararEscritor(config: Config, fetchFn: Fetch, avisos: string[]
           return await pedirAoGemini(b.geminiChave, b.geminiModelo, prompt, fetchFn);
         } catch (e) {
           // Se o modelo principal está sobrecarregado ou saiu do ar, tenta o reserva antes de desistir.
-          if (!b.geminiReserva || b.geminiReserva === b.geminiModelo || /limite gratuito|recusou/.test((e as Error).message)) throw e;
+          if (!b.geminiReserva || b.geminiReserva === b.geminiModelo || /recusou/.test((e as Error).message)) throw e;
           return await pedirAoGemini(b.geminiChave, b.geminiReserva, prompt, fetchFn);
         }
       } };
