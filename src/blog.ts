@@ -523,7 +523,9 @@ const ENDERECOS_DO_GITHUB_MODELS = ['https://models.github.ai/inference/chat/com
 export async function pedirAoGitHub(token: string, modelo: string, prompt: string, fetchFn: Fetch = fetch): Promise<string> {
   const falhas: string[] = [];
   for (const endereco of ENDERECOS_DO_GITHUB_MODELS) {
-    const resposta = await fetchFn(endereco, {
+    let resposta: Response;
+    try {
+      resposta = await fetchFn(endereco, {
       method: 'POST',
       headers: { 'content-type': 'application/json', accept: 'application/json', authorization: `Bearer ${token}`, 'x-github-api-version': '2022-11-28' },
       body: JSON.stringify({
@@ -537,6 +539,11 @@ export async function pedirAoGitHub(token: string, modelo: string, prompt: strin
       }),
       signal: AbortSignal.timeout(60_000),
     });
+    } catch (e) {
+      const erro = e as Error & { cause?: { code?: string; message?: string } };
+      falhas.push(`${new URL(endereco).host}: sem conexão (${erro.cause?.code ?? erro.cause?.message ?? erro.message})`);
+      continue;
+    }
     if (resposta.status === 429) throw new Error('limite gratuito do GitHub Models atingido por agora');
     const corpo = await resposta.text().catch(() => '');
     const trecho = corpo.replace(/\s+/g, ' ').slice(0, 120);
@@ -556,6 +563,41 @@ export async function pedirAoGitHub(token: string, modelo: string, prompt: strin
     }
   }
   throw new Error(`GitHub Models indisponível — ${falhas.join(' | ')}`);
+}
+
+/** IA gratuita do Google (Gemini), pelo endereço compatível com o formato OpenAI. */
+export async function pedirAoGemini(chave: string, modelo: string, prompt: string, fetchFn: Fetch = fetch): Promise<string> {
+  let resposta: Response;
+  try {
+    resposta = await fetchFn('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${chave}` },
+      body: JSON.stringify({
+        model: modelo,
+        messages: [
+          { role: 'system', content: 'Você escreve em português do Brasil para um blog de ofertas. Segue as regras à risca e devolve somente o texto pedido.' },
+          { role: 'user', content: prompt },
+        ],
+        temperature: 0.6,
+        max_tokens: 700,
+        reasoning_effort: 'none',
+      }),
+      signal: AbortSignal.timeout(60_000),
+    });
+  } catch (e) {
+    const erro = e as Error & { cause?: { code?: string; message?: string } };
+    throw new Error(`Gemini sem conexão (${erro.cause?.code ?? erro.cause?.message ?? erro.message})`);
+  }
+  const corpo = await resposta.text().catch(() => '');
+  const trecho = corpo.replace(/\s+/g, ' ').slice(0, 160);
+  if (resposta.status === 429) throw new Error('limite gratuito do Gemini atingido por agora');
+  if (resposta.status === 400 || resposta.status === 401 || resposta.status === 403) throw new Error(`o Gemini recusou (${resposta.status}): confira a chave GEMINI_API_KEY e o modelo "${modelo}" — "${trecho}"`);
+  if (!resposta.ok) throw new Error(`Gemini respondeu ${resposta.status} "${trecho}"`);
+  try {
+    return (JSON.parse(corpo) as { choices?: Array<{ message?: { content?: string } }> }).choices?.[0]?.message?.content ?? '';
+  } catch {
+    throw new Error(`Gemini devolveu algo que não é JSON (${resposta.status}) "${trecho}"`);
+  }
 }
 
 async function prepararEscritor(config: Config, fetchFn: Fetch, avisos: string[]): Promise<Escritor | undefined> {
@@ -586,6 +628,13 @@ async function prepararEscritor(config: Config, fetchFn: Fetch, avisos: string[]
       avisos.push(`IA indisponível (${(e as Error).message}): o Ollama está aberto? Usei o texto padrão.`);
       return undefined;
     }
+  }
+  if (b.ia === 'gemini') {
+    if (!b.geminiChave) {
+      avisos.push('BLOG_IA=gemini, mas falta o segredo GEMINI_API_KEY (chave grátis em aistudio.google.com).');
+      return undefined;
+    }
+    return { modelo: b.geminiModelo, pausaMs: b.githubPausaMs, maxPorRodada: 25, pedir: (prompt) => pedirAoGemini(b.geminiChave, b.geminiModelo, prompt, fetchFn) };
   }
   if (b.ia === 'github') {
     if (!b.githubToken) {

@@ -41,7 +41,7 @@ export interface Config {
     horas: number;
     /** Quantos dias um post fica no ar antes de ser apagado. */
     diasNoAr: number;
-    ia: 'nenhuma' | 'ollama' | 'github';
+    ia: 'nenhuma' | 'ollama' | 'github' | 'gemini';
     ollamaUrl: string;
     ollamaModelo: string;
     /** Token para a IA gratuita do GitHub. No GitHub Actions vem do próprio workflow. */
@@ -49,6 +49,9 @@ export interface Config {
     githubModelo: string;
     /** Espera entre pedidos à IA do GitHub (o plano gratuito aceita poucos por minuto). */
     githubPausaMs: number;
+    /** Chave gratuita do Google Gemini (aistudio.google.com). Fica nos Secrets como GEMINI_API_KEY. */
+    geminiChave: string;
+    geminiModelo: string;
     publicar: 'nao' | 'git';
     /** Link do canal do Telegram mostrado no blog. */
     telegramLink: string;
@@ -173,12 +176,14 @@ export function lerConfig(env: Env = process.env): Config {
       pasta: (env.BLOG_PASTA ?? '').trim() || 'blog',
       horas: numero(env, 'BLOG_HORAS', 6),
       diasNoAr: numero(env, 'BLOG_DIAS_NO_AR', 60),
-      ia: opcao(env, 'BLOG_IA', ['nenhuma', 'ollama', 'github'] as const, 'nenhuma'),
+      ia: opcao(env, 'BLOG_IA', ['nenhuma', 'ollama', 'github', 'gemini'] as const, 'nenhuma'),
       ollamaUrl: ((env.OLLAMA_URL ?? '').trim() || 'http://localhost:11434').replace(/\/+$/, ''),
       ollamaModelo: (env.OLLAMA_MODELO ?? '').trim(),
       githubToken: (env.GITHUB_TOKEN ?? '').trim(),
       githubModelo: (env.GITHUB_MODELO ?? '').trim() || 'openai/gpt-4o-mini',
       githubPausaMs: numero(env, 'GITHUB_PAUSA_MS', 4500),
+      geminiChave: (env.GEMINI_API_KEY ?? '').trim(),
+      geminiModelo: (env.GEMINI_MODELO ?? '').trim() || 'gemini-2.5-flash',
       publicar: opcao(env, 'BLOG_PUBLICAR', ['nao', 'git'] as const, 'nao'),
       telegramLink: (env.BLOG_TELEGRAM ?? '').trim() || (chatId.startsWith('@') ? `https://t.me/${chatId.slice(1)}` : ''),
     },

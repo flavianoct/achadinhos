@@ -1,4 +1,4 @@
-import { gerarBlog, modelosDoOllama, pedirAoGitHub, type ResultadoDoBlog } from './blog.ts';
+import { gerarBlog, modelosDoOllama, pedirAoGemini, pedirAoGitHub, type ResultadoDoBlog } from './blog.ts';
 import { lerArquivoEnv, lerConfig, problemasDeConfig, problemasDoBlog, salvarNoEnv, type Config, type Env } from './config.ts';
 import { Banco, horaDe } from './db.ts';
 import { FonteAmazon } from './fontes/amazon.ts';
@@ -195,6 +195,18 @@ export class Robo {
         else linhas.push({ ok: true, texto: `IA do blog: Ollama no ar, usando o modelo ${escolhido}` });
       } catch (e) {
         linhas.push({ ok: false, texto: `IA do blog: não consegui falar com o Ollama (${(e as Error).message}). Ele está aberto?` });
+      }
+    }
+    if (this.config.blog.ia === 'gemini') {
+      const { geminiChave, geminiModelo } = this.config.blog;
+      if (!geminiChave) linhas.push({ ok: false, texto: 'IA do blog: falta GEMINI_API_KEY (chave grátis em aistudio.google.com).' });
+      else {
+        try {
+          await pedirAoGemini(geminiChave, geminiModelo, 'Responda apenas: ok');
+          linhas.push({ ok: true, texto: `IA do blog: Gemini respondendo, modelo ${geminiModelo}` });
+        } catch (e) {
+          linhas.push({ ok: false, texto: `IA do blog: ${(e as Error).message}` });
+        }
       }
     }
     if (this.config.blog.ia === 'github') {

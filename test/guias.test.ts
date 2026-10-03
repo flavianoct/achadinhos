@@ -107,3 +107,18 @@ test('guias: sem produtos novos o guia continua no ar com a última versão boa'
   assert.deepEqual(banco.tiposComProdutos(365, new Date(AGORA.getTime() + 40 * DIA)), [], 'acervo antigo é limpo');
   assert.equal(banco.guiasSalvos().length, 1, 'o guia publicado não é apagado pela faxina');
 });
+
+test('gemini: pede no formato compatível, com a chave, e explica recusas', async () => {
+  const { pedirAoGemini } = await import('../src/blog.ts');
+  let visto: any;
+  const ok = (async (url: string, init: any) => {
+    visto = { url, auth: init.headers.authorization, corpo: JSON.parse(init.body) };
+    return new Response(JSON.stringify({ choices: [{ message: { content: 'Texto do Gemini' } }] }), { status: 200 });
+  }) as unknown as typeof fetch;
+  assert.equal(await pedirAoGemini('CHAVE', 'gemini-2.5-flash', 'oi', ok), 'Texto do Gemini');
+  assert.match(visto.url, /generativelanguage\.googleapis\.com\/v1beta\/openai\/chat\/completions/);
+  assert.equal(visto.auth, 'Bearer CHAVE');
+  assert.equal(visto.corpo.model, 'gemini-2.5-flash');
+  const recusa = (async () => new Response('{"error":"API key not valid"}', { status: 400 })) as unknown as typeof fetch;
+  await assert.rejects(pedirAoGemini('x', 'm', 'oi', recusa), /GEMINI_API_KEY/);
+});
