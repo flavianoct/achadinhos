@@ -33,6 +33,11 @@ jobs:
         with:
           node-version: 24
 
+      - name: Instalar o conversor de imagens
+        # Só o @resvg/resvg-js (arte de Story e feed em PNG). Se falhar, o robô segue sem as imagens do Instagram.
+        run: npm install --omit=dev --no-audit --no-fund
+        continue-on-error: true
+
       - name: Recuperar o banco de dados
         run: |
           if git ls-remote --exit-code --heads origin dados >/dev/null; then
@@ -70,6 +75,8 @@ jobs:
           AMAZON_TAG: ${{ secrets.AMAZON_TAG }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          INSTAGRAM_TOKEN: ${{ secrets.INSTAGRAM_TOKEN }}
+          INSTAGRAM_USER_ID: ${{ secrets.INSTAGRAM_USER_ID }}
           BLOG_URL: ${{ steps.pages.outputs.base_url }}
         run: node --disable-warning=ExperimentalWarning src/index.ts --nuvem
 
