@@ -67,6 +67,7 @@ export class FonteMercadoLivre implements Fonte {
   private mattWord: string;
   private mattTool: string;
   private categorias: string[];
+  private ultimaFalha = '';
   private porCategoria: number;
   private fetchFn: Fetch;
   private token?: { valor: string; expiraEm: number };
@@ -111,7 +112,11 @@ export class FonteMercadoLivre implements Fonte {
       headers: { authorization: `Bearer ${token}`, accept: 'application/json' },
       signal: AbortSignal.timeout(30_000),
     });
-    if (resposta.status === 403 || resposta.status === 404) return undefined;
+    if (resposta.status === 403 || resposta.status === 404) {
+      const corpo = (await resposta.text().catch(() => '')).replace(/\s+/g, ' ').slice(0, 160);
+      this.ultimaFalha = `${resposta.status} em ${caminho}: ${corpo}`;
+      return undefined;
+    }
     if (resposta.status === 429) throw new Error('Mercado Livre: limite de requisições atingido, tente um intervalo maior');
     if (!resposta.ok) throw new Error(`Mercado Livre respondeu ${resposta.status} em ${caminho}`);
     return resposta.json();
@@ -150,7 +155,7 @@ export class FonteMercadoLivre implements Fonte {
       }
     }
     if (this.categorias.length > 0 && categoriasComErro === this.categorias.length) {
-      throw new Error('Mercado Livre: nenhuma categoria respondeu (403/404). O app pode não ter acesso a essa listagem.');
+      throw new Error(`Mercado Livre: nenhuma categoria respondeu (403/404). O app pode não ter acesso a essa listagem. Última resposta: ${this.ultimaFalha}`);
     }
     return [...vistos.values()];
   }
