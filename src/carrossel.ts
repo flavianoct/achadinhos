@@ -2,9 +2,10 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Config } from './config.ts';
 import { diaDe, horaDe, type Banco } from './db.ts';
+import { TIPOS_DE_GUIA } from './guias.ts';
 import { passaNoFiltroDoInstagram } from './instagram.ts';
 import { svgDaCapaDoCarrossel, temaDaCategoria } from './moldes.ts';
-import { arquivosDoCarrossel, baixarImagemComoDataUri, montarSvgDoSlide, renderizarPng, type DadosDoCarrossel, type Fetch } from './social.ts';
+import { arquivosDoCarrossel, baixarImagemComoDataUri, montarSvgDoSlide, montarSvgsDaDica, renderizarPng, type DadosDaDica, type DadosDoCarrossel, type DadosDoTop, type Fetch } from './social.ts';
 import type { OfertaAvaliada } from './types.ts';
 
 const DIA_MS = 86_400_000;
@@ -49,9 +50,12 @@ export async function prepararCarrossel(banco: Banco, config: Config, agora: Dat
   const hora = horaDe(agora);
   if (hora < config.ritmo.horaInicio || hora >= config.ritmo.horaFim) return false;
 
+  // Nos dias da dica o carrossel é educativo ("Antes de comprar..."); se não houver assunto novo, cai para o Top.
+  if (ig.dicasDias.includes(diaDaSemana(agora)) && (await prepararDica(banco, config, agora, fetchFn))) return true;
+
   const escolha = escolherParaCarrossel(banco.melhoresProdutos({ horas: 36, limite: 150 }, agora), config, agora);
   if (!escolha) return false;
-  const itens: DadosDoCarrossel['itens'] = [];
+  const itens: DadosDoTop['itens'] = [];
   // No máximo 2n tentativas de foto: uma foto que não baixa só passa para o próximo produto.
   for (const oferta of escolha.ordem.slice(0, ig.carrosselItens * 2)) {
     if (itens.length >= ig.carrosselItens) break;
@@ -61,7 +65,7 @@ export async function prepararCarrossel(banco: Banco, config: Config, agora: Dat
   if (itens.length < ig.carrosselItens) return false;
 
   const titulo = `Top ${itens.length} até R$ ${escolha.teto}`;
-  const dados: DadosDoCarrossel = { titulo, teto: escolha.teto, itens };
+  const dados: DadosDoTop = { formato: 'top', titulo, teto: escolha.teto, itens };
   banco.salvarCarrossel(`carrossel-${diaDe(agora)}-${escolha.teto}`, titulo, JSON.stringify(dados), agora);
   return true;
 }
@@ -77,9 +81,14 @@ export async function gravarPngsDoCarrossel(banco: Banco, config: Config, agora:
   const dados = JSON.parse(pendente.dados) as DadosDoCarrossel;
   const pasta = join(config.blog.pasta, 'social');
   mkdirSync(pasta, { recursive: true });
-  const nomes = arquivosDoCarrossel(pendente.chave, dados.itens.length);
-  const capa = svgDaCapaDoCarrossel({ total: dados.itens.length, teto: dados.teto, fotos: dados.itens.map((i) => i.imagem), tema: temaDaCategoria('geral') });
-  const svgs = [capa, ...dados.itens.map((it, i) => montarSvgDoSlide(it.oferta, it.imagem, i + 1, dados.itens.length))];
+  const svgs =
+    dados.formato === 'dica'
+      ? montarSvgsDaDica(dados)
+      : [
+          svgDaCapaDoCarrossel({ total: dados.itens.length, teto: dados.teto, fotos: dados.itens.map((i) => i.imagem), tema: temaDaCategoria('geral') }),
+          ...dados.itens.map((it, i) => montarSvgDoSlide(it.oferta, it.imagem, i + 1, dados.itens.length)),
+        ];
+  const nomes = arquivosDoCarrossel(pendente.chave, svgs.length);
   let gravados = 0;
   for (let i = 0; i < svgs.length; i++) {
     const png = await renderizarPng(svgs[i]!, 1080);
@@ -88,4 +97,60 @@ export async function gravarPngsDoCarrossel(banco: Banco, config: Config, agora:
     gravados++;
   }
   return gravados;
+}
+
+/** Dia da semana no horário de Brasília: 0 = domingo ... 6 = sábado. */
+export function diaDaSemana(agora: Date): number {
+  const curto = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Sao_Paulo', weekday: 'short' }).format(agora);
+  return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(curto);
+}
+
+/** Um assunto de dica não volta antes disso (são 30 tipos de guia; os com produtos suficientes giram). */
+const DIAS_SEM_REPETIR_DICA = 14;
+
+/**
+ * Cria o carrossel educativo "N coisas para olhar antes de comprar [produto]": os critérios fixos do guia
+ * (texto escrito uma vez, sem inventar nada sobre produtos) e, no fim, os 3 primeiros produtos do guia publicado.
+ * Só usa guias que já têm 3 produtos ou mais, e não repete um assunto usado nos últimos 14 dias.
+ */
+export async function prepararDica(banco: Banco, config: Config, agora: Date, fetchFn: Fetch = fetch): Promise<boolean> {
+  const usados = new Set(
+    banco
+      .carrosseisPublicadosRecentes(DIAS_SEM_REPETIR_DICA, agora)
+      .filter((c) => c.startsWith('dica-'))
+      .map((c) => c.replace(/^dica-\d{4}-\d{2}-\d{2}-/, '')),
+  );
+  const candidatos: Array<{ tipo: (typeof TIPOS_DE_GUIA)[number]; itens: OfertaAvaliada[] }> = [];
+  for (const salvo of banco.guiasSalvos()) {
+    const tipo = TIPOS_DE_GUIA.find((t) => t.slug === salvo.tipo);
+    if (!tipo || usados.has(tipo.slug) || tipo.criterios.length < 3) continue;
+    let itens: OfertaAvaliada[];
+    try {
+      itens = ((JSON.parse(salvo.dados) as { itens?: OfertaAvaliada[] }).itens ?? []).filter((o) => o?.titulo && Number.isFinite(o.preco) && /^https:\/\//i.test(o.link ?? ''));
+    } catch {
+      continue;
+    }
+    if (itens.length >= 3) candidatos.push({ tipo, itens });
+  }
+  if (candidatos.length === 0) return false;
+  candidatos.sort((a, b) => a.tipo.slug.localeCompare(b.tipo.slug));
+  const { tipo, itens } = candidatos[Math.floor(agora.getTime() / DIA_MS) % candidatos.length]!;
+
+  const primeiros: DadosDaDica['itens'] = [];
+  for (const o of itens.slice(0, 3)) {
+    // Guarda só o que a arte e a legenda usam (o item do guia traz gráfico e textos que pesam no banco).
+    const oferta: OfertaAvaliada = { loja: o.loja, idProduto: o.idProduto, titulo: o.titulo, preco: o.preco, link: o.link, nota: o.nota, vendas: o.vendas, categoria: o.categoria, pontos: o.pontos };
+    primeiros.push({ oferta, imagem: await baixarImagemComoDataUri(o.imagem, fetchFn) });
+  }
+  const dados: DadosDaDica = {
+    formato: 'dica',
+    titulo: `${tipo.criterios.length} coisas para olhar antes de comprar ${tipo.nome}`,
+    slug: tipo.slug,
+    assunto: tipo.nome,
+    categoria: tipo.categoria,
+    criterios: tipo.criterios,
+    itens: primeiros,
+  };
+  banco.salvarCarrossel(`dica-${diaDe(agora)}-${tipo.slug}`, dados.titulo, JSON.stringify(dados), agora);
+  return true;
 }

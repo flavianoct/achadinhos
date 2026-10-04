@@ -4,7 +4,7 @@ import type { Config } from './config.ts';
 import type { Banco } from './db.ts';
 import { formatarPreco, formatarVendas } from './mensagem.ts';
 import { normalizar } from './categoria.ts';
-import { layoutDoProduto, svgDoFeed, svgDoStory, temaDaCategoria, type DadosDaArte, type TipoDeGancho } from './moldes.ts';
+import { layoutDoProduto, svgDaCapaDaDica, svgDoCriterio, svgDoFechamentoDaDica, svgDoFeed, svgDoStory, temaDaCategoria, type DadosDaArte, type TipoDeGancho } from './moldes.ts';
 import type { OfertaAvaliada } from './types.ts';
 
 export type Fetch = typeof fetch;
@@ -259,26 +259,105 @@ export function montarSvgDoSlide(o: OfertaAvaliada, imagem: string | undefined, 
   return svgDoFeed({ ...dadosDaArte(o, imagem, 33), layout: 0, gancho: rotulo, ganchoCurto: rotulo, ganchoTipo: 'economia' });
 }
 
-/** O que um carrossel guarda: as ofertas escolhidas e as fotos (para refazer as imagens a cada rodada). */
-export interface DadosDoCarrossel {
+/** Carrossel "Top N até R$ X": as ofertas escolhidas e as fotos (para refazer as imagens a cada rodada). */
+export interface DadosDoTop {
+  formato?: 'top';
   titulo: string;
   teto: number;
   itens: Array<{ oferta: OfertaAvaliada; imagem?: string }>;
 }
 
-/** Nomes dos PNGs do carrossel, na ordem: capa e depois um por produto. Estáveis entre rodadas (o Instagram precisa de um endereço público). */
-export function arquivosDoCarrossel(chave: string, produtos: number): string[] {
-  const base = chave.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-  return Array.from({ length: produtos + 1 }, (_, i) => `${base}-${i === 0 ? 'capa' : i}.png`);
+/** Carrossel educativo "Antes de comprar [produto]": os critérios fixos do guia e os primeiros produtos dele. */
+export interface DadosDaDica {
+  formato: 'dica';
+  titulo: string;
+  slug: string;
+  /** O produto, no plural ("fones de ouvido bluetooth"). */
+  assunto: string;
+  categoria: string;
+  criterios: string[];
+  itens: Array<{ oferta: OfertaAvaliada; imagem?: string }>;
 }
 
-/** Legenda do carrossel: gancho e #publi na primeira linha, a lista com preço e prova social, e o aviso de afiliado. */
+export type DadosDoCarrossel = DadosDoTop | DadosDaDica;
+
+/** Quantas imagens o carrossel tem. O Instagram aceita no máximo 10. */
+export function totalDeImagens(d: DadosDoCarrossel): number {
+  return d.formato === 'dica' ? 1 + d.criterios.length + (d.itens.length >= 2 ? 1 : 0) : d.itens.length + 1;
+}
+
+/** Nomes dos PNGs do carrossel, na ordem (a primeira é a capa). Estáveis entre rodadas (o Instagram precisa de um endereço público). */
+export function arquivosDoCarrossel(chave: string, imagens: number): string[] {
+  const base = chave.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  return Array.from({ length: imagens }, (_, i) => `${base}-${i === 0 ? 'capa' : i}.png`);
+}
+
+/** As imagens do carrossel "Antes de comprar": capa, um critério por imagem e, no fim, os 3 primeiros do guia. */
+export function montarSvgsDaDica(d: DadosDaDica): string[] {
+  const tema = temaDaCategoria(d.categoria);
+  const slides = [svgDaCapaDaDica({ numero: d.criterios.length, assunto: quebrarSemCorte(d.assunto, 22).slice(0, 3), tema })];
+  d.criterios.forEach((c, i) => {
+    let linhas = quebrarSemCorte(c, 20);
+    let tamanho = 72;
+    if (linhas.length > 4) {
+      linhas = quebrarSemCorte(c, 24);
+      tamanho = 60;
+    }
+    slides.push(svgDoCriterio({ posicao: i + 1, total: d.criterios.length, linhas, tamanho, assunto: d.assunto, tema }));
+  });
+  if (d.itens.length >= 2) {
+    slides.push(
+      svgDoFechamentoDaDica({
+        assunto: quebrarSemCorte(`de ${d.assunto}`, 30).slice(0, 2),
+        itens: d.itens.slice(0, 3).map(({ oferta: o, imagem }) => ({
+          foto: imagem,
+          linhas: tituloParaArte(o.titulo, 24),
+          precoTexto: formatarPreco(o.preco),
+          nota: o.nota && o.nota > 0 ? o.nota.toFixed(1).replace('.', ',') : undefined,
+          vendas: o.vendas && o.vendas > 0 ? formatarVendas(o.vendas) : undefined,
+        })),
+        tema,
+      }),
+    );
+  }
+  return slides;
+}
+
+/** Perguntas que convidam a comentar (comentário vale mais para o alcance do que curtida); a mesma dica repete a pergunta. */
+function perguntaDaDica(d: DadosDaDica): string {
+  const opcoes = [
+    'Qual desses pontos pesa mais para você? Conta aqui nos comentários 👇',
+    'Faltou algum critério que você sempre olha? Comenta aqui 👇',
+    `Marca alguém que está pesquisando ${d.assunto} 👇`,
+  ];
+  return opcoes[escolha(d.slug, opcoes.length)]!;
+}
+
+/** Legenda da dica: gancho e #publi na primeira linha, os critérios por escrito, a pergunta e a chamada para o guia. */
+export function legendaDaDica(d: DadosDaDica, config: Config): string {
+  const linhas = [`📌 ${d.titulo} #publi`, '🔖 Salve este post para consultar na hora de comprar.', ''];
+  d.criterios.forEach((c, i) => linhas.push(`${i + 1}) ${c}`));
+  linhas.push(
+    '',
+    `💬 ${perguntaDaDica(d)}`,
+    '',
+    `👉 Os 3 primeiros do nosso guia de ${d.assunto}, com preço e nota, e o guia completo: link na bio (${enderecoDoBlog(config)})`,
+    '',
+    'Publi: link de afiliado nos produtos do guia. Os preços podem mudar a qualquer momento.',
+    '',
+    hashtagsDaCategoria(d.categoria).join(' '),
+  );
+  return linhas.join('\n');
+}
+
+/** Legenda do carrossel "Top N": gancho e #publi na primeira linha, a lista com preço e prova social, e o aviso de afiliado. */
 export function legendaDoCarrossel(d: DadosDoCarrossel, config: Config): string {
+  if (d.formato === 'dica') return legendaDaDica(d, config);
   const linhas = [`🛒 ${d.titulo} #publi`, 'Bem avaliados e muito vendidos, separados hoje para você.', ''];
   d.itens.forEach((it, i) => {
     const o = it.oferta;
     const prova = o.nota && o.nota > 0 ? ` · ⭐ ${o.nota.toFixed(1).replace('.', ',')}${o.vendas ? ` (${formatarVendas(o.vendas)} vendidos)` : ''}` : '';
-    linhas.push(`${i + 1}) ${tituloParaArte(o.titulo, 30).join(' ')} —${formatarPreco(o.preco)}${prova}`);
+    linhas.push(`${i + 1}) ${tituloParaArte(o.titulo, 30).join(' ')} — ${formatarPreco(o.preco)}${prova}`);
   });
   linhas.push('', `👉 Todas as ofertas no blog, link na bio: ${enderecoDoBlog(config)}`, '', 'Publi: link de afiliado. Os preços podem mudar a qualquer momento.', '', hashtagsDaCategoria('geral').join(' '));
   return linhas.join('\n');

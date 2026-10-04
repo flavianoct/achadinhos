@@ -311,8 +311,15 @@ export class Banco {
     this.db.prepare(`UPDATE instagram_carrosseis SET tentativas = tentativas + 1 WHERE chave = ?`).run(chave);
   }
 
+  /** Marca como publicado e descarta o conteúdo pesado (fotos); fica só o registro, para saber o que já saiu. */
   marcarCarrosselPublicado(chave: string, agora: Date): void {
-    this.db.prepare(`UPDATE instagram_carrosseis SET publicado_em = ? WHERE chave = ?`).run(agora.getTime(), chave);
+    this.db.prepare(`UPDATE instagram_carrosseis SET publicado_em = ?, dados = '{}' WHERE chave = ?`).run(agora.getTime(), chave);
+  }
+
+  /** Chaves dos carrosséis já publicados nos últimos `dias` dias (a chave de uma dica leva o assunto: dica-AAAA-MM-DD-slug). */
+  carrosseisPublicadosRecentes(dias: number, agora: Date): string[] {
+    const linhas = this.db.prepare(`SELECT chave FROM instagram_carrosseis WHERE publicado_em IS NOT NULL AND publicado_em >= ?`).all(agora.getTime() - dias * 86_400_000) as Array<{ chave: string }>;
+    return linhas.map((l) => l.chave);
   }
 
   carrosseisPublicadosNoDia(agora: Date): number {
@@ -480,7 +487,9 @@ export class Banco {
     this.db.prepare(`DELETE FROM postados WHERE postado_em < ?`).run(t - 90 * 86_400_000);
     this.db.prepare(`DELETE FROM whatsapp_saida WHERE criado_em < ?`).run(t - 2 * 86_400_000);
     this.db.prepare(`DELETE FROM social_saida WHERE criado_em < ?`).run(t - 2 * 86_400_000);
-    this.db.prepare(`DELETE FROM instagram_carrosseis WHERE criado_em < ?`).run(t - 3 * 86_400_000);
+    // Publicado vira só um registro (leve) e fica 30 dias, para o robô saber que assunto já usou; o que não saiu perde a validade em 2 dias.
+    this.db.prepare(`DELETE FROM instagram_carrosseis WHERE criado_em < ?`).run(t - 30 * 86_400_000);
+    this.db.prepare(`DELETE FROM instagram_carrosseis WHERE publicado_em IS NULL AND criado_em < ?`).run(t - 2 * 86_400_000);
     this.db.prepare(`DELETE FROM produtos WHERE visto_em < ?`).run(t - 7 * 86_400_000);
     this.db.prepare(`DELETE FROM guia_produtos WHERE visto_em < ?`).run(t - 30 * 86_400_000);
     this.db.prepare(`DELETE FROM textos WHERE criado_em < ? AND chave LIKE 'produto:%'`).run(t - 30 * 86_400_000);

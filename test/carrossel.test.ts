@@ -3,11 +3,12 @@ import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { escolherParaCarrossel, gravarPngsDoCarrossel, prepararCarrossel } from '../src/carrossel.ts';
+import { diaDaSemana, escolherParaCarrossel, gravarPngsDoCarrossel, prepararCarrossel } from '../src/carrossel.ts';
 import { lerConfig } from '../src/config.ts';
 import { Banco } from '../src/db.ts';
+import { TIPOS_DE_GUIA } from '../src/guias.ts';
 import { Instagram, publicarNoInstagram } from '../src/instagram.ts';
-import { arquivosDoCarrossel, legendaDoCarrossel, type DadosDoCarrossel } from '../src/social.ts';
+import { arquivosDoCarrossel, legendaDaDica, legendaDoCarrossel, totalDeImagens, type DadosDaDica, type DadosDoCarrossel } from '../src/social.ts';
 import type { OfertaAvaliada } from '../src/types.ts';
 
 // 12h em Brasília
@@ -105,7 +106,7 @@ test('carrossel: grava a capa e um PNG por produto (1080x1350)', async (t) => {
   await prepararCarrossel(banco, cfg, AGORA, fotoFalsa());
   assert.equal(await gravarPngsDoCarrossel(banco, cfg, AGORA), 6);
   const pendente = banco.carrosselPendente(AGORA)!;
-  for (const nome of arquivosDoCarrossel(pendente.chave, 5)) {
+  for (const nome of arquivosDoCarrossel(pendente.chave, 6)) {
     assert.ok(existsSync(join(dir, 'social', nome)), nome);
     const png = readFileSync(join(dir, 'social', nome));
     assert.equal(png.readUInt32BE(16), 1080, 'largura');
@@ -154,7 +155,7 @@ async function bancoComCarrosselPendente() {
 test('instagram: publica o carrossel do dia (conta como post de feed), uma vez só, e só com todas as imagens no ar', async () => {
   const banco = await bancoComCarrosselPendente();
   const chave = banco.carrosselPendente(AGORA)!.chave;
-  const nomes = arquivosDoCarrossel(chave, 5);
+  const nomes = arquivosDoCarrossel(chave, 6);
 
   // Uma imagem ainda não está no ar: espera a próxima rodada, sem publicar nada.
   const parcial = apiDeCarrossel((u) => !u.endsWith(nomes[3]!));
@@ -229,4 +230,127 @@ test('instagram: o carrossel respeita o intervalo entre posts de feed e o deslig
   const desligado = lerConfig({ ...base, INSTAGRAM_CARROSSEL_POR_DIA: '0' });
   const r2 = await publicarNoInstagram(banco, desligado, AGORA, f, cliente);
   assert.ok(!chamadas.some((c) => c.corpo.get('media_type') === 'CAROUSEL'), `desligado não publica (feed ${r2.feed})`);
+});
+
+// ───────── Carrossel educativo: "N coisas para olhar antes de comprar [produto]" ─────────
+
+function guiaSalvo(banco: Banco, slug: string, quantos = 4): void {
+  const tipo = TIPOS_DE_GUIA.find((t) => t.slug === slug)!;
+  banco.salvarGuia({
+    arquivo: `melhores-${slug}.html`,
+    tipo: slug,
+    titulo: `Melhores ${tipo.nome} de 2026`,
+    atualizadoEm: AGORA.getTime(),
+    dados: JSON.stringify({ itens: Array.from({ length: quantos }, (_, i) => produto(i + 1, { categoria: tipo.categoria })), intro: '', temIA: false, ano: '2026' }),
+  });
+}
+
+const todosOsDias = lerConfig({ ...base, INSTAGRAM_DICAS_DIAS: '0,1,2,3,4,5,6' });
+
+test('dica: cria o carrossel educativo com os critérios do guia e os 3 primeiros produtos dele', async () => {
+  assert.equal(diaDaSemana(AGORA), 6, '3 de outubro de 2026 é sábado');
+  assert.equal(diaDaSemana(new Date('2026-10-05T15:00:00Z')), 1, 'segunda');
+  assert.equal(diaDaSemana(new Date('2026-10-04T02:30:00Z')), 6, 'madrugada de domingo ainda é sábado em Brasília');
+
+  const banco = bancoComProdutos();
+  guiaSalvo(banco, 'fones-bluetooth');
+  assert.equal(await prepararCarrossel(banco, config, AGORA, fotoFalsa()), true);
+  const pendente = banco.carrosselPendente(AGORA)!;
+  assert.equal(pendente.chave, 'dica-2026-10-03-fones-bluetooth', 'sábado é dia de dica');
+  const dados = JSON.parse(pendente.dados) as DadosDaDica;
+  const tipo = TIPOS_DE_GUIA.find((t) => t.slug === 'fones-bluetooth')!;
+  assert.equal(dados.formato, 'dica');
+  assert.deepEqual(dados.criterios, tipo.criterios);
+  assert.equal(dados.titulo, `${tipo.criterios.length} coisas para olhar antes de comprar fones de ouvido bluetooth`);
+  assert.equal(dados.itens.length, 3);
+  assert.ok(dados.itens.every((i) => i.imagem?.startsWith('data:image/png;base64,') && i.oferta.link.startsWith('https://')));
+  assert.equal(totalDeImagens(dados), 1 + tipo.criterios.length + 1, 'capa, um critério por imagem e o fechamento');
+  assert.ok(totalDeImagens(dados) <= 10, 'cabe no limite do Instagram');
+  assert.ok(Object.keys(dados.itens[0]!.oferta).length <= 9, 'só o necessário fica guardado');
+
+  // Fora dos dias da dica (ou com a dica desligada) o carrossel é o Top.
+  assert.match((await (async () => { const b = bancoComProdutos(); guiaSalvo(b, 'fones-bluetooth'); await prepararCarrossel(b, lerConfig({ ...base, INSTAGRAM_DICAS_DIAS: '1,2' }), AGORA, fotoFalsa()); return b.carrosselPendente(AGORA)!.chave; })()), /^carrossel-2026-10-03-/);
+  assert.match((await (async () => { const b = bancoComProdutos(); guiaSalvo(b, 'fones-bluetooth'); await prepararCarrossel(b, lerConfig({ ...base, INSTAGRAM_DICAS_DIAS: '' }), AGORA, fotoFalsa()); return b.carrosselPendente(AGORA)!.chave; })()), /^carrossel-2026-10-03-/);
+  // Guia com menos de 3 produtos não vira dica.
+  const pequeno = bancoComProdutos();
+  guiaSalvo(pequeno, 'fones-bluetooth', 2);
+  await prepararCarrossel(pequeno, config, AGORA, fotoFalsa());
+  assert.match(pequeno.carrosselPendente(AGORA)!.chave, /^carrossel-/);
+});
+
+test('dica: um assunto não se repete por 14 dias, os assuntos giram e, sem assunto novo, volta para o Top', async () => {
+  const banco = new Banco(':memory:');
+  guiaSalvo(banco, 'fones-bluetooth');
+  guiaSalvo(banco, 'air-fryers');
+  const dia = (n: number) => new Date(AGORA.getTime() + n * DIA);
+  const produtosDoDia = (n: number) => { for (let i = 1; i <= 12; i++) banco.guardarProduto(produto(i), new Date(dia(n).getTime() - i * 60_000)); };
+  const assuntos: string[] = [];
+  for (let n = 0; n < 3; n++) {
+    produtosDoDia(n);
+    assert.equal(await prepararCarrossel(banco, todosOsDias, dia(n), fotoFalsa()), true);
+    const p = banco.carrosselPendente(dia(n))!;
+    assuntos.push(p.chave.replace(/^(dica|carrossel)-\d{4}-\d{2}-\d{2}-/, (m) => m.startsWith('dica') ? 'dica:' : 'top:'));
+    banco.marcarCarrosselPublicado(p.chave, dia(n));
+  }
+  assert.ok(assuntos[0]!.startsWith('dica:') && assuntos[1]!.startsWith('dica:'));
+  assert.notEqual(assuntos[0], assuntos[1], 'o segundo dia usa o outro assunto');
+  assert.ok(assuntos[2]!.startsWith('top:'), 'os dois assuntos já foram usados nos últimos 14 dias: volta para o Top');
+  // Passados 14 dias, o primeiro assunto pode voltar.
+  produtosDoDia(15);
+  assert.equal(await prepararCarrossel(banco, todosOsDias, dia(15), fotoFalsa()), true);
+  assert.match(banco.carrosselPendente(dia(15))!.chave, /^dica-/);
+});
+
+test('dica: a legenda tem gancho e #publi na primeira linha, os critérios, uma pergunta e a chamada para o guia', () => {
+  const tipo = TIPOS_DE_GUIA.find((t) => t.slug === 'air-fryers')!;
+  const dados: DadosDaDica = { formato: 'dica', titulo: `${tipo.criterios.length} coisas para olhar antes de comprar ${tipo.nome}`, slug: tipo.slug, assunto: tipo.nome, categoria: tipo.categoria, criterios: tipo.criterios, itens: [1, 2, 3].map((n) => ({ oferta: produto(n) })) };
+  const l = legendaDaDica(dados, config);
+  assert.match(l.split('\n')[0]!, /^📌 5 coisas para olhar antes de comprar air fryers #publi$/);
+  tipo.criterios.forEach((c, i) => assert.ok(l.includes(`${i + 1}) ${c}`)));
+  assert.match(l, /💬 .*(👇)/);
+  assert.match(l, /Salve este post/);
+  assert.match(l, /link na bio/);
+  assert.match(l, /Publi: link de afiliado/);
+  assert.ok(!l.includes('https://') && !l.includes('…') && l.length < 2200);
+  assert.ok((l.match(/#\w+/g) ?? []).length <= 10);
+  assert.equal(legendaDoCarrossel(dados, config), l, 'o carrossel escolhe a legenda pelo formato');
+  assert.equal(legendaDaDica(dados, config), l, 'a pergunta é a mesma para o mesmo assunto');
+  const perguntas = new Set(TIPOS_DE_GUIA.map((t) => legendaDaDica({ ...dados, slug: t.slug }, config).split('\n').find((x) => x.startsWith('💬'))));
+  assert.ok(perguntas.size >= 2, 'as perguntas variam entre assuntos');
+});
+
+test('dica: grava as imagens (capa, critérios e fechamento) em 1080x1350 e publica como carrossel', async (t) => {
+  const banco = bancoComProdutos();
+  guiaSalvo(banco, 'fones-bluetooth');
+  await prepararCarrossel(banco, config, AGORA, fotoFalsa());
+  const pendente = banco.carrosselPendente(AGORA)!;
+  const total = totalDeImagens(JSON.parse(pendente.dados));
+  const nomes = arquivosDoCarrossel(pendente.chave, total);
+
+  let comConversor = true;
+  try {
+    await import('@resvg/resvg-js');
+  } catch {
+    comConversor = false;
+  }
+  if (comConversor) {
+    const dir = mkdtempSync(join(tmpdir(), 'dica-'));
+    assert.equal(await gravarPngsDoCarrossel(banco, lerConfig({ ...base, BLOG_PASTA: dir }), AGORA), total);
+    for (const nome of nomes) {
+      const png = readFileSync(join(dir, 'social', nome));
+      assert.equal(png.readUInt32BE(16), 1080, nome);
+      assert.equal(png.readUInt32BE(20), 1350, nome);
+    }
+  } else t.diagnostic('conversor de imagens não instalado: só a parte de publicação foi testada');
+
+  const { f, chamadas } = apiDeCarrossel();
+  const r = await publicarNoInstagram(banco, config, AGORA, f, new Instagram('tok-secreto', '1789', f, 0));
+  assert.equal(r.feed, 1);
+  const criados = chamadas.filter((c) => c.metodo === 'POST' && c.url.endsWith('/media'));
+  assert.equal(criados.filter((c) => c.corpo.get('is_carousel_item') === 'true').length, total);
+  const pai = criados.find((c) => c.corpo.get('media_type') === 'CAROUSEL')!;
+  assert.match(pai.corpo.get('caption')!, /^📌 \d coisas para olhar antes de comprar fones de ouvido bluetooth #publi/);
+  assert.equal(banco.carrosselPendente(AGORA), undefined);
+  assert.equal(banco.carrosseisPublicadosRecentes(14, AGORA).length, 1);
+  assert.equal(banco.carrosselCriadoNoDia(AGORA), true, 'e o dia já tem o seu carrossel');
 });

@@ -302,3 +302,94 @@ export function svgDoFeed(d: DadosDaArte): string {
   const corpo = FEEDS[d.layout % LAYOUTS](d);
   return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350" font-family="${FONTE}">\n${corpo}\n</svg>`;
 }
+
+// ───────────────────────── Carrossel "Antes de comprar" (1080x1350) ─────────────────────────
+
+const textoEsq = (x: number, y: number, tamanho: number, cor: string, conteudo: string) =>
+  `<text x="${x}" y="${y}" font-size="${tamanho}" font-weight="700" fill="${cor}" text-anchor="start">${esc(conteudo)}</text>`;
+
+/** Marcador de "salvar": contorno de um marcador de página, desenhado (sem depender de fonte de símbolos). */
+const marcador = (x: number, y: number, altura: number) => {
+  const l = altura * 0.72;
+  return `<polygon points="${x},${y} ${x + l},${y} ${x + l},${y + altura} ${x + l / 2},${y + altura - altura * 0.22} ${x},${y + altura}" fill="#ffffff"/>`;
+};
+
+const envolver = (corpo: string) => `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350" font-family="${FONTE}">\n${corpo}\n</svg>`;
+
+export interface DadosDaCapaDaDica {
+  /** Quantos critérios o carrossel traz ("5 coisas"). */
+  numero: number;
+  /** O produto, em linhas já quebradas ("fones de ouvido", "bluetooth"). */
+  assunto: string[];
+  tema: Tema;
+}
+
+/** Capa: promete algo útil e pede para salvar (salvamento pesa no alcance). */
+export function svgDaCapaDaDica(d: DadosDaCapaDaDica): string {
+  return envolver(`${gradiente('fundo', d.tema)}
+<rect width="1080" height="1350" fill="url(#fundo)"/>
+<text x="60" y="92" font-size="34" font-weight="700" fill="#ffffff" letter-spacing="4">ACHADINHOS DO DIA</text>
+${texto(540, 300, 52, d.tema.preco, 'ANTES DE COMPRAR', ' letter-spacing="6"')}
+${texto(540, 640, 380, '#ffffff', String(d.numero))}
+${texto(540, 745, 84, '#ffffff', 'coisas para olhar')}
+${d.assunto.map((l, i) => texto(540, 855 + i * 92, 80, d.tema.preco, l)).join('\n')}
+${marcador(150, 1090, 56)}${textoEsq(240, 1135, 42, '#ffffff', 'Salve para consultar na hora')}
+${texto(500, 1232, 48, '#ffffff', 'Arraste para o lado')}
+<polygon points="790,1198 842,1216 790,1234" fill="#ffffff"/>`);
+}
+
+export interface DadosDoCriterio {
+  posicao: number;
+  total: number;
+  /** Texto do critério já quebrado em linhas, e o tamanho da fonte que cabe. */
+  linhas: string[];
+  tamanho: number;
+  assunto: string;
+  tema: Tema;
+}
+
+/** Um critério por imagem: número grande e frase curta, legível no celular. */
+export function svgDoCriterio(d: DadosDoCriterio): string {
+  const passo = Math.round(d.tamanho * 1.28);
+  // O texto fica centralizado na área livre entre o assunto (y 600) e o rodapé (y 1150), qualquer que seja o número de linhas.
+  const yInicial = Math.round(600 + (550 - d.linhas.length * passo) / 2 + d.tamanho * 0.8);
+  return envolver(`${gradiente('fundo', d.tema)}
+<rect width="1080" height="1350" fill="url(#fundo)"/>
+<text x="60" y="92" font-size="34" font-weight="700" fill="#ffffff" letter-spacing="4">ACHADINHOS DO DIA</text>
+<circle cx="540" cy="330" r="130" fill="${d.tema.preco}"/>
+${texto(540, 398, 190, d.tema.f1, String(d.posicao))}
+${texto(540, 560, 38, '#e2e8f0', d.assunto.toUpperCase())}
+${d.linhas.map((l, i) => texto(540, yInicial + i * passo, d.tamanho, '#ffffff', l)).join('\n')}
+${texto(540, 1190, 38, '#e2e8f0', `${d.posicao} de ${d.total}`)}
+${marcador(250, 1245, 46)}${textoEsq(320, 1284, 36, '#ffffff', 'Salve este post')}`);
+}
+
+export interface DadosDoFechamento {
+  /** "de fones de ouvido bluetooth", em linhas. */
+  assunto: string[];
+  itens: Array<{ foto?: string; linhas: string[]; precoTexto: string; nota?: string; vendas?: string }>;
+  tema: Tema;
+}
+
+/** Última imagem: os 3 primeiros do guia, com foto, preço e prova social, e a chamada para o guia completo. */
+export function svgDoFechamentoDaDica(d: DadosDoFechamento): string {
+  const linhas = d.itens.slice(0, 3).map((it, i) => {
+    const y = 330 + i * 300;
+    const partes = [it.nota ?? '', it.vendas ? `${it.vendas} vendidos` : ''].filter(Boolean).join(' · ');
+    const estrelaX = 330;
+    return `<rect x="60" y="${y}" width="960" height="270" rx="36" fill="#ffffff"/>
+${it.foto ? `<image href="${it.foto}" x="84" y="${y + 25}" width="220" height="220" preserveAspectRatio="xMidYMid meet"/>` : ''}
+<rect x="${330}" y="${y + 18}" width="76" height="40" rx="20" fill="${d.tema.f2}"/>${texto(368, y + 47, 28, '#ffffff', `#${i + 1}`)}
+${it.linhas.slice(0, 2).map((l, k) => textoEsq(330, y + 98 + k * 40, 36, '#0f172a', l)).join('\n')}
+${textoEsq(330, y + 206, 54, d.tema.f2, it.precoTexto)}
+${partes ? `${it.nota ? estrela(estrelaX + 14, y + 238, 14) : ''}${textoEsq(estrelaX + (it.nota ? 38 : 0), y + 248, 30, '#475569', partes)}` : ''}`;
+  });
+  return envolver(`${gradiente('fundo', d.tema)}
+<rect width="1080" height="1350" fill="url(#fundo)"/>
+<text x="60" y="92" font-size="34" font-weight="700" fill="#ffffff" letter-spacing="4">ACHADINHOS DO DIA</text>
+${texto(540, 200, 66, '#ffffff', 'Os 3 do nosso guia')}
+${d.assunto.map((l, i) => texto(540, 262 + i * 50, 44, d.tema.preco, l)).join('\n')}
+${linhas.join('\n')}
+${chamada(1268, 46)}
+${aviso(1334, 24)}`);
+}

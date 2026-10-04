@@ -2,7 +2,7 @@ import { contemPalavra, normalizar } from './categoria.ts';
 import type { Config } from './config.ts';
 import type { Banco } from './db.ts';
 import { horaDe } from './db.ts';
-import { HORAS_DO_SOCIAL, arquivoDaArte, arquivosDoCarrossel, legendaDoCarrossel, montarLegenda, type DadosDoCarrossel, type Fetch } from './social.ts';
+import { HORAS_DO_SOCIAL, arquivoDaArte, arquivosDoCarrossel, legendaDoCarrossel, montarLegenda, totalDeImagens, type DadosDoCarrossel, type Fetch } from './social.ts';
 import type { OfertaAvaliada } from './types.ts';
 
 const BASE = 'https://graph.instagram.com/v23.0';
@@ -189,7 +189,7 @@ export async function publicarNoInstagram(banco: Banco, config: Config, agora: D
     // O carrossel do dia ocupa a vaga do feed da rodada (conta como post de feed): é a variação de formato do perfil.
     if (carrossel && podePublicar('feed')) {
       const dados = JSON.parse(carrossel.dados) as DadosDoCarrossel;
-      const urls = arquivosDoCarrossel(carrossel.chave, dados.itens.length).map((a) => `${config.blog.url}/social/${a}`);
+      const urls = arquivosDoCarrossel(carrossel.chave, totalDeImagens(dados)).map((a) => `${config.blog.url}/social/${a}`);
       let todasNoAr = true;
       for (const u of urls) {
         if (!(await noAr(u))) {

@@ -67,7 +67,7 @@ export interface Config {
   /** Arte de Story, legenda e roteiro de vídeo das ofertas postadas (aparecem no painel). */
   social: { ativo: boolean };
   /** Publicação automática no Instagram (conta profissional). Token e ID ficam nos Secrets. */
-  instagram: { ativo: boolean; token: string; userId: string; feedPorDia: number; storiesPorDia: number; intervaloFeedMin: number; intervaloStoryMin: number; notaMinima: number; vendasMinimas: number; palavrasBloqueadas: string[]; carrosselPorDia: number; carrosselItens: number; carrosselTetos: number[]; tokenData: string };
+  instagram: { ativo: boolean; token: string; userId: string; feedPorDia: number; storiesPorDia: number; intervaloFeedMin: number; intervaloStoryMin: number; notaMinima: number; vendasMinimas: number; palavrasBloqueadas: string[]; carrosselPorDia: number; carrosselItens: number; carrosselTetos: number[]; dicasDias: number[]; tokenData: string };
   painel: { porta: number };
 }
 
@@ -220,6 +220,8 @@ export function lerConfig(env: Env = process.env): Config {
       carrosselPorDia: numero(env, 'INSTAGRAM_CARROSSEL_POR_DIA', 1),
       carrosselItens: Math.min(9, Math.max(3, numero(env, 'INSTAGRAM_CARROSSEL_ITENS', 5))),
       carrosselTetos: lista(env.INSTAGRAM_CARROSSEL_TETOS === undefined ? '50,100,200' : env.INSTAGRAM_CARROSSEL_TETOS).map(Number).filter((n) => Number.isFinite(n) && n > 0),
+      // Dias da semana (0 = domingo ... 6 = sábado) em que o carrossel do dia é a dica "Antes de comprar"; nos outros dias é o "Top 5 até R$ X".
+      dicasDias: lista(env.INSTAGRAM_DICAS_DIAS === undefined ? '2,4,6' : env.INSTAGRAM_DICAS_DIAS).map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6),
       palavrasBloqueadas: env.INSTAGRAM_PALAVRAS_BLOQUEADAS === undefined ? ['generico', 'paralelo', 'similar', 'replica', 'imitacao', 'sem marca'] : lista(env.INSTAGRAM_PALAVRAS_BLOQUEADAS),
       tokenData: (env.INSTAGRAM_TOKEN_DATA ?? '').trim(),
     },
