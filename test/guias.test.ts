@@ -71,6 +71,15 @@ test('guias: o mesmo modelo anunciado duas vezes aparece uma vez só, e modelos 
   assert.equal(chaveDoModelo('Smartphone Samsung Galaxy A36 5g 128gb 6gb Ram'), chaveDoModelo('Celular Samsung Galaxy A36 5G 128GB 6GB Preto'));
   assert.notEqual(chaveDoModelo('Samsung Galaxy A36 5g 128gb'), chaveDoModelo('Samsung Galaxy A17 5g 128gb'));
   assert.equal(chaveDoModelo('Kit Novo'), '', 'título sem informação não vira chave (não junta produtos diferentes)');
+  // Casos reais da lista de celulares: o mesmo aparelho com título mais longo ou mais curto, e com especificações em ordem diferente.
+  assert.equal(chaveDoModelo('Samsung Galaxy A07 128gb 4gb Ram Preto'), chaveDoModelo('Samsung Galaxy A07'));
+  assert.equal(chaveDoModelo('Xiaomi Poco X7 Pro 5g 12ram /512 Gb Global Cor Preto'), chaveDoModelo('Xiaomi Poco X7 Pro 5g 12gb Ram 512gb Global Nfc Dual Sim'));
+  assert.equal(chaveDoModelo('Smartphone Motorola Moto G56 5g - 256gb 8gb Ram+8gb Ram Boost'), chaveDoModelo('Celular Motorola Moto G56 256gb + 12gb Ram 5g Dual Sim Green'));
+  assert.notEqual(chaveDoModelo('Samsung Galaxy S24 Ultra 256gb'), chaveDoModelo('Samsung Galaxy S24 FE 256gb'), 'modelos diferentes da mesma linha continuam separados');
+  assert.notEqual(chaveDoModelo('Motorola Moto G35 5g'), chaveDoModelo('Motorola Moto G56 5g'));
+  // Sem código de modelo, nada é juntado: dois fones genéricos com títulos parecidos podem ser produtos diferentes.
+  assert.equal(chaveDoModelo('Fone de Ouvido Bluetooth Tws Esportivo Sem Fio'), '');
+  assert.equal(chaveDoModelo('Fritadeira Air Fryer Digital 5l Preta'), '');
 });
 
 test('guias: ordena por nota, vendas e preço; calcula selos só com dados reais; ignora nota baixa e repetidos', () => {

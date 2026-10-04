@@ -434,13 +434,23 @@ function mediana(valores: number[]): number {
 /** Palavras de anúncio que não identificam o modelo. */
 const RUIDO_DO_MODELO = new Set(['smartphone', 'celular', 'novo', 'nova', 'original', 'lacrado', 'lancamento', 'oferta', 'promocao', 'kit', 'com', 'de', 'para', 'e', 'a', 'o', 'em', 'full', 'importado', 'global']);
 
+/** Cores e especificações que variam entre anúncios do mesmo aparelho (128gb, 5g, 12ram, preto...). */
+const VARIACAO_DO_MODELO = new Set(['preto', 'branco', 'cinza', 'azul', 'verde', 'rosa', 'vermelho', 'dourado', 'prata', 'grafite', 'roxo', 'amarelo', 'black', 'white', 'green', 'blue', 'gray', 'grey', 'dual', 'sim', 'nfc', 'ram', 'boost', 'camera', 'super', 'amoled', 'gb', 'tb', 'cor']);
+const ESPECIFICACAO = /^\d+(gb|g|tb|mb|ram|mah|mp|w|hz|k|l|pol)$/;
+
 /**
- * Identifica o modelo pelo título: as primeiras palavras que dizem o que é o produto, sem as de anúncio.
- * Dois anúncios do mesmo aparelho ("Samsung Galaxy A36 5g 128gb...") dão a mesma chave. Vazio se o título não ajuda.
+ * Identifica o modelo pelo título: marca, linha e código do modelo (A36, X7, G56...), sem as palavras de anúncio,
+ * cores e especificações. Dois anúncios do mesmo aparelho ("Samsung Galaxy A36 5g 128gb..." e "Celular Samsung Galaxy A36 Preto")
+ * dão a mesma chave. Sem um código de modelo no começo do título (um "fone bluetooth" genérico, por exemplo),
+ * não dá para ter certeza de que é o mesmo produto: devolve vazio e nada é juntado.
  */
 export function chaveDoModelo(titulo: string): string {
-  const palavras = normalizar(titulo).split(/[^a-z0-9]+/).filter((w) => w && !RUIDO_DO_MODELO.has(w)).slice(0, 6);
-  return palavras.length >= 3 ? palavras.join(' ') : '';
+  const palavras = normalizar(titulo)
+    .split(/[^a-z0-9]+/)
+    .filter((w) => w && !RUIDO_DO_MODELO.has(w) && !VARIACAO_DO_MODELO.has(w) && !ESPECIFICACAO.test(w))
+    .slice(0, 4);
+  const temCodigo = palavras.some((w) => /[a-z]/.test(w) && /\d/.test(w));
+  return palavras.length >= 3 && temCodigo ? palavras.join(' ') : '';
 }
 
 export interface OpcoesDoGuia {
