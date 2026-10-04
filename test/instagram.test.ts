@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { lerConfig } from '../src/config.ts';
 import { Banco } from '../src/db.ts';
-import { avisoDoToken, ErroInstagram, Instagram, publicarNoInstagram } from '../src/instagram.ts';
+import { avisoDoToken, ErroInstagram, Instagram, passaNoFiltroDoInstagram, publicarNoInstagram } from '../src/instagram.ts';
 import { arquivoDaArte, gravarPngs, montarSvgDoFeed, prepararSocial, renderizarPng } from '../src/social.ts';
 import type { OfertaAvaliada } from '../src/types.ts';
 
@@ -81,6 +81,29 @@ test('instagram: publica primeiro a oferta de maior pontuação, um feed e um st
   assert.equal(new Set(urls).size, urls.length, 'nenhuma imagem repetida');
   const r3 = await publicarNoInstagram(banco, config, AGORA, f, cliente);
   assert.deepEqual([r3.feed, r3.stories], [0, 0], 'acabaram as ofertas');
+});
+
+test('instagram: só vai produto bem avaliado, muito vendido e sem cara de genérico', async () => {
+  const ig = lerConfig(base).instagram;
+  const o = oferta('Z', 5);
+  assert.ok(passaNoFiltroDoInstagram({ ...o, nota: 4.8, vendas: 2000 }, ig));
+  assert.ok(!passaNoFiltroDoInstagram({ ...o, nota: 4.5, vendas: 2000 }, ig), 'nota abaixo de 4,6');
+  assert.ok(!passaNoFiltroDoInstagram({ ...o, nota: 4.8, vendas: 120 }, ig), 'poucas vendas');
+  assert.ok(!passaNoFiltroDoInstagram({ ...o, nota: undefined, vendas: 2000 }, ig), 'sem nota não passa');
+  assert.ok(!passaNoFiltroDoInstagram({ ...o, nota: 4.8, vendas: undefined }, ig), 'sem vendas informadas não passa');
+  for (const titulo of ['Controle Genérico Bluetooth Ps4', 'Relógio Smartwatch Similar Original', 'Fone Paralelo Importado', 'Bolsa sem marca couro']) {
+    assert.ok(!passaNoFiltroDoInstagram({ ...o, titulo, nota: 4.9, vendas: 9000 }, ig), titulo);
+  }
+  assert.ok(passaNoFiltroDoInstagram({ ...o, titulo: 'Smartwatch Amazfit Bip 5', nota: 4.7, vendas: 800 }, ig));
+
+  // Na rodada: se nada passa, nada é publicado e o aviso explica por quê.
+  const { banco } = await bancoComOfertas();
+  const exigente = lerConfig({ ...base, INSTAGRAM_NOTA_MINIMA: '4.9' });
+  const { f, chamadas } = apiFalsa();
+  const r = await publicarNoInstagram(banco, exigente, AGORA, f, new Instagram('tok-secreto', '1789', f, 0));
+  assert.deepEqual([r.feed, r.stories], [0, 0]);
+  assert.match(r.avisos.join(' '), /filtro de qualidade/);
+  assert.ok(!chamadas.some((c) => c.url.endsWith('/media')));
 });
 
 test('instagram: respeita o intervalo mínimo entre publicações (sem rajada)', async () => {

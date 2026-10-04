@@ -10,6 +10,8 @@ export type Avaliacao = { aprovada: true; oferta: OfertaAvaliada } | { aprovada:
 const DIAS_DE_HISTORICO = 30;
 /** Com menos dias que isso, o histórico ainda não é confiável. */
 const DIAS_MINIMOS_DE_HISTORICO = 3;
+/** Com pelo menos isto de histórico, um "de" que o produto nunca chegou perto de custar é tratado como inflado. */
+const DIAS_PARA_DENUNCIAR_PRECO_DE = 14;
 
 /**
  * Decide se a oferta vale a pena e calcula a pontuação.
@@ -57,6 +59,15 @@ export function avaliar(o: Oferta, banco: Banco, config: Config, agora: Date): A
     menorPrecoEmDias = Math.max(DIAS_MINIMOS_DE_HISTORICO, Math.round((agora.getTime() - inicio) / 86_400_000));
   }
 
+  // O preço "de" é informado pela loja. Só o marcamos como inflado com bastante histórico: uma promoção que dura
+  // uma semana é legítima, mas um produto que em 14 dias nunca custou perto do "de" provavelmente nunca custou.
+  let precoDe: OfertaAvaliada['precoDe'];
+  if (o.precoOriginal && o.precoOriginal > o.preco) {
+    if (hist.maior !== undefined && hist.diasComDado >= DIAS_PARA_DENUNCIAR_PRECO_DE && hist.maior < o.precoOriginal * 0.8) precoDe = 'inflado';
+    else if (hist.maior !== undefined && hist.diasComDado >= DIAS_MINIMOS_DE_HISTORICO && hist.maior >= o.precoOriginal * 0.9) precoDe = 'confirmado';
+    else precoDe = 'nao-confirmado';
+  }
+
   const pontos =
     desconto +
     Math.max(0, quedaHistorica ?? 0) * 1.5 +
@@ -72,6 +83,7 @@ export function avaliar(o: Oferta, banco: Banco, config: Config, agora: Date): A
     pontos: Math.round(pontos * 10) / 10,
     menorPrecoEmDias,
     quedaHistorica: quedaHistorica !== undefined ? Math.round(quedaHistorica * 10) / 10 : undefined,
+    precoDe,
   };
 
   // A oferta é boa, mas já saiu no canal há pouco: não volta para a fila, e continua valendo para o blog.

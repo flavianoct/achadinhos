@@ -150,14 +150,14 @@ export class Banco {
    * Menor preço do histórico nos últimos `dias`, sem contar hoje.
    * `diasComDado` diz quantos dias diferentes temos registrados na janela.
    */
-  historico(loja: Loja, idProduto: string, dias: number, agora: Date): { menor?: number; diasComDado: number; desde?: string } {
+  historico(loja: Loja, idProduto: string, dias: number, agora: Date): { menor?: number; maior?: number; diasComDado: number; desde?: string } {
     const linha = this.db
       .prepare(
-        `SELECT MIN(preco) AS menor, COUNT(*) AS n, MIN(dia) AS desde FROM precos
+        `SELECT MIN(preco) AS menor, MAX(preco) AS maior, COUNT(*) AS n, MIN(dia) AS desde FROM precos
          WHERE loja = ? AND id_produto = ? AND dia >= ? AND dia < ?`,
       )
-      .get(loja, idProduto, diasAtras(agora, dias), diaDe(agora)) as { menor: number | null; n: number; desde: string | null };
-    return { menor: linha.menor ?? undefined, diasComDado: linha.n, desde: linha.desde ?? undefined };
+      .get(loja, idProduto, diasAtras(agora, dias), diaDe(agora)) as { menor: number | null; maior: number | null; n: number; desde: string | null };
+    return { menor: linha.menor ?? undefined, maior: linha.maior ?? undefined, diasComDado: linha.n, desde: linha.desde ?? undefined };
   }
 
   ultimoPost(loja: Loja, idProduto: string): { preco: number; postadoEm: number } | undefined {

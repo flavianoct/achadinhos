@@ -67,7 +67,7 @@ export interface Config {
   /** Arte de Story, legenda e roteiro de vídeo das ofertas postadas (aparecem no painel). */
   social: { ativo: boolean };
   /** Publicação automática no Instagram (conta profissional). Token e ID ficam nos Secrets. */
-  instagram: { ativo: boolean; token: string; userId: string; feedPorDia: number; storiesPorDia: number; intervaloFeedMin: number; intervaloStoryMin: number; tokenData: string };
+  instagram: { ativo: boolean; token: string; userId: string; feedPorDia: number; storiesPorDia: number; intervaloFeedMin: number; intervaloStoryMin: number; notaMinima: number; vendasMinimas: number; palavrasBloqueadas: string[]; tokenData: string };
   painel: { porta: number };
 }
 
@@ -213,6 +213,10 @@ export function lerConfig(env: Env = process.env): Config {
       storiesPorDia: numero(env, 'INSTAGRAM_STORIES_POR_DIA', 6),
       intervaloFeedMin: numero(env, 'INSTAGRAM_INTERVALO_FEED_MIN', 180),
       intervaloStoryMin: numero(env, 'INSTAGRAM_INTERVALO_STORY_MIN', 60),
+      // O Instagram só recebe produtos que passam confiança: bem avaliados, muito vendidos e sem cara de genérico.
+      notaMinima: numero(env, 'INSTAGRAM_NOTA_MINIMA', 4.6),
+      vendasMinimas: numero(env, 'INSTAGRAM_VENDAS_MINIMAS', 300),
+      palavrasBloqueadas: env.INSTAGRAM_PALAVRAS_BLOQUEADAS === undefined ? ['generico', 'paralelo', 'similar', 'replica', 'imitacao', 'sem marca'] : lista(env.INSTAGRAM_PALAVRAS_BLOQUEADAS),
       tokenData: (env.INSTAGRAM_TOKEN_DATA ?? '').trim(),
     },
     painel: { porta: numero(env, 'PAINEL_PORTA', 3210) },

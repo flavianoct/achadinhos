@@ -31,6 +31,11 @@ export interface OfertaAvaliada extends Oferta {
   menorPrecoEmDias?: number;
   /** Queda em % contra o menor preço anterior do nosso histórico. */
   quedaHistorica?: number;
+  /**
+   * O que o histórico do robô diz sobre o preço "de" informado pela loja: "confirmado" (o produto já custou perto dele),
+   * "inflado" (com 14 dias ou mais de histórico, nunca custou perto dele) ou "nao-confirmado" (histórico curto demais).
+   */
+  precoDe?: 'confirmado' | 'nao-confirmado' | 'inflado';
 }
 
 /** Toda loja implementa esta interface. */

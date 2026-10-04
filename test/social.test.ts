@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { lerConfig } from '../src/config.ts';
-import { baixarImagemComoDataUri, hashtagsDaCategoria, montarGancho, montarLegenda, montarRoteiro, montarSvgDoFeed, montarSvgDoStory, nomeDoCanal, quebrarTexto, seloDoHistorico } from '../src/social.ts';
+import { baixarImagemComoDataUri, ganchoDaOferta, hashtagsDaCategoria, montarGancho, montarLegenda, montarRoteiro, montarSvgDoFeed, montarSvgDoStory, nomeDoCanal, quebrarTexto, tituloParaArte } from '../src/social.ts';
 import { layoutDoProduto, temaDaCategoria } from '../src/moldes.ts';
 import type { OfertaAvaliada } from '../src/types.ts';
 
@@ -20,6 +20,8 @@ test('social: legenda leva preço, canal, aviso de publi e hashtags da categoria
   assert.match(montarLegenda(oferta, comBlog), /flavianoct\.github\.io\/achadinhos(?!\/)/);
   assert.ok(!montarLegenda(oferta, comBlog).includes('https://'));
   assert.match(l, /Publi: link de afiliado/);
+  assert.match(l.split('\n')[0], /#publi/, 'aviso de publicidade já na primeira linha, antes do "mais"');
+  assert.match(l, /Desconto sobre o preço informado pela loja/);
   assert.match(l, /#cozinha/);
   assert.ok(!l.includes('https://exemplo/x'), 'link não vai na legenda, só na bio');
   assert.equal(nomeDoCanal(config), '@topfera_achadinhos');
@@ -47,17 +49,51 @@ test('social: legenda abre com o gancho, tem no máximo 10 hashtags e mantém #p
   assert.match(l.split('\n')[0], /20 dias/);
   const hashtags = l.match(/#\w+/g) ?? [];
   assert.ok(hashtags.length <= 10, `hashtags: ${hashtags.length}`);
-  assert.ok(hashtags.includes('#publi'));
-  for (const cat of ['tech', 'casa', 'geral', 'pet']) assert.ok(hashtagsDaCategoria(cat).length <= 10 && hashtagsDaCategoria(cat).includes('#publi'));
+  assert.equal(hashtags.filter((h) => h === '#publi').length, 1, '#publi uma vez só, na primeira linha');
+  for (const cat of ['tech', 'casa', 'geral', 'pet']) assert.ok(hashtagsDaCategoria(cat).length <= 9 && !hashtagsDaCategoria(cat).includes('#publi'));
 });
 
-test('social: o selo de menor preço aparece na arte só com histórico confirmado', () => {
+test('social: título completo na legenda, sem reticências; "De" some quando o histórico mostra preço inflado', () => {
+  const longo = 'Câmera de Segurança Wi-Fi iCSee/Yoosee A28B 4K Dupla Lente Giratória Visão Noturna Colorida Detecção de Movimento Áudio Bidirecional';
+  const l = montarLegenda({ ...oferta, titulo: longo }, config);
+  assert.ok(l.includes(longo) && !l.includes('…'));
+  const inflado = montarLegenda({ ...oferta, precoDe: 'inflado' }, config);
+  assert.ok(!inflado.includes('De R$ 80,00') && !inflado.includes('(-57%)') && !inflado.includes('preço informado pela loja'));
+  assert.match(inflado, /Por R\$ 34,41/);
+});
+
+test('social: título da arte é curto, sem reticências e sem terminar em palavra de ligação', () => {
+  const casos = [
+    'Câmera de Segurança Wi-Fi iCSee/Yoosee A28B 4K Dupla Lente Giratória Visão Noturna Colorida',
+    'Fone Bluetooth TWS - Cancelamento de Ruído Ativo Bateria 30h Compatível Android iOS',
+    'Kit 10 Pote De Vidro Marmita Hermético 640ml Freezer Fitness Rishon (Promoção Imperdível)',
+    'Controle Sem Fio Joystick Genérico Bluetooth Compatível Para Ps4 Videogame Tv Samsung Pc P4 Ps 4 Manete',
+  ];
+  for (const t of casos) {
+    const linhas = tituloParaArte(t, 34);
+    assert.ok(linhas.length >= 1 && linhas.length <= 2, t);
+    assert.ok(linhas.every((x) => x.length <= 34 && !x.includes('…')), linhas.join(' | '));
+    assert.ok(!/\s(de|da|do|com|para|e|em)$/i.test(linhas.join(' ')), `termina em ligação: ${linhas.join(' ')}`);
+  }
+  assert.deepEqual(tituloParaArte('Fone Bluetooth TWS - Cancelamento de Ruído Ativo Bateria 30h', 34), ['Fone Bluetooth TWS']);
+  assert.ok(!tituloParaArte(casos[2]!, 34).join(' ').match(/Promo|Imperd/i), 'parênteses e palavras de enchimento saem');
+  assert.deepEqual(tituloParaArte('Chaleira Elétrica 1,8L', 34), ['Chaleira Elétrica 1,8L'], 'título curto fica como está');
+});
+
+test('social: o selo da arte dá um motivo (menor preço, economia) e, sem nada melhor, mostra a categoria; nunca "OFERTA"', () => {
   const com = { ...oferta, menorPrecoEmDias: 15 };
   assert.match(montarSvgDoStory(com, undefined, config), /MENOR PREÇO EM 15 DIAS/);
   assert.match(montarSvgDoFeed(com, undefined, config), /MENOR PREÇO/);
-  assert.ok(!montarSvgDoStory(oferta, undefined, config).includes('MENOR PREÇO'));
-  assert.match(montarSvgDoStory(oferta, undefined, config), />OFERTA</);
-  assert.equal(seloDoHistorico(oferta, false), undefined);
+  assert.deepEqual(ganchoDaOferta(com), { gancho: 'MENOR PREÇO EM 15 DIAS', curto: 'MENOR PREÇO', tipo: 'historico' });
+  assert.deepEqual(ganchoDaOferta(oferta), { gancho: 'ECONOMIZE R$ 46', curto: 'ECONOMIZE R$ 46', tipo: 'economia' }, '80 - 34,41');
+  assert.equal(ganchoDaOferta({ ...oferta, precoOriginal: 1500, preco: 400 }).gancho, 'ECONOMIZE R$ 1.100');
+  // Preço "de" inflado ou economia pequena: cai para a categoria.
+  assert.equal(ganchoDaOferta({ ...oferta, precoDe: 'inflado' }).gancho, 'CASA E COZINHA');
+  assert.equal(ganchoDaOferta({ ...oferta, precoOriginal: 40 }).tipo, 'categoria');
+  assert.equal(ganchoDaOferta({ ...oferta, precoOriginal: undefined, desconto: undefined, categoria: 'tech' }).gancho, 'TECNOLOGIA');
+  for (const o of [oferta, com, { ...oferta, precoOriginal: undefined }]) {
+    for (const svg of [montarSvgDoStory(o, undefined, config), montarSvgDoFeed(o, undefined, config)]) assert.ok(!svg.includes('>OFERTA<'), 'sem o selo genérico');
+  }
 });
 
 test('moldes: todo tema e todo layout geram arte válida, com preço, aviso de publi e título escapado', () => {
@@ -69,7 +105,9 @@ test('moldes: todo tema e todo layout geram arte válida, com preço, aviso de p
       layouts.add(layoutDoProduto(o.idProduto));
       for (const [svg, w, h] of [[montarSvgDoStory(o, 'data:image/png;base64,AAAA'), 1080, 1920], [montarSvgDoFeed(o, 'data:image/png;base64,AAAA'), 1080, 1350]] as const) {
         assert.match(svg, new RegExp(`^<svg[^>]+width="${w}" height="${h}"`));
-        assert.ok(svg.includes('R$ 34,41') && svg.includes('Publi · link de afiliado') && svg.includes('Ofertas no link da bio') && svg.includes('ACHADINHOS DO DIA'));
+        assert.ok(svg.includes('R$ 34,41') && svg.includes('Publi · link de afiliado') && svg.includes('Link na bio') && svg.includes('ACHADINHOS DO DIA'));
+        assert.ok(!svg.includes('Ofertas no link da bio'), 'sem botão falso: a chamada é texto simples');
+        assert.ok(svg.includes('4,8') && svg.includes('5 mil vendidos') && svg.includes('<polygon'), 'nota, vendas e estrela no próprio card');
         assert.ok(!svg.includes('<INMA>') && svg.includes('&lt;INMA&gt;'), 'título escapado');
         assert.equal(svg.includes('MENOR PREÇO'), i % 2 === 1, 'selo só com histórico confirmado');
       }
@@ -101,8 +139,8 @@ test('social: arte do Story é um SVG válido de 1080x1920, com texto escapado e
   assert.ok(svg.includes('data:image/png;base64,AAAA'));
   assert.match(svg, /-57%/);
   assert.match(svg, /R\$ 34,41/);
-  assert.match(svg, /FRETE GRÁTIS/);
-  const semFoto = montarSvgDoStory({ ...oferta, precoOriginal: undefined, desconto: undefined, freteGratis: false }, undefined, config);
+  assert.match(svg, /Frete grátis/);
+  const semFoto =montarSvgDoStory({ ...oferta, precoOriginal: undefined, desconto: undefined, freteGratis: false }, undefined, config);
   assert.ok(!semFoto.includes('<image'));
   assert.ok(!semFoto.includes('line-through'));
 });

@@ -1,3 +1,4 @@
+import { contemPalavra, normalizar } from './categoria.ts';
 import type { Config } from './config.ts';
 import type { Banco } from './db.ts';
 import { horaDe } from './db.ts';
@@ -102,6 +103,14 @@ export function avisoDoToken(config: Config, agora: Date): string | undefined {
   return undefined;
 }
 
+/** Nota alta, muitas vendas e sem palavras que passam desconfiança (genérico, paralelo...). Sem nota ou sem vendas informadas, não passa. */
+export function passaNoFiltroDoInstagram(o: OfertaAvaliada, ig: Config['instagram']): boolean {
+  if (!o.nota || o.nota < ig.notaMinima) return false;
+  if (!o.vendas || o.vendas < ig.vendasMinimas) return false;
+  const titulo = normalizar(o.titulo);
+  return !ig.palavrasBloqueadas.some((p) => contemPalavra(titulo, p));
+}
+
 /** Só publica se o PNG já estiver no ar (o site é publicado no fim de cada rodada, então vale a partir da seguinte). */
 async function pngNoAr(url: string, fetchFn: Fetch): Promise<boolean> {
   try {
@@ -134,13 +143,20 @@ export async function publicarNoInstagram(banco: Banco, config: Config, agora: D
   if (hora < config.ritmo.horaInicio || hora >= config.ritmo.horaFim) return resumo;
 
   const api = cliente ?? new Instagram(ig.token, ig.userId, fetchFn);
-  const candidatos = banco
+  const todos = banco
     .socialRecentes(HORAS_DO_SOCIAL, 50, agora)
-    .map((l) => ({ ...l, oferta: JSON.parse(l.dados) as OfertaAvaliada }))
-    .sort((a, b) => b.oferta.pontos - a.oferta.pontos);
+    .map((l) => ({ ...l, oferta: JSON.parse(l.dados) as OfertaAvaliada }));
+  // Perfil de achadinhos vive de confiança: só vai para o Instagram produto bem avaliado, muito vendido e com cara de marca.
+  const candidatos = todos.filter((c) => passaNoFiltroDoInstagram(c.oferta, ig)).sort((a, b) => b.oferta.pontos - a.oferta.pontos);
 
   const url = (chave: string, tipo: 'feed' | 'story') => `${config.blog.url}/social/${arquivoDaArte(chave, tipo)}`;
-  if (!candidatos.length) resumo.avisos.push('Instagram: nenhuma oferta recente com arte pronta para publicar.');
+  if (!candidatos.length) {
+    resumo.avisos.push(
+      todos.length
+        ? `Instagram: ${todos.length} ofertas recentes, mas nenhuma passa no filtro de qualidade (nota ${ig.notaMinima}+, ${ig.vendasMinimas}+ vendas, sem "genérico").`
+        : 'Instagram: nenhuma oferta recente com arte pronta para publicar.',
+    );
+  }
   let esperando = 0;
   const noAr = async (u: string) => {
     const ok = await pngNoAr(u, fetchFn);

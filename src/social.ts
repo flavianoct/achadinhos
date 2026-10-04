@@ -3,7 +3,8 @@ import { join } from 'node:path';
 import type { Config } from './config.ts';
 import type { Banco } from './db.ts';
 import { formatarPreco, formatarVendas } from './mensagem.ts';
-import { layoutDoProduto, svgDoFeed, svgDoStory, temaDaCategoria, type DadosDaArte } from './moldes.ts';
+import { normalizar } from './categoria.ts';
+import { layoutDoProduto, svgDoFeed, svgDoStory, temaDaCategoria, type DadosDaArte, type TipoDeGancho } from './moldes.ts';
 import type { OfertaAvaliada } from './types.ts';
 
 export type Fetch = typeof fetch;
@@ -34,11 +35,88 @@ const HASHTAGS: Record<string, string[]> = {
 /** Hashtags de alcance, comuns a todas as ofertas (ofertas, economia, achadinhos, Mercado Livre). */
 const HASHTAGS_COMUNS = ['#achadinhos', '#achadinhosdodia', '#achadinhosmercadolivre', '#promocao', '#promocaododia', '#ofertas', '#ofertasdodia', '#desconto', '#cupom', '#mercadolivre', '#comprasonline', '#economizar', '#publi'];
 
-/** No máximo 10 hashtags (muitas parecem spam): as da categoria primeiro, depois as de alcance. */
+/** No máximo 9 hashtags de assunto (muitas parecem spam): as da categoria primeiro, depois as de alcance. O #publi vai na primeira linha. */
 export function hashtagsDaCategoria(categoria: string): string[] {
   const todas = [...(HASHTAGS[categoria] ?? HASHTAGS.geral), ...HASHTAGS_COMUNS];
-  // #publi (aviso de publicidade) nunca sai do corte.
-  return [...new Set(todas.filter((h) => h !== '#publi'))].slice(0, 9).concat('#publi');
+  return [...new Set(todas.filter((h) => h !== '#publi'))].slice(0, 9);
+}
+
+const ROTULO_DA_CATEGORIA: Record<string, string> = {
+  tech: 'TECNOLOGIA',
+  casa: 'CASA E COZINHA',
+  games: 'GAMES',
+  beleza: 'BELEZA',
+  moda: 'MODA',
+  esporte: 'ESPORTE E FITNESS',
+  pet: 'PET',
+  bebe: 'BEBÊ E INFANTIL',
+  ferramentas: 'FERRAMENTAS',
+  geral: 'VARIEDADES',
+};
+
+/** Palavras que sozinhas não dizem nada sobre o produto (ou só enchem o título do anúncio). */
+const RUIDO_DO_TITULO = new Set(['promocao', 'oferta', 'lancamento', 'imperdivel', 'full']);
+const LIGACOES = new Set(['de', 'da', 'do', 'das', 'dos', 'com', 'para', 'e', 'em', 'a', 'o', 'na', 'no', 'por', 'c/', '+', '-', '–', '|', 'ou']);
+
+/**
+ * Título curto para a arte, sem reticências: tira o que vem entre parênteses, corta no primeiro separador forte
+ * (" - ", " | ", vírgula) e fica só com as palavras que cabem em `maxLinhas` linhas, sem terminar numa palavra de ligação.
+ * O título completo vai na legenda.
+ */
+export function tituloParaArte(titulo: string, largura: number, maxLinhas = 2): string[] {
+  let t = titulo.replace(/\([^)]*\)|\[[^\]]*\]/g, ' ').replace(/\s+/g, ' ').trim();
+  const primeiro = t.split(/\s[-–|]\s|,\s/)[0]!.trim();
+  if (primeiro.length >= 18) t = primeiro;
+  const palavras = t.split(' ').filter((p) => !RUIDO_DO_TITULO.has(normalizar(p)));
+  if (palavras.length === 0) return quebrarTexto(titulo, largura, maxLinhas);
+
+  let cabem = 0;
+  for (let k = 1; k <= palavras.length; k++) {
+    if (quebrarSemCorte(palavras.slice(0, k).join(' '), largura).length > maxLinhas) break;
+    cabem = k;
+  }
+  let usadas = palavras.slice(0, Math.max(cabem, 1));
+  while (usadas.length > 2 && LIGACOES.has(normalizar(usadas[usadas.length - 1]!))) usadas = usadas.slice(0, -1);
+  return quebrarTexto(usadas.join(' '), largura, maxLinhas);
+}
+
+/** Quebra em linhas sem cortar nada (diferente de quebrarTexto, que limita e põe reticências). */
+function quebrarSemCorte(texto: string, largura: number): string[] {
+  const linhas: string[] = [];
+  let atual = '';
+  for (const p of texto.split(' ')) {
+    if (!atual) atual = p;
+    else if (`${atual} ${p}`.length <= largura) atual = `${atual} ${p}`;
+    else {
+      linhas.push(atual);
+      atual = p;
+    }
+  }
+  if (atual) linhas.push(atual);
+  return linhas;
+}
+
+/** Título inteiro para a legenda, sem reticências (corta numa palavra só se passar de `max`). */
+function tituloCompleto(titulo: string, max = 150): string {
+  const limpo = titulo.replace(/\s+/g, ' ').trim();
+  if (limpo.length <= max) return limpo;
+  const corte = limpo.slice(0, max);
+  return corte.slice(0, corte.lastIndexOf(' ') > 40 ? corte.lastIndexOf(' ') : max).replace(/[\s,;:\-–|]+$/, '');
+}
+
+/**
+ * O selo do topo da arte: o motivo para parar o dedo. Prefere o que o histórico do robô prova (menor preço em N dias),
+ * depois a economia em reais (só quando o preço "de" não parece inflado) e, sem nada melhor, a categoria do produto.
+ */
+export function ganchoDaOferta(o: OfertaAvaliada): { gancho: string; curto: string; tipo: TipoDeGancho } {
+  if (o.menorPrecoEmDias) return { gancho: `MENOR PREÇO EM ${o.menorPrecoEmDias} DIAS`, curto: 'MENOR PREÇO', tipo: 'historico' };
+  const economia = o.precoOriginal && o.precoOriginal > o.preco && o.precoDe !== 'inflado' ? Math.round(o.precoOriginal - o.preco) : 0;
+  if (economia >= 10) {
+    const texto = `ECONOMIZE R$ ${economia.toLocaleString('pt-BR')}`;
+    return { gancho: texto, curto: texto, tipo: 'economia' };
+  }
+  const categoria = ROTULO_DA_CATEGORIA[o.categoria] ?? ROTULO_DA_CATEGORIA.geral!;
+  return { gancho: categoria, curto: categoria, tipo: 'categoria' };
 }
 
 /** Número estável de 0 a n-1 para o mesmo produto: varia o gancho entre produtos sem sorteio (o mesmo produto repete a frase). */
@@ -65,12 +143,6 @@ export function montarGancho(o: OfertaAvaliada): string {
   return opcoes[escolha(o.idProduto, opcoes.length)];
 }
 
-/** Selo de histórico para a arte (só com histórico confirmado); curto no feed, completo no Story. */
-export function seloDoHistorico(o: OfertaAvaliada, curto: boolean): string | undefined {
-  if (!o.menorPrecoEmDias) return undefined;
-  return curto ? 'MENOR PREÇO' : `MENOR PREÇO EM ${o.menorPrecoEmDias} DIAS`;
-}
-
 /** "@topfera_achadinhos" a partir do link do canal; se não houver, o nome do blog. */
 export function nomeDoCanal(config: Config): string {
   const m = /t\.me\/([A-Za-z0-9_]+)/.exec(config.blog.telegramLink);
@@ -93,12 +165,15 @@ function titulosCurto(titulo: string, max = 70): string {
 /** Legenda para Instagram e TikTok. O link não é clicável na legenda: manda para a bio. */
 export function montarLegenda(o: OfertaAvaliada, config: Config): string {
   const linhas: string[] = [];
-  linhas.push(montarGancho(o));
-  linhas.push(titulosCurto(o.titulo, 90));
+  // A primeira linha é o que aparece antes do "mais": gancho e aviso de publicidade já ali.
+  linhas.push(`${montarGancho(o)} #publi`);
+  linhas.push(tituloCompleto(o.titulo));
   linhas.push('');
-  const de = o.precoOriginal && o.precoOriginal > o.preco ? `De ${formatarPreco(o.precoOriginal)} por ` : 'Por ';
-  const desc = o.desconto && o.desconto > 0 ? ` (-${Math.round(o.desconto)}%)` : '';
+  const mostraDe = Boolean(o.precoOriginal && o.precoOriginal > o.preco && o.precoDe !== 'inflado');
+  const de = mostraDe ? `De ${formatarPreco(o.precoOriginal as number)} por ` : 'Por ';
+  const desc = o.desconto && o.desconto > 0 && o.precoDe !== 'inflado' ? ` (-${Math.round(o.desconto)}%)` : '';
   linhas.push(`💰 ${de}${formatarPreco(o.preco)}${desc}`);
+  if (mostraDe) linhas.push('📌 Desconto sobre o preço informado pela loja');
   if (o.freteGratis) linhas.push('🚚 Frete grátis');
   if (o.nota && o.nota > 0) linhas.push(`⭐ ${o.nota.toFixed(1).replace('.', ',')}${o.vendas ? ` · ${formatarVendas(o.vendas)} vendidos` : ''}`);
   linhas.push('');
@@ -145,16 +220,23 @@ export function quebrarTexto(texto: string, largura: number, maxLinhas: number):
 }
 
 /** Dados da arte que os moldes (moldes.ts) usam: o tema vem da categoria e o layout vem do produto. */
-function dadosDaArte(o: OfertaAvaliada, imagem: string | undefined, larguraDoTitulo: number, seloCurto: boolean): DadosDaArte {
-  const temDe = Boolean(o.precoOriginal && o.precoOriginal > o.preco);
+function dadosDaArte(o: OfertaAvaliada, imagem: string | undefined, larguraDoTitulo: number): DadosDaArte {
+  // Quando o histórico mostra que o produto nunca custou perto do preço "de", ele não vai riscado nem vira porcentagem na arte.
+  const inflado = o.precoDe === 'inflado';
+  const temDe = Boolean(o.precoOriginal && o.precoOriginal > o.preco) && !inflado;
+  const g = ganchoDaOferta(o);
   return {
-    titulo: quebrarTexto(o.titulo, larguraDoTitulo, 2),
+    titulo: tituloParaArte(o.titulo, larguraDoTitulo),
     precoTexto: formatarPreco(o.preco),
     deTexto: temDe ? formatarPreco(o.precoOriginal as number) : undefined,
-    desconto: o.desconto && o.desconto > 0 ? Math.round(o.desconto) : 0,
+    desconto: !inflado && o.desconto && o.desconto > 0 ? Math.round(o.desconto) : 0,
     freteGratis: Boolean(o.freteGratis),
     foto: imagem,
-    selo: seloDoHistorico(o, seloCurto),
+    gancho: g.gancho,
+    ganchoCurto: g.curto,
+    ganchoTipo: g.tipo,
+    nota: o.nota && o.nota > 0 ? o.nota.toFixed(1).replace('.', ',') : undefined,
+    vendas: o.vendas && o.vendas > 0 ? formatarVendas(o.vendas) : undefined,
     tema: temaDaCategoria(o.categoria),
     layout: layoutDoProduto(o.idProduto),
   };
@@ -162,12 +244,12 @@ function dadosDaArte(o: OfertaAvaliada, imagem: string | undefined, larguraDoTit
 
 /** Arte do Story, 1080x1920, em SVG. A imagem do produto vai embutida (data URI) para o painel virar PNG no navegador. */
 export function montarSvgDoStory(o: OfertaAvaliada, imagem: string | undefined, _config?: Config): string {
-  return svgDoStory(dadosDaArte(o, imagem, 34, false));
+  return svgDoStory(dadosDaArte(o, imagem, 32));
 }
 
 /** Versão 4:5 (1080x1350) para o feed: o feed do Instagram não aceita imagem em pé 9:16. */
 export function montarSvgDoFeed(o: OfertaAvaliada, imagem: string | undefined, _config?: Config): string {
-  return svgDoFeed(dadosDaArte(o, imagem, 36, true));
+  return svgDoFeed(dadosDaArte(o, imagem, 36));
 }
 
 

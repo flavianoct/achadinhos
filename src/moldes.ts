@@ -44,6 +44,8 @@ export function layoutDoProduto(id: string): number {
   return h % LAYOUTS;
 }
 
+export type TipoDeGancho = 'historico' | 'economia' | 'categoria';
+
 export interface DadosDaArte {
   /** Linhas do título já quebradas (sem escapar). */
   titulo: string[];
@@ -53,8 +55,14 @@ export interface DadosDaArte {
   freteGratis: boolean;
   /** Data URI da foto, se houver. */
   foto?: string;
-  /** Selo de menor preço, quando o histórico confirma. */
-  selo?: string;
+  /** Selo do topo: o motivo para parar o dedo (menor preço, economia) ou, sem nada melhor, a categoria. */
+  gancho: string;
+  /** Versão curta para o feed, onde o selo divide a linha com o nome do perfil. */
+  ganchoCurto: string;
+  ganchoTipo: TipoDeGancho;
+  /** Nota e vendas já formatadas ("4,8" e "2 mil"), para mostrar a prova social no próprio card. */
+  nota?: string;
+  vendas?: string;
   tema: Tema;
   layout: number;
 }
@@ -66,16 +74,23 @@ const AVISO = 'Publi · link de afiliado · preço pode mudar';
 const texto = (x: number, y: number, tamanho: number, cor: string, conteudo: string, extra = '') =>
   `<text x="${x}" y="${y}" font-size="${tamanho}" font-weight="700" fill="${cor}" text-anchor="middle"${extra}>${esc(conteudo)}</text>`;
 
-function pilula(cx: number, y: number, h: number, largura: number, cor: string, tamanho: number, rotulo: string, corDoTexto = '#ffffff'): string {
-  return `<rect x="${cx - largura / 2}" y="${y}" width="${largura}" height="${h}" rx="${h / 2}" fill="${cor}"/>\n${texto(cx, y + h * 0.7, tamanho, corDoTexto, rotulo)}`;
+function pilula(cx: number, y: number, h: number, largura: number, cor: string, tamanho: number, rotulo: string, opacidade = 1): string {
+  return `<rect x="${cx - largura / 2}" y="${y}" width="${largura}" height="${h}" rx="${h / 2}" fill="${cor}"${opacidade < 1 ? ` fill-opacity="${opacidade}"` : ''}/>\n${texto(cx, y + h * 0.7, tamanho, '#ffffff', rotulo)}`;
 }
 
 function gradiente(id: string, t: Tema): string {
   return `<defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${t.f1}"/><stop offset="1" stop-color="${t.f2}"/></linearGradient></defs>`;
 }
 
-function selo(d: DadosDaArte, cx: number, y: number, h: number, tamanho: number, larguraSelo: number, larguraNormal: number): string {
-  return d.selo ? pilula(cx, y, h, larguraSelo, VERDE, tamanho - 2, d.selo) : pilula(cx, y, h, larguraNormal, d.tema.selo, tamanho, 'OFERTA');
+/** Largura de uma pílula para o texto, com limites (estimativa: cada letra maiúscula em negrito ocupa cerca de 0,68 do tamanho da fonte). */
+const larguraDaPilula = (rotulo: string, tamanho: number, minimo: number, maximo: number) => Math.min(maximo, Math.max(minimo, Math.round(rotulo.length * tamanho * 0.68 + 72)));
+
+const corDoGancho = (d: DadosDaArte) => (d.ganchoTipo === 'historico' ? VERDE : d.ganchoTipo === 'economia' ? d.tema.selo : '#ffffff');
+
+/** Selo central do Story. */
+function ganchoDoStory(d: DadosDaArte, y: number): string {
+  const tamanho = 44;
+  return pilula(540, y, 84, larguraDaPilula(d.gancho, tamanho, 300, 860), corDoGancho(d), tamanho, d.gancho, d.ganchoTipo === 'categoria' ? 0.2 : 1);
 }
 
 function circuloDesconto(d: DadosDaArte, cx: number, cy: number, r: number, tamanho: number): string {
@@ -85,7 +100,7 @@ function circuloDesconto(d: DadosDaArte, cx: number, cy: number, r: number, tama
 function foto(d: DadosDaArte, x: number, y: number, w: number, h: number, tamanhoSemFoto: number): string {
   return d.foto
     ? `<image href="${d.foto}" x="${x}" y="${y}" width="${w}" height="${h}" preserveAspectRatio="xMidYMid meet"/>`
-    : `<text x="${x + w / 2}" y="${y + h / 2}" font-size="${tamanhoSemFoto}" text-anchor="middle" fill="#98a2b3">Oferta do dia</text>`;
+    : `<text x="${x + w / 2}" y="${y + h / 2}" font-size="${tamanhoSemFoto}" text-anchor="middle" fill="#98a2b3">Sem foto</text>`;
 }
 
 /** Encolhe o preço quando o texto é longo (R$ 1.299,90), para nunca passar da largura da arte. */
@@ -94,12 +109,36 @@ const preco = (d: DadosDaArte, x: number, y: number, base: number) => texto(x, y
 const de = (d: DadosDaArte, x: number, y: number, tamanho: number, cor: string) =>
   d.deTexto ? `<text x="${x}" y="${y}" font-size="${tamanho}" fill="${cor}" text-anchor="middle" text-decoration="line-through">De ${esc(d.deTexto)}</text>` : '';
 
-/** Pílula branca com texto verde-escuro: lê bem sobre qualquer tema (o verde puro some nos fundos verdes). */
-const freteBranco = (d: DadosDaArte, y: number, h: number, tamanho: number) =>
-  d.freteGratis ? pilula(540, y, h, 300, '#ffffff', tamanho, 'FRETE GRÁTIS', '#065f46') : '';
+function estrela(cx: number, cy: number, r: number): string {
+  const pontos = Array.from({ length: 10 }, (_, i) => {
+    const angulo = ((-90 + i * 36) * Math.PI) / 180;
+    const raio = i % 2 ? r * 0.42 : r;
+    return `${(cx + raio * Math.cos(angulo)).toFixed(1)},${(cy + raio * Math.sin(angulo)).toFixed(1)}`;
+  });
+  return `<polygon points="${pontos.join(' ')}" fill="#ffd34d"/>`;
+}
+
+/**
+ * Prova social numa linha só: estrela e nota, vendas e frete grátis ("4,8 · 2 mil vendidos · Frete grátis").
+ * A estrela é desenhada (não é letra), porque nem toda máquina tem a fonte do símbolo.
+ */
+function apoio(d: DadosDaArte, cx: number, y: number, tamanho: number): string {
+  const partes = [d.nota ?? '', d.vendas ? `${d.vendas} vendidos` : '', d.freteGratis ? 'Frete grátis' : ''].filter(Boolean);
+  if (partes.length === 0) return '';
+  const linha = partes.join(' · ');
+  const larguraDaEstrela = d.nota ? tamanho * 1.15 : 0;
+  const total = larguraDaEstrela + linha.length * tamanho * 0.56;
+  const x0 = cx - total / 2;
+  return `${d.nota ? estrela(x0 + tamanho * 0.5, y - tamanho * 0.34, tamanho * 0.55) : ''}<text x="${(x0 + larguraDaEstrela).toFixed(1)}" y="${y}" font-size="${tamanho}" font-weight="700" fill="#ffffff" text-anchor="start">${esc(linha)}</text>`;
+}
 
 const linhasDoTitulo = (d: DadosDaArte, x: number, y0: number, passo: number, tamanho: number, cor: string) =>
   d.titulo.map((l, i) => texto(x, y0 + i * passo, tamanho, cor, l)).join('\n');
+
+/** Chamada em texto simples: um botão desenhado na imagem parece clicável e frustra quem toca nele. */
+const chamada = (y: number, tamanho: number) => texto(540, y, tamanho, '#ffffff', 'Link na bio');
+
+const aviso = (y: number, tamanho: number, cor = '#e2e8f0') => `<text x="540" y="${y}" font-size="${tamanho}" font-weight="700" fill="${cor}" text-anchor="middle">${AVISO}</text>`;
 
 // ───────────────────────── Story 1080x1920 ─────────────────────────
 
@@ -107,24 +146,23 @@ function storyClassico(d: DadosDaArte): string {
   return `${gradiente('fundo', d.tema)}
 <rect width="1080" height="1920" fill="url(#fundo)"/>
 ${texto(540, 170, 46, '#ffffff', 'ACHADINHOS DO DIA', ' letter-spacing="6"')}
-${selo(d, 540, 215, 84, 46, 700, 280)}
+${ganchoDoStory(d, 215)}
 <rect x="90" y="360" width="900" height="900" rx="56" fill="#ffffff"/>
 ${foto(d, 130, 400, 820, 820, 64)}
 ${circuloDesconto(d, 900, 440, 104, 68)}
 ${linhasDoTitulo(d, 540, 1340, 62, 52, '#ffffff')}
 ${de(d, 540, 1478, 44, '#cbd5e1')}
 ${preco(d, 540, 1648, 150)}
-${freteBranco(d, 1684, 60, 34)}
-<rect x="140" y="1768" width="800" height="92" rx="46" fill="#ffffff"/>
-${texto(540, 1827, 40, '#1b1f27', 'Ofertas no link da bio')}
-<text x="540" y="1895" font-size="26" fill="#cbd5e1" text-anchor="middle">${AVISO}</text>`;
+${apoio(d, 540, 1724, 40)}
+${chamada(1824, 52)}
+${aviso(1892, 28)}`;
 }
 
 function storyPainel(d: DadosDaArte): string {
   return `${gradiente('fundo', d.tema)}
 <rect width="1080" height="1920" fill="url(#fundo)"/>
 ${texto(540, 150, 46, '#ffffff', 'ACHADINHOS DO DIA', ' letter-spacing="6"')}
-${selo(d, 540, 195, 84, 46, 700, 280)}
+${ganchoDoStory(d, 195)}
 <rect x="140" y="320" width="800" height="800" rx="56" fill="#ffffff"/>
 ${foto(d, 180, 360, 720, 720, 60)}
 ${circuloDesconto(d, 880, 400, 96, 62)}
@@ -132,10 +170,9 @@ ${circuloDesconto(d, 880, 400, 96, 62)}
 ${linhasDoTitulo(d, 540, 1250, 60, 50, '#ffffff')}
 ${de(d, 540, 1385, 42, '#e2e8f0')}
 ${preco(d, 540, 1560, 150)}
-${freteBranco(d, 1600, 60, 34)}
-<rect x="140" y="1764" width="800" height="92" rx="46" fill="#ffffff"/>
-${texto(540, 1823, 40, '#1b1f27', 'Ofertas no link da bio')}
-<text x="540" y="1895" font-size="26" fill="#cbd5e1" text-anchor="middle">${AVISO}</text>`;
+${apoio(d, 540, 1648, 40)}
+${chamada(1822, 52)}
+${aviso(1892, 28)}`;
 }
 
 function storyClaro(d: DadosDaArte): string {
@@ -143,7 +180,7 @@ function storyClaro(d: DadosDaArte): string {
 <rect width="1080" height="1920" fill="#f8fafc"/>
 <rect width="1080" height="300" fill="url(#fundo)"/>
 ${texto(540, 120, 46, '#ffffff', 'ACHADINHOS DO DIA', ' letter-spacing="6"')}
-${selo(d, 540, 160, 84, 46, 700, 280)}
+${ganchoDoStory(d, 160)}
 <rect x="90" y="330" width="900" height="900" rx="48" fill="#ffffff" stroke="#e2e8f0" stroke-width="4"/>
 ${foto(d, 130, 370, 820, 820, 64)}
 ${circuloDesconto(d, 900, 410, 104, 68)}
@@ -151,10 +188,9 @@ ${linhasDoTitulo(d, 540, 1305, 60, 50, '#0f172a')}
 ${de(d, 540, 1440, 42, '#64748b')}
 <rect y="1480" width="1080" height="440" fill="${d.tema.f2}"/>
 ${preco(d, 540, 1650, 156)}
-${freteBranco(d, 1680, 60, 34)}
-<rect x="140" y="1772" width="800" height="84" rx="42" fill="#ffffff"/>
-${texto(540, 1829, 38, '#1b1f27', 'Ofertas no link da bio')}
-<text x="540" y="1896" font-size="24" fill="#ffffff" fill-opacity="0.85" text-anchor="middle">${AVISO}</text>`;
+${apoio(d, 540, 1728, 40)}
+${chamada(1826, 52)}
+${aviso(1894, 28)}`;
 }
 
 const STORIES = [storyClassico, storyPainel, storyClaro];
@@ -166,9 +202,13 @@ export function svgDoStory(d: DadosDaArte): string {
 
 // ───────────────────────── Feed 1080x1350 ─────────────────────────
 
-const cabecalhoDoFeed = (d: DadosDaArte, cor = '#ffffff') =>
-  `<text x="60" y="92" font-size="38" font-weight="700" fill="${cor}" letter-spacing="5">ACHADINHOS DO DIA</text>
-${d.selo ? pilula(850, 52, 64, 340, VERDE, 32, d.selo) : pilula(910, 52, 64, 220, d.tema.selo, 36, 'OFERTA')}`;
+/** Nome do perfil à esquerda e o selo à direita, sem passar de 440 px para não encostar no nome. */
+const cabecalhoDoFeed = (d: DadosDaArte) => {
+  const tamanho = 32;
+  const largura = larguraDaPilula(d.ganchoCurto, tamanho, 220, 440);
+  return `<text x="60" y="92" font-size="38" font-weight="700" fill="#ffffff" letter-spacing="5">ACHADINHOS DO DIA</text>
+${pilula(1020 - largura / 2, 52, 64, largura, corDoGancho(d), tamanho, d.ganchoCurto, d.ganchoTipo === 'categoria' ? 0.2 : 1)}`;
+};
 
 function feedClassico(d: DadosDaArte): string {
   return `${gradiente('fundo', d.tema)}
@@ -180,10 +220,9 @@ ${circuloDesconto(d, 920, 255, 84, 54)}
 ${linhasDoTitulo(d, 540, 870, 54, 46, '#ffffff')}
 ${de(d, 540, 980, 38, '#cbd5e1')}
 ${preco(d, 540, 1120, 124)}
-${freteBranco(d, 1146, 52, 30)}
-<rect x="140" y="1215" width="800" height="84" rx="42" fill="#ffffff"/>
-${texto(540, 1269, 36, '#1b1f27', 'Ofertas no link da bio')}
-<text x="540" y="1334" font-size="24" fill="#cbd5e1" text-anchor="middle">${AVISO}</text>`;
+${apoio(d, 540, 1186, 34)}
+${chamada(1266, 42)}
+${aviso(1334, 26)}`;
 }
 
 function feedPainel(d: DadosDaArte): string {
@@ -197,10 +236,9 @@ ${circuloDesconto(d, 930, 230, 80, 50)}
 ${linhasDoTitulo(d, 540, 795, 52, 42, '#ffffff')}
 ${de(d, 540, 905, 36, '#e2e8f0')}
 ${preco(d, 540, 1050, 124)}
-${freteBranco(d, 1085, 52, 30)}
-<rect x="140" y="1208" width="800" height="76" rx="38" fill="#ffffff"/>
-${texto(540, 1259, 34, '#1b1f27', 'Ofertas no link da bio')}
-<text x="540" y="1334" font-size="24" fill="#cbd5e1" text-anchor="middle">${AVISO}</text>`;
+${apoio(d, 540, 1124, 34)}
+${chamada(1262, 40)}
+${aviso(1334, 26)}`;
 }
 
 function feedClaro(d: DadosDaArte): string {
@@ -215,10 +253,9 @@ ${linhasDoTitulo(d, 540, 845, 52, 44, '#0f172a')}
 ${de(d, 540, 950, 36, '#64748b')}
 <rect y="985" width="1080" height="365" fill="${d.tema.f2}"/>
 ${preco(d, 540, 1125, 120)}
-${freteBranco(d, 1150, 50, 30)}
-<rect x="140" y="1232" width="800" height="76" rx="38" fill="#ffffff"/>
-${texto(540, 1283, 34, '#1b1f27', 'Ofertas no link da bio')}
-<text x="540" y="1334" font-size="22" fill="#ffffff" fill-opacity="0.85" text-anchor="middle">${AVISO}</text>`;
+${apoio(d, 540, 1192, 34)}
+${chamada(1272, 40)}
+${aviso(1334, 24)}`;
 }
 
 const FEEDS = [feedClassico, feedPainel, feedClaro];

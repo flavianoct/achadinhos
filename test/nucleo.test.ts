@@ -88,6 +88,31 @@ test('filtro: histórico curto (menos de 3 dias) não reprova', () => {
   assert.equal(motivo(oferta({ preco: 100 }), banco), 'APROVADA');
 });
 
+test('filtro: o preço "de" é confirmado, não confirmado ou inflado conforme o histórico do próprio robô', () => {
+  const aprovada = (banco: Banco, extra: Partial<Oferta>) => {
+    const r = avaliar(oferta({ precoOriginal: 200, preco: 100, desconto: undefined, ...extra }), banco, config, AGORA);
+    assert.ok(r.aprovada, r.aprovada ? '' : r.motivo);
+    return r.oferta.precoDe;
+  };
+  // Sem histórico: não dá para confirmar (nem acusar).
+  assert.equal(aprovada(new Banco(':memory:'), {}), 'nao-confirmado');
+  // O produto já custou perto do "de" (190 de um "de" de 200): confirmado.
+  const confirmado = new Banco(':memory:');
+  for (const d of [5, 4, 3]) confirmado.registrarPreco(oferta({ preco: 190 }), dias(d));
+  assert.equal(aprovada(confirmado, {}), 'confirmado');
+  // 14 dias seguidos custando 100 e anunciando "de 200": inflado.
+  const inflado = new Banco(':memory:');
+  for (let d = 1; d <= 15; d++) inflado.registrarPreco(oferta({ preco: 100 }), dias(d));
+  assert.equal(aprovada(inflado, {}), 'inflado');
+  // Uma semana só no mesmo preço baixo é promoção legítima: não acusa.
+  const semana = new Banco(':memory:');
+  for (let d = 1; d <= 7; d++) semana.registrarPreco(oferta({ preco: 100 }), dias(d));
+  assert.equal(aprovada(semana, {}), 'nao-confirmado');
+  // Sem preço "de", não há o que verificar.
+  const r = avaliar(oferta({ desconto: 40 }), new Banco(':memory:'), config, AGORA);
+  assert.ok(r.aprovada && r.oferta.precoDe === undefined);
+});
+
 test('filtro: não repete produto, a não ser que o preço caia de novo', () => {
   const banco = new Banco(':memory:');
   const aprovada = avaliar(oferta(), banco, config, AGORA);
@@ -108,7 +133,7 @@ test('banco: guarda o menor preço do dia e a fila sai por pontuação', () => {
   banco.registrarPreco(oferta({ preco: 90 }), dias(2));
   banco.registrarPreco(oferta({ preco: 120 }), dias(2));
   banco.registrarPreco(oferta({ preco: 50 }), AGORA); // hoje não conta no histórico
-  assert.deepEqual(banco.historico('shopee', 'P1', 30, AGORA), { menor: 90, diasComDado: 1, desde: diaDe(dias(2)) });
+  assert.deepEqual(banco.historico('shopee', 'P1', 30, AGORA), { menor: 90, maior: 90, diasComDado: 1, desde: diaDe(dias(2)) });
 
   const av = (id: string, pontos: number): OfertaAvaliada => ({ ...oferta({ idProduto: id }), categoria: 'tech', pontos });
   banco.enfileirar(av('A', 10), dias(1));
