@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import type { Config } from './config.ts';
 import type { Banco } from './db.ts';
 import { formatarPreco, formatarVendas } from './mensagem.ts';
+import { layoutDoProduto, svgDoFeed, svgDoStory, temaDaCategoria, type DadosDaArte } from './moldes.ts';
 import type { OfertaAvaliada } from './types.ts';
 
 export type Fetch = typeof fetch;
@@ -122,10 +123,6 @@ export function montarRoteiro(o: OfertaAvaliada, config: Config): string {
   ].join('\n');
 }
 
-function esc(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string);
-}
-
 /** Quebra o texto em linhas de até `largura` caracteres, no máximo `maxLinhas`; corta com reticências. */
 export function quebrarTexto(texto: string, largura: number, maxLinhas: number): string[] {
   const palavras = texto.replace(/\s+/g, ' ').trim().split(' ');
@@ -147,59 +144,32 @@ export function quebrarTexto(texto: string, largura: number, maxLinhas: number):
   return cortadas;
 }
 
-/** Arte do Story, 1080x1920, em SVG. A imagem do produto vai embutida (data URI) para o painel virar PNG no navegador. */
-export function montarSvgDoStory(o: OfertaAvaliada, imagem: string | undefined, config: Config): string {
-  const titulo = quebrarTexto(o.titulo, 34, 2);
-  const selo = seloDoHistorico(o, false);
+/** Dados da arte que os moldes (moldes.ts) usam: o tema vem da categoria e o layout vem do produto. */
+function dadosDaArte(o: OfertaAvaliada, imagem: string | undefined, larguraDoTitulo: number, seloCurto: boolean): DadosDaArte {
   const temDe = Boolean(o.precoOriginal && o.precoOriginal > o.preco);
-  const desc = o.desconto && o.desconto > 0 ? Math.round(o.desconto) : 0;
-  const foto = imagem
-    ? `<image href="${imagem}" x="130" y="400" width="820" height="820" preserveAspectRatio="xMidYMid meet"/>`
-    : `<text x="540" y="830" font-size="64" text-anchor="middle" fill="#98a2b3">Oferta do dia</text>`;
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920" font-family="Liberation Sans, DejaVu Sans, Arial, Helvetica, sans-serif">
-<defs><linearGradient id="fundo" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1b1f27"/><stop offset="1" stop-color="#0f3a9e"/></linearGradient></defs>
-<rect width="1080" height="1920" fill="url(#fundo)"/>
-<text x="540" y="170" font-size="46" font-weight="700" fill="#ffffff" text-anchor="middle" letter-spacing="6">ACHADINHOS DO DIA</text>
-${selo ? `<rect x="190" y="215" width="700" height="84" rx="42" fill="#0e9f6e"/>\n<text x="540" y="274" font-size="44" font-weight="700" fill="#ffffff" text-anchor="middle">${esc(selo)}</text>` : `<rect x="400" y="215" width="280" height="84" rx="42" fill="#ff5a1f"/>\n<text x="540" y="274" font-size="46" font-weight="700" fill="#ffffff" text-anchor="middle">OFERTA</text>`}
-<rect x="90" y="360" width="900" height="900" rx="56" fill="#ffffff"/>
-${foto}
-${desc ? `<circle cx="900" cy="440" r="104" fill="#e11d48"/><text x="900" y="462" font-size="68" font-weight="700" fill="#ffffff" text-anchor="middle">-${desc}%</text>` : ''}
-${titulo.map((l, i) => `<text x="540" y="${1340 + i * 62}" font-size="52" font-weight="700" fill="#ffffff" text-anchor="middle">${esc(l)}</text>`).join('\n')}
-${temDe ? `<text x="540" y="1478" font-size="44" fill="#cbd5e1" text-anchor="middle" text-decoration="line-through">De ${esc(formatarPreco(o.precoOriginal as number))}</text>` : ''}
-<text x="540" y="1648" font-size="150" font-weight="700" fill="#ffd34d" text-anchor="middle">${esc(formatarPreco(o.preco))}</text>
-${o.freteGratis ? `<rect x="390" y="1684" width="300" height="60" rx="30" fill="#12805c"/><text x="540" y="1725" font-size="34" font-weight="700" fill="#ffffff" text-anchor="middle">FRETE GRÁTIS</text>` : ''}
-<rect x="140" y="1768" width="800" height="92" rx="46" fill="#ffffff"/>
-<text x="540" y="1827" font-size="40" font-weight="700" fill="#1b1f27" text-anchor="middle">Ofertas no link da bio</text>
-<text x="540" y="1895" font-size="26" fill="#cbd5e1" text-anchor="middle">Publi · link de afiliado · preço pode mudar</text>
-</svg>`;
+  return {
+    titulo: quebrarTexto(o.titulo, larguraDoTitulo, 2),
+    precoTexto: formatarPreco(o.preco),
+    deTexto: temDe ? formatarPreco(o.precoOriginal as number) : undefined,
+    desconto: o.desconto && o.desconto > 0 ? Math.round(o.desconto) : 0,
+    freteGratis: Boolean(o.freteGratis),
+    foto: imagem,
+    selo: seloDoHistorico(o, seloCurto),
+    tema: temaDaCategoria(o.categoria),
+    layout: layoutDoProduto(o.idProduto),
+  };
+}
+
+/** Arte do Story, 1080x1920, em SVG. A imagem do produto vai embutida (data URI) para o painel virar PNG no navegador. */
+export function montarSvgDoStory(o: OfertaAvaliada, imagem: string | undefined, _config?: Config): string {
+  return svgDoStory(dadosDaArte(o, imagem, 34, false));
 }
 
 /** Versão 4:5 (1080x1350) para o feed: o feed do Instagram não aceita imagem em pé 9:16. */
-export function montarSvgDoFeed(o: OfertaAvaliada, imagem: string | undefined, config: Config): string {
-  const titulo = quebrarTexto(o.titulo, 36, 2);
-  const selo = seloDoHistorico(o, true);
-  const temDe = Boolean(o.precoOriginal && o.precoOriginal > o.preco);
-  const desc = o.desconto && o.desconto > 0 ? Math.round(o.desconto) : 0;
-  const foto = imagem
-    ? `<image href="${imagem}" x="190" y="170" width="700" height="600" preserveAspectRatio="xMidYMid meet"/>`
-    : `<text x="540" y="490" font-size="60" text-anchor="middle" fill="#98a2b3">Oferta do dia</text>`;
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350" font-family="Liberation Sans, DejaVu Sans, Arial, Helvetica, sans-serif">
-<defs><linearGradient id="fundo" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1b1f27"/><stop offset="1" stop-color="#0f3a9e"/></linearGradient></defs>
-<rect width="1080" height="1350" fill="url(#fundo)"/>
-<text x="60" y="92" font-size="38" font-weight="700" fill="#ffffff" letter-spacing="5">ACHADINHOS DO DIA</text>
-${selo ? `<rect x="680" y="52" width="340" height="64" rx="32" fill="#0e9f6e"/>\n<text x="850" y="97" font-size="34" font-weight="700" fill="#ffffff" text-anchor="middle">${esc(selo)}</text>` : `<rect x="800" y="52" width="220" height="64" rx="32" fill="#ff5a1f"/>\n<text x="910" y="97" font-size="36" font-weight="700" fill="#ffffff" text-anchor="middle">OFERTA</text>`}
-<rect x="60" y="140" width="960" height="660" rx="48" fill="#ffffff"/>
-${foto}
-${desc ? `<circle cx="920" cy="255" r="84" fill="#e11d48"/><text x="920" y="276" font-size="54" font-weight="700" fill="#ffffff" text-anchor="middle">-${desc}%</text>` : ''}
-${titulo.map((l, i) => `<text x="540" y="${870 + i * 54}" font-size="46" font-weight="700" fill="#ffffff" text-anchor="middle">${esc(l)}</text>`).join('\n')}
-${temDe ? `<text x="540" y="980" font-size="38" fill="#cbd5e1" text-anchor="middle" text-decoration="line-through">De ${esc(formatarPreco(o.precoOriginal as number))}</text>` : ''}
-<text x="540" y="1120" font-size="124" font-weight="700" fill="#ffd34d" text-anchor="middle">${esc(formatarPreco(o.preco))}</text>
-${o.freteGratis ? `<rect x="400" y="1146" width="280" height="52" rx="26" fill="#12805c"/><text x="540" y="1183" font-size="30" font-weight="700" fill="#ffffff" text-anchor="middle">FRETE GRÁTIS</text>` : ''}
-<rect x="140" y="1215" width="800" height="84" rx="42" fill="#ffffff"/>
-<text x="540" y="1269" font-size="36" font-weight="700" fill="#1b1f27" text-anchor="middle">Ofertas no link da bio</text>
-<text x="540" y="1334" font-size="24" fill="#cbd5e1" text-anchor="middle">Publi · link de afiliado · preço pode mudar</text>
-</svg>`;
+export function montarSvgDoFeed(o: OfertaAvaliada, imagem: string | undefined, _config?: Config): string {
+  return svgDoFeed(dadosDaArte(o, imagem, 36, true));
 }
+
 
 /** Transforma o SVG em PNG. Devolve undefined se o conversor (@resvg/resvg-js) não estiver instalado. */
 export async function renderizarPng(svg: string, largura: number): Promise<Buffer | undefined> {

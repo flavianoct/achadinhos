@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { lerConfig } from '../src/config.ts';
 import { baixarImagemComoDataUri, hashtagsDaCategoria, montarGancho, montarLegenda, montarRoteiro, montarSvgDoFeed, montarSvgDoStory, nomeDoCanal, quebrarTexto, seloDoHistorico } from '../src/social.ts';
+import { layoutDoProduto, temaDaCategoria } from '../src/moldes.ts';
 import type { OfertaAvaliada } from '../src/types.ts';
 
 const config = lerConfig({ BLOG_TELEGRAM: 'https://t.me/topfera_achadinhos' });
@@ -57,6 +58,34 @@ test('social: o selo de menor preço aparece na arte só com histórico confirma
   assert.ok(!montarSvgDoStory(oferta, undefined, config).includes('MENOR PREÇO'));
   assert.match(montarSvgDoStory(oferta, undefined, config), />OFERTA</);
   assert.equal(seloDoHistorico(oferta, false), undefined);
+});
+
+test('moldes: todo tema e todo layout geram arte válida, com preço, aviso de publi e título escapado', () => {
+  const categorias = ['tech', 'casa', 'beleza', 'moda', 'esporte', 'games', 'bebe', 'ferramentas', 'pet', 'geral', 'inexistente'];
+  const layouts = new Set<number>();
+  for (const categoria of categorias) {
+    for (let i = 0; i < 12; i++) {
+      const o = { ...oferta, categoria, idProduto: `P${i}`, menorPrecoEmDias: i % 2 ? 9 : undefined };
+      layouts.add(layoutDoProduto(o.idProduto));
+      for (const [svg, w, h] of [[montarSvgDoStory(o, 'data:image/png;base64,AAAA'), 1080, 1920], [montarSvgDoFeed(o, 'data:image/png;base64,AAAA'), 1080, 1350]] as const) {
+        assert.match(svg, new RegExp(`^<svg[^>]+width="${w}" height="${h}"`));
+        assert.ok(svg.includes('R$ 34,41') && svg.includes('Publi · link de afiliado') && svg.includes('Ofertas no link da bio') && svg.includes('ACHADINHOS DO DIA'));
+        assert.ok(!svg.includes('<INMA>') && svg.includes('&lt;INMA&gt;'), 'título escapado');
+        assert.equal(svg.includes('MENOR PREÇO'), i % 2 === 1, 'selo só com histórico confirmado');
+      }
+    }
+  }
+  assert.deepEqual([...layouts].sort(), [0, 1, 2], 'os três layouts são usados');
+  assert.equal(layoutDoProduto('MLB123'), layoutDoProduto('MLB123'), 'o mesmo produto sempre sai com o mesmo layout');
+  assert.notDeepEqual(temaDaCategoria('tech'), temaDaCategoria('casa'));
+  assert.deepEqual(temaDaCategoria('inexistente'), temaDaCategoria('geral'));
+});
+
+test('moldes: preço longo encolhe para caber, preço normal mantém o tamanho', () => {
+  const tamanho = (svg: string, preco: string) => Number(new RegExp(`font-size="(\\d+)"[^>]*>${preco.replace('$', '\\$')}<`).exec(svg)?.[1]);
+  const normal = tamanho(montarSvgDoStory({ ...oferta, preco: 129.9, idProduto: 'X' }), 'R$ 129,90');
+  const longo = tamanho(montarSvgDoStory({ ...oferta, preco: 4299.9, idProduto: 'X' }), 'R$ 4.299,90');
+  assert.ok(normal > 0 && longo > 0 && longo < normal, `normal ${normal}, longo ${longo}`);
 });
 
 test('social: roteiro tem os 4 blocos de tempo', () => {
