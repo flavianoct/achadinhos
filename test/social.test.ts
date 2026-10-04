@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { lerConfig } from '../src/config.ts';
-import { baixarImagemComoDataUri, hashtagsDaCategoria, montarLegenda, montarRoteiro, montarSvgDoStory, nomeDoCanal, quebrarTexto } from '../src/social.ts';
+import { baixarImagemComoDataUri, hashtagsDaCategoria, montarGancho, montarLegenda, montarRoteiro, montarSvgDoFeed, montarSvgDoStory, nomeDoCanal, quebrarTexto, seloDoHistorico } from '../src/social.ts';
 import type { OfertaAvaliada } from '../src/types.ts';
 
 const config = lerConfig({ BLOG_TELEGRAM: 'https://t.me/topfera_achadinhos' });
@@ -23,6 +23,40 @@ test('social: legenda leva preço, canal, aviso de publi e hashtags da categoria
   assert.ok(!l.includes('https://exemplo/x'), 'link não vai na legenda, só na bio');
   assert.equal(nomeDoCanal(config), '@topfera_achadinhos');
   assert.ok(hashtagsDaCategoria('inexistente').includes('#achadinhos'));
+});
+
+test('social: o gancho só afirma o que o histórico e os dados provam', () => {
+  const comHistorico = { ...oferta, menorPrecoEmDias: 12, quedaHistorica: 8 };
+  assert.match(montarGancho(comHistorico), /8%.*12 dias|12 dias/);
+  assert.match(montarGancho({ ...oferta, menorPrecoEmDias: 12, quedaHistorica: 0 }), /12 dias/);
+  // Sem histórico confirmado, nunca fala em "menor preço" nem em "dias".
+  const semHistorico = montarGancho({ ...oferta, menorPrecoEmDias: undefined, quedaHistorica: 30, desconto: 20, vendas: 10, nota: 4.0 });
+  assert.doesNotMatch(semHistorico, /menor|registr|dias|vendas|queridinho/i);
+  // "Campeão de vendas" só com muitas vendas e nota alta.
+  assert.match(montarGancho({ ...oferta, desconto: 20, vendas: 5000, nota: 4.8 }), /5 ?mil|5\.000|vendidos|nota 4,8/i);
+  assert.doesNotMatch(montarGancho({ ...oferta, desconto: 20, vendas: 5000, nota: 4.2 }), /vendidos|nota/i);
+  // O mesmo produto repete a frase; produtos diferentes variam.
+  assert.equal(montarGancho(oferta), montarGancho({ ...oferta }));
+  const frases = new Set(Array.from({ length: 30 }, (_, i) => montarGancho({ ...oferta, idProduto: `MLB${i}`, desconto: 20, vendas: 10, nota: 4.0, menorPrecoEmDias: undefined })));
+  assert.ok(frases.size > 1, 'ganchos variam entre produtos');
+});
+
+test('social: legenda abre com o gancho, tem no máximo 10 hashtags e mantém #publi', () => {
+  const l = montarLegenda({ ...oferta, menorPrecoEmDias: 20, quedaHistorica: 12 }, config);
+  assert.match(l.split('\n')[0], /20 dias/);
+  const hashtags = l.match(/#\w+/g) ?? [];
+  assert.ok(hashtags.length <= 10, `hashtags: ${hashtags.length}`);
+  assert.ok(hashtags.includes('#publi'));
+  for (const cat of ['tech', 'casa', 'geral', 'pet']) assert.ok(hashtagsDaCategoria(cat).length <= 10 && hashtagsDaCategoria(cat).includes('#publi'));
+});
+
+test('social: o selo de menor preço aparece na arte só com histórico confirmado', () => {
+  const com = { ...oferta, menorPrecoEmDias: 15 };
+  assert.match(montarSvgDoStory(com, undefined, config), /MENOR PREÇO EM 15 DIAS/);
+  assert.match(montarSvgDoFeed(com, undefined, config), /MENOR PREÇO/);
+  assert.ok(!montarSvgDoStory(oferta, undefined, config).includes('MENOR PREÇO'));
+  assert.match(montarSvgDoStory(oferta, undefined, config), />OFERTA</);
+  assert.equal(seloDoHistorico(oferta, false), undefined);
 });
 
 test('social: roteiro tem os 4 blocos de tempo', () => {

@@ -33,11 +33,41 @@ const HASHTAGS: Record<string, string[]> = {
 /** Hashtags de alcance, comuns a todas as ofertas (ofertas, economia, achadinhos, Mercado Livre). */
 const HASHTAGS_COMUNS = ['#achadinhos', '#achadinhosdodia', '#achadinhosmercadolivre', '#promocao', '#promocaododia', '#ofertas', '#ofertasdodia', '#desconto', '#cupom', '#mercadolivre', '#comprasonline', '#economizar', '#publi'];
 
-/** Até 20 hashtags (o Instagram aceita 30; menos e bem escolhidas rendem mais): as da categoria primeiro, depois as de alcance. */
+/** No máximo 10 hashtags (muitas parecem spam): as da categoria primeiro, depois as de alcance. */
 export function hashtagsDaCategoria(categoria: string): string[] {
   const todas = [...(HASHTAGS[categoria] ?? HASHTAGS.geral), ...HASHTAGS_COMUNS];
   // #publi (aviso de publicidade) nunca sai do corte.
-  return [...new Set(todas.filter((h) => h !== '#publi'))].slice(0, 19).concat('#publi');
+  return [...new Set(todas.filter((h) => h !== '#publi'))].slice(0, 9).concat('#publi');
+}
+
+/** Número estável de 0 a n-1 para o mesmo produto: varia o gancho entre produtos sem sorteio (o mesmo produto repete a frase). */
+function escolha(id: string, n: number): number {
+  let h = 0;
+  for (const c of id) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return h % n;
+}
+
+/**
+ * Primeira linha da legenda. Só afirma o que os dados provam: "menor preço" só quando o histórico do robô confirma,
+ * "campeão de vendas" só com muitas vendas e nota alta. Varia a frase entre produtos para as legendas não ficarem iguais.
+ */
+export function montarGancho(o: OfertaAvaliada): string {
+  const dias = o.menorPrecoEmDias;
+  const queda = Math.round(o.quedaHistorica ?? 0);
+  const desc = Math.round(o.desconto ?? 0);
+  let opcoes: string[];
+  if (dias && queda >= 5) opcoes = [`📉 ${queda}% mais barato que o menor preço dos últimos ${dias} dias`, `📉 Caiu ${queda}% abaixo do nosso menor registro de ${dias} dias`];
+  else if (dias) opcoes = [`📉 Menor preço dos últimos ${dias} dias`, `📉 O preço mais baixo que registramos em ${dias} dias`];
+  else if (desc >= 50) opcoes = [`🔥 ${desc}% de desconto neste achado`, `🏷️ Metade do preço ou menos: -${desc}%`];
+  else if (o.vendas && o.vendas >= 1000 && o.nota && o.nota >= 4.7) opcoes = [`⭐ Campeão de vendas: ${formatarVendas(o.vendas)} vendidos`, `⭐ Queridinho de quem compra: nota ${o.nota.toFixed(1).replace('.', ',')}`];
+  else opcoes = ['🔥 Achado do dia', '🛒 Oferta separada para você'];
+  return opcoes[escolha(o.idProduto, opcoes.length)];
+}
+
+/** Selo de histórico para a arte (só com histórico confirmado); curto no feed, completo no Story. */
+export function seloDoHistorico(o: OfertaAvaliada, curto: boolean): string | undefined {
+  if (!o.menorPrecoEmDias) return undefined;
+  return curto ? 'MENOR PREÇO' : `MENOR PREÇO EM ${o.menorPrecoEmDias} DIAS`;
 }
 
 /** "@topfera_achadinhos" a partir do link do canal; se não houver, o nome do blog. */
@@ -62,7 +92,8 @@ function titulosCurto(titulo: string, max = 70): string {
 /** Legenda para Instagram e TikTok. O link não é clicável na legenda: manda para a bio. */
 export function montarLegenda(o: OfertaAvaliada, config: Config): string {
   const linhas: string[] = [];
-  linhas.push(`🔥 ${titulosCurto(o.titulo, 90)}`);
+  linhas.push(montarGancho(o));
+  linhas.push(titulosCurto(o.titulo, 90));
   linhas.push('');
   const de = o.precoOriginal && o.precoOriginal > o.preco ? `De ${formatarPreco(o.precoOriginal)} por ` : 'Por ';
   const desc = o.desconto && o.desconto > 0 ? ` (-${Math.round(o.desconto)}%)` : '';
@@ -119,6 +150,7 @@ export function quebrarTexto(texto: string, largura: number, maxLinhas: number):
 /** Arte do Story, 1080x1920, em SVG. A imagem do produto vai embutida (data URI) para o painel virar PNG no navegador. */
 export function montarSvgDoStory(o: OfertaAvaliada, imagem: string | undefined, config: Config): string {
   const titulo = quebrarTexto(o.titulo, 34, 2);
+  const selo = seloDoHistorico(o, false);
   const temDe = Boolean(o.precoOriginal && o.precoOriginal > o.preco);
   const desc = o.desconto && o.desconto > 0 ? Math.round(o.desconto) : 0;
   const foto = imagem
@@ -128,8 +160,7 @@ export function montarSvgDoStory(o: OfertaAvaliada, imagem: string | undefined, 
 <defs><linearGradient id="fundo" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1b1f27"/><stop offset="1" stop-color="#0f3a9e"/></linearGradient></defs>
 <rect width="1080" height="1920" fill="url(#fundo)"/>
 <text x="540" y="170" font-size="46" font-weight="700" fill="#ffffff" text-anchor="middle" letter-spacing="6">ACHADINHOS DO DIA</text>
-<rect x="400" y="215" width="280" height="84" rx="42" fill="#ff5a1f"/>
-<text x="540" y="274" font-size="46" font-weight="700" fill="#ffffff" text-anchor="middle">OFERTA</text>
+${selo ? `<rect x="190" y="215" width="700" height="84" rx="42" fill="#0e9f6e"/>\n<text x="540" y="274" font-size="44" font-weight="700" fill="#ffffff" text-anchor="middle">${esc(selo)}</text>` : `<rect x="400" y="215" width="280" height="84" rx="42" fill="#ff5a1f"/>\n<text x="540" y="274" font-size="46" font-weight="700" fill="#ffffff" text-anchor="middle">OFERTA</text>`}
 <rect x="90" y="360" width="900" height="900" rx="56" fill="#ffffff"/>
 ${foto}
 ${desc ? `<circle cx="900" cy="440" r="104" fill="#e11d48"/><text x="900" y="462" font-size="68" font-weight="700" fill="#ffffff" text-anchor="middle">-${desc}%</text>` : ''}
@@ -146,6 +177,7 @@ ${o.freteGratis ? `<rect x="390" y="1684" width="300" height="60" rx="30" fill="
 /** Versão 4:5 (1080x1350) para o feed: o feed do Instagram não aceita imagem em pé 9:16. */
 export function montarSvgDoFeed(o: OfertaAvaliada, imagem: string | undefined, config: Config): string {
   const titulo = quebrarTexto(o.titulo, 36, 2);
+  const selo = seloDoHistorico(o, true);
   const temDe = Boolean(o.precoOriginal && o.precoOriginal > o.preco);
   const desc = o.desconto && o.desconto > 0 ? Math.round(o.desconto) : 0;
   const foto = imagem
@@ -155,8 +187,7 @@ export function montarSvgDoFeed(o: OfertaAvaliada, imagem: string | undefined, c
 <defs><linearGradient id="fundo" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1b1f27"/><stop offset="1" stop-color="#0f3a9e"/></linearGradient></defs>
 <rect width="1080" height="1350" fill="url(#fundo)"/>
 <text x="60" y="92" font-size="38" font-weight="700" fill="#ffffff" letter-spacing="5">ACHADINHOS DO DIA</text>
-<rect x="800" y="52" width="220" height="64" rx="32" fill="#ff5a1f"/>
-<text x="910" y="97" font-size="36" font-weight="700" fill="#ffffff" text-anchor="middle">OFERTA</text>
+${selo ? `<rect x="680" y="52" width="340" height="64" rx="32" fill="#0e9f6e"/>\n<text x="850" y="97" font-size="34" font-weight="700" fill="#ffffff" text-anchor="middle">${esc(selo)}</text>` : `<rect x="800" y="52" width="220" height="64" rx="32" fill="#ff5a1f"/>\n<text x="910" y="97" font-size="36" font-weight="700" fill="#ffffff" text-anchor="middle">OFERTA</text>`}
 <rect x="60" y="140" width="960" height="660" rx="48" fill="#ffffff"/>
 ${foto}
 ${desc ? `<circle cx="920" cy="255" r="84" fill="#e11d48"/><text x="920" y="276" font-size="54" font-weight="700" fill="#ffffff" text-anchor="middle">-${desc}%</text>` : ''}
