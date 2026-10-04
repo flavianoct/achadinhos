@@ -2,8 +2,9 @@ name: Robô de ofertas
 
 on:
   schedule:
-    # A cada meia hora (o GitHub pode atrasar alguns minutos).
-    - cron: '7,37 * * * *'
+    # A cada meia hora, só no horário de postagem: 8h às 23h em Brasília = 11h às 2h59 UTC.
+    # Se mudar HORA_INICIO ou HORA_FIM em ajustes.env, ajuste as horas aqui também.
+    - cron: '7,37 11-23,0-2 * * *'
   # Permite rodar na hora pelo botão "Run workflow" da aba Actions.
   workflow_dispatch:
 
@@ -121,9 +122,19 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
+      - uses: actions/checkout@v4
+
       - name: Esperar e chamar a próxima rodada
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # Fora do horário de postagem não há o que fazer: o ciclo pára e o cron retoma de manhã.
+          inicio=$(grep -E '^HORA_INICIO=' ajustes.env | cut -d= -f2 | tr -d '\r ')
+          fim=$(grep -E '^HORA_FIM=' ajustes.env | cut -d= -f2 | tr -d '\r ')
+          hora=$(TZ=America/Sao_Paulo date -d '+25 minutes' +%-H)
+          if [ "$hora" -lt "${inicio:-8}" ] || [ "$hora" -ge "${fim:-23}" ]; then
+            echo "A próxima rodada cairia às ${hora}h, fora do horário (${inicio:-8}h às ${fim:-23}h). Ciclo pausado até o cron de manhã."
+            exit 0
+          fi
           sleep 1500
           gh workflow run robo.yml --repo "$GITHUB_REPOSITORY" --ref main
