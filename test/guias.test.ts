@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -7,7 +7,7 @@ import { gerarBlog } from '../src/blog.ts';
 import { lerConfig } from '../src/config.ts';
 import { Banco } from '../src/db.ts';
 import { EXPLICACOES_DOS_CRITERIOS } from '../src/dicas.ts';
-import { escolherParaGuia, notaAjustada, pontuacaoDoGuia, tamanhoDoGuia, TIPOS_DE_GUIA, tipoDeGuia } from '../src/guias.ts';
+import { chaveDoModelo, escolherParaGuia, notaAjustada, pontuacaoDoGuia, tamanhoDoGuia, TIPOS_DE_GUIA, tipoDeGuia } from '../src/guias.ts';
 import type { Oferta } from '../src/types.ts';
 
 const AGORA = new Date('2026-10-03T18:00:00Z');
@@ -29,6 +29,48 @@ test('guias: classifica pelo título e deixa acessórios de fora', () => {
   assert.equal(tipoDeGuia('Camiseta Básica'), undefined);
   assert.equal(new Set(TIPOS_DE_GUIA.map((t) => t.slug)).size, TIPOS_DE_GUIA.length, 'slugs únicos');
   assert.ok(TIPOS_DE_GUIA.every((t) => /^[a-z0-9-]+$/.test(t.slug) && t.criterios.length >= 4));
+});
+
+test('guias: o nome do produto precisa estar no começo do título; anúncio com palavras de busca empilhadas não entra', () => {
+  const controle = 'Controle Sem Fio Joystick Genérico Bluetooth Compatível Para Ps4 Videogame Tv Samsung Pc P4 Ps 4 Manete Pc Gamer Tv Smart Controle Bluetooth Celular Headset Sem Fio Com P2 Marca Redfin';
+  assert.equal(tipoDeGuia(controle), undefined, 'o controle de PS4 não é celular, nem fone, nem headset');
+  assert.equal(tipoDeGuia('Smartphone Samsung Galaxy A36 5g 128gb')?.slug, 'celulares');
+  assert.equal(tipoDeGuia('Samsung Galaxy A07 128gb 4gb Ram Preto')?.slug, 'celulares', 'o nome pode vir depois da marca');
+  assert.equal(tipoDeGuia('Motorola Moto G56 5g - 256g')?.slug, 'celulares');
+  assert.equal(tipoDeGuia('Fone de Ouvido Bluetooth TWS Esportivo à Prova d Água')?.slug, 'fones-bluetooth');
+  assert.equal(tipoDeGuia('Kit Suporte Universal Veicular para Celular Smartphone'), undefined, 'acessório');
+  assert.equal(tipoDeGuia('Relógio Smartwatch Esportivo Compatível com Celular Android iPhone')?.slug, 'smartwatches', 'o produto é o relógio, não o celular citado depois');
+  assert.equal(tipoDeGuia('Mouse Gamer Sem Fio Recarregável Compatível com Notebook')?.slug, 'mouses-gamer');
+
+  // Um item que já estava no guia mas não passa mais na classificação sai da lista.
+  const tipo = tipoDeGuia(fone(1).titulo)!;
+  const vistoEm = AGORA.getTime();
+  const lixo = { oferta: fone(99, { titulo: controle, nota: 5, vendas: 900000 }), vistoEm };
+  const lista = [1, 2, 3, 4, 5].map((n) => ({ oferta: fone(n), vistoEm }));
+  const itens = escolherParaGuia([...lista, lixo], tipo, { anteriores: ['mercadolivre:MLB99', ...[1, 2, 3, 4].map((n) => `mercadolivre:MLB${n}`)] });
+  assert.ok(!itens.some((i) => i.idProduto === 'MLB99'), 'o veterano fora do tipo é removido, mesmo com nota e vendas altíssimas');
+  assert.equal(itens.length, 5);
+});
+
+test('guias: o mesmo modelo anunciado duas vezes aparece uma vez só, e modelos diferentes continuam todos', () => {
+  const tipo = tipoDeGuia('Smartphone Samsung Galaxy A36 5g')!;
+  const vistoEm = AGORA.getTime();
+  const cel = (n: number, titulo: string, extra: Partial<Oferta> = {}): { oferta: Oferta; vistoEm: number } => ({ oferta: { loja: 'mercadolivre', idProduto: `CEL${n}`, titulo, preco: 900 + n, link: `https://x/${n}`, nota: 4.7, vendas: 1000 + n, ...extra }, vistoEm });
+  const lista = [
+    cel(1, 'Smartphone Samsung Galaxy A36 5g 128gb 6gb Ram Câmera Tripla De Até 50mp', { vendas: 90000 }),
+    cel(2, 'Smartphone Samsung Galaxy A36 5g 128gb 6gb Ram Câmera Tripla De Até 50mp Preto', { vendas: 500 }),
+    cel(3, 'Samsung Galaxy A17 5g 128gb'),
+    cel(4, 'Smartphone Motorola Moto G56 5g 256gb'),
+    cel(5, 'Celular Xiaomi Redmi Note 14 256gb'),
+    cel(6, 'Poco X8 Pro 512gb 12gb Ram'),
+  ];
+  const itens = escolherParaGuia(lista, tipo);
+  assert.equal(itens.filter((i) => /A36/.test(i.titulo)).length, 1, 'o A36 aparece uma vez');
+  assert.equal(itens.find((i) => /A36/.test(i.titulo))!.idProduto, 'CEL1', 'e fica o anúncio de maior pontuação');
+  assert.equal(itens.length, 5, 'os outros quatro modelos continuam');
+  assert.equal(chaveDoModelo('Smartphone Samsung Galaxy A36 5g 128gb 6gb Ram'), chaveDoModelo('Celular Samsung Galaxy A36 5G 128GB 6GB Preto'));
+  assert.notEqual(chaveDoModelo('Samsung Galaxy A36 5g 128gb'), chaveDoModelo('Samsung Galaxy A17 5g 128gb'));
+  assert.equal(chaveDoModelo('Kit Novo'), '', 'título sem informação não vira chave (não junta produtos diferentes)');
 });
 
 test('guias: ordena por nota, vendas e preço; calcula selos só com dados reais; ignora nota baixa e repetidos', () => {
@@ -239,6 +281,50 @@ test('gemini: pede no formato compatível, com a chave, e explica recusas', asyn
   assert.equal(visto.corpo.model, 'gemini-3.8-flash');
   const recusa = (async () => new Response('{"error":"API key not valid"}', { status: 400 })) as unknown as typeof fetch;
   await assert.rejects(pedirAoGemini('x', 'm', 'oi', recusa), /GEMINI_API_KEY/);
+});
+
+test('seo: título e descrição no tamanho certo, sem reticências, com pré-visualização em todas as páginas; a categoria liga aos guias', async (t) => {
+  const banco = new Banco(':memory:');
+  for (let i = 1; i <= 5; i++) banco.guardarParaGuia('fones-bluetooth', fone(i, { titulo: `Fone de Ouvido Bluetooth Modelo ${i} Com Cancelamento de Ruído Ativo e Estojo de Carga Rápida Premium` }), AGORA);
+  for (let i = 1; i <= 3; i++) banco.guardarParaGuia('air-fryers', { ...fone(i), idProduto: `AF${i}`, titulo: `Fritadeira Air Fryer Digital ${i} Litros` }, AGORA);
+  for (let i = 1; i <= 6; i++) banco.guardarProduto({ ...fone(i), categoria: i % 2 ? 'tech' : 'casa', pontos: 50 - i, desconto: 40 }, AGORA);
+  const dir = mkdtempSync(join(tmpdir(), 'seo-'));
+  await gerarBlog(banco, lerConfig({ BLOG_PASTA: dir, BLOG_URL: 'https://exemplo.github.io/achados', BLOG_NOME: 'Achadinhos do Dia', BLOG_IA: 'nenhuma' }), AGORA);
+
+  let comImagemPadrao = true;
+  try {
+    await import('@resvg/resvg-js');
+  } catch {
+    comImagemPadrao = false;
+    t.diagnostic('conversor de imagens não instalado: a imagem padrão de pré-visualização não foi testada');
+  }
+  const paginas = readdirSync(dir).filter((a) => a.endsWith('.html') && a !== '404.html');
+  assert.ok(paginas.length >= 8, `páginas: ${paginas.join(', ')}`);
+  for (const arquivo of paginas) {
+    const html = readFileSync(join(dir, arquivo), 'utf8');
+    const titulo = /<title>([^<]*)<\/title>/.exec(html)![1]!;
+    const descricao = /<meta name="description" content="([^"]*)"/.exec(html)![1]!;
+    assert.ok(titulo.length >= 25 && titulo.length <= 62, `${arquivo}: título com ${titulo.length} caracteres: ${titulo}`);
+    assert.ok(descricao.length >= 70 && descricao.length <= 160, `${arquivo}: descrição com ${descricao.length} caracteres`);
+    assert.ok(!descricao.includes('…') && !titulo.includes('…'), `${arquivo}: sem reticências no título nem na descrição`);
+    assert.ok(/<meta property="og:title"/.test(html) && /<meta property="og:description"/.test(html), `${arquivo}: sem pré-visualização`);
+    if (comImagemPadrao) assert.ok(/<meta property="og:image" content="https:\/\/[^"]+"/.test(html), `${arquivo}: sem imagem de pré-visualização`);
+  }
+  if (comImagemPadrao) assert.ok(existsSync(join(dir, 'og-padrao.png')));
+
+  // A página do guia tem título de busca compacto, mas mantém o título completo na página.
+  const guia = readFileSync(join(dir, 'melhores-fones-bluetooth.html'), 'utf8');
+  // Com o nome do site passaria de 62 caracteres, então o nome do site sai da aba (a busca cortaria o fim de qualquer jeito).
+  assert.match(guia, /<title>Melhores fones de ouvido bluetooth de 2026 \(Top 5\)<\/title>/);
+  assert.match(guia, /<h1>Melhores fones de ouvido bluetooth de 2026: top 5 comparados<\/h1>/);
+
+  // A categoria traz um texto de abertura e liga aos guias da mesma categoria.
+  const tech = readFileSync(join(dir, 'categoria-tech.html'), 'utf8');
+  assert.match(tech, /Guias de compra de Tecnologia/);
+  assert.ok(tech.includes('href="melhores-fones-bluetooth.html"') && !tech.includes('melhores-air-fryers.html'), 'só os guias da categoria');
+  assert.match(tech, /Ofertas de Tecnologia, dia a dia/);
+  assert.ok(tech.replace(/<[^>]+>/g, ' ').split(/\s+/).filter(Boolean).length >= 150, 'a categoria deixou de ser uma lista seca');
+  assert.ok(readFileSync(join(dir, 'categoria-casa.html'), 'utf8').includes('melhores-air-fryers.html'));
 });
 
 test('texto da IA cortado no meio da frase é aparado ou descartado', async () => {

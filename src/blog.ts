@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import type { Config } from './config.ts';
 import { diaDe, type Banco, type PostSalvo } from './db.ts';
 import { explicacaoDoCriterio } from './dicas.ts';
+import { tituloParaArte } from './social.ts';
 import { chaveDoProduto, escolherParaGuia, perguntasDoGuia, TIPOS_DE_GUIA, type PerguntaFrequente, type ProdutoDoGuia, type TipoDeGuia } from './guias.ts';
 import { formatarPreco, formatarVendas } from './mensagem.ts';
 import type { OfertaAvaliada } from './types.ts';
@@ -153,6 +154,27 @@ function encurtar(s: string, max: number): string {
   return t.length <= max ? t : `${t.slice(0, max - 1).trimEnd()}…`;
 }
 
+/** Texto curto sem reticências: corta no fim de uma frase e, se não houver, numa palavra. */
+function resumir(s: string, max: number): string {
+  const t = s.replace(/\s+/g, ' ').trim();
+  if (t.length <= max) return t;
+  const corte = t.slice(0, max);
+  const fimDeFrase = Math.max(corte.lastIndexOf('. '), corte.lastIndexOf('! '), corte.lastIndexOf('? '));
+  if (fimDeFrase >= max * 0.55) return corte.slice(0, fimDeFrase + 1);
+  const espaco = corte.lastIndexOf(' ');
+  return (espaco > max * 0.5 ? corte.slice(0, espaco) : corte).replace(/[\s,;:\-–|(]+$/, '');
+}
+
+/** Descrição para buscadores e redes sociais: até 155 caracteres (o que o Google costuma mostrar), sem reticências. */
+function descricaoSeo(s: string): string {
+  return resumir(s, 155);
+}
+
+/** Nome do produto para listas e tabelas: curto, sem reticências, sem terminar em palavra de ligação. */
+function tituloDoProduto(titulo: string, largura = 40): string {
+  return tituloParaArte(titulo, largura).join(' ');
+}
+
 /** Gráfico pequeno com o preço de cada dia. Só aparece com pelo menos 3 dias de histórico. */
 export function graficoDePreco(pontos: Array<{ dia: string; preco: number }>): string {
   if (pontos.length < 3) return '';
@@ -176,6 +198,8 @@ export function graficoDePreco(pontos: Array<{ dia: string; preco: number }>): s
 // ───────────── páginas ─────────────
 
 interface Site {
+  /** Endereço da imagem padrão de pré-visualização (redes sociais), quando foi possível criá-la. */
+  imagemPadrao?: string;
   config: Config;
   posts: Post[];
   hoje: string;
@@ -193,13 +217,17 @@ type Trilha = Array<[string, string?]>;
 /** Muda sempre que o CSS muda, para o navegador não usar uma cópia antiga guardada. */
 let VERSAO_DO_ESTILO = '1';
 
-function moldura(site: Site, p: { arquivo: string; titulo: string; descricao: string; corpo: string; imagem?: string; tipo?: string; dadosEstruturados?: unknown; rodapeExtra?: string; trilha?: Trilha; largo?: boolean }): string {
+function moldura(site: Site, p: { arquivo: string; titulo: string; tituloSeo?: string; descricao: string; corpo: string; imagem?: string; tipo?: string; dadosEstruturados?: unknown; rodapeExtra?: string; trilha?: Trilha; largo?: boolean }): string {
   const b = site.config.blog;
   const endereco = (arquivo: string) => (b.url ? `${b.url}/${arquivo === 'index.html' ? '' : arquivo}` : '');
   const canonica = endereco(p.arquivo);
   const itensDoMenu: Array<[string, string]> = [['index.html', 'Início'], ...(site.guias.length ? [['guias.html', 'Guias'] as [string, string]] : []), ...site.temas.map((t): [string, string] => [`categoria-${t}.html`, nomeDoTema(t)]), ['arquivo.html', 'Arquivo']];
   const nav = itensDoMenu.map(([arquivo, rotulo]) => `<a href="${arquivo}"${arquivo === p.arquivo ? ' aria-current="page"' : ''}>${esc(rotulo)}</a>`).join('');
-  const tituloCompleto = p.arquivo === 'index.html' ? `${b.nome} — ${p.titulo}` : `${p.titulo} | ${b.nome}`;
+  // O título da aba e dos resultados de busca fica em até 62 caracteres (o Google corta perto de 60): o nome do site só vai se couber.
+  const tituloBase = p.tituloSeo ?? p.titulo;
+  const tituloCompleto = p.arquivo === 'index.html' ? `${b.nome} — ${p.titulo}` : `${tituloBase} | ${b.nome}`.length <= 62 ? `${tituloBase} | ${b.nome}` : tituloBase;
+  const descricao = descricaoSeo(p.descricao);
+  const imagem = p.imagem ?? site.imagemPadrao;
 
   // Dados estruturados: o que a página trouxe + trilha de navegação (+ identidade do site, na página inicial).
   const grafo: unknown[] = [...(((p.dadosEstruturados as { '@graph'?: unknown[] } | undefined)?.['@graph']) ?? [])];
@@ -221,7 +249,7 @@ function moldura(site: Site, p: { arquivo: string; titulo: string; descricao: st
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(tituloCompleto)}</title>
-<meta name="description" content="${esc(p.descricao)}">
+<meta name="description" content="${esc(descricao)}">
 <meta name="robots" content="${p.arquivo === '404.html' ? 'noindex' : 'index,follow,max-image-preview:large'}">
 <meta name="theme-color" content="#d6336c">
 <link rel="icon" href="${ICONE_DO_SITE}">
@@ -229,14 +257,14 @@ ${canonica ? `<link rel="canonical" href="${esc(canonica)}">` : ''}
 <meta property="og:site_name" content="${esc(b.nome)}">
 <meta property="og:locale" content="pt_BR">
 <meta property="og:type" content="${p.tipo ?? 'website'}">
-<meta property="og:title" content="${esc(p.titulo)}">
-<meta property="og:description" content="${esc(p.descricao)}">
+<meta property="og:title" content="${esc(tituloBase)}">
+<meta property="og:description" content="${esc(descricao)}">
 ${canonica ? `<meta property="og:url" content="${esc(canonica)}">` : ''}
-${p.imagem ? `<meta property="og:image" content="${esc(p.imagem)}">` : ''}
-<meta name="twitter:card" content="${p.imagem ? 'summary_large_image' : 'summary'}">
-<meta name="twitter:title" content="${esc(p.titulo)}">
-<meta name="twitter:description" content="${esc(p.descricao)}">
-${p.imagem ? `<meta name="twitter:image" content="${esc(p.imagem)}">` : ''}
+${imagem ? `<meta property="og:image" content="${esc(imagem)}">` : ''}
+<meta name="twitter:card" content="${imagem ? 'summary_large_image' : 'summary'}">
+<meta name="twitter:title" content="${esc(tituloBase)}">
+<meta name="twitter:description" content="${esc(descricao)}">
+${imagem ? `<meta name="twitter:image" content="${esc(imagem)}">` : ''}
 ${b.url ? `<link rel="alternate" type="application/rss+xml" title="${esc(b.nome)}" href="${esc(`${b.url}/feed.xml`)}">` : ''}
 <link rel="preconnect" href="https://http2.mlstatic.com" crossorigin>
 <link rel="stylesheet" href="estilo.css?v=${VERSAO_DO_ESTILO}">
@@ -306,7 +334,7 @@ function paginaDoPost(site: Site, post: Post): string {
   const aviso = antigo
     ? `<p class="antigo">Este post é de ${dataBr(post.dia)}. Os preços e a disponibilidade podem ter mudado. ${maisNovo && maisNovo.arquivo !== post.arquivo ? `<a href="${maisNovo.arquivo}">Veja o post mais recente de ${esc(nomeDoTema(post.tema))}</a>.` : '<a href="index.html">Veja as ofertas mais recentes</a>.'}</p>`
     : '';
-  const descricao = encurtar(`${post.titulo}: ${d.itens.slice(0, 3).map((i) => encurtar(i.titulo, 50)).join('; ')}.`, 300);
+  const descricao = `${post.titulo}: ${d.itens.slice(0, 3).map((i) => tituloDoProduto(i.titulo, 36)).join('; ')}.`;
   const b = site.config.blog;
   const dadosEstruturados = {
     '@context': 'https://schema.org',
@@ -342,7 +370,7 @@ function tabelaComparativa(itens: ItemDoPost[]): string {
     const nota = o.nota && o.nota > 0 ? o.nota.toFixed(1).replace('.', ',') : '—';
     const vendas = o.vendas && o.vendas > 0 ? formatarVendas(o.vendas) : '—';
     const vsMedia = o.precoVsMediana === undefined ? '—' : o.precoVsMediana === 0 ? 'na média' : `${o.precoVsMediana > 0 ? '+' : '−'}${Math.abs(o.precoVsMediana)}%`;
-    return `<tr><td>${i + 1}</td><td><a href="${esc(o.link)}" target="_blank" rel="sponsored nofollow noopener">${esc(encurtar(o.titulo, 80))}</a></td><td>${formatarPreco(o.preco)}</td><td>${vsMedia}</td><td>${nota}</td><td>${vendas}</td><td>${esc((o.destaques ?? []).join(', ') || '—')}</td></tr>`;
+    return `<tr><td>${i + 1}</td><td><a href="${esc(o.link)}" target="_blank" rel="sponsored nofollow noopener">${esc(tituloDoProduto(o.titulo, 44))}</a></td><td>${formatarPreco(o.preco)}</td><td>${vsMedia}</td><td>${nota}</td><td>${vendas}</td><td>${esc((o.destaques ?? []).join(', ') || '—')}</td></tr>`;
   });
   return `<div class="tabela"><table>
 <thead><tr><th>#</th><th>Produto</th><th>Preço</th><th>vs. média da lista</th><th>Nota</th><th>Vendidos</th><th>Destaque</th></tr></thead>
@@ -369,7 +397,7 @@ function melhoresEscolhas(itens: ItemDoPost[]): string {
     return `<li class="escolha">
     <span class="escolha-selos">${selos.map((r) => `<span class="escolha-rotulo">${esc(r)}</span>`).join('')}</span>
     ${imagem ? `<img src="${esc(imagem)}" alt="" width="72" height="72" loading="lazy" decoding="async" referrerpolicy="no-referrer">` : ''}
-    <a class="escolha-nome" href="${esc(o.link)}" target="_blank" rel="sponsored nofollow noopener">${esc(encurtar(o.titulo, 70))}</a>
+    <a class="escolha-nome" href="${esc(o.link)}" target="_blank" rel="sponsored nofollow noopener">${esc(tituloDoProduto(o.titulo, 38))}</a>
     <span class="escolha-preco">${formatarPreco(o.preco)}</span>
   </li>`;
   });
@@ -391,7 +419,7 @@ function paginaDoGuia(site: Site, guia: Guia): string {
   const faq: PerguntaFrequente[] = perguntasDoGuia(guia.tipo, d.itens.length, d.ano);
   const outros = site.guias.filter((g) => g.arquivo !== guia.arquivo);
   const relacionados = [...outros.filter((g) => g.tipo.categoria === guia.tipo.categoria), ...outros.filter((g) => g.tipo.categoria !== guia.tipo.categoria)].slice(0, 6);
-  const descricao = encurtar(`${guia.titulo}. Comparamos ${d.itens.length} opções por nota, vendas e preço atual: ${d.itens.slice(0, 3).map((i) => encurtar(i.titulo, 45)).join('; ')}.`, 300);
+  const descricao = `Comparamos ${d.itens.length} ${guia.tipo.nome}: nota, vendas e preço de cada um, o que olhar antes de comprar e perguntas frequentes. Atualizado em ${dataBr(diaDe(new Date(guia.atualizadoEm)))}.`;
   const dadosEstruturados = {
     '@context': 'https://schema.org',
     '@graph': [
@@ -426,7 +454,7 @@ ${faq.map((f) => `  <h3>${esc(f.pergunta)}</h3>\n  <p>${esc(f.resposta)}</p>`).j
   ${relacionados.length ? `<section class="fim"><h2>Veja também</h2><ul>${relacionados.map((g) => `<li><a href="${g.arquivo}">${esc(g.titulo)}</a></li>`).join('')}</ul></section>` : ''}
   </article>`;
   const rodapeExtra = `<p>Preços vistos pelo nosso robô nas datas indicadas em cada produto. Eles mudam a qualquer momento; vale o preço mostrado na loja.</p>${d.temIA ? '\n  <p>Alguns textos desta página são escritos por inteligência artificial a partir do nome e dos dados de cada produto. Confira os detalhes na página da loja antes de comprar.</p>' : ''}`;
-  return moldura(site, { arquivo: guia.arquivo, titulo: guia.titulo, descricao, corpo, imagem: urlSegura(d.itens[0]?.imagem), tipo: 'article', dadosEstruturados, rodapeExtra, trilha: [['Guias', 'guias.html'], [guia.titulo]] });
+  return moldura(site, { arquivo: guia.arquivo, titulo: guia.titulo, tituloSeo: `Melhores ${guia.tipo.nome} de ${d.ano} (Top ${d.itens.length})`, descricao, corpo, imagem: urlSegura(d.itens[0]?.imagem), tipo: 'article', dadosEstruturados, rodapeExtra, trilha: [['Guias', 'guias.html'], [guia.titulo]] });
 }
 
 function cartaoDeGuia(g: Guia): string {
@@ -447,7 +475,7 @@ function paginaDosGuias(site: Site): string {
   const corpo = `  <h1>Guias de compra</h1>
   <p class="intro">Comparativos dos melhores produtos de cada tipo, ordenados pela nota de quem comprou e pelo volume de vendas, com os preços atualizados automaticamente.</p>
   ${blocos.join('\n  ')}`;
-  return moldura(site, { arquivo: 'guias.html', titulo: 'Guias de compra: os melhores produtos comparados', descricao: `${b.nome}: guias com os melhores produtos de cada tipo, comparados por nota, vendas e preço.`, corpo, trilha: [['Guias']], largo: true });
+  return moldura(site, { arquivo: 'guias.html', titulo: 'Guias de compra: os melhores produtos comparados', tituloSeo: 'Guias de compra: melhores produtos comparados', descricao: `${site.guias.length} guias de compra do ${b.nome}: os melhores produtos de cada tipo comparados por nota, vendas e preço, com o que olhar antes de comprar.`, corpo, trilha: [['Guias']], largo: true });
 }
 
 function resumoDoPost(post: Post, site: Site): string {
@@ -458,7 +486,7 @@ function resumoDoPost(post: Post, site: Site): string {
   <div>
     <h3><a href="${post.arquivo}">${esc(post.titulo)}</a></h3>
     <p class="data">${hoje ? 'Hoje' : dataBr(post.dia)} · ${esc(nomeDoTema(post.tema))} · ${post.dados.itens.length} produtos</p>
-    <p>${esc(encurtar(post.dados.intro, 170))}</p>
+    <p>${esc(resumir(post.dados.intro, 170))}</p>
   </div>
 </li>`;
 }
@@ -492,7 +520,7 @@ function paginaInicial(site: Site): string {
   if (site.posts.length === 0) {
     const guias = secaoDeGuiasDaHome(site);
     const intro = guias ? 'Comparativos dos melhores produtos de cada tipo, com nota, vendas e preço. As ofertas do dia chegam em breve.' : 'Os primeiros posts chegam em breve. O robô publica aqui as melhores ofertas de cada dia.';
-    return moldura(site, { arquivo: 'index.html', titulo: 'guias de compra e ofertas do dia', descricao: `${b.nome}: guias com os melhores produtos comparados por nota, vendas e preço, e as melhores ofertas do dia com histórico de preço.`, corpo: `  ${heroDaHome(site, b.nome, intro)}\n  ${guias}`, largo: true });
+    return moldura(site, { arquivo: 'index.html', titulo: 'guias de compra e ofertas do dia', descricao: `${b.nome}: guias de compra com os melhores produtos comparados por nota e vendas, e as ofertas do dia com histórico de preço.`, corpo: `  ${heroDaHome(site, b.nome, intro)}\n  ${guias}`, largo: true });
   }
   const diaMaisNovo = site.posts[0].dia;
   const recentes = site.posts.filter((p) => p.dia === diaMaisNovo);
@@ -503,7 +531,7 @@ function paginaInicial(site: Site): string {
   ${secaoDeGuias}<h2 class="secao">${esc(titulo)}</h2>
   ${listaDePosts(recentes, site)}
   ${anteriores.length ? `<h2 class="secao">Dias anteriores</h2>\n  ${listaDePosts(anteriores, site)}\n  <p><a href="arquivo.html">Ver todos os posts</a></p>` : ''}`;
-  return moldura(site, { arquivo: 'index.html', titulo: 'guias de compra e ofertas do dia', descricao: encurtar(`${b.nome}: guias com os melhores produtos comparados e as ofertas do dia. ${recentes.map((p) => p.titulo).join('; ')}.`, 300), corpo, imagem: urlSegura(recentes[0]?.dados.itens[0]?.imagem), largo: true });
+  return moldura(site, { arquivo: 'index.html', titulo: 'guias de compra e ofertas do dia', descricao: `${b.nome}: guias de compra com os melhores produtos comparados por nota e vendas, e as ofertas do dia com histórico de preço.`, corpo, imagem: urlSegura(recentes[0]?.dados.itens[0]?.imagem), largo: true });
 }
 
 function paginaSobre(site: Site): string {
@@ -548,16 +576,32 @@ function paginaPrivacidade(site: Site): string {
   <h2>Contato</h2>
   ${b.telegramLink && urlSegura(b.telegramLink) ? `<p>Pelo <a href="${esc(b.telegramLink)}" target="_blank" rel="noopener">canal do Telegram</a>.</p>` : '<p>Pelo canal do Telegram do site.</p>'}
   </article>`;
-  return moldura(site, { arquivo: 'privacidade.html', titulo: 'Privacidade e afiliados', descricao: `Política de privacidade e transparência sobre links de afiliado do ${b.nome}.`, corpo, trilha: [['Privacidade e afiliados']] });
+  return moldura(site, { arquivo: 'privacidade.html', titulo: 'Privacidade e afiliados', descricao: `Como o ${b.nome} usa links de afiliado, imagens e preços das lojas, e o que acontece com os seus dados: sem cadastro e sem rastreamento.`, corpo, trilha: [['Privacidade e afiliados']] });
 }
 
 function paginaDoTema(site: Site, tema: string): string {
+  const b = site.config.blog;
   const posts = site.posts.filter((p) => p.tema === tema);
   const nome = nomeDoTema(tema);
-  const corpo = `  <h1>${esc(nome)}</h1>
-  <p class="intro">Todos os posts de ${esc(nome)}, do mais novo para o mais antigo.</p>
+  const guias = tema === TEMA_GERAL ? [] : site.guias.filter((g) => g.tipo.categoria === tema);
+  const tiposDosGuias = guias.slice(0, 3).map((g) => g.tipo.nome);
+  const paragrafos = [
+    tema === TEMA_GERAL
+      ? `Todos os dias o ${esc(b.nome)} reúne as melhores ofertas de todas as categorias que o robô encontra nas lojas parceiras. Cada produto mostra o preço, a nota de quem comprou, o volume de vendas e, quando já temos dados suficientes, o histórico de preço, para você saber se o desconto é de verdade.`
+      : `Aqui estão as melhores ofertas de ${esc(nome)} que o ${esc(b.nome)} encontra todos os dias nas lojas parceiras. Cada produto mostra o preço, a nota de quem comprou, o volume de vendas e, quando já temos dados suficientes, o histórico de preço, para você saber se o desconto é de verdade.`,
+    guias.length
+      ? 'Prefere comparar com calma? Os guias de compra abaixo reúnem os produtos mais bem avaliados de cada tipo e explicam o que olhar antes de decidir.'
+      : 'Prefere comparar com calma? Veja os guias de compra, que reúnem os produtos mais bem avaliados de cada tipo e explicam o que olhar antes de decidir.',
+    'Os preços mudam o tempo todo: confira sempre o valor na loja antes de comprar. Para entender como montamos cada lista, leia <a href="sobre.html">Como escolhemos os produtos</a>.',
+  ];
+  const corpo = `  <h1>${esc(nome)}: ofertas do dia${guias.length ? ' e guias de compra' : ''}</h1>
+  ${paragrafos.map((p, i) => `<p${i === 0 ? ' class="intro"' : ''}>${p}</p>`).join('\n  ')}
+  ${guias.length ? `<h2 class="secao">Guias de compra de ${esc(nome)}</h2>\n  <ul class="posts">\n${guias.map(cartaoDeGuia).join('\n')}\n  </ul>\n  ` : ''}<h2 class="secao">Ofertas de ${esc(nome)}, dia a dia</h2>
   ${listaDePosts(posts, site)}`;
-  return moldura(site, { arquivo: `categoria-${tema}.html`, titulo: `${nome}: ofertas por dia`, descricao: `Posts de ofertas de ${nome}, atualizados todos os dias.`, corpo, trilha: [[nome]], largo: true });
+  const descricao = guias.length
+    ? `Ofertas de ${nome} do dia e guias de compra de ${tiposDosGuias.join(', ')}: nota, vendas e histórico de preço, atualizados a cada 30 minutos.`
+    : `Ofertas de ${nome} do dia, com nota de quem comprou, volume de vendas e histórico de preço. Atualizado todos os dias.`;
+  return moldura(site, { arquivo: `categoria-${tema}.html`, titulo: `${nome}: ofertas por dia`, tituloSeo: guias.length ? `${nome}: ofertas do dia e guias de compra` : `${nome}: ofertas do dia`, descricao, corpo, trilha: [[nome]], largo: true });
 }
 
 function paginaDoArquivo(site: Site): string {
@@ -566,7 +610,7 @@ function paginaDoArquivo(site: Site): string {
   const corpo = `  <h1>Arquivo</h1>
   <p class="intro">Todos os posts que estão no ar, por dia. Posts antigos mostram os preços do dia em que foram escritos.</p>
   ${blocos.join('\n  ') || '<p>Ainda não há posts.</p>'}`;
-  return moldura(site, { arquivo: 'arquivo.html', titulo: 'Arquivo de posts', descricao: `Todos os posts de ofertas de ${site.config.blog.nome}, por dia.`, corpo, trilha: [['Arquivo']], largo: true });
+  return moldura(site, { arquivo: 'arquivo.html', titulo: 'Arquivo de posts', descricao: `Arquivo de ofertas do ${site.config.blog.nome}: todos os posts por dia, com os preços do dia em que foram escritos e o histórico de preço.`, corpo, trilha: [['Arquivo']], largo: true });
 }
 
 const ESTILO = `:root{--fundo:#f5f6f8;--cartao:#fff;--texto:#15171c;--suave:#586070;--borda:#e3e6ec;--cor:#d6336c;--cor-forte:#b32459;--cor-texto:#fff;--cor-suave:#fdeaf1;--ok:#0a7d4f;--aviso-fundo:#fff3d6;--aviso:#7a4a00;--sombra:0 1px 2px rgba(20,24,35,.06),0 4px 14px rgba(20,24,35,.05);--raio:14px}
@@ -1004,6 +1048,26 @@ function diaMenos(agora: Date, dias: number): string {
   return diaDe(new Date(agora.getTime() - dias * 86_400_000));
 }
 
+/** Imagem 1200x630 usada na pré-visualização (WhatsApp, Facebook, X...) das páginas que não têm foto própria. */
+async function gravarImagemPadrao(pasta: string, nome: string): Promise<boolean> {
+  try {
+    const { Resvg } = await import('@resvg/resvg-js');
+    const marca = nome.replace(/[&<>"]/g, '');
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" font-family="Liberation Sans, DejaVu Sans, Arial, sans-serif">
+<defs><linearGradient id="f" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#d6336c"/><stop offset="1" stop-color="#6d1033"/></linearGradient></defs>
+<rect width="1200" height="630" fill="url(#f)"/>
+<rect x="90" y="90" width="110" height="110" rx="28" fill="#ffffff"/><path d="M118 152l32-32h32v32l-32 32z" fill="#d6336c"/><circle cx="170" cy="130" r="8" fill="#ffffff"/>
+<text x="90" y="330" font-size="92" font-weight="700" fill="#ffffff">${marca}</text>
+<text x="90" y="420" font-size="44" fill="#ffe3ec">Guias de compra e ofertas do dia,</text>
+<text x="90" y="480" font-size="44" fill="#ffe3ec">com nota, vendas e histórico de preço.</text>
+</svg>`;
+    writeFileSync(join(pasta, 'og-padrao.png'), Buffer.from(new Resvg(svg, { font: { loadSystemFonts: true, defaultFontFamily: 'Liberation Sans' }, fitTo: { mode: 'width', value: 1200 } }).render().asPng()));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 const pausaPadrao: Esperar = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /**
@@ -1131,6 +1195,7 @@ export async function gerarBlog(banco: Banco, config: Config, agora: Date = new 
   const site: Site = { config, posts, hoje, agora, temas, guias };
 
   mkdirSync(b.pasta, { recursive: true });
+  if (b.url && (await gravarImagemPadrao(b.pasta, b.nome))) site.imagemPadrao = `${b.url}/og-padrao.png`;
   const gravar = (arquivo: string, html: string) => {
     writeFileSync(join(b.pasta, arquivo), html, 'utf8');
     resultado.paginas.push(arquivo);

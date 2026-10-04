@@ -46,7 +46,7 @@ export const TIPOS_DE_GUIA: TipoDeGuia[] = [
     nome: 'celulares',
     categoria: 'tech',
     incluir: [['celular', 'smartphone', 'iphone', 'galaxy', 'redmi', 'poco', 'motorola']],
-    excluir: [...ACESSORIOS, 'carregador', 'fone', 'pulseira', 'bateria', 'tela', 'display', 'lente', 'suporte'],
+    excluir: [...ACESSORIOS, 'carregador', 'fone', 'pulseira', 'bateria', 'tela', 'display', 'lente', 'suporte', 'controle', 'joystick', 'gamepad', 'manete', 'videogame', 'relogio', 'smartwatch', 'tablet', 'notebook', 'headset'],
     criterios: ['Memória (RAM e armazenamento) para o seu uso', 'Bateria e velocidade de carregamento', 'Qualidade da câmera em pouca luz', 'Quantos anos de atualização o fabricante promete', 'Se acompanha carregador na caixa'],
   },
   {
@@ -299,11 +299,31 @@ export const TIPOS_DE_GUIA: TipoDeGuia[] = [
   },
 ];
 
-/** Descobre a que guia o produto pertence, pelo título. Devolve undefined se não for de nenhum. */
+/** Quantas palavras do começo do título podem vir antes do nome do produto ("Kit 10 Pote", "Novo Smartwatch"...). */
+const PALAVRAS_ATE_O_PRODUTO = 6;
+
+/** Posição (em palavras, a partir de 0) em que a palavra ou expressão aparece no título normalizado; undefined se não aparece. */
+function posicaoDaPalavra(textoNormalizado: string, palavra: string): number | undefined {
+  const re = new RegExp(`(^|[^a-z0-9])${normalizar(palavra).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}s?([^a-z0-9]|$)`);
+  const m = re.exec(textoNormalizado);
+  if (!m) return undefined;
+  return textoNormalizado.slice(0, m.index + m[1]!.length).split(/[^a-z0-9]+/).filter(Boolean).length;
+}
+
+/**
+ * Descobre a que guia o produto pertence, pelo título. Devolve undefined se não for de nenhum.
+ * O nome do produto precisa aparecer logo no começo do título: anúncio que empilha palavras de busca
+ * ("Controle Joystick Ps4 Tv Samsung Pc Celular Headset...") não é celular, nem fone, nem nada disso.
+ */
 export function tipoDeGuia(titulo: string): TipoDeGuia | undefined {
   const t = normalizar(titulo);
   // Os tipos mais específicos vêm antes dos genéricos na lista; o primeiro que casar vence.
-  return TIPOS_DE_GUIA.find((tipo) => tipo.incluir.every((grupo) => grupo.some((p) => contemPalavra(t, p))) && !tipo.excluir.some((p) => contemPalavra(t, p)));
+  return TIPOS_DE_GUIA.find(
+    (tipo) =>
+      tipo.incluir.every((grupo) => grupo.some((p) => contemPalavra(t, p))) &&
+      tipo.incluir[0]!.some((p) => (posicaoDaPalavra(t, p) ?? Number.POSITIVE_INFINITY) <= PALAVRAS_ATE_O_PRODUTO) &&
+      !tipo.excluir.some((p) => contemPalavra(t, p)),
+  );
 }
 
 /** Estes critérios deixam de fora produto sem preço, sem link seguro ou com avaliação ruim. */
@@ -411,6 +431,18 @@ function mediana(valores: number[]): number {
   return v.length % 2 ? v[meio]! : (v[meio - 1]! + v[meio]!) / 2;
 }
 
+/** Palavras de anúncio que não identificam o modelo. */
+const RUIDO_DO_MODELO = new Set(['smartphone', 'celular', 'novo', 'nova', 'original', 'lacrado', 'lancamento', 'oferta', 'promocao', 'kit', 'com', 'de', 'para', 'e', 'a', 'o', 'em', 'full', 'importado', 'global']);
+
+/**
+ * Identifica o modelo pelo título: as primeiras palavras que dizem o que é o produto, sem as de anúncio.
+ * Dois anúncios do mesmo aparelho ("Samsung Galaxy A36 5g 128gb...") dão a mesma chave. Vazio se o título não ajuda.
+ */
+export function chaveDoModelo(titulo: string): string {
+  const palavras = normalizar(titulo).split(/[^a-z0-9]+/).filter((w) => w && !RUIDO_DO_MODELO.has(w)).slice(0, 6);
+  return palavras.length >= 3 ? palavras.join(' ') : '';
+}
+
 export interface OpcoesDoGuia {
   /** Chaves (loja:id) dos produtos do guia publicado, na ordem em que apareciam. */
   anteriores?: string[];
@@ -435,9 +467,18 @@ export function escolherParaGuia(candidatos: Array<{ oferta: Oferta; vistoEm: nu
     if (!atual || c.vistoEm > atual.vistoEm) unicos.set(chave, c);
   }
   const ordenados = [...unicos.entries()]
-    .filter(([chave, c]) => elegivelParaGuia(c.oferta) && (eram.has(chave) || c.vistoEm >= limite))
+    .filter(([chave, c]) => elegivelParaGuia(c.oferta) && tipoDeGuia(c.oferta.titulo)?.slug === tipo.slug && (eram.has(chave) || c.vistoEm >= limite))
     .map(([chave, c]) => ({ ...c, chave, pontos: pontuacaoDoGuia(c.oferta) }))
     .sort((a, b) => b.pontos - a.pontos);
+  // O mesmo modelo anunciado por vendedores diferentes aparece uma vez só (o de maior pontuação).
+  const modelosVistos = new Set<string>();
+  const unicosPorModelo = ordenados.filter((c) => {
+    const modelo = chaveDoModelo(c.oferta.titulo) || c.chave;
+    if (modelosVistos.has(modelo)) return false;
+    modelosVistos.add(modelo);
+    return true;
+  });
+  ordenados.splice(0, ordenados.length, ...unicosPorModelo);
   const n = tamanhoDoGuia(ordenados.length, anteriores.length);
   if (n === 0) return [];
   const escolhidos = escolherComEstabilidade(ordenados, n, anteriores);
