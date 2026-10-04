@@ -202,11 +202,11 @@ export function svgDoStory(d: DadosDaArte): string {
 
 // ───────────────────────── Feed 1080x1350 ─────────────────────────
 
-/** Nome do perfil à esquerda e o selo à direita, sem passar de 440 px para não encostar no nome. */
+/** Nome do perfil à esquerda e o selo à direita, sem passar de 400 px para deixar uma folga em relação ao nome. */
 const cabecalhoDoFeed = (d: DadosDaArte) => {
-  const tamanho = 32;
-  const largura = larguraDaPilula(d.ganchoCurto, tamanho, 220, 440);
-  return `<text x="60" y="92" font-size="38" font-weight="700" fill="#ffffff" letter-spacing="5">ACHADINHOS DO DIA</text>
+  const tamanho = 30;
+  const largura = larguraDaPilula(d.ganchoCurto, tamanho, 220, 400);
+  return `<text x="60" y="92" font-size="34" font-weight="700" fill="#ffffff" letter-spacing="4">ACHADINHOS DO DIA</text>
 ${pilula(1020 - largura / 2, 52, 64, largura, corDoGancho(d), tamanho, d.ganchoCurto, d.ganchoTipo === 'categoria' ? 0.2 : 1)}`;
 };
 

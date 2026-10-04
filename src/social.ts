@@ -249,14 +249,14 @@ export function montarSvgDoStory(o: OfertaAvaliada, imagem: string | undefined, 
 
 /** Versão 4:5 (1080x1350) para o feed: o feed do Instagram não aceita imagem em pé 9:16. */
 export function montarSvgDoFeed(o: OfertaAvaliada, imagem: string | undefined, _config?: Config): string {
-  return svgDoFeed(dadosDaArte(o, imagem, 36));
+  return svgDoFeed(dadosDaArte(o, imagem, 33));
 }
 
 
 /** Slide de produto do carrossel: o mesmo card do feed (sempre no mesmo layout, para o carrossel parecer um conjunto), com a posição no lugar do selo. */
 export function montarSvgDoSlide(o: OfertaAvaliada, imagem: string | undefined, posicao: number, total: number): string {
   const rotulo = `#${posicao} DE ${total}`;
-  return svgDoFeed({ ...dadosDaArte(o, imagem, 36), layout: 0, gancho: rotulo, ganchoCurto: rotulo, ganchoTipo: 'economia' });
+  return svgDoFeed({ ...dadosDaArte(o, imagem, 33), layout: 0, gancho: rotulo, ganchoCurto: rotulo, ganchoTipo: 'economia' });
 }
 
 /** O que um carrossel guarda: as ofertas escolhidas e as fotos (para refazer as imagens a cada rodada). */
