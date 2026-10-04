@@ -1,0 +1,38 @@
+name: Testes
+
+# Roda os testes a cada alteração na main. Se algum falhar, o GitHub avisa por e-mail:
+# assim um upload com erro é percebido antes de o robô usar o código novo.
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - '**.txt'
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: testes-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Instalar o conversor de imagens
+        # Sem ele o teste de PNG é pulado; os outros rodam normalmente.
+        run: npm install --omit=dev --no-audit --no-fund
+        continue-on-error: true
+
+      - name: Rodar os testes
+        run: npm test

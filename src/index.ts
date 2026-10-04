@@ -11,6 +11,9 @@ import { PublicadorDeTeste } from './telegram.ts';
 
 const pausa = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** Quantas coletas seguidas com falha antes de a rodada ficar vermelha (o GitHub avisa por e-mail). */
+const FALHAS_PARA_ALERTAR = 3;
+
 function abrirNoNavegador(url: string): void {
   const [comando, args] =
     process.platform === 'win32' ? ['cmd', ['/c', 'start', '', url]] : process.platform === 'darwin' ? ['open', [url]] : ['xdg-open', [url]];
@@ -76,6 +79,11 @@ async function modoNuvem(): Promise<void> {
     // Se nenhuma loja respondeu, a rodada termina em vermelho para chamar atenção, mas o blog e o banco seguem.
     const fontesComErro = Object.keys(coleta.errosPorFonte).length;
     if (fontesComErro > 0 && coleta.coletadas === 0) process.exitCode = 1;
+    // Uma loja quebrada em silêncio (as outras seguem postando) vira alerta depois de 3 coletas seguidas.
+    for (const f of robo.banco.fontesComFalhas(FALHAS_PARA_ALERTAR)) {
+      dizer(`- **ALERTA: ${f.fonte} falhou ${f.falhas} coletas seguidas.** Último erro: ${f.erro}`);
+      process.exitCode = 1;
+    }
 
     let postados = 0;
     let motivoDaParada = '';

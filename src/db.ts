@@ -119,6 +119,12 @@ export class Banco {
         texto TEXT NOT NULL,
         criado_em INTEGER NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS saude_fontes (
+        fonte TEXT PRIMARY KEY,
+        falhas INTEGER NOT NULL,
+        ultimo_erro TEXT,
+        ultimo_ok_em INTEGER
+      );
     `);
     // Bancos criados antes do Instagram não têm estas colunas.
     for (const coluna of ['imagem TEXT', 'ig_feed_em INTEGER', 'ig_story_em INTEGER']) {
@@ -268,6 +274,29 @@ export class Banco {
     const linhas = this.db.prepare(`SELECT ${coluna} AS t FROM social_saida WHERE ${coluna} IS NOT NULL`).all() as Array<{ t: number }>;
     const hoje = diaDe(agora);
     return linhas.filter((l) => diaDe(new Date(l.t)) === hoje).length;
+  }
+
+  /** Anota o resultado da última coleta de uma loja. Sem `erro` zera a contagem de falhas seguidas. */
+  registrarSaudeFonte(fonte: string, erro: string | undefined, agora: Date): void {
+    if (erro === undefined) {
+      this.db
+        .prepare(`INSERT INTO saude_fontes (fonte, falhas, ultimo_erro, ultimo_ok_em) VALUES (?, 0, NULL, ?)
+                  ON CONFLICT(fonte) DO UPDATE SET falhas = 0, ultimo_erro = NULL, ultimo_ok_em = excluded.ultimo_ok_em`)
+        .run(fonte, agora.getTime());
+    } else {
+      this.db
+        .prepare(`INSERT INTO saude_fontes (fonte, falhas, ultimo_erro) VALUES (?, 1, ?)
+                  ON CONFLICT(fonte) DO UPDATE SET falhas = falhas + 1, ultimo_erro = excluded.ultimo_erro`)
+        .run(fonte, erro);
+    }
+  }
+
+  /** Lojas que falharam em pelo menos `minimo` coletas seguidas. */
+  fontesComFalhas(minimo: number): Array<{ fonte: string; falhas: number; erro: string; ultimoOkEm?: number }> {
+    const linhas = this.db
+      .prepare(`SELECT fonte, falhas, ultimo_erro, ultimo_ok_em FROM saude_fontes WHERE falhas >= ? ORDER BY fonte`)
+      .all(minimo) as Array<{ fonte: string; falhas: number; ultimo_erro: string | null; ultimo_ok_em: number | null }>;
+    return linhas.map((l) => ({ fonte: l.fonte, falhas: l.falhas, erro: l.ultimo_erro ?? 'erro desconhecido', ultimoOkEm: l.ultimo_ok_em ?? undefined }));
   }
 
   /** Momento (ms) da última publicação do tipo no Instagram; undefined se nunca houve. */

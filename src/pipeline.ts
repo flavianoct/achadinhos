@@ -28,8 +28,11 @@ export async function coletar(fontes: Fonte[], banco: Banco, config: Config, ago
     } catch (e) {
       // Uma loja com problema não derruba as outras.
       resumo.errosPorFonte[fonte.nome] = (e as Error).message;
+      banco.registrarSaudeFonte(fonte.nome, (e as Error).message, agora);
       continue;
     }
+    // Loja que responde mas devolve zero ofertas também conta como falha (o site pode ter mudado sem dar erro).
+    banco.registrarSaudeFonte(fonte.nome, ofertas.length === 0 ? 'respondeu, mas sem nenhuma oferta' : undefined, agora);
     resumo.coletadas += ofertas.length;
 
     for (const oferta of ofertas) {

@@ -169,6 +169,30 @@ test('pipeline: uma loja com erro não derruba as outras; preço reprovado tamb�
   assert.equal(banco.historico('shopee', 'P2', 30, AGORA).menor, 100);
 });
 
+test('pipeline: loja que falha ou volta vazia vira alerta depois de coletas seguidas, e uma coleta boa zera a contagem', async () => {
+  const banco = new Banco(':memory:');
+  let estado: 'erro' | 'vazia' | 'ok' = 'erro';
+  const ml: Fonte = {
+    nome: 'mercadolivre',
+    coletar: async () => {
+      if (estado === 'erro') throw new Error('site mudou');
+      return estado === 'vazia' ? [] : [oferta({ loja: 'mercadolivre', idProduto: 'M1' })];
+    },
+  };
+  await coletar([ml], banco, config, dias(1));
+  await coletar([ml], banco, config, dias(1));
+  assert.deepEqual(banco.fontesComFalhas(3), [], 'duas falhas ainda não alertam');
+  estado = 'vazia';
+  await coletar([ml], banco, config, dias(1));
+  const alerta = banco.fontesComFalhas(3);
+  assert.equal(alerta.length, 1);
+  assert.equal(alerta[0].falhas, 3, 'retorno vazio conta como falha');
+  assert.match(alerta[0].erro, /sem nenhuma oferta/);
+  estado = 'ok';
+  await coletar([ml], banco, config, dias(1));
+  assert.deepEqual(banco.fontesComFalhas(1), [], 'coleta boa zera a contagem');
+});
+
 test('pipeline: posta em ordem de pontuação, não repete e respeita horário e limite diário', async () => {
   const banco = new Banco(':memory:');
   await coletar([fonteFixa([oferta({ idProduto: 'FRACA', desconto: 30 }), oferta({ idProduto: 'FORTE', desconto: 80 })])], banco, config, AGORA);
