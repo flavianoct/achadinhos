@@ -48,15 +48,15 @@ export function paginaDaBio(ofertas: OfertaAvaliada[], config: Config, agora: Da
     ? `<section class="chamada">
     <p class="chamada-titulo">As melhores ofertas chegam primeiro no Telegram</p>
     <p class="chamada-texto">Entre no canal grátis e receba o aviso na hora. Os preços baixos costumam acabar rápido.</p>
-    <a class="telegram" href="${esc(telegram)}" target="_blank" rel="noopener">Entrar no canal do Telegram</a>
+    <a class="botao telegram" href="${esc(telegram)}" target="_blank" rel="noopener">Entrar no canal do Telegram</a>
     <p class="chamada-mini">Grátis. Você pode sair quando quiser.</p>
   </section>`
     : '';
   const chamadaFinal = telegram
-    ? `<a class="telegram final" href="${esc(telegram)}" target="_blank" rel="noopener">Quero receber as ofertas no Telegram</a>`
+    ? `<a class="botao telegram fim" href="${esc(telegram)}" target="_blank" rel="noopener">Quero receber as ofertas no Telegram</a>`
     : '';
   const botoes: string[] = [];
-  if (blog) botoes.push(`<a class="atalho claro" href="${esc(blog)}">Ver o blog com todas as ofertas e guias</a>`);
+  if (blog) botoes.push(`<a class="botao blog" href="${esc(blog)}">Ver o blog com guias de compra</a>`);
 
   const cartoes = ofertas
     .map((o) => {
@@ -86,40 +86,45 @@ export function paginaDaBio(ofertas: OfertaAvaliada[], config: Config, agora: Da
 <meta name="robots" content="noindex, follow">
 <title>${esc(nome)}: ofertas de hoje</title>
 <style>
-:root{--bg:#f5f6f8;--card:#fff;--tx:#1b1f27;--mut:#667085;--bd:#e4e7ec;--ac:#2457d6;--ok:#12805c;--okbg:#e3f5ee;--ro:#e11d48;--lar:#ff5a1f}
-@media(prefers-color-scheme:dark){:root{--bg:#0f1218;--card:#181c25;--tx:#eceff4;--mut:#98a2b3;--bd:#2a3040;--ac:#7da2ff;--ok:#4cc79a;--okbg:#12362b}}
+:root{--bg:#f6f7f9;--card:#fff;--tx:#111827;--mut:#5b6474;--bd:#e4e7ee;--cor:#d6336c;--cor2:#b5214f;--ok:#0b7a52;--okbg:#e6f6ef;--lar:#e8590c;--tg:#229ed9}
+@media(prefers-color-scheme:dark){:root{--bg:#0b0d12;--card:#141821;--tx:#eef0f5;--mut:#9aa3b3;--bd:#232837;--cor:#f06595;--cor2:#ff8fb3;--ok:#4cd694;--okbg:#10281e}}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
-main{max-width:520px;margin:0 auto;padding:22px 16px 48px}
-h1{font-size:22px;margin:0 0 4px;text-align:center}.sub{text-align:center;color:var(--mut);font-size:14px;margin:0 0 18px}
-.atalho{display:block;text-align:center;background:var(--ac);color:#fff;text-decoration:none;font-weight:700;padding:15px 16px;border-radius:14px;margin:0 0 10px}
-.chamada{background:var(--ac);color:#fff;border-radius:16px;padding:18px 16px;text-align:center;margin:0 0 6px}
-.chamada-titulo{font-size:19px;font-weight:800;line-height:1.25;margin:0 0 6px}.chamada-texto{font-size:14px;margin:0 0 14px;opacity:.95}.chamada-mini{font-size:12px;margin:8px 0 0;opacity:.85}
-.telegram{display:block;text-align:center;background:#fff;color:#1d4fd7;text-decoration:none;font-weight:800;font-size:17px;padding:15px 16px;border-radius:12px}
-.telegram.final{background:var(--ac);color:#fff;margin:16px 0 10px}
-.atalho.claro{background:var(--card);color:var(--ac);border:2px solid var(--ac)}
+main{max-width:520px;margin:0 auto;padding:28px 16px 48px}
+.marca{text-align:center;margin:0 0 18px}.logo{width:64px;height:64px;color:var(--cor);display:block;margin:0 auto 10px}
+h1{font-size:24px;letter-spacing:-.02em;margin:0 0 4px}.sub{color:var(--mut);font-size:14px;margin:0}
+.botao{display:flex;align-items:center;justify-content:center;text-align:center;text-decoration:none;font-weight:800;font-size:17px;padding:16px;border-radius:14px;margin:0 0 10px;box-shadow:0 6px 18px rgba(16,24,40,.12)}
+.botao.telegram{background:var(--tg);color:#fff}
+.botao.blog{background:var(--cor);color:#fff}
+.chamada{background:var(--card);border:1px solid var(--bd);border-radius:18px;padding:16px;margin:0 0 18px}
+.chamada-titulo{font-size:17px;font-weight:800;line-height:1.25;margin:0 0 4px;text-align:center}.chamada-texto{font-size:14px;color:var(--mut);margin:0 0 14px;text-align:center}.chamada-mini{font-size:12px;color:var(--mut);margin:0;text-align:center}
+.chamada .botao{margin-bottom:8px}
 h2{font-size:17px;margin:26px 0 10px}
 ul{list-style:none;margin:0;padding:0}
-.oferta{display:flex;gap:12px;background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:12px;margin:0 0 10px}
-.oferta img,.semfoto{width:96px;height:96px;object-fit:contain;background:#fff;border-radius:10px;flex:none}
+.oferta{display:flex;gap:12px;background:var(--card);border:1px solid var(--bd);border-radius:16px;padding:12px;margin:0 0 10px}
+.oferta img,.semfoto{width:96px;height:96px;object-fit:contain;background:#fff;border-radius:12px;flex:none}
 .semfoto{background:var(--bd)}
 .info{min-width:0;flex:1}.titulo{margin:0 0 4px;font-size:14px;font-weight:600}
 .preco{margin:0 0 8px;font-size:15px}.preco strong{font-size:20px}.preco s{color:var(--mut);font-size:13px}
-.selo{display:inline-block;background:var(--ro);color:#fff;font-size:12px;font-weight:700;padding:1px 7px;border-radius:99px}
+.selo{display:inline-block;background:var(--cor);color:#fff;font-size:12px;font-weight:700;padding:1px 7px;border-radius:99px}
 .selo.verde{background:var(--okbg);color:var(--ok)}
 .ver{display:block;text-align:center;background:var(--lar);color:#fff;text-decoration:none;font-weight:700;padding:11px 10px;border-radius:10px}
+.fim{margin-top:20px}
 .vazio{text-align:center;color:var(--mut)}
 .nota{color:var(--mut);font-size:12px;text-align:center;margin-top:22px}
 </style>
 </head>
 <body>
 <main>
-  <h1>${esc(nome)}</h1>
-  <p class="sub">Ofertas de hoje, com o preço do momento</p>
+  <header class="marca">
+    <svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="currentColor"/><path d="M8 17l8-8h8v8l-8 8z" fill="#fff"/><circle cx="20.5" cy="11.5" r="2" fill="currentColor"/></svg>
+    <h1>${esc(nome)}</h1>
+    <p class="sub">Ofertas conferidas, com o preço do momento</p>
+  </header>
   ${chamada}
+  ${botoes.join('\n  ')}
   <h2>Ofertas em destaque</h2>
   ${cartoes ? `<ul>\n${cartoes}\n</ul>` : vazio}
   ${chamadaFinal}
-  ${botoes.join('\n  ')}
   <p class="nota">Publi: os links são de afiliado e o site pode ganhar uma comissão, sem custo extra para você. Preços e estoque podem mudar a qualquer momento. Atualizado em ${esc(atualizado)}.</p>
 </main>
 </body>

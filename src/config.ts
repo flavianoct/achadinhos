@@ -61,6 +61,8 @@ export interface Config {
     publicar: 'nao' | 'git';
     /** Link do canal do Telegram mostrado no blog. */
     telegramLink: string;
+    /** Link do perfil do Instagram mostrado no blog (vem de BLOG_INSTAGRAM, só o @ ou o endereço). */
+    instagramLink: string;
   };
   /** Mensagens de WhatsApp para o enviador do PC (ver pasta enviador/). */
   whatsapp: { ativo: boolean };
@@ -74,6 +76,15 @@ export interface Config {
 export type Env = Record<string, string | undefined>;
 
 /** Lista de horas ("12,18,21"). Sem a variável, usa o padrão; com a variável vazia, devolve vazio (sem restrição). */
+/** Aceita "@perfil", "perfil" ou o endereço completo; devolve o endereço https do perfil, ou vazio. */
+function linkDoInstagram(valor: string): string {
+  const v = valor.trim();
+  if (!v) return '';
+  if (/^https:\/\//i.test(v)) return v;
+  const nome = v.replace(/^@/, '');
+  return /^[A-Za-z0-9._]{1,30}$/.test(nome) ? `https://www.instagram.com/${nome}/` : '';
+}
+
 function horas(valor: string | undefined, padrao: number[]): number[] {
   if (valor === undefined) return padrao;
   return [...new Set(lista(valor).map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n <= 23))].sort((a, b) => a - b);
@@ -208,6 +219,7 @@ export function lerConfig(env: Env = process.env): Config {
       geminiReserva: (env.GEMINI_RESERVA ?? '').trim() || 'gemini-3.1-flash-lite',
       publicar: opcao(env, 'BLOG_PUBLICAR', ['nao', 'git'] as const, 'nao'),
       telegramLink: (env.BLOG_TELEGRAM ?? '').trim() || (chatId.startsWith('@') ? `https://t.me/${chatId.slice(1)}` : ''),
+      instagramLink: linkDoInstagram(env.BLOG_INSTAGRAM ?? ''),
     },
     whatsapp: { ativo: ligado(env, 'WHATSAPP_ATIVO', true) },
     social: { ativo: ligado(env, 'SOCIAL_ATIVO', true) },

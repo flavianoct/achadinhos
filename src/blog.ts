@@ -222,6 +222,11 @@ const LOGO = '<svg class="logo" viewBox="0 0 32 32" width="30" height="30" aria-
 
 type Trilha = Array<[string, string?]>;
 
+/** Endereços dos perfis oficiais da marca (Telegram e Instagram), só os seguros. */
+function redesDaMarca(b: Config['blog']): string[] {
+  return [b.telegramLink, b.instagramLink].filter((u) => u && urlSegura(u));
+}
+
 /** Muda sempre que o CSS muda, para o navegador não usar uma cópia antiga guardada. */
 let VERSAO_DO_ESTILO = '1';
 
@@ -245,7 +250,7 @@ function moldura(site: Site, p: { arquivo: string; titulo: string; tituloSeo?: s
   }
   if (b.url && p.arquivo === 'index.html') {
     grafo.push({ '@type': 'WebSite', '@id': `${b.url}/#site`, url: `${b.url}/`, name: b.nome, inLanguage: 'pt-BR' });
-    grafo.push({ '@type': 'Organization', '@id': `${b.url}/#org`, name: b.nome, url: `${b.url}/`, logo: ICONE_DO_SITE, ...(b.telegramLink && urlSegura(b.telegramLink) ? { sameAs: [b.telegramLink] } : {}) });
+    grafo.push({ '@type': 'Organization', '@id': `${b.url}/#org`, name: b.nome, url: `${b.url}/`, logo: ICONE_DO_SITE, ...(redesDaMarca(b).length ? { sameAs: redesDaMarca(b) } : {}) });
   }
   const ld = grafo.length ? { '@context': 'https://schema.org', '@graph': grafo } : undefined;
   const migalhas = p.trilha?.length
@@ -289,7 +294,7 @@ ${ld ? `<script type="application/ld+json">${JSON.stringify(ld).replace(/</g, '\
 </header>
 <main id="conteudo"${p.largo ? ' class="largo"' : ''}>
 ${migalhas}${p.corpo}
-  ${b.telegramLink && urlSegura(b.telegramLink) ? `<aside class="chamada"><div><strong>Receba as melhores ofertas na hora</strong><span>Nosso canal do Telegram avisa quando um bom preço aparece.</span></div><a class="botao" href="${esc(b.telegramLink)}" target="_blank" rel="noopener">Entrar no canal</a></aside>` : ''}
+  ${b.telegramLink && urlSegura(b.telegramLink) ? `<aside class="chamada"><div><strong>Receba as melhores ofertas na hora</strong><span>Nosso canal do Telegram avisa quando um bom preço aparece.${b.instagramLink && urlSegura(b.instagramLink) ? ` Ou <a href="${esc(b.instagramLink)}" target="_blank" rel="noopener me">siga no Instagram</a>.` : ''}</span></div><a class="botao" href="${esc(b.telegramLink)}" target="_blank" rel="noopener">Entrar no canal</a></aside>` : ''}
 </main>
 <footer class="rodape">
   <div class="rodape-miolo">
@@ -303,7 +308,7 @@ ${migalhas}${p.corpo}
     </div>
     <div>
       <p class="rodape-titulo">Transparência</p>
-      <p class="rodape-links"><a href="sobre.html">Como escolhemos</a> <a href="privacidade.html">Privacidade e afiliados</a>${b.telegramLink && urlSegura(b.telegramLink) ? ` <a href="${esc(b.telegramLink)}" target="_blank" rel="noopener">Canal no Telegram</a>` : ''}</p>
+      <p class="rodape-links"><a href="sobre.html">Como escolhemos</a> <a href="privacidade.html">Privacidade e afiliados</a>${b.telegramLink && urlSegura(b.telegramLink) ? ` <a href="${esc(b.telegramLink)}" target="_blank" rel="noopener">Canal no Telegram</a>` : ''}${b.instagramLink && urlSegura(b.instagramLink) ? ` <a href="${esc(b.instagramLink)}" target="_blank" rel="noopener me">Siga no Instagram</a>` : ''}</p>
     </div>
     <div class="rodape-aviso">
       <p><strong>Aviso:</strong> este site participa de programas de afiliados. Ao comprar pelos links, podemos receber uma comissão, sem custo extra para você.</p>
@@ -787,6 +792,7 @@ h2{line-height:1.25}
 .chamada div{display:flex;flex-direction:column;min-width:0}
 .chamada strong{font-size:1.1rem;letter-spacing:-.01em}
 .chamada span{color:var(--suave);font-size:.92rem}
+.chamada span a{color:var(--cor-forte);font-weight:600}
 .tabela{overflow-x:auto;border:1px solid var(--borda);border-radius:var(--raio);background:var(--cartao);box-shadow:var(--sombra)}
 table{width:100%;min-width:760px;border-collapse:collapse;font-size:.9rem}
 th,td{padding:13px 14px;text-align:left;border-bottom:1px solid var(--borda);vertical-align:middle}

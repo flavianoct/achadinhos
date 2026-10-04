@@ -28,3 +28,11 @@ test('bio: sem ofertas mostra aviso amigável e ignora links que não são https
   const semBlog = paginaDaBio([], lerConfig({}), new Date());
   assert.ok(!semBlog.includes('Entrar no canal do Telegram'));
 });
+
+test('config: BLOG_INSTAGRAM aceita @, nome ou endereço https e rejeita o resto', () => {
+  assert.equal(lerConfig({ BLOG_INSTAGRAM: '@meu.perfil' }).blog.instagramLink, 'https://www.instagram.com/meu.perfil/');
+  assert.equal(lerConfig({ BLOG_INSTAGRAM: 'meuperfil' }).blog.instagramLink, 'https://www.instagram.com/meuperfil/');
+  assert.equal(lerConfig({ BLOG_INSTAGRAM: 'https://instagram.com/x/' }).blog.instagramLink, 'https://instagram.com/x/');
+  assert.equal(lerConfig({ BLOG_INSTAGRAM: 'javascript:alert(1)' }).blog.instagramLink, '');
+  assert.equal(lerConfig({}).blog.instagramLink, '');
+});
