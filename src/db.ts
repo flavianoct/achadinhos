@@ -270,6 +270,13 @@ export class Banco {
     return linhas.filter((l) => diaDe(new Date(l.t)) === hoje).length;
   }
 
+  /** Momento (ms) da última publicação do tipo no Instagram; undefined se nunca houve. */
+  ultimoInstagram(tipo: 'feed' | 'story'): number | undefined {
+    const coluna = tipo === 'feed' ? 'ig_feed_em' : 'ig_story_em';
+    const l = this.db.prepare(`SELECT MAX(${coluna}) AS t FROM social_saida`).get() as { t: number | null } | undefined;
+    return l?.t ?? undefined;
+  }
+
   /** Mensagens de WhatsApp criadas nas últimas `horas` horas, da mais antiga para a mais nova. */
   mensagensDoWhatsapp(horas: number, agora: Date): Array<{ chave: string; loja: string; texto: string; imagem?: string; link: string; criadoEm: number }> {
     const linhas = this.db

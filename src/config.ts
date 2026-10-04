@@ -63,7 +63,7 @@ export interface Config {
   /** Arte de Story, legenda e roteiro de vídeo das ofertas postadas (aparecem no painel). */
   social: { ativo: boolean };
   /** Publicação automática no Instagram (conta profissional). Token e ID ficam nos Secrets. */
-  instagram: { ativo: boolean; token: string; userId: string; feedPorDia: number; storiesPorDia: number; tokenData: string };
+  instagram: { ativo: boolean; token: string; userId: string; feedPorDia: number; storiesPorDia: number; intervaloFeedMin: number; intervaloStoryMin: number; tokenData: string };
   painel: { porta: number };
 }
 
@@ -204,6 +204,8 @@ export function lerConfig(env: Env = process.env): Config {
       userId: (env.INSTAGRAM_USER_ID ?? '').trim(),
       feedPorDia: numero(env, 'INSTAGRAM_FEED_POR_DIA', 3),
       storiesPorDia: numero(env, 'INSTAGRAM_STORIES_POR_DIA', 6),
+      intervaloFeedMin: numero(env, 'INSTAGRAM_INTERVALO_FEED_MIN', 180),
+      intervaloStoryMin: numero(env, 'INSTAGRAM_INTERVALO_STORY_MIN', 60),
       tokenData: (env.INSTAGRAM_TOKEN_DATA ?? '').trim(),
     },
     painel: { porta: numero(env, 'PAINEL_PORTA', 3210) },

@@ -64,7 +64,8 @@ test('instagram: token vencido vira erro fatal com a mensagem da Meta', async ()
 });
 
 test('instagram: publica primeiro a oferta de maior pontuação, um feed e um story por rodada, sem repetir', async () => {
-  const { banco, config } = await bancoComOfertas();
+  const { banco } = await bancoComOfertas();
+  const config = lerConfig({ ...base, INSTAGRAM_INTERVALO_FEED_MIN: '0', INSTAGRAM_INTERVALO_STORY_MIN: '0' });
   const { f, chamadas } = apiFalsa();
   const cliente = new Instagram('tok-secreto', '1789', f, 0);
   const r1 = await publicarNoInstagram(banco, config, AGORA, f, cliente);
@@ -80,6 +81,23 @@ test('instagram: publica primeiro a oferta de maior pontuação, um feed e um st
   assert.equal(new Set(urls).size, urls.length, 'nenhuma imagem repetida');
   const r3 = await publicarNoInstagram(banco, config, AGORA, f, cliente);
   assert.deepEqual([r3.feed, r3.stories], [0, 0], 'acabaram as ofertas');
+});
+
+test('instagram: respeita o intervalo mínimo entre publicações (sem rajada)', async () => {
+  const { banco, config } = await bancoComOfertas();
+  const { f } = apiFalsa();
+  const cliente = new Instagram('tok-secreto', '1789', f, 0);
+  const r1 = await publicarNoInstagram(banco, config, AGORA, f, cliente);
+  assert.deepEqual([r1.feed, r1.stories], [1, 1]);
+  const meiaHora = new Date(AGORA.getTime() + 30 * 60_000);
+  const r2 = await publicarNoInstagram(banco, config, meiaHora, f, cliente);
+  assert.deepEqual([r2.feed, r2.stories], [0, 0], 'ainda dentro do intervalo');
+  const umaHora = new Date(AGORA.getTime() + 61 * 60_000);
+  const r3 = await publicarNoInstagram(banco, config, umaHora, f, cliente);
+  assert.deepEqual([r3.feed, r3.stories], [0, 1], 'Story já pode (60 min), feed ainda não (180 min)');
+  const tresHoras = new Date(AGORA.getTime() + 181 * 60_000);
+  const r4 = await publicarNoInstagram(banco, config, tresHoras, f, cliente);
+  assert.deepEqual([r4.feed, r4.stories], [1, 0], 'feed liberado; as ofertas de Story acabaram');
 });
 
 test('instagram: respeita limite diário, horário e PNG que ainda não está no ar', async () => {

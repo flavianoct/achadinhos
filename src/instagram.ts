@@ -147,21 +147,27 @@ export async function publicarNoInstagram(banco: Banco, config: Config, agora: D
     if (!ok) esperando++;
     return ok;
   };
+  // Limite por dia, no máximo um de cada tipo por rodada e um intervalo mínimo desde a última publicação (evita rajada, que o Instagram trata como spam).
+  const podePublicar = (tipo: 'feed' | 'story') => {
+    const [porDia, intervaloMin, feitos] = tipo === 'feed' ? [ig.feedPorDia, ig.intervaloFeedMin, resumo.feed] : [ig.storiesPorDia, ig.intervaloStoryMin, resumo.stories];
+    if (feitos >= 1 || banco.instagramNoDia(tipo, agora) >= porDia) return false;
+    const ultimo = banco.ultimoInstagram(tipo);
+    return ultimo === undefined || agora.getTime() - ultimo >= intervaloMin * 60_000;
+  };
   try {
     for (const c of candidatos) {
-      if (!c.igFeedEm && banco.instagramNoDia('feed', agora) < ig.feedPorDia && (await noAr(url(c.chave, 'feed')))) {
+      if (!c.igFeedEm && podePublicar('feed') && (await noAr(url(c.chave, 'feed')))) {
         await api.publicarFoto(url(c.chave, 'feed'), montarLegenda(c.oferta, config));
         banco.marcarInstagram(c.chave, 'feed', agora);
         resumo.feed++;
         await pausa(2000);
       }
-      if (!c.igStoryEm && banco.instagramNoDia('story', agora) < ig.storiesPorDia && (await noAr(url(c.chave, 'story')))) {
+      if (!c.igStoryEm && podePublicar('story') && (await noAr(url(c.chave, 'story')))) {
         await api.publicarStory(url(c.chave, 'story'));
         banco.marcarInstagram(c.chave, 'story', agora);
         resumo.stories++;
         await pausa(2000);
       }
-      // No máximo uma publicação de feed por rodada: o feed é espaçado, o Story pode sair mais.
       if (resumo.feed >= 1 && resumo.stories >= 1) break;
     }
   } catch (e) {
