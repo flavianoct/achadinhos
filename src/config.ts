@@ -8,8 +8,12 @@ export interface Config {
     ativo: boolean;
     mattWord: string;
     mattTool: string;
-    /** Quantas páginas da vitrine de ofertas ler a cada rodada (cerca de 48 produtos por página). */
+    /** Quantas páginas de ofertas ler a cada rodada, no total (cerca de 48 produtos por página). */
     paginas: number;
+    /** Categorias do Mercado Livre lidas em rodízio (IDs como MLB1051). Vazio = só a vitrine geral. */
+    categorias: string[];
+    /** Quantas das páginas da rodada vão para as categorias; o resto vai para a vitrine geral. */
+    paginasDeCategoria: number;
   };
   amazon: { ativo: boolean; tag: string };
   filtro: {
@@ -154,6 +158,9 @@ export function lerConfig(env: Env = process.env): Config {
       mattWord: (env.ML_MATT_WORD ?? '').trim(),
       mattTool: (env.ML_MATT_TOOL ?? '').trim(),
       paginas: numero(env, 'ML_PAGINAS', 3),
+      // Eletrônicos, Celulares, Informática, Eletrodomésticos, Casa, Games, Beleza e Esportes.
+      categorias: env.ML_CATEGORIAS === undefined ? ['MLB1000', 'MLB1051', 'MLB1648', 'MLB5726', 'MLB1574', 'MLB1144', 'MLB1246', 'MLB1276'] : lista(env.ML_CATEGORIAS).map((c) => c.toUpperCase()),
+      paginasDeCategoria: numero(env, 'ML_PAGINAS_DE_CATEGORIA', 2),
     },
     amazon: {
       ativo: ligado(env, 'AMAZON_ATIVO', false),

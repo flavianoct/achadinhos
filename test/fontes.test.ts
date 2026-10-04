@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { extrairAsin, linkAfiliadoAmazon } from '../src/fontes/amazon.ts';
-import { converterCartaoML, FonteMercadoLivre, linkAfiliadoML } from '../src/fontes/mercadolivre.ts';
+import { categoriasDoTurno, converterCartaoML, FonteMercadoLivre, linkAfiliadoML } from '../src/fontes/mercadolivre.ts';
 import { assinarShopee, cabecalhoShopee, converterItemShopee, FonteShopee } from '../src/fontes/shopee.ts';
 
 function json(corpo: unknown, status = 200): Response {
@@ -132,6 +132,52 @@ test('ml: lê as páginas de ofertas, ignora repetidos e cartões incompletos', 
   const ofertas = await fonte.coletar();
   assert.deepEqual(chamadas, ['https://www.mercadolivre.com.br/ofertas', 'https://www.mercadolivre.com.br/ofertas?page=2']);
   assert.deepEqual(ofertas.map((o) => o.idProduto), ['MLB15345686', 'MLB99']);
+});
+
+test('ml: rodízio de categorias cobre todas, alterna a página e ignora ID inválido', () => {
+  const cats = ['MLB1', 'MLB2', 'MLB3', 'MLB4'];
+  assert.deepEqual(categoriasDoTurno(cats, 2, 0), [{ categoria: 'MLB1', pagina: 1 }, { categoria: 'MLB2', pagina: 1 }]);
+  assert.deepEqual(categoriasDoTurno(cats, 2, 1), [{ categoria: 'MLB3', pagina: 1 }, { categoria: 'MLB4', pagina: 1 }]);
+  assert.deepEqual(categoriasDoTurno(cats, 2, 2), [{ categoria: 'MLB1', pagina: 2 }, { categoria: 'MLB2', pagina: 2 }], 'na segunda volta lê a página 2');
+  assert.deepEqual(categoriasDoTurno(cats, 2, 4), [{ categoria: 'MLB1', pagina: 1 }, { categoria: 'MLB2', pagina: 1 }], 'e depois recomeça');
+  const vistas = new Set(Array.from({ length: 4 }, (_, t) => categoriasDoTurno(cats, 2, t)).flat().map((c) => `${c.categoria}:${c.pagina}`));
+  assert.equal(vistas.size, 8, 'em 4 turnos passa por todas as categorias nas duas páginas');
+  assert.deepEqual(categoriasDoTurno(['MLB1', 'x&page=9', '../etc'], 3, 0), [{ categoria: 'MLB1', pagina: 1 }], 'só aceita IDs no formato MLB123');
+  assert.deepEqual(categoriasDoTurno([], 2, 0), []);
+  assert.deepEqual(categoriasDoTurno(cats, 0, 0), []);
+});
+
+test('ml: as páginas de categoria saem do mesmo total de pedidos e falha nelas não derruba a rodada', async () => {
+  const chamadas: string[] = [];
+  const outro = (id: string) => ({ ...CARTAO_ML, metadata: { ...CARTAO_ML.metadata, id, product_id: id, url: `www.mercadolivre.com.br/x/p/${id}` } });
+  const fetchFalso = (async (url: any) => {
+    const u = String(url);
+    chamadas.push(u.replace('https://www.mercadolivre.com.br', ''));
+    return new Response(paginaDeOfertasML([outro(`MLB${chamadas.length}00`)]), { status: 200 });
+  }) as typeof fetch;
+  const opcoes = { mattWord: 'w', mattTool: 't', paginas: 5, categorias: ['MLB1000', 'MLB1051', 'MLB1648', 'MLB5726'], paginasDeCategoria: 2, intervaloMs: 0 };
+  const ofertas = await new FonteMercadoLivre({ ...opcoes, agora: () => 0 }, fetchFalso).coletar();
+  assert.deepEqual(chamadas, ['/ofertas', '/ofertas?page=2', '/ofertas?page=3', '/ofertas?category=MLB1000', '/ofertas?category=MLB1051'], '5 pedidos no total: 3 gerais e 2 de categoria');
+  assert.equal(ofertas.length, 5);
+
+  chamadas.length = 0;
+  await new FonteMercadoLivre({ ...opcoes, agora: () => 3 * 25 * 60_000 }, fetchFalso).coletar();
+  assert.deepEqual(chamadas.slice(3), ['/ofertas?category=MLB1648&page=2', '/ofertas?category=MLB5726&page=2'], 'outro turno, outras categorias');
+
+  // Categoria barrada: aproveita a vitrine geral e não insiste na categoria seguinte.
+  chamadas.length = 0;
+  const barraCategoria = (async (url: any) => {
+    chamadas.push(String(url));
+    return String(url).includes('category=') ? new Response('x', { status: 403 }) : new Response(paginaDeOfertasML([outro(`MLB${chamadas.length}77`)]), { status: 200 });
+  }) as typeof fetch;
+  const parcial = await new FonteMercadoLivre({ ...opcoes, agora: () => 0 }, barraCategoria).coletar();
+  assert.equal(parcial.length, 3);
+  assert.equal(chamadas.length, 4, '3 gerais e só 1 tentativa de categoria');
+
+  // Com uma página só, tudo vai para a vitrine geral.
+  chamadas.length = 0;
+  await new FonteMercadoLivre({ ...opcoes, paginas: 1, agora: () => 0 }, fetchFalso).coletar();
+  assert.deepEqual(chamadas, ['/ofertas']);
 });
 
 test('ml: avisa quando o site barra o acesso ou muda de formato', async () => {

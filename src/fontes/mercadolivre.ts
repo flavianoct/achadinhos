@@ -100,29 +100,57 @@ export function extrairCartoesML(html: string): any[] {
   return cartoes;
 }
 
+/** O rodízio de categorias avança um passo a cada turno (o robô roda mais ou menos a cada 25 minutos). */
+const TURNO_MS = 25 * 60_000;
+
+/**
+ * Quais páginas de categoria ler neste turno. Percorre a lista em rodízio; a cada volta completa
+ * alterna entre a 1ª e a 2ª página, para ir mais fundo sem pedir mais páginas por rodada.
+ */
+export function categoriasDoTurno(categorias: string[], quantas: number, turno: number): Array<{ categoria: string; pagina: number }> {
+  const validas = categorias.filter((c) => /^MLB\d+$/.test(c));
+  if (validas.length === 0 || quantas <= 0) return [];
+  const escolhidas: Array<{ categoria: string; pagina: number }> = [];
+  for (let j = 0; j < Math.min(quantas, validas.length); j++) {
+    const i = turno * quantas + j;
+    escolhidas.push({ categoria: validas[i % validas.length]!, pagina: (Math.floor(i / validas.length) % 2) + 1 });
+  }
+  return escolhidas;
+}
+
 /**
  * Mercado Livre pela página pública de ofertas.
- * A API oficial (pesquisa, mais vendidos, produtos) responde 403 para apps comuns, então o robô lê
- * a mesma página de ofertas que qualquer visitante vê: título, preço, preço antigo, foto, nota e vendas.
+ * A API oficial (pesquisa, mais vendidos, produtos) responde 403 para apps comuns, mesmo com o token do app,
+ * então o robô lê a mesma página de ofertas que qualquer visitante vê: título, preço, preço antigo, foto, nota e vendas.
+ * Parte das páginas da rodada vai para a vitrine geral e parte para as ofertas de uma categoria (em rodízio):
+ * o total de pedidos é o mesmo, mas os guias ganham produtos que a vitrine geral não mostra.
  */
 export class FonteMercadoLivre implements Fonte {
   nome = 'mercadolivre' as const;
   private mattWord: string;
   private mattTool: string;
   private paginas: number;
+  private categorias: string[];
+  private paginasDeCategoria: number;
   private intervaloMs: number;
+  private agora: () => number;
   private fetchFn: Fetch;
 
-  constructor(opcoes: { mattWord: string; mattTool: string; paginas?: number; intervaloMs?: number }, fetchFn: Fetch = fetch) {
+  constructor(
+    opcoes: { mattWord: string; mattTool: string; paginas?: number; categorias?: string[]; paginasDeCategoria?: number; intervaloMs?: number; agora?: () => number },
+    fetchFn: Fetch = fetch,
+  ) {
     this.mattWord = opcoes.mattWord;
     this.mattTool = opcoes.mattTool;
     this.paginas = Math.max(1, opcoes.paginas ?? 3);
+    this.categorias = opcoes.categorias ?? [];
+    this.paginasDeCategoria = Math.max(0, opcoes.paginasDeCategoria ?? 0);
     this.intervaloMs = opcoes.intervaloMs ?? 1500;
+    this.agora = opcoes.agora ?? Date.now;
     this.fetchFn = fetchFn;
   }
 
-  private async baixar(pagina: number): Promise<string> {
-    const url = pagina <= 1 ? `${SITE}/ofertas` : `${SITE}/ofertas?page=${pagina}`;
+  private async baixar(url: string): Promise<string> {
     const resposta = await this.fetchFn(url, {
       headers: { 'user-agent': NAVEGADOR, 'accept-language': 'pt-BR,pt;q=0.9', accept: 'text/html' },
       signal: AbortSignal.timeout(30_000),
@@ -133,27 +161,47 @@ export class FonteMercadoLivre implements Fonte {
 
   async coletar(): Promise<Oferta[]> {
     const vistos = new Map<string, Oferta>();
+    const guardar = (cartoes: any[]) => {
+      for (const c of cartoes) {
+        const oferta = converterCartaoML(c, this.mattWord, this.mattTool);
+        if (oferta && !vistos.has(oferta.idProduto)) vistos.set(oferta.idProduto, oferta);
+      }
+    };
+
+    // As páginas de categoria saem do mesmo total: nunca mais pedidos por rodada do que ML_PAGINAS.
+    const deCategoria = categoriasDoTurno(this.categorias, Math.min(this.paginasDeCategoria, this.paginas - 1), Math.floor(this.agora() / TURNO_MS));
+    const gerais = this.paginas - deCategoria.length;
+
     let ultimoErro = '';
     let paginasLidas = 0;
-    for (let pagina = 1; pagina <= this.paginas; pagina++) {
+    for (let pagina = 1; pagina <= gerais; pagina++) {
       if (pagina > 1) await pausa(this.intervaloMs);
       try {
-        const cartoes = extrairCartoesML(await this.baixar(pagina));
+        const cartoes = extrairCartoesML(await this.baixar(pagina <= 1 ? `${SITE}/ofertas` : `${SITE}/ofertas?page=${pagina}`));
         if (cartoes.length === 0) {
           ultimoErro = 'a página abriu, mas sem ofertas legíveis (o site pode ter mudado ou barrado o acesso)';
           break;
         }
         paginasLidas++;
-        for (const c of cartoes) {
-          const oferta = converterCartaoML(c, this.mattWord, this.mattTool);
-          if (oferta && !vistos.has(oferta.idProduto)) vistos.set(oferta.idProduto, oferta);
-        }
+        guardar(cartoes);
       } catch (e) {
         ultimoErro = (e as Error).message;
         break;
       }
     }
     if (paginasLidas === 0) throw new Error(`Mercado Livre: não consegui ler a página de ofertas (${ultimoErro}).`);
+
+    // Categoria que falha ou vem vazia não derruba a rodada; mas, se o site barrou, não insiste nas seguintes.
+    for (const { categoria, pagina } of deCategoria) {
+      await pausa(this.intervaloMs);
+      try {
+        const cartoes = extrairCartoesML(await this.baixar(`${SITE}/ofertas?category=${categoria}${pagina > 1 ? `&page=${pagina}` : ''}`));
+        if (cartoes.length === 0) break;
+        guardar(cartoes);
+      } catch {
+        break;
+      }
+    }
     return [...vistos.values()];
   }
 }
