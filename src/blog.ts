@@ -375,6 +375,14 @@ function melhoresEscolhas(itens: ItemDoPost[]): string {
   return `<h2 class="secao">Em resumo: nossas escolhas</h2>\n  <ul class="escolhas">\n  ${cartoes.join('\n  ')}\n  </ul>\n  `;
 }
 
+/** Há quanto tempo o robô viu o produto à venda para podermos dizer que ele está disponível. Mais velho que isso, não afirmamos nada. */
+const DIAS_PARA_AFIRMAR_DISPONIBILIDADE = 2;
+
+/** Só afirma "em estoque" (para o Google) se o robô viu o produto à venda nos últimos 2 dias. */
+function vistoRecentemente(o: ItemDoPost, agora: Date): boolean {
+  return Boolean(o.vistoEm) && agora.getTime() - (o.vistoEm as number) <= DIAS_PARA_AFIRMAR_DISPONIBILIDADE * 86_400_000;
+}
+
 function paginaDoGuia(site: Site, guia: Guia): string {
   const d = guia.dados;
   const b = site.config.blog;
@@ -394,7 +402,7 @@ function paginaDoGuia(site: Site, guia: Guia): string {
         itemListElement: d.itens.map((o, i) => ({
           '@type': 'ListItem',
           position: i + 1,
-          item: { '@type': 'Product', name: o.titulo, ...(urlSegura(o.imagem) ? { image: urlSegura(o.imagem) } : {}), url: o.link, offers: { '@type': 'Offer', url: o.link, price: o.preco.toFixed(2), priceCurrency: 'BRL' } },
+          item: { '@type': 'Product', name: o.titulo, ...(urlSegura(o.imagem) ? { image: urlSegura(o.imagem) } : {}), url: o.link, offers: { '@type': 'Offer', url: o.link, price: o.preco.toFixed(2), priceCurrency: 'BRL', ...(vistoRecentemente(o, site.agora) ? { availability: 'https://schema.org/InStock' } : {}), ...(NOME_DA_LOJA[o.loja] ? { seller: { '@type': 'Organization', name: NOME_DA_LOJA[o.loja] } } : {}) } },
         })),
       },
       { '@type': 'FAQPage', mainEntity: faq.map((f) => ({ '@type': 'Question', name: f.pergunta, acceptedAnswer: { '@type': 'Answer', text: f.resposta } })) },

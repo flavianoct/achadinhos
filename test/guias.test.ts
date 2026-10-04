@@ -150,6 +150,10 @@ test('guias: a página sai com tabela, comparativo, perguntas frequentes, dados 
   assert.deepEqual(ld.map((x: any) => x['@type']), ['Article', 'ItemList', 'FAQPage', 'BreadcrumbList']);
   assert.equal(ld[1].itemListElement[0].item['@type'], 'Product');
   assert.equal(ld[1].itemListElement[0].item.offers.priceCurrency, 'BRL');
+  assert.equal(ld[1].itemListElement[0].item.offers.availability, 'https://schema.org/InStock', 'visto há poucas horas: em estoque');
+  assert.deepEqual(ld[1].itemListElement[0].item.offers.seller, { '@type': 'Organization', name: 'Mercado Livre' });
+  assert.equal(ld[1].itemListElement[0].item.aggregateRating, undefined, 'sem número de avaliações, nada de aggregateRating inventado');
+  assert.equal(ld[1].itemListElement[0].item.review, undefined);
   assert.deepEqual(ld[3].itemListElement.map((x: any) => x.name), ['Início', 'Guias', 'Melhores fones de ouvido bluetooth de 2026: top 5 comparados']);
   assert.ok(html.includes('name="twitter:card"') && html.includes('property="og:site_name"') && html.includes('class="escolhas"'), 'redes sociais e resumo das escolhas');
   assert.equal(ld[1].numberOfItems, 5);
@@ -167,6 +171,17 @@ test('guias: a página sai com tabela, comparativo, perguntas frequentes, dados 
   assert.ok(mapa.includes('/melhores-fones-bluetooth.html') && mapa.includes('/guias.html') && mapa.includes('/sobre.html') && mapa.includes('/privacidade.html'));
   assert.ok(readFileSync(join(dir, 'sobre.html'), 'utf8').includes('Como escolhemos os produtos') && readFileSync(join(dir, 'privacidade.html'), 'utf8').includes('rel="sponsored"'));
   assert.ok(readFileSync(join(dir, 'robots.txt'), 'utf8').includes('Sitemap:'));
+});
+
+test('guias: produto visto há mais de 2 dias não é declarado "em estoque" para o Google', async () => {
+  const banco = new Banco(':memory:');
+  for (let i = 1; i <= 3; i++) banco.guardarParaGuia('fones-bluetooth', fone(i), new Date(AGORA.getTime() - 5 * DIA));
+  const dir = mkdtempSync(join(tmpdir(), 'guias-'));
+  await gerarBlog(banco, lerConfig({ BLOG_PASTA: dir, BLOG_IA: 'nenhuma' }), AGORA);
+  const html = readFileSync(join(dir, 'melhores-fones-bluetooth.html'), 'utf8');
+  const ld = JSON.parse(/<script type="application\/ld\+json">(.*?)<\/script>/s.exec(html)![1])['@graph'];
+  assert.equal(ld[1].itemListElement[0].item.offers.availability, undefined);
+  assert.equal(ld[1].itemListElement[0].item.offers.price, '130.00', 'o preço continua, só a disponibilidade não é afirmada');
 });
 
 test('guias: entre uma rodada e outra do blog a lista publicada se mantém, e só um produto claramente melhor entra', async () => {
