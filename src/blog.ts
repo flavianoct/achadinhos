@@ -165,6 +165,14 @@ function resumir(s: string, max: number): string {
   return (espaco > max * 0.5 ? corte.slice(0, espaco) : corte).replace(/[\s,;:\-–|(]+$/, '');
 }
 
+/** A primeira frase do texto (para o resumo em cartões); se for longa demais, corta numa palavra. */
+function primeiraFrase(s: string, max: number): string {
+  const limpo = s.replace(/\s+/g, ' ').trim();
+  const fim = limpo.search(/[.!?](\s|$)/);
+  if (fim >= 30 && fim + 1 <= max) return limpo.slice(0, fim + 1);
+  return resumir(limpo, max);
+}
+
 /** Descrição para buscadores e redes sociais: até 155 caracteres (o que o Google costuma mostrar), sem reticências. */
 function descricaoSeo(s: string): string {
   return resumir(s, 155);
@@ -387,7 +395,7 @@ function tabelaComparativa(itens: ItemDoPost[]): string {
     const nota = o.nota && o.nota > 0 ? o.nota.toFixed(1).replace('.', ',') : '—';
     const vendas = o.vendas && o.vendas > 0 ? formatarVendas(o.vendas) : '—';
     const vsMedia = o.precoVsMediana === undefined ? '—' : o.precoVsMediana === 0 ? 'na média' : `${o.precoVsMediana > 0 ? '+' : '−'}${Math.abs(o.precoVsMediana)}%`;
-    return `<tr><td>${i + 1}</td><td><a href="${esc(o.link)}" target="_blank" rel="sponsored nofollow noopener">${esc(tituloDoProduto(o.titulo, 44))}</a></td><td>${formatarPreco(o.preco)}</td><td>${vsMedia}</td><td>${nota}</td><td>${vendas}</td><td>${esc((o.destaques ?? []).join(', ') || '—')}</td></tr>`;
+    return `<tr><td>${i + 1}</td><td><a href="${esc(o.link)}" target="_blank" rel="sponsored nofollow noopener">${esc(tituloDoProduto(o.titulo, 32))}</a></td><td>${formatarPreco(o.preco)}</td><td>${vsMedia}</td><td>${nota}</td><td>${vendas}</td><td>${(o.destaques ?? []).length ? `<span class="etiquetas">${(o.destaques ?? []).map((d) => `<span class="etiqueta">${esc(d)}</span>`).join('')}</span>` : '—'}</td></tr>`;
   });
   return `<div class="tabela"><table>
 <thead><tr><th>#</th><th>Produto</th><th>Preço</th><th>vs. média da lista</th><th>Nota</th><th>Vendidos</th><th>Destaque</th></tr></thead>
@@ -503,7 +511,7 @@ function resumoDoPost(post: Post, site: Site): string {
   <div>
     <h3><a href="${post.arquivo}">${esc(post.titulo)}</a></h3>
     <p class="data">${hoje ? 'Hoje' : dataBr(post.dia)} · ${esc(nomeDoTema(post.tema))} · ${post.dados.itens.length} produtos</p>
-    <p>${esc(resumir(post.dados.intro, 170))}</p>
+    <p>${esc(primeiraFrase(post.dados.intro, 170))}</p>
   </div>
 </li>`;
 }
@@ -560,14 +568,21 @@ function paginaInicial(site: Site): string {
 
 function paginaSobre(site: Site): string {
   const b = site.config.blog;
+  const telegram = b.telegramLink && urlSegura(b.telegramLink) ? `<p>Dúvidas, sugestões ou algum erro? Fale com a gente pelo <a href="${esc(b.telegramLink)}" target="_blank" rel="noopener">canal do Telegram</a>.</p>` : '';
   const corpo = `  <article class="texto">
   <h1>Como escolhemos os produtos</h1>
   <p class="intro">${esc(b.nome)} é um site de comparativos e ofertas mantido por um sistema automático. Aqui está, sem rodeios, como cada lista é montada.</p>
+  <nav class="indice" aria-label="Nesta página"><a href="#origem">De onde vêm os produtos</a><a href="#ranking">Como montamos o ranking</a><a href="#selos">Os selos</a><a href="#limites">O que não fazemos</a><a href="#dinheiro">Como ganhamos dinheiro</a></nav>
+  <section class="bloco" id="origem">
   <h2>De onde vêm os produtos</h2>
   <p>Todos os dias o sistema lê as ofertas publicadas nas lojas parceiras e guarda nome, preço, preço anterior, nota dos compradores e volume de vendas de cada produto. Os preços são os que o robô viu na data indicada em cada produto; eles podem mudar a qualquer momento.</p>
+  </section>
+  <section class="bloco" id="ranking">
   <h2>Como montamos o ranking</h2>
   <p>Só entram produtos com boa avaliação de quem comprou. A ordem usa a nota dos compradores, corrigida pelo volume de vendas (uma nota 5,0 com poucas vendas vale menos que uma 4,8 com milhares), e o próprio volume de vendas. Desconto e frete grátis não entram na ordem, porque mudam toda hora e não dizem se o produto é bom. Por isso um produto muito barato, mas mal avaliado, não aparece no topo.</p>
   <p>As listas têm 3, 5 ou 10 produtos, conforme quantos bons encontramos. Para a recomendação ser confiável, um produto só perde o lugar quando outro o supera por uma margem clara, ou quando deixa de aparecer nas lojas por semanas. Os preços são atualizados a cada rodada do robô.</p>
+  </section>
+  <section class="bloco" id="selos">
   <h2>O que significam os selos</h2>
   <ul>
     <li><strong>Melhor custo-benefício:</strong> a melhor pontuação (nota e vendas) em relação ao preço, comparado com o preço típico da lista. Não é necessariamente o primeiro colocado nem o mais barato.</li>
@@ -575,11 +590,16 @@ function paginaSobre(site: Site): string {
     <li><strong>Melhor avaliado:</strong> a maior nota entre os compradores.</li>
     <li><strong>Mais barato da lista:</strong> o menor preço entre os comparados, que não é necessariamente o melhor produto.</li>
   </ul>
+  </section>
+  <section class="bloco destaque-bloco" id="limites">
   <h2>O que não fazemos</h2>
   <p>Não recebemos os aparelhos para teste: as comparações usam os dados públicos das lojas, não testes próprios. Alguns textos são escritos por inteligência artificial a partir do nome e dos dados de cada produto, e o sistema é instruído a não inventar especificações. Mesmo assim, confira as características na página da loja antes de comprar.</p>
+  </section>
+  <section class="bloco" id="dinheiro">
   <h2>Como ganhamos dinheiro</h2>
   <p>Os links para as lojas são links de afiliado: se você comprar depois de clicar, podemos receber uma pequena comissão da loja, sem nenhum custo extra para você. Isso não muda a posição dos produtos nas listas. Veja mais em <a href="privacidade.html">Privacidade e afiliados</a>.</p>
-  ${b.telegramLink && urlSegura(b.telegramLink) ? `<p>Dúvidas, sugestões ou algum erro? Fale com a gente pelo <a href="${esc(b.telegramLink)}" target="_blank" rel="noopener">canal do Telegram</a>.</p>` : ''}
+  ${telegram}
+  </section>
   </article>`;
   return moldura(site, { arquivo: 'sobre.html', titulo: 'Como escolhemos os produtos', descricao: `Como o ${b.nome} escolhe e ordena os produtos: critérios do ranking, significado dos selos, origem dos dados e como o site ganha dinheiro.`, corpo, trilha: [['Como escolhemos']] });
 }
@@ -589,18 +609,42 @@ function paginaPrivacidade(site: Site): string {
   const corpo = `  <article class="texto">
   <h1>Privacidade e afiliados</h1>
   <p class="intro">Resumo claro do que acontece com os seus dados e dos links deste site.</p>
+  <nav class="indice" aria-label="Nesta página"><a href="#afiliados">Links de afiliado</a><a href="#dados">Dados pessoais</a><a href="#imagens">Imagens e preços</a><a href="#ia">Inteligência artificial</a><a href="#contato">Contato</a></nav>
+  <section class="bloco" id="afiliados">
   <h2>Links de afiliado</h2>
   <p>${esc(b.nome)} participa de programas de afiliados de lojas online. Quando você clica em um botão ou link de produto e compra, a loja pode nos pagar uma comissão. O preço para você é o mesmo. Esses links são marcados como patrocinados (<code>rel="sponsored"</code>).</p>
+  </section>
+  <section class="bloco" id="dados">
   <h2>Dados pessoais</h2>
   <p>Este site não tem cadastro, comentários nem formulários, e não coleta nome, e-mail ou telefone. Ele não usa cookies próprios de publicidade nem ferramentas de rastreamento. Ao abrir um link de loja, você passa a seguir as regras de privacidade dessa loja.</p>
+  </section>
+  <section class="bloco" id="imagens">
   <h2>Imagens e preços</h2>
   <p>As imagens e os preços pertencem às lojas e são exibidos para facilitar a comparação. O preço correto é sempre o que aparece na página da loja no momento da compra.</p>
+  </section>
+  <section class="bloco" id="ia">
   <h2>Inteligência artificial</h2>
   <p>Parte dos textos é escrita por inteligência artificial a partir dos dados públicos de cada produto. Eles não substituem a descrição oficial da loja.</p>
+  </section>
+  <section class="bloco" id="contato">
   <h2>Contato</h2>
   ${b.telegramLink && urlSegura(b.telegramLink) ? `<p>Pelo <a href="${esc(b.telegramLink)}" target="_blank" rel="noopener">canal do Telegram</a>.</p>` : '<p>Pelo canal do Telegram do site.</p>'}
+  </section>
   </article>`;
   return moldura(site, { arquivo: 'privacidade.html', titulo: 'Privacidade e afiliados', descricao: `Como o ${b.nome} usa links de afiliado, imagens e preços das lojas, e o que acontece com os seus dados: sem cadastro e sem rastreamento.`, corpo, trilha: [['Privacidade e afiliados']] });
+}
+
+/** Página 404 com saída clara: voltar ao início, ver os guias ou escolher uma categoria. */
+function pagina404(site: Site): string {
+  const categorias = site.temas.filter((t) => t !== TEMA_GERAL);
+  const atalhos = categorias.length ? `\n  <nav class="chips" aria-label="Categorias">${categorias.map((t) => `<a href="categoria-${t}.html">${esc(nomeDoTema(t))}</a>`).join('')}</nav>` : '';
+  const corpo = `  <section class="erro404">
+  <p class="numero" aria-hidden="true">404</p>
+  <h1>Página não encontrada</h1>
+  <p>Este endereço não existe ou o post saiu do ar: as ofertas antigas são removidas depois de um tempo. Os guias de compra e as ofertas de hoje continuam aqui.</p>
+  <div class="hero-acoes"><a class="botao" href="index.html">Ir para o início</a>${site.guias.length ? '<a class="botao claro" href="guias.html">Ver guias de compra</a>' : ''}</div>${atalhos}
+  </section>`;
+  return moldura(site, { arquivo: '404.html', titulo: 'Página não encontrada', descricao: `Esta página não existe mais. Veja os guias de compra e as ofertas de hoje do ${site.config.blog.nome}.`, corpo });
 }
 
 function paginaDoTema(site: Site, tema: string): string {
@@ -619,7 +663,7 @@ function paginaDoTema(site: Site, tema: string): string {
     'Os preços mudam o tempo todo: confira sempre o valor na loja antes de comprar. Para entender como montamos cada lista, leia <a href="sobre.html">Como escolhemos os produtos</a>.',
   ];
   const corpo = `  <h1>${esc(nome)}: ofertas do dia${guias.length ? ' e guias de compra' : ''}</h1>
-  ${paragrafos.map((p, i) => `<p${i === 0 ? ' class="intro"' : ''}>${p}</p>`).join('\n  ')}
+  ${paragrafos.map((p, i) => `<p class="intro${i === 0 ? '' : ' apoio'}">${p}</p>`).join('\n  ')}
   ${guias.length ? `<h2 class="secao">Guias de compra de ${esc(nome)}</h2>\n  <ul class="posts">\n${guias.map(cartaoDeGuia).join('\n')}\n  </ul>\n  ` : ''}<h2 class="secao">Ofertas de ${esc(nome)}, dia a dia</h2>
   ${listaDePosts(posts, site)}`;
   const descricao = guias.length
@@ -744,14 +788,40 @@ h2{line-height:1.25}
 .chamada strong{font-size:1.1rem;letter-spacing:-.01em}
 .chamada span{color:var(--suave);font-size:.92rem}
 .tabela{overflow-x:auto;border:1px solid var(--borda);border-radius:var(--raio);background:var(--cartao);box-shadow:var(--sombra)}
-table{width:100%;min-width:620px;border-collapse:collapse;font-size:.9rem}
-th,td{padding:12px 14px;text-align:left;border-bottom:1px solid var(--borda);vertical-align:top}
+table{width:100%;min-width:760px;border-collapse:collapse;font-size:.9rem}
+th,td{padding:13px 14px;text-align:left;border-bottom:1px solid var(--borda);vertical-align:middle}
+th:first-child,td:first-child{width:48px;text-align:center}
+td:nth-child(2){min-width:240px;line-height:1.4}
+td:nth-child(2) a{text-decoration-thickness:1px;text-underline-offset:3px}
+th:nth-child(4),td:nth-child(4){width:100px}
+th:nth-child(4){white-space:normal;line-height:1.25}
+td:nth-child(7){min-width:200px}
+.etiquetas{display:flex;flex-wrap:wrap;gap:5px}
+.etiqueta{white-space:nowrap;font-size:.72rem;font-weight:700;color:var(--cor-forte);background:var(--cor-suave);padding:3px 10px;border-radius:999px}
 tbody tr:last-child td{border-bottom:0}
 tbody tr:nth-child(even){background:color-mix(in srgb,var(--borda) 26%,transparent)}
 tbody tr:hover{background:var(--cor-suave)}
 td:first-child{font-weight:800;color:var(--cor-forte)}
-td:nth-child(3),td:nth-child(4),td:nth-child(5){white-space:nowrap}
-th{background:color-mix(in srgb,var(--borda) 40%,var(--cartao));color:var(--suave);font-weight:700;font-size:.74rem;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
+td:nth-child(3),td:nth-child(4),td:nth-child(5),td:nth-child(6){white-space:nowrap}
+th{background:color-mix(in srgb,var(--borda) 40%,var(--cartao));color:var(--suave);font-weight:700;font-size:.74rem;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap;vertical-align:middle}
+.intro.apoio{font-size:1rem;color:var(--suave);margin:0 0 12px}
+h1+.intro,h1+.data{margin-top:14px}
+.bloco{background:var(--cartao);border:1px solid var(--borda);border-radius:var(--raio);padding:22px 26px;margin:0 0 16px;box-shadow:var(--sombra)}
+.texto .bloco h2,.bloco h2{margin:0 0 10px;font-size:1.2rem}
+.bloco p,.bloco li{max-width:70ch}
+.bloco p:last-child,.bloco ul:last-child{margin-bottom:0}
+.bloco ul{margin:0;padding-left:20px}
+.bloco li{margin-bottom:8px}
+.bloco.destaque-bloco{border-left:4px solid var(--cor)}
+.indice{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 24px}
+.indice a{padding:7px 14px;border:1px solid var(--borda);border-radius:999px;background:var(--cartao);color:var(--texto);text-decoration:none;font-size:.88rem;font-weight:600;transition:border-color .12s,color .12s}
+.indice a:hover{border-color:var(--cor);color:var(--cor-forte)}
+.erro404{text-align:center;padding:48px 0 12px}
+.erro404 .numero{font-size:clamp(4.5rem,18vw,8rem);font-weight:900;letter-spacing:-.05em;line-height:1;color:var(--cor);margin:0}
+.erro404 h1{margin:4px 0 12px}
+.erro404 p{color:var(--suave);max-width:48ch;margin:0 auto 24px}
+.erro404 .hero-acoes{justify-content:center}
+.erro404 .chips{justify-content:center;margin-top:28px}
 .faq h3{font-size:1.02rem;margin:20px 0 6px}
 .faq p{margin:0;color:var(--suave)}
 .texto h2{font-size:1.25rem;margin:30px 0 10px}
@@ -767,7 +837,7 @@ th{background:color-mix(in srgb,var(--borda) 40%,var(--cartao));color:var(--suav
 .rodape-aviso p{max-width:90ch}
 .rodape a{color:var(--suave);text-decoration:none}
 .rodape a:hover{color:var(--cor-forte);text-decoration:underline}
-@media (max-width:820px){.hero{grid-template-columns:1fr}.hero-texto h1{max-width:none}.rodape-miolo{grid-template-columns:1fr 1fr}.rodape-marca{grid-column:1/-1}}
+@media (max-width:820px){table{min-width:600px}th,td{padding:12px 10px}th:nth-child(4),td:nth-child(4){display:none}.hero{grid-template-columns:1fr}.hero-texto h1{max-width:none}.rodape-miolo{grid-template-columns:1fr 1fr}.rodape-marca{grid-column:1/-1}}
 @media (max-width:560px){main{padding:20px 16px 8px}.topo-miolo{padding:10px 16px}.cartao{grid-template-columns:1fr;padding:18px}.cartao img{width:100%;height:200px}.semimagem{display:none}.posicao{left:-4px}.hero-acoes .botao{flex:1}.cartao .botao{align-self:stretch}.rodape-miolo{grid-template-columns:1fr}.secao{margin-top:36px;font-size:1.25rem}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
 `;
@@ -1254,7 +1324,7 @@ export async function gerarBlog(banco: Banco, config: Config, agora: Date = new 
   gravar('sobre.html', paginaSobre(site));
   gravar('privacidade.html', paginaPrivacidade(site));
   gravar('index.html', paginaInicial(site));
-  gravar('404.html', moldura(site, { arquivo: '404.html', titulo: 'Página não encontrada', descricao: 'Página não encontrada.', corpo: '  <h1>Página não encontrada</h1>\n  <p class="intro">Este post pode ter saído do ar. <a href="index.html">Veja as ofertas mais recentes</a>.</p>' }));
+  gravar('404.html', pagina404(site));
 
   // Remove páginas que não existem mais (posts vencidos, categorias vazias, formato antigo), para não ficar oferta velha no ar.
   for (const arquivo of readdirSync(b.pasta)) {
