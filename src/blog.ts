@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, readdirSync, unlinkSync, writeFileSync } from 'n
 import { join } from 'node:path';
 import type { Config } from './config.ts';
 import { diaDe, type Banco, type PostSalvo } from './db.ts';
-import { escolherParaGuia, perguntasDoGuia, TIPOS_DE_GUIA, type PerguntaFrequente, type ProdutoDoGuia, type TipoDeGuia } from './guias.ts';
+import { chaveDoProduto, escolherParaGuia, perguntasDoGuia, TIPOS_DE_GUIA, type PerguntaFrequente, type ProdutoDoGuia, type TipoDeGuia } from './guias.ts';
 import { formatarPreco, formatarVendas } from './mensagem.ts';
 import type { OfertaAvaliada } from './types.ts';
 
@@ -19,6 +19,8 @@ const DIAS_DO_TEXTO_DE_PRODUTO = 14;
 const DIAS_DO_TEXTO_DE_POST = 400;
 /** Produto visto há mais que isso não entra no guia (o preço pode ter mudado muito). */
 const DIAS_DE_VALIDADE_NO_GUIA = 14;
+/** Produto que já está no guia continua elegível por mais tempo, para a lista não mudar quando a promoção dele acaba. */
+const DIAS_DOS_VETERANOS_NO_GUIA = 30;
 /** O texto de abertura e de fechamento de um guia é reescrito neste intervalo. */
 const DIAS_DO_TEXTO_DE_GUIA = 30;
 /** Tema do post geral do dia (os outros temas são as categorias). */
@@ -66,6 +68,8 @@ interface ItemDoPost extends OfertaAvaliada {
   /** Só nos guias: selos calculados dos dados e a data em que o preço foi visto. */
   destaques?: string[];
   vistoEm?: number;
+  /** Só nos guias: preço em relação à mediana da lista, em %. */
+  precoVsMediana?: number;
 }
 
 interface DadosDoGuia {
@@ -274,9 +278,10 @@ function cartaoDoProduto(o: ItemDoPost, posicao: number): string {
   const social: string[] = [];
   if (o.nota && o.nota > 0) social.push(`Nota ${o.nota.toFixed(1).replace('.', ',')}`);
   if (o.vendas && o.vendas > 0) social.push(`${formatarVendas(o.vendas)} vendidos`);
+  if (o.precoVsMediana !== undefined && Math.abs(o.precoVsMediana) >= 3) social.push(`preço ${Math.abs(o.precoVsMediana)}% ${o.precoVsMediana < 0 ? 'abaixo' : 'acima'} da mediana da lista`);
   social.push(loja);
 
-  const de = o.precoOriginal && o.precoOriginal > o.preco ? `<s>${formatarPreco(o.precoOriginal)}</s> ` : '';
+  const de =o.precoOriginal && o.precoOriginal > o.preco ? `<s>${formatarPreco(o.precoOriginal)}</s> ` : '';
   return `<li class="cartao${posicao === 1 ? ' primeiro' : ''}">
   <span class="posicao">${posicao}</span>
   ${imagem ? `<img src="${esc(imagem)}" alt="${esc(encurtar(o.titulo, 110))}" width="140" height="140" loading="${posicao <= 2 ? 'eager' : 'lazy'}" decoding="async" referrerpolicy="no-referrer">` : '<div class="semimagem" aria-hidden="true"></div>'}
@@ -335,10 +340,11 @@ function tabelaComparativa(itens: ItemDoPost[]): string {
   const linhas = itens.map((o, i) => {
     const nota = o.nota && o.nota > 0 ? o.nota.toFixed(1).replace('.', ',') : '—';
     const vendas = o.vendas && o.vendas > 0 ? formatarVendas(o.vendas) : '—';
-    return `<tr><td>${i + 1}</td><td><a href="${esc(o.link)}" target="_blank" rel="sponsored nofollow noopener">${esc(encurtar(o.titulo, 80))}</a></td><td>${formatarPreco(o.preco)}</td><td>${nota}</td><td>${vendas}</td><td>${esc((o.destaques ?? []).join(', ') || '—')}</td></tr>`;
+    const vsMedia = o.precoVsMediana === undefined ? '—' : o.precoVsMediana === 0 ? 'na média' : `${o.precoVsMediana > 0 ? '+' : '−'}${Math.abs(o.precoVsMediana)}%`;
+    return `<tr><td>${i + 1}</td><td><a href="${esc(o.link)}" target="_blank" rel="sponsored nofollow noopener">${esc(encurtar(o.titulo, 80))}</a></td><td>${formatarPreco(o.preco)}</td><td>${vsMedia}</td><td>${nota}</td><td>${vendas}</td><td>${esc((o.destaques ?? []).join(', ') || '—')}</td></tr>`;
   });
   return `<div class="tabela"><table>
-<thead><tr><th>#</th><th>Produto</th><th>Preço</th><th>Nota</th><th>Vendidos</th><th>Destaque</th></tr></thead>
+<thead><tr><th>#</th><th>Produto</th><th>Preço</th><th>vs. média da lista</th><th>Nota</th><th>Vendidos</th><th>Destaque</th></tr></thead>
 <tbody>
 ${linhas.join('\n')}
 </tbody></table></div>`;
@@ -499,10 +505,11 @@ function paginaSobre(site: Site): string {
   <h2>De onde vêm os produtos</h2>
   <p>Todos os dias o sistema lê as ofertas publicadas nas lojas parceiras e guarda nome, preço, preço anterior, nota dos compradores e volume de vendas de cada produto. Os preços são os que o robô viu na data indicada em cada produto; eles podem mudar a qualquer momento.</p>
   <h2>Como montamos o ranking</h2>
-  <p>Só entram produtos com boa avaliação de quem comprou. A ordem leva em conta principalmente a nota dos compradores e a quantidade de vendas; o tamanho do desconto e o frete grátis pesam pouco. Por isso um produto muito barato, mas mal avaliado, não aparece no topo. O preço aparece em cada item e na tabela para você comparar, mas não decide a posição.</p>
+  <p>Só entram produtos com boa avaliação de quem comprou. A ordem usa a nota dos compradores, corrigida pelo volume de vendas (uma nota 5,0 com poucas vendas vale menos que uma 4,8 com milhares), e o próprio volume de vendas. Desconto e frete grátis não entram na ordem, porque mudam toda hora e não dizem se o produto é bom. Por isso um produto muito barato, mas mal avaliado, não aparece no topo.</p>
+  <p>As listas têm 3, 5 ou 10 produtos, conforme quantos bons encontramos. Para a recomendação ser confiável, um produto só perde o lugar quando outro o supera por uma margem clara, ou quando deixa de aparecer nas lojas por semanas. Os preços são atualizados a cada rodada do robô.</p>
   <h2>O que significam os selos</h2>
   <ul>
-    <li><strong>Melhor custo-benefício:</strong> o primeiro colocado do ranking: a melhor combinação de nota e vendas entre os produtos da lista.</li>
+    <li><strong>Melhor custo-benefício:</strong> a melhor pontuação (nota e vendas) em relação ao preço, comparado com o preço típico da lista. Não é necessariamente o primeiro colocado nem o mais barato.</li>
     <li><strong>Mais vendido:</strong> o produto com maior volume de vendas informado pela loja.</li>
     <li><strong>Melhor avaliado:</strong> a maior nota entre os compradores.</li>
     <li><strong>Mais barato da lista:</strong> o menor preço entre os comparados, que não é necessariamente o melhor produto.</li>
@@ -1021,11 +1028,23 @@ export async function gerarBlog(banco: Banco, config: Config, agora: Date = new 
   // 1b. Guias "Melhores X": um por tipo de produto que tem itens suficientes no acervo.
   const ano = anoDe(agora);
   const guiaRascunhos: Array<{ tipo: TipoDeGuia; arquivo: string; titulo: string; itens: ProdutoDoGuia[] }> = [];
-  for (const { tipo: slug } of banco.tiposComProdutos(DIAS_DE_VALIDADE_NO_GUIA, agora)) {
+  // A lista publicada é o ponto de partida: quem já está nela só sai se aparecer alguém claramente melhor.
+  const guiasPublicados = new Map<string, string[]>();
+  for (const salvo of banco.guiasSalvos()) {
+    const g = paraGuia(salvo);
+    if (g) guiasPublicados.set(g.tipo.slug, g.dados.itens.map(chaveDoProduto));
+  }
+  for (const { tipo: slug } of banco.tiposComProdutos(DIAS_DOS_VETERANOS_NO_GUIA, agora)) {
     const tipo = TIPOS_DE_GUIA.find((t) => t.slug === slug);
     if (!tipo) continue;
-    const itens = escolherParaGuia(banco.produtosDoGuia(slug, DIAS_DE_VALIDADE_NO_GUIA, 80, agora), tipo);
+    const itens = escolherParaGuia(banco.produtosDoGuia(slug, DIAS_DOS_VETERANOS_NO_GUIA, 120, agora), tipo, {
+      anteriores: guiasPublicados.get(slug) ?? [],
+      agora: agora.getTime(),
+      diasDosDesafiantes: DIAS_DE_VALIDADE_NO_GUIA,
+    });
     if (itens.length === 0) continue;
+    // Sem nenhum preço recente, o guia publicado fica como está (não vale dizer "atualizado agora").
+    if (!itens.some((i) => agora.getTime() - i.vistoEm <= DIAS_DE_VALIDADE_NO_GUIA * 86_400_000)) continue;
     guiaRascunhos.push({ tipo, arquivo: `melhores-${slug}.html`, titulo: tituloDoGuia(tipo, itens.length, ano), itens });
   }
 

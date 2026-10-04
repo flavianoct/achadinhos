@@ -314,21 +314,40 @@ export function elegivelParaGuia(o: Oferta, notaMinima = 4.3): boolean {
   return true;
 }
 
+/** Média de nota que damos a quem tem poucas vendas; produto sem nota fica um pouco abaixo dela. */
+const NOTA_MEDIA = 4.3;
+/** Peso da média, em "vendas": com poucas vendas a nota é puxada para a média, com muitas vale a nota do produto. */
+const PESO_DA_MEDIA = 150;
+
 /**
- * Pontuação do guia: o que vale é a satisfação de quem comprou (nota), o volume de vendas e,
- * em menor peso, o desconto. Produto sem nota nem vendas até entra, mas fica no fim da lista.
+ * Nota de quem comprou, corrigida pelo volume de vendas. Sem isso, um produto com nota 5,0 e 30 vendas
+ * passaria à frente de outro com 4,8 e 12 mil vendas. As vendas fazem o papel de "quantas pessoas avaliaram".
  */
-export function pontuacaoDoGuia(o: Oferta): number {
-  const nota = o.nota && o.nota > 0 ? (o.nota - 3.5) * 25 : 4;
-  const vendas = o.vendas && o.vendas > 0 ? Math.log10(o.vendas + 1) * 10 : 0;
-  const desconto = Math.min(Math.max(o.desconto ?? 0, 0), 60) * 0.15;
-  return Math.round((nota + vendas + desconto + (o.freteGratis ? 3 : 0)) * 10) / 10;
+export function notaAjustada(o: Oferta): number {
+  if (!o.nota || o.nota <= 0) return NOTA_MEDIA - 0.3;
+  const vendas = Math.max(o.vendas ?? 0, 0);
+  return (vendas * o.nota + PESO_DA_MEDIA * NOTA_MEDIA) / (vendas + PESO_DA_MEDIA);
 }
 
-/** Tamanho do guia: Top 5 quando há produtos suficientes, Top 3 com poucos, nada com menos de 3. */
-export function tamanhoDoGuia(total: number): number {
-  if (total >= 5) return 5;
-  if (total >= 3) return 3;
+/**
+ * Pontuação do guia: nota ajustada pelas vendas e o volume de vendas. Desconto e frete grátis ficam de fora de propósito:
+ * mudam toda hora e não dizem se o produto é bom. O preço entra só no selo de custo-benefício.
+ */
+export function pontuacaoDoGuia(o: Oferta): number {
+  const nota = (notaAjustada(o) - 3.5) * 25;
+  const vendas = o.vendas && o.vendas > 0 ? Math.log10(o.vendas + 1) * 10 : 0;
+  return Math.round((nota + vendas) * 10) / 10;
+}
+
+/**
+ * Tamanho do guia: Top 10, 5 ou 3, conforme os produtos bons que existem; nada com menos de 3.
+ * Para o guia não mudar de tamanho toda hora, ele só cresce quando sobram 2 produtos além do necessário.
+ */
+export function tamanhoDoGuia(total: number, anterior = 0): number {
+  const folga = anterior > 0 ? 2 : 0;
+  for (const tamanho of [10, 5, 3]) {
+    if (total >= tamanho && (tamanho <= anterior || total >= tamanho + folga)) return tamanho;
+  }
   return 0;
 }
 
@@ -337,27 +356,96 @@ export interface ProdutoDoGuia extends OfertaAvaliada {
   destaques: string[];
   /** Quando o robô viu este preço pela última vez. */
   vistoEm: number;
+  /** Quanto o preço está acima (+) ou abaixo (-) da mediana dos preços da lista, em %. */
+  precoVsMediana?: number;
+}
+
+export const chaveDoProduto = (o: { loja: string; idProduto: string }) => `${o.loja}:${o.idProduto}`;
+
+/** Um desafiante só tira o lugar de um veterano se tiver pelo menos 10% mais pontos. */
+const MARGEM_PARA_ENTRAR = 1.1;
+/** Um produto só sobe uma posição se tiver pelo menos 5% mais pontos que o de cima. */
+const MARGEM_PARA_SUBIR = 1.05;
+
+/**
+ * Escolhe quem fica no guia sem trocar a lista a cada rodada: os produtos que já estavam continuam,
+ * e um novo só entra (ou sobe de posição) quando é claramente melhor.
+ */
+function escolherComEstabilidade<T extends { pontos: number; chave: string }>(ordenados: T[], n: number, anteriores: string[]): T[] {
+  const eram = new Set(anteriores);
+  const veteranos = ordenados.filter((c) => eram.has(c.chave));
+  const novatos = ordenados.filter((c) => !eram.has(c.chave));
+  const lista = veteranos.slice(0, n);
+  while (lista.length < n && novatos.length) lista.push(novatos.shift()!);
+
+  for (const desafiante of novatos) {
+    let fraco = -1;
+    lista.forEach((c, i) => {
+      if (eram.has(c.chave) && (fraco < 0 || c.pontos < lista[fraco]!.pontos)) fraco = i;
+    });
+    if (fraco < 0 || desafiante.pontos < lista[fraco]!.pontos * MARGEM_PARA_ENTRAR) break;
+    lista[fraco] = desafiante;
+  }
+
+  // A ordem parte da lista anterior e só muda quando a diferença é clara.
+  const antes = (c: T) => {
+    const i = anteriores.indexOf(c.chave);
+    return i < 0 ? Number.POSITIVE_INFINITY : i;
+  };
+  lista.sort((a, b) => (antes(a) !== antes(b) ? (antes(a) < antes(b) ? -1 : 1) : b.pontos - a.pontos));
+  for (let passada = 0, trocou = true; trocou && passada < 100; passada++) {
+    trocou = false;
+    for (let i = 1; i < lista.length; i++) {
+      if (lista[i]!.pontos > lista[i - 1]!.pontos * MARGEM_PARA_SUBIR) {
+        [lista[i - 1], lista[i]] = [lista[i]!, lista[i - 1]!];
+        trocou = true;
+      }
+    }
+  }
+  return lista;
+}
+
+function mediana(valores: number[]): number {
+  const v = [...valores].sort((a, b) => a - b);
+  const meio = Math.floor(v.length / 2);
+  return v.length % 2 ? v[meio]! : (v[meio - 1]! + v[meio]!) / 2;
+}
+
+export interface OpcoesDoGuia {
+  /** Chaves (loja:id) dos produtos do guia publicado, na ordem em que apareciam. */
+  anteriores?: string[];
+  /** Hora atual e há quantos dias um produto novo ainda vale; os que já estavam no guia valem por mais tempo. */
+  agora?: number;
+  diasDosDesafiantes?: number;
 }
 
 /**
  * Escolhe e ordena os produtos do guia e calcula os destaques.
  * Os destaques saem só de números reais (nota, vendas, preço): nada é inventado.
  */
-export function escolherParaGuia(candidatos: Array<{ oferta: Oferta; vistoEm: number }>, tipo: TipoDeGuia): ProdutoDoGuia[] {
+export function escolherParaGuia(candidatos: Array<{ oferta: Oferta; vistoEm: number }>, tipo: TipoDeGuia, opcoes: OpcoesDoGuia = {}): ProdutoDoGuia[] {
+  const anteriores = opcoes.anteriores ?? [];
+  const eram = new Set(anteriores);
+  const limite = opcoes.agora !== undefined && opcoes.diasDosDesafiantes !== undefined ? opcoes.agora - opcoes.diasDosDesafiantes * 86_400_000 : Number.NEGATIVE_INFINITY;
+
   const unicos = new Map<string, { oferta: Oferta; vistoEm: number }>();
   for (const c of candidatos) {
-    const chave = `${c.oferta.loja}:${c.oferta.idProduto}`;
+    const chave = chaveDoProduto(c.oferta);
     const atual = unicos.get(chave);
     if (!atual || c.vistoEm > atual.vistoEm) unicos.set(chave, c);
   }
-  const ordenados = [...unicos.values()]
-    .filter((c) => elegivelParaGuia(c.oferta))
-    .map((c) => ({ ...c, pontos: pontuacaoDoGuia(c.oferta) }))
+  const ordenados = [...unicos.entries()]
+    .filter(([chave, c]) => elegivelParaGuia(c.oferta) && (eram.has(chave) || c.vistoEm >= limite))
+    .map(([chave, c]) => ({ ...c, chave, pontos: pontuacaoDoGuia(c.oferta) }))
     .sort((a, b) => b.pontos - a.pontos);
-  const n = tamanhoDoGuia(ordenados.length);
-  const escolhidos = ordenados.slice(0, n);
+  const n = tamanhoDoGuia(ordenados.length, anteriores.length);
   if (n === 0) return [];
+  const escolhidos = escolherComEstabilidade(ordenados, n, anteriores);
 
+  const precoTipico = mediana(escolhidos.map((c) => c.oferta.preco));
+  // Custo-benefício: a pontuação dividida pela raiz do preço relativo (um produto 4x mais caro precisa valer o dobro).
+  const valor = (c: (typeof escolhidos)[number]) => c.pontos / Math.sqrt(c.oferta.preco / precoTipico);
+  const melhorCusto = escolhidos.reduce((m, c) => (valor(c) > valor(m) ? c : m), escolhidos[0]!);
   const maisVendido = escolhidos.reduce((m, c) => ((c.oferta.vendas ?? 0) > (m.oferta.vendas ?? 0) ? c : m), escolhidos[0]!);
   const melhorNota = escolhidos.reduce((m, c) => {
     const a = c.oferta.nota ?? 0;
@@ -366,13 +454,13 @@ export function escolherParaGuia(candidatos: Array<{ oferta: Oferta; vistoEm: nu
   }, escolhidos[0]!);
   const maisBarato = escolhidos.reduce((m, c) => (c.oferta.preco < m.oferta.preco ? c : m), escolhidos[0]!);
 
-  return escolhidos.map((c, i) => {
+  return escolhidos.map((c) => {
     const destaques: string[] = [];
-    if (i === 0) destaques.push('Melhor custo-benefício');
+    if (c === melhorCusto) destaques.push('Melhor custo-benefício');
     if (c === maisVendido && (c.oferta.vendas ?? 0) > 0) destaques.push('Mais vendido');
     if (c === melhorNota && (c.oferta.nota ?? 0) > 0) destaques.push('Melhor avaliado');
     if (c === maisBarato && n > 1) destaques.push('Mais barato da lista');
-    return { ...c.oferta, categoria: tipo.categoria, pontos: c.pontos, destaques, vistoEm: c.vistoEm };
+    return { ...c.oferta, categoria: tipo.categoria, pontos: c.pontos, destaques, vistoEm: c.vistoEm, precoVsMediana: Math.round((c.oferta.preco / precoTipico - 1) * 100) };
   });
 }
 
@@ -386,7 +474,11 @@ export function perguntasDoGuia(tipo: TipoDeGuia, quantos: number, ano: string):
   return [
     {
       pergunta: `Como escolhemos os melhores ${tipo.nome}?`,
-      resposta: `Olhamos os ${tipo.nome} que apareceram nas lojas nos últimos dias e ordenamos pela nota de quem comprou, pelo volume de vendas e, com peso menor, pelo desconto. Produtos com avaliação baixa ficam de fora. Não recebemos aparelhos para teste: a comparação usa os dados públicos das lojas.`,
+      resposta: `Olhamos os ${tipo.nome} que apareceram nas lojas nas últimas semanas e ordenamos pela nota de quem comprou, corrigida pelo volume de vendas (uma nota alta com poucas vendas vale menos), e pelo próprio volume de vendas. Desconto não entra na ordem. Produtos com avaliação baixa ficam de fora. O selo de melhor custo-benefício combina essa pontuação com o preço em relação aos outros da lista. Não recebemos aparelhos para teste: a comparação usa os dados públicos das lojas.`,
+    },
+    {
+      pergunta: 'Por que a ordem desta lista não muda toda hora?',
+      resposta: 'Para a recomendação ser confiável, um produto só perde o lugar quando outro o supera por uma margem clara em nota e vendas, ou quando deixa de aparecer nas lojas por semanas. Os preços, esses sim, são atualizados a cada rodada do robô.',
     },
     {
       pergunta: 'Os preços desta página estão atualizados?',

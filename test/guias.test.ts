@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import { gerarBlog } from '../src/blog.ts';
 import { lerConfig } from '../src/config.ts';
 import { Banco } from '../src/db.ts';
-import { escolherParaGuia, pontuacaoDoGuia, TIPOS_DE_GUIA, tipoDeGuia } from '../src/guias.ts';
+import { escolherParaGuia, notaAjustada, pontuacaoDoGuia, tamanhoDoGuia, TIPOS_DE_GUIA, tipoDeGuia } from '../src/guias.ts';
 import type { Oferta } from '../src/types.ts';
 
 const AGORA = new Date('2026-10-03T18:00:00Z');
@@ -54,6 +54,79 @@ test('guias: ordena por nota, vendas e preço; calcula selos só com dados reais
   assert.ok(pontuacaoDoGuia(fone(1, { nota: 4.8, vendas: 10000 })) > pontuacaoDoGuia(fone(1, { nota: 4.4, vendas: 100 })));
 });
 
+test('guias: tamanho 3, 5 ou 10, e só cresce com folga para não oscilar', () => {
+  assert.deepEqual([0, 2, 3, 4, 5, 9, 10, 25].map((n) => tamanhoDoGuia(n)), [0, 0, 3, 3, 5, 5, 10, 10]);
+  assert.equal(tamanhoDoGuia(10, 5), 5, 'estava no top 5: com 10 produtos ainda não passa para 10');
+  assert.equal(tamanhoDoGuia(11, 5), 5);
+  assert.equal(tamanhoDoGuia(12, 5), 10, 'com folga de 2, passa para 10');
+  assert.equal(tamanhoDoGuia(5, 3), 3);
+  assert.equal(tamanhoDoGuia(7, 3), 5);
+  assert.equal(tamanhoDoGuia(10, 10), 10, 'não encolhe enquanto há produtos');
+  assert.equal(tamanhoDoGuia(9, 10), 5, 'com menos de 10 não dá para manter o top 10');
+  assert.equal(tamanhoDoGuia(4, 5), 3);
+});
+
+test('guias: a nota é ajustada pelas vendas, então nota alta com poucas vendas não passa à frente', () => {
+  const poucas = fone(1, { nota: 5, vendas: 30 });
+  const muitas = fone(2, { nota: 4.8, vendas: 12000 });
+  assert.ok(notaAjustada(poucas) < 4.5 && notaAjustada(muitas) > 4.75, `${notaAjustada(poucas)} / ${notaAjustada(muitas)}`);
+  assert.ok(pontuacaoDoGuia(muitas) > pontuacaoDoGuia(poucas));
+  assert.ok(notaAjustada(fone(3, { nota: undefined, vendas: undefined })) < 4.3, 'sem nota fica abaixo da média');
+  // Desconto e frete grátis não mudam a pontuação.
+  assert.equal(pontuacaoDoGuia(fone(4, { desconto: 60, freteGratis: true })), pontuacaoDoGuia(fone(4, { desconto: 0, freteGratis: false })));
+});
+
+test('guias: com 10 ou mais produtos bons sai o top 10; custo-benefício leva o preço em conta', () => {
+  const tipo = tipoDeGuia(fone(1).titulo)!;
+  const vistoEm = AGORA.getTime();
+  // O produto 1 tem a maior pontuação, mas custa 8x mais; o produto 2 é quase tão bom e bem mais barato.
+  const candidatos = [
+    { oferta: fone(1, { nota: 4.9, vendas: 90000, preco: 800 }), vistoEm },
+    { oferta: fone(2, { nota: 4.8, vendas: 60000, preco: 100 }), vistoEm },
+    ...Array.from({ length: 10 }, (_, i) => ({ oferta: fone(i + 3, { nota: 4.5, vendas: 1000 + i * 100, preco: 120 + i * 5 }), vistoEm })),
+  ];
+  const itens = escolherParaGuia(candidatos, tipo);
+  assert.equal(itens.length, 10, 'top 10');
+  assert.equal(itens[0]!.idProduto, 'MLB1', 'a maior pontuação fica em primeiro');
+  assert.ok(!itens[0]!.destaques.includes('Melhor custo-benefício'), 'o primeiro não ganha o selo só por ser primeiro');
+  assert.ok(itens.find((i) => i.idProduto === 'MLB2')!.destaques.includes('Melhor custo-benefício'));
+  assert.ok(itens.find((i) => i.idProduto === 'MLB1')!.precoVsMediana! > 100, 'preço bem acima da mediana da lista');
+  assert.ok(itens.find((i) => i.idProduto === 'MLB2')!.precoVsMediana! < 0);
+});
+
+test('guias: a lista é estável: veteranos ficam, novato só entra com 10% a mais, a ordem só muda com diferença clara', () => {
+  const tipo = tipoDeGuia(fone(1).titulo)!;
+  const vistoEm = AGORA.getTime();
+  const base = [1, 2, 3, 4, 5].map((n) => ({ oferta: fone(n, { nota: 4.6, vendas: 1000 * (6 - n) }), vistoEm }));
+  const primeira = escolherParaGuia(base, tipo);
+  const anteriores = primeira.map((i) => `${i.loja}:${i.idProduto}`);
+  assert.deepEqual(anteriores, ['mercadolivre:MLB1', 'mercadolivre:MLB2', 'mercadolivre:MLB3', 'mercadolivre:MLB4', 'mercadolivre:MLB5']);
+
+  // Um novato um pouco melhor que o último veterano NÃO entra.
+  const pontosDoUltimo = pontuacaoDoGuia(fone(5, { nota: 4.6, vendas: 1000 }));
+  const quaseIgual = { oferta: fone(9, { nota: 4.6, vendas: 1100 }), vistoEm };
+  assert.ok(pontuacaoDoGuia(quaseIgual.oferta) < pontosDoUltimo * 1.1);
+  assert.ok(!escolherParaGuia([...base, quaseIgual], tipo, { anteriores }).some((i) => i.idProduto === 'MLB9'));
+
+  // Um novato muito melhor (mais de 10%) entra no lugar do mais fraco.
+  const campeao = { oferta: fone(10, { nota: 4.9, vendas: 80000 }), vistoEm };
+  const comCampeao = escolherParaGuia([...base, campeao], tipo, { anteriores });
+  assert.ok(comCampeao.some((i) => i.idProduto === 'MLB10') && !comCampeao.some((i) => i.idProduto === 'MLB5'));
+  assert.equal(comCampeao[0]!.idProduto, 'MLB10', 'e sobe ao topo se for claramente melhor');
+
+  // Diferença pequena entre dois veteranos não troca a ordem anterior.
+  const embaralhado = [1, 2, 3, 4, 5].map((n) => ({ oferta: fone(n, { nota: 4.6, vendas: 1000 * (6 - n) + (n === 2 ? 600 : 0) }), vistoEm }));
+  assert.deepEqual(escolherParaGuia(embaralhado, tipo, { anteriores }).map((i) => i.idProduto), ['MLB1', 'MLB2', 'MLB3', 'MLB4', 'MLB5']);
+
+  // Veterano sem aparecer nas lojas há 20 dias continua; um desafiante com 20 dias não entra.
+  const velho = AGORA.getTime() - 20 * DIA;
+  const janela = { anteriores, agora: AGORA.getTime(), diasDosDesafiantes: 14 };
+  const comVelhos = escolherParaGuia(base.map((c) => ({ ...c, vistoEm: velho })), tipo, janela);
+  assert.equal(comVelhos.length, 5, 'veteranos valem por mais tempo');
+  const desafianteVelho = { oferta: fone(11, { nota: 4.9, vendas: 90000 }), vistoEm: velho };
+  assert.ok(!escolherParaGuia([...base, desafianteVelho], tipo, janela).some((i) => i.idProduto === 'MLB11'), 'desafiante precisa ser recente');
+});
+
 test('guias: a página sai com tabela, comparativo, perguntas frequentes, dados estruturados, sitemap e links', async () => {
   const banco = new Banco(':memory:');
   for (let i = 1; i <= 5; i++) banco.guardarParaGuia('fones-bluetooth', fone(i), new Date(AGORA.getTime() - i * 3_600_000));
@@ -80,7 +153,8 @@ test('guias: a página sai com tabela, comparativo, perguntas frequentes, dados 
   assert.deepEqual(ld[3].itemListElement.map((x: any) => x.name), ['Início', 'Guias', 'Melhores fones de ouvido bluetooth de 2026: top 5 comparados']);
   assert.ok(html.includes('name="twitter:card"') && html.includes('property="og:site_name"') && html.includes('class="escolhas"'), 'redes sociais e resumo das escolhas');
   assert.equal(ld[1].numberOfItems, 5);
-  assert.equal(ld[2].mainEntity.length, 3);
+  assert.equal(ld[2].mainEntity.length, 4);
+  assert.ok(html.includes('Por que a ordem desta lista não muda toda hora?') && html.includes('vs. média da lista'));
   assert.ok((html.match(/rel="sponsored nofollow noopener"/g) ?? []).length >= 10, 'tabela, escolhas e cartões usam rel sponsored');
 
   const air = readFileSync(join(dir, 'melhores-air-fryers.html'), 'utf8');
@@ -93,6 +167,28 @@ test('guias: a página sai com tabela, comparativo, perguntas frequentes, dados 
   assert.ok(mapa.includes('/melhores-fones-bluetooth.html') && mapa.includes('/guias.html') && mapa.includes('/sobre.html') && mapa.includes('/privacidade.html'));
   assert.ok(readFileSync(join(dir, 'sobre.html'), 'utf8').includes('Como escolhemos os produtos') && readFileSync(join(dir, 'privacidade.html'), 'utf8').includes('rel="sponsored"'));
   assert.ok(readFileSync(join(dir, 'robots.txt'), 'utf8').includes('Sitemap:'));
+});
+
+test('guias: entre uma rodada e outra do blog a lista publicada se mantém, e só um produto claramente melhor entra', async () => {
+  const banco = new Banco(':memory:');
+  for (let i = 1; i <= 5; i++) banco.guardarParaGuia('fones-bluetooth', fone(i), AGORA);
+  const dir = mkdtempSync(join(tmpdir(), 'guias-'));
+  const config = lerConfig({ BLOG_PASTA: dir, BLOG_IA: 'nenhuma' });
+  const pagina = () => readFileSync(join(dir, 'melhores-fones-bluetooth.html'), 'utf8');
+  await gerarBlog(banco, config, AGORA);
+  assert.match(pagina(), /Modelo 1\b/);
+
+  // Quase igual ao último da lista (Modelo 1): não entra.
+  banco.guardarParaGuia('fones-bluetooth', fone(9, { vendas: 1100 }), AGORA);
+  await gerarBlog(banco, config, AGORA);
+  assert.ok(!pagina().includes('Modelo 9'), 'novato só um pouco melhor não troca a lista');
+  assert.match(pagina(), /Modelo 1\b/);
+
+  // Claramente melhor: entra e o mais fraco sai.
+  banco.guardarParaGuia('fones-bluetooth', fone(10, { nota: 4.9, vendas: 80000 }), AGORA);
+  await gerarBlog(banco, config, AGORA);
+  assert.ok(pagina().includes('Modelo 10') && !/Modelo 1\b/.test(pagina()));
+  assert.match(pagina(), /top 5 comparados/);
 });
 
 test('guias: sem produtos novos o guia continua no ar com a última versão boa', async () => {
