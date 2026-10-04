@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readdirSync, unlinkSync, writeFileSync } from 'n
 import { join } from 'node:path';
 import type { Config } from './config.ts';
 import { diaDe, type Banco, type PostSalvo } from './db.ts';
+import { explicacaoDoCriterio } from './dicas.ts';
 import { chaveDoProduto, escolherParaGuia, perguntasDoGuia, TIPOS_DE_GUIA, type PerguntaFrequente, type ProdutoDoGuia, type TipoDeGuia } from './guias.ts';
 import { formatarPreco, formatarVendas } from './mensagem.ts';
 import type { OfertaAvaliada } from './types.ts';
@@ -418,7 +419,7 @@ function paginaDoGuia(site: Site, guia: Guia): string {
   <ol class="lista">
 ${d.itens.map((o, i) => cartaoDoProduto(o, i + 1)).join('\n')}
   </ol>
-  <section class="fim"><h2>O que observar antes de comprar</h2><ul>${guia.tipo.criterios.map((c) => `<li>${esc(c)}</li>`).join('')}</ul>${d.fim ? `<p>${esc(d.fim)}</p>` : ''}</section>
+  <section class="fim"><h2>O que observar antes de comprar</h2><ul>${guia.tipo.criterios.map((c, i) => `<li><strong>${esc(c)}</strong>${explicacaoDoCriterio(guia.tipo.slug, i) ? `: ${esc(explicacaoDoCriterio(guia.tipo.slug, i)!)}` : ''}</li>`).join('')}</ul>${d.fim ? `<p>${esc(d.fim)}</p>` : ''}</section>
   <section class="faq"><h2>Perguntas frequentes</h2>
 ${faq.map((f) => `  <h3>${esc(f.pergunta)}</h3>\n  <p>${esc(f.resposta)}</p>`).join('\n')}
   </section>

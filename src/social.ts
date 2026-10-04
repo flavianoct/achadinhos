@@ -276,6 +276,8 @@ export interface DadosDaDica {
   assunto: string;
   categoria: string;
   criterios: string[];
+  /** Explicação prática de cada critério, na mesma ordem (ver dicas.ts). */
+  explicacoes?: string[];
   itens: Array<{ oferta: OfertaAvaliada; imagem?: string }>;
 }
 
@@ -297,13 +299,15 @@ export function montarSvgsDaDica(d: DadosDaDica): string[] {
   const tema = temaDaCategoria(d.categoria);
   const slides = [svgDaCapaDaDica({ numero: d.criterios.length, assunto: quebrarSemCorte(d.assunto, 22).slice(0, 3), tema })];
   d.criterios.forEach((c, i) => {
-    let linhas = quebrarSemCorte(c, 20);
-    let tamanho = 72;
-    if (linhas.length > 4) {
-      linhas = quebrarSemCorte(c, 24);
-      tamanho = 60;
+    // O critério em destaque (grande) e a explicação logo abaixo (menor); o título encolhe se for comprido.
+    let titulo = quebrarSemCorte(c, 22);
+    let tamanhoDoTitulo = 64;
+    if (titulo.length > 3) {
+      titulo = quebrarSemCorte(c, 26);
+      tamanhoDoTitulo = 56;
     }
-    slides.push(svgDoCriterio({ posicao: i + 1, total: d.criterios.length, linhas, tamanho, assunto: d.assunto, tema }));
+    const explicacao = quebrarSemCorte(d.explicacoes?.[i] ?? '', 36).slice(0, 6);
+    slides.push(svgDoCriterio({ posicao: i + 1, total: d.criterios.length, titulo, tamanhoDoTitulo, explicacao, assunto: d.assunto, tema }));
   });
   if (d.itens.length >= 2) {
     slides.push(
@@ -336,7 +340,7 @@ function perguntaDaDica(d: DadosDaDica): string {
 /** Legenda da dica: gancho e #publi na primeira linha, os critérios por escrito, a pergunta e a chamada para o guia. */
 export function legendaDaDica(d: DadosDaDica, config: Config): string {
   const linhas = [`📌 ${d.titulo} #publi`, '🔖 Salve este post para consultar na hora de comprar.', ''];
-  d.criterios.forEach((c, i) => linhas.push(`${i + 1}) ${c}`));
+  d.criterios.forEach((c, i) => linhas.push(d.explicacoes?.[i] ? `${i + 1}) ${c}: ${d.explicacoes[i]}` : `${i + 1}) ${c}`));
   linhas.push(
     '',
     `💬 ${perguntaDaDica(d)}`,

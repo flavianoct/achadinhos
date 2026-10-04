@@ -6,6 +6,7 @@ import { test } from 'node:test';
 import { gerarBlog } from '../src/blog.ts';
 import { lerConfig } from '../src/config.ts';
 import { Banco } from '../src/db.ts';
+import { EXPLICACOES_DOS_CRITERIOS } from '../src/dicas.ts';
 import { escolherParaGuia, notaAjustada, pontuacaoDoGuia, tamanhoDoGuia, TIPOS_DE_GUIA, tipoDeGuia } from '../src/guias.ts';
 import type { Oferta } from '../src/types.ts';
 
@@ -248,4 +249,31 @@ test('texto da IA cortado no meio da frase é aparado ou descartado', async () =
     'Este celular é indicado para quem busca bateria que dura o dia todo e tela grande.',
   );
   assert.ok(terminaBem('Frase completa.') && !terminaBem('Frase pela metade de'));
+});
+
+test('dicas: todo guia tem uma explicação prática por critério, curta, sem marca e sem promessa de teste', () => {
+  const marcas = /\b(samsung|apple|iphone|xiaomi|motorola|lg|philips|jbl|sony|dell|lenovo|asus|acer|logitech|razer|multilaser|mondial|britania|electrolux|brastemp|consul|intelbras|tp-link|nintendo|playstation|xbox|netflix)\b/i;
+  const promessaDeTeste = /\b(testamos|nós testamos|na nossa experiência|recomendamos esta|o melhor do mercado)\b/i;
+  assert.deepEqual(Object.keys(EXPLICACOES_DOS_CRITERIOS).sort(), TIPOS_DE_GUIA.map((t) => t.slug).sort(), 'um conjunto de explicações para cada tipo de guia, e nenhum a mais');
+  for (const tipo of TIPOS_DE_GUIA) {
+    const e = EXPLICACOES_DOS_CRITERIOS[tipo.slug]!;
+    assert.equal(e.length, tipo.criterios.length, `${tipo.slug}: uma explicação para cada critério`);
+    e.forEach((x, i) => {
+      assert.ok(x.length >= 40 && x.length <= 160, `${tipo.slug}#${i + 1} tem ${x.length} caracteres`);
+      assert.ok(!x.includes('…') && /[.?!]$/.test(x), `${tipo.slug}#${i + 1} termina a frase`);
+      assert.ok(!promessaDeTeste.test(x), `${tipo.slug}#${i + 1} não finge ter testado nada`);
+      // Streaming e consoles são exceções: o próprio critério fala de serviços e plataformas.
+      if (tipo.slug !== 'smart-tvs' && tipo.slug !== 'consoles-de-video-game') assert.ok(!marcas.test(x), `${tipo.slug}#${i + 1} cita marca: ${x}`);
+    });
+  }
+});
+
+test('dicas: a página do guia mostra cada critério com a sua explicação', async () => {
+  const banco = new Banco(':memory:');
+  for (let i = 1; i <= 3; i++) banco.guardarParaGuia('air-fryers', { ...fone(i), idProduto: `AF${i}`, titulo: `Air Fryer ${i}L Digital` }, AGORA);
+  const dir = mkdtempSync(join(tmpdir(), 'guias-'));
+  await gerarBlog(banco, lerConfig({ BLOG_PASTA: dir, BLOG_IA: 'nenhuma' }), AGORA);
+  const html = readFileSync(join(dir, 'melhores-air-fryers.html'), 'utf8');
+  const tipo = TIPOS_DE_GUIA.find((t) => t.slug === 'air-fryers')!;
+  tipo.criterios.forEach((c, i) => assert.ok(html.includes(`<li><strong>${c}</strong>: `) && html.includes(EXPLICACOES_DOS_CRITERIOS['air-fryers']![i]!.replace(/"/g, '&quot;')), c));
 });

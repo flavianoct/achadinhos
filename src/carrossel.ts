@@ -2,6 +2,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Config } from './config.ts';
 import { diaDe, horaDe, type Banco } from './db.ts';
+import { EXPLICACOES_DOS_CRITERIOS } from './dicas.ts';
 import { TIPOS_DE_GUIA } from './guias.ts';
 import { passaNoFiltroDoInstagram } from './instagram.ts';
 import { svgDaCapaDoCarrossel, temaDaCategoria } from './moldes.ts';
@@ -149,6 +150,7 @@ export async function prepararDica(banco: Banco, config: Config, agora: Date, fe
     assunto: tipo.nome,
     categoria: tipo.categoria,
     criterios: tipo.criterios,
+    explicacoes: EXPLICACOES_DOS_CRITERIOS[tipo.slug],
     itens: primeiros,
   };
   banco.salvarCarrossel(`dica-${diaDe(agora)}-${tipo.slug}`, dados.titulo, JSON.stringify(dados), agora);

@@ -341,25 +341,34 @@ ${texto(500, 1232, 48, '#ffffff', 'Arraste para o lado')}
 export interface DadosDoCriterio {
   posicao: number;
   total: number;
-  /** Texto do critério já quebrado em linhas, e o tamanho da fonte que cabe. */
-  linhas: string[];
-  tamanho: number;
+  /** O critério (título) e a explicação prática, já quebrados em linhas; e o tamanho de fonte do título. */
+  titulo: string[];
+  tamanhoDoTitulo: number;
+  explicacao: string[];
   assunto: string;
   tema: Tema;
 }
 
-/** Um critério por imagem: número grande e frase curta, legível no celular. */
+const textoLeve = (x: number, y: number, tamanho: number, cor: string, conteudo: string) =>
+  `<text x="${x}" y="${y}" font-size="${tamanho}" font-weight="400" fill="${cor}" text-anchor="middle">${esc(conteudo)}</text>`;
+
+/** Um critério por imagem: número, o critério em destaque e, embaixo, a explicação de como decidir. */
 export function svgDoCriterio(d: DadosDoCriterio): string {
-  const passo = Math.round(d.tamanho * 1.28);
-  // O texto fica centralizado na área livre entre o assunto (y 600) e o rodapé (y 1150), qualquer que seja o número de linhas.
-  const yInicial = Math.round(600 + (550 - d.linhas.length * passo) / 2 + d.tamanho * 0.8);
+  const passoDoTitulo = Math.round(d.tamanhoDoTitulo * 1.22);
+  const passoDaExplicacao = 54;
+  const altura = d.titulo.length * passoDoTitulo + 40 + d.explicacao.length * passoDaExplicacao;
+  // O conteúdo fica centralizado na área livre entre o assunto (y 540) e o rodapé (y 1150).
+  const topo = Math.round(540 + (610 - altura) / 2);
+  const yTitulo = topo + Math.round(d.tamanhoDoTitulo * 0.85);
+  const yExplicacao = topo + d.titulo.length * passoDoTitulo + 40 + 40;
   return envolver(`${gradiente('fundo', d.tema)}
 <rect width="1080" height="1350" fill="url(#fundo)"/>
 <text x="60" y="92" font-size="34" font-weight="700" fill="#ffffff" letter-spacing="4">ACHADINHOS DO DIA</text>
-<circle cx="540" cy="330" r="130" fill="${d.tema.preco}"/>
-${texto(540, 398, 190, d.tema.f1, String(d.posicao))}
-${texto(540, 560, 38, '#e2e8f0', d.assunto.toUpperCase())}
-${d.linhas.map((l, i) => texto(540, yInicial + i * passo, d.tamanho, '#ffffff', l)).join('\n')}
+<circle cx="540" cy="290" r="108" fill="${d.tema.preco}"/>
+${texto(540, 350, 156, d.tema.f1, String(d.posicao))}
+${texto(540, 480, 34, '#e2e8f0', d.assunto.toUpperCase())}
+${d.titulo.map((l, i) => texto(540, yTitulo + i * passoDoTitulo, d.tamanhoDoTitulo, d.tema.preco, l)).join('\n')}
+${d.explicacao.map((l, i) => textoLeve(540, yExplicacao + i * passoDaExplicacao, 40, '#ffffff', l)).join('\n')}
 ${texto(540, 1190, 38, '#e2e8f0', `${d.posicao} de ${d.total}`)}
 ${marcador(250, 1245, 46)}${textoEsq(320, 1284, 36, '#ffffff', 'Salve este post')}`);
 }

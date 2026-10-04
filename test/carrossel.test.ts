@@ -6,6 +6,7 @@ import { test } from 'node:test';
 import { diaDaSemana, escolherParaCarrossel, gravarPngsDoCarrossel, prepararCarrossel } from '../src/carrossel.ts';
 import { lerConfig } from '../src/config.ts';
 import { Banco } from '../src/db.ts';
+import { EXPLICACOES_DOS_CRITERIOS } from '../src/dicas.ts';
 import { TIPOS_DE_GUIA } from '../src/guias.ts';
 import { Instagram, publicarNoInstagram } from '../src/instagram.ts';
 import { arquivosDoCarrossel, legendaDaDica, legendaDoCarrossel, totalDeImagens, type DadosDaDica, type DadosDoCarrossel } from '../src/social.ts';
@@ -261,6 +262,8 @@ test('dica: cria o carrossel educativo com os critérios do guia e os 3 primeiro
   const tipo = TIPOS_DE_GUIA.find((t) => t.slug === 'fones-bluetooth')!;
   assert.equal(dados.formato, 'dica');
   assert.deepEqual(dados.criterios, tipo.criterios);
+  assert.deepEqual(dados.explicacoes, EXPLICACOES_DOS_CRITERIOS['fones-bluetooth'], 'cada critério leva a sua explicação prática');
+  assert.deepEqual(dados.explicacoes, EXPLICACOES_DOS_CRITERIOS['fones-bluetooth'], 'cada critério leva a sua explicação prática');
   assert.equal(dados.titulo, `${tipo.criterios.length} coisas para olhar antes de comprar fones de ouvido bluetooth`);
   assert.equal(dados.itens.length, 3);
   assert.ok(dados.itens.every((i) => i.imagem?.startsWith('data:image/png;base64,') && i.oferta.link.startsWith('https://')));
@@ -307,6 +310,11 @@ test('dica: a legenda tem gancho e #publi na primeira linha, os critérios, uma 
   const l = legendaDaDica(dados, config);
   assert.match(l.split('\n')[0]!, /^📌 5 coisas para olhar antes de comprar air fryers #publi$/);
   tipo.criterios.forEach((c, i) => assert.ok(l.includes(`${i + 1}) ${c}`)));
+  const explicacoes = EXPLICACOES_DOS_CRITERIOS['air-fryers']!;
+  const comExplicacao = legendaDaDica({ ...dados, explicacoes }, config);
+  tipo.criterios.forEach((c, i) => assert.ok(comExplicacao.includes(`${i + 1}) ${c}: ${explicacoes[i]}`)));
+  assert.ok(comExplicacao.length < 2200 && !comExplicacao.includes('…'), 'cabe no limite da legenda do Instagram');
+  assert.match(comExplicacao.split('\n')[0]!, /#publi$/);
   assert.match(l, /💬 .*(👇)/);
   assert.match(l, /Salve este post/);
   assert.match(l, /link na bio/);
