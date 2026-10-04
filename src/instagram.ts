@@ -180,6 +180,9 @@ export async function publicarNoInstagram(banco: Banco, config: Config, agora: D
   };
   // Limite por dia, no máximo um de cada tipo por rodada e um intervalo mínimo desde a última publicação (evita rajada, que o Instagram trata como spam).
   const podePublicar = (tipo: 'feed' | 'story') => {
+    // Só nas horas escolhidas (horários em que o público está online); com a lista vazia vale o horário de postagem inteiro.
+    const janelas = tipo === 'feed' ? ig.horariosFeed : ig.horariosStories;
+    if (janelas.length > 0 && !janelas.includes(hora)) return false;
     const [porDia, intervaloMin, feitos] = tipo === 'feed' ? [ig.feedPorDia, ig.intervaloFeedMin, resumo.feed] : [ig.storiesPorDia, ig.intervaloStoryMin, resumo.stories];
     if (feitos >= 1 || banco.instagramNoDia(tipo, agora) >= porDia) return false;
     const ultimo = banco.ultimoInstagram(tipo);

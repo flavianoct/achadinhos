@@ -67,11 +67,17 @@ export interface Config {
   /** Arte de Story, legenda e roteiro de vídeo das ofertas postadas (aparecem no painel). */
   social: { ativo: boolean };
   /** Publicação automática no Instagram (conta profissional). Token e ID ficam nos Secrets. */
-  instagram: { ativo: boolean; token: string; userId: string; feedPorDia: number; storiesPorDia: number; intervaloFeedMin: number; intervaloStoryMin: number; notaMinima: number; vendasMinimas: number; palavrasBloqueadas: string[]; carrosselPorDia: number; carrosselItens: number; carrosselTetos: number[]; dicasDias: number[]; tokenData: string };
+  instagram: { ativo: boolean; token: string; userId: string; feedPorDia: number; storiesPorDia: number; intervaloFeedMin: number; intervaloStoryMin: number; notaMinima: number; vendasMinimas: number; palavrasBloqueadas: string[]; carrosselPorDia: number; carrosselItens: number; carrosselTetos: number[]; dicasDias: number[]; horariosFeed: number[]; horariosStories: number[]; tokenData: string };
   painel: { porta: number };
 }
 
 export type Env = Record<string, string | undefined>;
+
+/** Lista de horas ("12,18,21"). Sem a variável, usa o padrão; com a variável vazia, devolve vazio (sem restrição). */
+function horas(valor: string | undefined, padrao: number[]): number[] {
+  if (valor === undefined) return padrao;
+  return [...new Set(lista(valor).map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n <= 23))].sort((a, b) => a - b);
+}
 
 function lista(valor: string | undefined): string[] {
   return (valor ?? '')
@@ -222,6 +228,10 @@ export function lerConfig(env: Env = process.env): Config {
       carrosselTetos: lista(env.INSTAGRAM_CARROSSEL_TETOS === undefined ? '50,100,200' : env.INSTAGRAM_CARROSSEL_TETOS).map(Number).filter((n) => Number.isFinite(n) && n > 0),
       // Dias da semana (0 = domingo ... 6 = sábado) em que o carrossel do dia é a dica "Antes de comprar"; nos outros dias é o "Top 5 até R$ X".
       dicasDias: lista(env.INSTAGRAM_DICAS_DIAS === undefined ? '2,4,6' : env.INSTAGRAM_DICAS_DIAS).map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6),
+      // Horas (0 a 23, de Brasília) em que o robô pode publicar. Fora delas ele espera, para os posts caírem nos horários em que
+      // mais gente está online em vez de saírem todos na primeira rodada do dia. Vazio = qualquer hora do horário de postagem.
+      horariosFeed: horas(env.INSTAGRAM_HORARIOS_FEED, [12, 18, 21]),
+      horariosStories: horas(env.INSTAGRAM_HORARIOS_STORIES, [8, 10, 12, 15, 18, 20, 21]),
       palavrasBloqueadas: env.INSTAGRAM_PALAVRAS_BLOQUEADAS === undefined ? ['generico', 'paralelo', 'similar', 'replica', 'imitacao', 'sem marca'] : lista(env.INSTAGRAM_PALAVRAS_BLOQUEADAS),
       tokenData: (env.INSTAGRAM_TOKEN_DATA ?? '').trim(),
     },
