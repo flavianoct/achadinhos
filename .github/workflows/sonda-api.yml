@@ -1,0 +1,62 @@
+name: Sonda da API do Mercado Livre
+
+# Teste manual: confere o que a API oficial libera com as chaves do app. Não posta nada e não altera o robô.
+# As chaves e o token nunca são impressos: só o status e o começo de cada resposta.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sonda:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Testar a API com as chaves do app
+        env:
+          ML_CLIENT_ID: ${{ secrets.ML_CLIENT_ID }}
+          ML_CLIENT_SECRET: ${{ secrets.ML_CLIENT_SECRET }}
+        run: |
+          cat > sonda.mjs <<'JS'
+          import { appendFileSync } from 'node:fs';
+          const API = 'https://api.mercadolibre.com';
+          const linhas = ['## Sonda da API do Mercado Livre', ''];
+          const dizer = (l) => { linhas.push(l); console.log(l); };
+          const id = (process.env.ML_CLIENT_ID || '').trim();
+          const segredo = (process.env.ML_CLIENT_SECRET || '').trim();
+          dizer(`- Chaves cadastradas: ML_CLIENT_ID ${id ? 'sim' : 'NÃO'}, ML_CLIENT_SECRET ${segredo ? 'sim' : 'NÃO'}`);
+          let token = '';
+          if (id && segredo) {
+            const r = await fetch(API + '/oauth/token', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' }, body: new URLSearchParams({ grant_type: 'client_credentials', client_id: id, client_secret: segredo }).toString() });
+            const t = await r.json().catch(() => ({}));
+            token = t.access_token || '';
+            dizer(`- Token do app: ${r.status} ${token ? 'ok' : `falhou (${String(t.error || '')} ${String(t.message || t.error_description || '').slice(0, 120)})`}`);
+          }
+          const limpar = (s) => s.replace(/\s+/g, ' ').replace(/APP_USR-[A-Za-z0-9-]+/g, '[token]').slice(0, 200);
+          async function sonda(caminho) {
+            try {
+              const r = await fetch(API + caminho, { headers: { accept: 'application/json', ...(token ? { authorization: 'Bearer ' + token } : {}) }, signal: AbortSignal.timeout(20000) });
+              const txt = await r.text();
+              dizer(`- \`${r.status}\` ${caminho} → ${limpar(txt)}`);
+              try { return JSON.parse(txt); } catch { return undefined; }
+            } catch (e) { dizer(`- ERRO ${caminho}: ${e.message}`); }
+          }
+          const destaques = await sonda('/highlights/MLB/category/MLB1051');
+          await sonda('/highlights/MLB/category/MLB1000');
+          await sonda('/sites/MLB/search?category=MLB1051&sort=sold_quantity_desc&limit=3');
+          await sonda('/sites/MLB/search?q=fone%20bluetooth&limit=3');
+          await sonda('/products/search?status=active&site_id=MLB&q=fone%20bluetooth&limit=3');
+          await sonda('/trends/MLB');
+          const itens = (destaques?.content ?? []).slice(0, 2);
+          dizer(`- Mais vendidos de Celulares: ${destaques?.content?.length ?? 0} itens; tipos: ${[...new Set((destaques?.content ?? []).map((c) => c.type))].join(', ') || '—'}`);
+          for (const it of itens) {
+            if (it.type === 'PRODUCT') { await sonda('/products/' + it.id); await sonda('/products/' + it.id + '/items?limit=2'); }
+            else { await sonda('/items/' + it.id); await sonda('/reviews/item/' + it.id + '?limit=1'); }
+          }
+          if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, linhas.join('\n') + '\n');
+          JS
+          node sonda.mjs
