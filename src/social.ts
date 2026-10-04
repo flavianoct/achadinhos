@@ -253,6 +253,37 @@ export function montarSvgDoFeed(o: OfertaAvaliada, imagem: string | undefined, _
 }
 
 
+/** Slide de produto do carrossel: o mesmo card do feed (sempre no mesmo layout, para o carrossel parecer um conjunto), com a posição no lugar do selo. */
+export function montarSvgDoSlide(o: OfertaAvaliada, imagem: string | undefined, posicao: number, total: number): string {
+  const rotulo = `#${posicao} DE ${total}`;
+  return svgDoFeed({ ...dadosDaArte(o, imagem, 36), layout: 0, gancho: rotulo, ganchoCurto: rotulo, ganchoTipo: 'economia' });
+}
+
+/** O que um carrossel guarda: as ofertas escolhidas e as fotos (para refazer as imagens a cada rodada). */
+export interface DadosDoCarrossel {
+  titulo: string;
+  teto: number;
+  itens: Array<{ oferta: OfertaAvaliada; imagem?: string }>;
+}
+
+/** Nomes dos PNGs do carrossel, na ordem: capa e depois um por produto. Estáveis entre rodadas (o Instagram precisa de um endereço público). */
+export function arquivosDoCarrossel(chave: string, produtos: number): string[] {
+  const base = chave.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  return Array.from({ length: produtos + 1 }, (_, i) => `${base}-${i === 0 ? 'capa' : i}.png`);
+}
+
+/** Legenda do carrossel: gancho e #publi na primeira linha, a lista com preço e prova social, e o aviso de afiliado. */
+export function legendaDoCarrossel(d: DadosDoCarrossel, config: Config): string {
+  const linhas = [`🛒 ${d.titulo} #publi`, 'Bem avaliados e muito vendidos, separados hoje para você.', ''];
+  d.itens.forEach((it, i) => {
+    const o = it.oferta;
+    const prova = o.nota && o.nota > 0 ? ` · ⭐ ${o.nota.toFixed(1).replace('.', ',')}${o.vendas ? ` (${formatarVendas(o.vendas)} vendidos)` : ''}` : '';
+    linhas.push(`${i + 1}) ${tituloParaArte(o.titulo, 30).join(' ')} —${formatarPreco(o.preco)}${prova}`);
+  });
+  linhas.push('', `👉 Todas as ofertas no blog, link na bio: ${enderecoDoBlog(config)}`, '', 'Publi: link de afiliado. Os preços podem mudar a qualquer momento.', '', hashtagsDaCategoria('geral').join(' '));
+  return linhas.join('\n');
+}
+
 /** Transforma o SVG em PNG. Devolve undefined se o conversor (@resvg/resvg-js) não estiver instalado. */
 export async function renderizarPng(svg: string, largura: number): Promise<Buffer | undefined> {
   try {

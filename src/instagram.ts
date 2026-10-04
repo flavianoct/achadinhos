@@ -2,7 +2,7 @@ import { contemPalavra, normalizar } from './categoria.ts';
 import type { Config } from './config.ts';
 import type { Banco } from './db.ts';
 import { horaDe } from './db.ts';
-import { HORAS_DO_SOCIAL, arquivoDaArte, montarLegenda, type Fetch } from './social.ts';
+import { HORAS_DO_SOCIAL, arquivoDaArte, arquivosDoCarrossel, legendaDoCarrossel, montarLegenda, type DadosDoCarrossel, type Fetch } from './social.ts';
 import type { OfertaAvaliada } from './types.ts';
 
 const BASE = 'https://graph.instagram.com/v23.0';
@@ -58,7 +58,8 @@ export class Instagram {
     return `conta @${eu.username ?? this.userId}`;
   }
 
-  private async publicar(params: Record<string, string>): Promise<string> {
+  /** Cria o contêiner de mídia e espera o Instagram terminar de processar a imagem. Devolve o id do contêiner. */
+  private async criarContainer(params: Record<string, string>): Promise<string> {
     const container = await this.chamar('POST', `${this.userId}/media`, params);
     // A imagem leva alguns segundos para ser processada; espera até 10 verificações.
     for (let i = 0; i < 10; i++) {
@@ -67,12 +68,25 @@ export class Instagram {
       if (st.status_code === 'ERROR' || st.status_code === 'EXPIRED') throw new ErroInstagram(`O Instagram não processou a imagem (${st.status_code}).`, false);
       await pausa(this.esperaMs);
     }
-    const feito = await this.chamar('POST', `${this.userId}/media_publish`, { creation_id: container.id });
+    return container.id as string;
+  }
+
+  private async publicar(params: Record<string, string>): Promise<string> {
+    const container = await this.criarContainer(params);
+    const feito = await this.chamar('POST', `${this.userId}/media_publish`, { creation_id: container });
     return feito.id as string;
   }
 
   publicarFoto(urlDaImagem: string, legenda: string): Promise<string> {
     return this.publicar({ image_url: urlDaImagem, caption: legenda });
+  }
+
+  /** Carrossel de 2 a 10 imagens: cada imagem vira um contêiner "filho" e o contêiner do carrossel leva a legenda. */
+  async publicarCarrossel(urls: string[], legenda: string): Promise<string> {
+    if (urls.length < 2 || urls.length > 10) throw new ErroInstagram('Um carrossel precisa de 2 a 10 imagens.', false);
+    const filhos: string[] = [];
+    for (const url of urls) filhos.push(await this.criarContainer({ image_url: url, is_carousel_item: 'true' }));
+    return this.publicar({ media_type: 'CAROUSEL', children: filhos.join(','), caption: legenda });
   }
 
   /** Story pela API não aceita legenda nem adesivos. */
@@ -150,7 +164,8 @@ export async function publicarNoInstagram(banco: Banco, config: Config, agora: D
   const candidatos = todos.filter((c) => passaNoFiltroDoInstagram(c.oferta, ig)).sort((a, b) => b.oferta.pontos - a.oferta.pontos);
 
   const url = (chave: string, tipo: 'feed' | 'story') => `${config.blog.url}/social/${arquivoDaArte(chave, tipo)}`;
-  if (!candidatos.length) {
+  const carrossel = ig.carrosselPorDia > 0 && banco.carrosseisPublicadosNoDia(agora) < ig.carrosselPorDia ? banco.carrosselPendente(agora) : undefined;
+  if (!candidatos.length && !carrossel) {
     resumo.avisos.push(
       todos.length
         ? `Instagram: ${todos.length} ofertas recentes, mas nenhuma passa no filtro de qualidade (nota ${ig.notaMinima}+, ${ig.vendasMinimas}+ vendas, sem "genérico").`
@@ -171,6 +186,31 @@ export async function publicarNoInstagram(banco: Banco, config: Config, agora: D
     return ultimo === undefined || agora.getTime() - ultimo >= intervaloMin * 60_000;
   };
   try {
+    // O carrossel do dia ocupa a vaga do feed da rodada (conta como post de feed): é a variação de formato do perfil.
+    if (carrossel && podePublicar('feed')) {
+      const dados = JSON.parse(carrossel.dados) as DadosDoCarrossel;
+      const urls = arquivosDoCarrossel(carrossel.chave, dados.itens.length).map((a) => `${config.blog.url}/social/${a}`);
+      let todasNoAr = true;
+      for (const u of urls) {
+        if (!(await noAr(u))) {
+          todasNoAr = false;
+          break;
+        }
+      }
+      if (todasNoAr) {
+        try {
+          await api.publicarCarrossel(urls, legendaDoCarrossel(dados, config));
+          banco.marcarCarrosselPublicado(carrossel.chave, agora);
+          resumo.feed++;
+          await pausa(2000);
+        } catch (e) {
+          // O carrossel é um formato novo: se falhar, anota (3 tentativas no máximo) e os posts de foto seguem normalmente.
+          banco.registrarFalhaDoCarrossel(carrossel.chave);
+          resumo.avisos.push(`Instagram: o carrossel não saiu (tentativa ${carrossel.tentativas + 1} de 3): ${(e as Error).message}`);
+          if (e instanceof ErroInstagram && e.fatal) throw e;
+        }
+      }
+    }
     for (const c of candidatos) {
       if (!c.igFeedEm && podePublicar('feed') && (await noAr(url(c.chave, 'feed')))) {
         await api.publicarFoto(url(c.chave, 'feed'), montarLegenda(c.oferta, config));

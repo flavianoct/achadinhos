@@ -258,6 +258,44 @@ ${chamada(1272, 40)}
 ${aviso(1334, 24)}`;
 }
 
+export interface DadosDaCapa {
+  /** Quantos produtos o carrossel traz ("TOP 5"). */
+  total: number;
+  /** Teto de preço do carrossel ("ATÉ R$ 100"). */
+  teto: number;
+  /** Fotos dos produtos, mostradas em fileira (até 5). */
+  fotos: Array<string | undefined>;
+  tema: Tema;
+}
+
+/** Primeira imagem do carrossel (1080x1350): o que o carrossel promete, com as fotos dos produtos à vista. */
+export function svgDaCapaDoCarrossel(d: DadosDaCapa): string {
+  const fotos = d.fotos.slice(0, 5);
+  const lado = 170;
+  const folga = 20;
+  const largura = fotos.length * lado + Math.max(fotos.length - 1, 0) * folga;
+  const x0 = (1080 - largura) / 2;
+  const cartoes = fotos
+    .map((f, i) => {
+      const x = x0 + i * (lado + folga);
+      return `<rect x="${x}" y="800" width="${lado}" height="${lado}" rx="28" fill="#ffffff"/>${f ? `<image href="${f}" x="${x + 10}" y="810" width="${lado - 20}" height="${lado - 20}" preserveAspectRatio="xMidYMid meet"/>` : ''}`;
+    })
+    .join('\n');
+  const corpo = `${gradiente('fundo', d.tema)}
+<rect width="1080" height="1350" fill="url(#fundo)"/>
+<text x="60" y="92" font-size="38" font-weight="700" fill="#ffffff" letter-spacing="5">ACHADINHOS DO DIA</text>
+${texto(540, 430, 250, '#ffffff', `TOP ${d.total}`)}
+${texto(540, 580, 120, d.tema.preco, `ATÉ R$ ${d.teto}`)}
+${texto(540, 680, 46, '#ffffff', 'Bem avaliados e muito vendidos')}
+${texto(540, 740, 38, '#e2e8f0', 'separados hoje para você')}
+${cartoes}
+${texto(540, 1090, 52, '#ffffff', 'Arraste para o lado')}
+<polygon points="860,1054 912,1072 860,1090" fill="#ffffff"/>
+${chamada(1230, 44)}
+${aviso(1334, 26)}`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350" font-family="${FONTE}">\n${corpo}\n</svg>`;
+}
+
 const FEEDS = [feedClassico, feedPainel, feedClaro];
 
 export function svgDoFeed(d: DadosDaArte): string {

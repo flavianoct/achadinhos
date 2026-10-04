@@ -4,6 +4,7 @@ import { FonteSimulada, OFERTAS_SIMULADAS } from './fontes/simulada.ts';
 import { iniciarPainel } from './painel.ts';
 import { Robo } from './robo.ts';
 import { publicarControle, type DadosDaRodada } from './exportar.ts';
+import { gravarPngsDoCarrossel, prepararCarrossel } from './carrossel.ts';
 import { publicarNoInstagram } from './instagram.ts';
 import { gravarPngs, prepararSocial } from './social.ts';
 import { gravarBio } from './bio.ts';
@@ -116,6 +117,9 @@ async function modoNuvem(): Promise<void> {
     const artes = await prepararSocial(robo.banco, robo.config, new Date());
     const pngs = await gravarPngs(robo.banco, robo.config, new Date());
     if (pngs.semConversor) dizer('- Aviso: faltou instalar o conversor de imagens (@resvg/resvg-js); o Instagram não terá imagens.');
+    // Carrossel do dia ("Top 5 até R$ X"): criado numa rodada, com as imagens no ar na seguinte, quando é publicado.
+    if (await prepararCarrossel(robo.banco, robo.config, new Date())) dizer('- Instagram: carrossel do dia preparado; sai na próxima rodada, quando as imagens estiverem no ar.');
+    await gravarPngsDoCarrossel(robo.banco, robo.config, new Date());
     const ig = await publicarNoInstagram(robo.banco, robo.config, new Date());
     if (robo.config.instagram.ativo) dizer(`- Instagram: ${ig.feed} posts de feed e ${ig.stories} stories publicados.`);
     for (const a of ig.avisos) dizer(`- Aviso do Instagram: ${a}`);

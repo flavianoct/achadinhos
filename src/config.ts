@@ -67,7 +67,7 @@ export interface Config {
   /** Arte de Story, legenda e roteiro de vídeo das ofertas postadas (aparecem no painel). */
   social: { ativo: boolean };
   /** Publicação automática no Instagram (conta profissional). Token e ID ficam nos Secrets. */
-  instagram: { ativo: boolean; token: string; userId: string; feedPorDia: number; storiesPorDia: number; intervaloFeedMin: number; intervaloStoryMin: number; notaMinima: number; vendasMinimas: number; palavrasBloqueadas: string[]; tokenData: string };
+  instagram: { ativo: boolean; token: string; userId: string; feedPorDia: number; storiesPorDia: number; intervaloFeedMin: number; intervaloStoryMin: number; notaMinima: number; vendasMinimas: number; palavrasBloqueadas: string[]; carrosselPorDia: number; carrosselItens: number; carrosselTetos: number[]; tokenData: string };
   painel: { porta: number };
 }
 
@@ -216,6 +216,10 @@ export function lerConfig(env: Env = process.env): Config {
       // O Instagram só recebe produtos que passam confiança: bem avaliados, muito vendidos e sem cara de genérico.
       notaMinima: numero(env, 'INSTAGRAM_NOTA_MINIMA', 4.6),
       vendasMinimas: numero(env, 'INSTAGRAM_VENDAS_MINIMAS', 300),
+      // Carrossel "Top 5 até R$ X": no máximo um por dia (conta como post de feed), com o teto de preço girando entre os dias.
+      carrosselPorDia: numero(env, 'INSTAGRAM_CARROSSEL_POR_DIA', 1),
+      carrosselItens: Math.min(9, Math.max(3, numero(env, 'INSTAGRAM_CARROSSEL_ITENS', 5))),
+      carrosselTetos: lista(env.INSTAGRAM_CARROSSEL_TETOS === undefined ? '50,100,200' : env.INSTAGRAM_CARROSSEL_TETOS).map(Number).filter((n) => Number.isFinite(n) && n > 0),
       palavrasBloqueadas: env.INSTAGRAM_PALAVRAS_BLOQUEADAS === undefined ? ['generico', 'paralelo', 'similar', 'replica', 'imitacao', 'sem marca'] : lista(env.INSTAGRAM_PALAVRAS_BLOQUEADAS),
       tokenData: (env.INSTAGRAM_TOKEN_DATA ?? '').trim(),
     },

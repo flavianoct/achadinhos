@@ -119,6 +119,15 @@ export class Banco {
         texto TEXT NOT NULL,
         criado_em INTEGER NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS instagram_carrosseis (
+        chave TEXT PRIMARY KEY,
+        dia TEXT NOT NULL,
+        titulo TEXT NOT NULL,
+        dados TEXT NOT NULL,
+        criado_em INTEGER NOT NULL,
+        publicado_em INTEGER,
+        tentativas INTEGER NOT NULL DEFAULT 0
+      );
       CREATE TABLE IF NOT EXISTS saude_fontes (
         fonte TEXT PRIMARY KEY,
         falhas INTEGER NOT NULL,
@@ -268,10 +277,46 @@ export class Banco {
     this.db.prepare(`UPDATE social_saida SET ${coluna} = ? WHERE chave = ?`).run(agora.getTime(), chave);
   }
 
-  /** Quantas publicações do tipo já saíram no Instagram no dia (horário de Brasília). */
+  /** Quantas publicações do tipo já saíram no Instagram no dia (horário de Brasília). O carrossel conta como post de feed. */
   instagramNoDia(tipo: 'feed' | 'story', agora: Date): number {
     const coluna = tipo === 'feed' ? 'ig_feed_em' : 'ig_story_em';
     const linhas = this.db.prepare(`SELECT ${coluna} AS t FROM social_saida WHERE ${coluna} IS NOT NULL`).all() as Array<{ t: number }>;
+    const hoje = diaDe(agora);
+    return linhas.filter((l) => diaDe(new Date(l.t)) === hoje).length + (tipo === 'feed' ? this.carrosseisPublicadosNoDia(agora) : 0);
+  }
+
+  // ───────── Carrossel do Instagram ("Top 5 até R$ 100") ─────────
+
+  /** Guarda o carrossel pronto para publicar (os dados trazem as ofertas e as fotos, para refazer as imagens a cada rodada). */
+  salvarCarrossel(chave: string, titulo: string, dados: string, agora: Date): void {
+    this.db
+      .prepare(`INSERT OR REPLACE INTO instagram_carrosseis (chave, dia, titulo, dados, criado_em, publicado_em) VALUES (?, ?, ?, ?, ?, NULL)`)
+      .run(chave, diaDe(agora), titulo, dados, agora.getTime());
+  }
+
+  /** Já existe carrossel criado hoje (publicado ou não)? Só se cria um por dia. */
+  carrosselCriadoNoDia(agora: Date): boolean {
+    return Boolean(this.db.prepare(`SELECT 1 FROM instagram_carrosseis WHERE dia = ?`).get(diaDe(agora)));
+  }
+
+  /** O carrossel de hoje que ainda não foi publicado, se houver (e que não falhou demais: depois de 3 tentativas desiste). */
+  carrosselPendente(agora: Date): { chave: string; titulo: string; dados: string; tentativas: number } | undefined {
+    const l = this.db
+      .prepare(`SELECT chave, titulo, dados, tentativas FROM instagram_carrosseis WHERE dia = ? AND publicado_em IS NULL AND tentativas < 3 ORDER BY criado_em DESC LIMIT 1`)
+      .get(diaDe(agora)) as { chave: string; titulo: string; dados: string; tentativas: number } | undefined;
+    return l;
+  }
+
+  registrarFalhaDoCarrossel(chave: string): void {
+    this.db.prepare(`UPDATE instagram_carrosseis SET tentativas = tentativas + 1 WHERE chave = ?`).run(chave);
+  }
+
+  marcarCarrosselPublicado(chave: string, agora: Date): void {
+    this.db.prepare(`UPDATE instagram_carrosseis SET publicado_em = ? WHERE chave = ?`).run(agora.getTime(), chave);
+  }
+
+  carrosseisPublicadosNoDia(agora: Date): number {
+    const linhas = this.db.prepare(`SELECT publicado_em AS t FROM instagram_carrosseis WHERE publicado_em IS NOT NULL`).all() as Array<{ t: number }>;
     const hoje = diaDe(agora);
     return linhas.filter((l) => diaDe(new Date(l.t)) === hoje).length;
   }
@@ -303,7 +348,9 @@ export class Banco {
   ultimoInstagram(tipo: 'feed' | 'story'): number | undefined {
     const coluna = tipo === 'feed' ? 'ig_feed_em' : 'ig_story_em';
     const l = this.db.prepare(`SELECT MAX(${coluna}) AS t FROM social_saida`).get() as { t: number | null } | undefined;
-    return l?.t ?? undefined;
+    const c = tipo === 'feed' ? (this.db.prepare(`SELECT MAX(publicado_em) AS t FROM instagram_carrosseis`).get() as { t: number | null } | undefined) : undefined;
+    const maior = Math.max(l?.t ?? 0, c?.t ?? 0);
+    return maior > 0 ? maior : undefined;
   }
 
   /** Mensagens de WhatsApp criadas nas últimas `horas` horas, da mais antiga para a mais nova. */
@@ -433,6 +480,7 @@ export class Banco {
     this.db.prepare(`DELETE FROM postados WHERE postado_em < ?`).run(t - 90 * 86_400_000);
     this.db.prepare(`DELETE FROM whatsapp_saida WHERE criado_em < ?`).run(t - 2 * 86_400_000);
     this.db.prepare(`DELETE FROM social_saida WHERE criado_em < ?`).run(t - 2 * 86_400_000);
+    this.db.prepare(`DELETE FROM instagram_carrosseis WHERE criado_em < ?`).run(t - 3 * 86_400_000);
     this.db.prepare(`DELETE FROM produtos WHERE visto_em < ?`).run(t - 7 * 86_400_000);
     this.db.prepare(`DELETE FROM guia_produtos WHERE visto_em < ?`).run(t - 30 * 86_400_000);
     this.db.prepare(`DELETE FROM textos WHERE criado_em < ? AND chave LIKE 'produto:%'`).run(t - 30 * 86_400_000);
