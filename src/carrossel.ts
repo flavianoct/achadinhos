@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import type { Config } from './config.ts';
 import { diaDe, horaDe, type Banco } from './db.ts';
 import { EXPLICACOES_DOS_CRITERIOS } from './dicas.ts';
-import { TIPOS_DE_GUIA } from './guias.ts';
+import { TIPOS_DE_GUIA, tipoDeGuia } from './guias.ts';
 import { passaNoFiltroDoInstagram } from './instagram.ts';
 import { svgDaCapaDoCarrossel, temaDaCategoria } from './moldes.ts';
 import { arquivosDoCarrossel, baixarImagemComoDataUri, montarSvgDoSlide, montarSvgsDaDica, renderizarPng, type DadosDaDica, type DadosDoCarrossel, type DadosDoTop, type Fetch } from './social.ts';
@@ -127,7 +127,7 @@ export async function prepararDica(banco: Banco, config: Config, agora: Date, fe
     if (!tipo || usados.has(tipo.slug) || tipo.criterios.length < 3) continue;
     let itens: OfertaAvaliada[];
     try {
-      itens = ((JSON.parse(salvo.dados) as { itens?: OfertaAvaliada[] }).itens ?? []).filter((o) => o?.titulo && Number.isFinite(o.preco) && /^https:\/\//i.test(o.link ?? ''));
+      itens = ((JSON.parse(salvo.dados) as { itens?: OfertaAvaliada[] }).itens ?? []).filter((o) => o?.titulo && Number.isFinite(o.preco) && /^https:\/\//i.test(o.link ?? '') && tipoDeGuia(o.titulo)?.slug === tipo.slug);
     } catch {
       continue;
     }

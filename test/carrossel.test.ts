@@ -235,6 +235,11 @@ test('instagram: o carrossel respeita o intervalo entre posts de feed e o deslig
 
 // ───────── Carrossel educativo: "N coisas para olhar antes de comprar [produto]" ─────────
 
+const TITULO_POR_TIPO: Record<string, (n: number) => string> = {
+  'fones-bluetooth': (n) => `Fone de Ouvido Bluetooth Modelo ${n}`,
+  'air-fryers': (n) => `Fritadeira Air Fryer Digital ${n} Litros`,
+};
+
 function guiaSalvo(banco: Banco, slug: string, quantos = 4): void {
   const tipo = TIPOS_DE_GUIA.find((t) => t.slug === slug)!;
   banco.salvarGuia({
@@ -242,7 +247,8 @@ function guiaSalvo(banco: Banco, slug: string, quantos = 4): void {
     tipo: slug,
     titulo: `Melhores ${tipo.nome} de 2026`,
     atualizadoEm: AGORA.getTime(),
-    dados: JSON.stringify({ itens: Array.from({ length: quantos }, (_, i) => produto(i + 1, { categoria: tipo.categoria })), intro: '', temIA: false, ano: '2026' }),
+    // Títulos de verdade do tipo: o robô só aceita no fechamento da dica produto que ainda é classificado como daquele guia.
+    dados: JSON.stringify({ itens: Array.from({ length: quantos }, (_, i) => produto(i + 1, { categoria: tipo.categoria, titulo: TITULO_POR_TIPO[slug]?.(i + 1) ?? `Produto ${i + 1}` })), intro: '', temIA: false, ano: '2026' }),
   });
 }
 
@@ -279,6 +285,24 @@ test('dica: cria o carrossel educativo com os critérios do guia e os 3 primeiro
   guiaSalvo(pequeno, 'fones-bluetooth', 2);
   await prepararCarrossel(pequeno, config, AGORA, fotoFalsa());
   assert.match(pequeno.carrosselPendente(AGORA)!.chave, /^carrossel-/);
+});
+
+test('dica: um assunto só: produto fora do tipo do guia não entra no fechamento', async () => {
+  const banco = bancoComProdutos();
+  const tipo = TIPOS_DE_GUIA.find((t) => t.slug === 'fones-bluetooth')!;
+  const guia = (itens: unknown[]) => ({ arquivo: 'melhores-fones-bluetooth.html', tipo: tipo.slug, titulo: 'x', atualizadoEm: AGORA.getTime(), dados: JSON.stringify({ itens, intro: '', temIA: false, ano: '2026' }) });
+  // Guia com um item que não é fone (capa de celular) misturado: ele fica de fora.
+  banco.salvarGuia(guia([produto(1, { titulo: 'Capa para Celular Samsung' }), ...[2, 3, 4, 5].map((n) => produto(n, { titulo: `Fone de Ouvido Bluetooth Modelo ${n}` }))]));
+  assert.equal(await prepararCarrossel(banco, config, AGORA, fotoFalsa()), true);
+  const dados = JSON.parse(banco.carrosselPendente(AGORA)!.dados) as DadosDaDica;
+  assert.equal(dados.itens.length, 3);
+  assert.ok(dados.itens.every((i) => /Fone de Ouvido Bluetooth/.test(i.oferta.titulo)), 'só fones no fechamento');
+
+  // Guia em que sobram menos de 3 itens do tipo certo não vira dica: o dia vira Top.
+  const outro = bancoComProdutos();
+  outro.salvarGuia(guia([1, 2, 3].map((n) => produto(n, { titulo: n === 1 ? 'Capa para Celular' : `Fone de Ouvido Bluetooth Modelo ${n}` }))));
+  await prepararCarrossel(outro, config, AGORA, fotoFalsa());
+  assert.match(outro.carrosselPendente(AGORA)!.chave, /^carrossel-/);
 });
 
 test('dica: um assunto não se repete por 14 dias, os assuntos giram e, sem assunto novo, volta para o Top', async () => {
