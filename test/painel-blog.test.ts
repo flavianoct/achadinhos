@@ -167,7 +167,7 @@ const ler = (dir: string, arquivo: string) => readFileSync(join(dir, arquivo), '
 
 test('blog: cria os posts do dia, página inicial, categorias e arquivo; escapa HTML e descarta link inseguro', async () => {
   const dir = pasta();
-  const config = lerConfig({ BLOG_PASTA: dir, BLOG_NOME: 'Meu <Blog>', BLOG_URL: 'https://exemplo.github.io/achados/', TELEGRAM_CHAT_ID: '@meucanal' });
+  const config = lerConfig({ BLOG_PASTA: dir, BLOG_NOME: 'Meu <Blog>', BLOG_URL: 'https://exemplo.github.io/achados/', TELEGRAM_CHAT_ID: '@meucanal', BLOG_AMAZON_ARQUIVO: join(dir, 'sem-amazon.json') });
   const produtos = [
     ...Array.from({ length: 6 }, (_, i) => produto(i + 1)),
     ...Array.from({ length: 3 }, (_, i) => produto(i + 10, { categoria: 'casa', loja: 'mercadolivre', precoOriginal: 300, freteGratis: true, menorPrecoEmDias: 12 })),
@@ -489,4 +489,24 @@ test('painel: mostra o estado, esconde segredos, salva configuração e recusa p
     servidor.close();
     robo.fechar();
   }
+});
+
+test('blog: achados da Amazon viram a página Amazon, sem preço, com a tag e sem aceitar entradas inválidas', async () => {
+  const dir = pasta();
+  const arquivo = join(dir, 'amazon.json');
+  writeFileSync(arquivo, JSON.stringify([
+    { asin: 'B0FPGF9J2J', titulo: 'Console <b>X</b>', descricao: 'Descrição do console.', imagem: 'https://m.media-amazon.com/images/I/x.jpg' },
+    { asin: 'curto', titulo: 'ASIN inválido', descricao: 'ignorado' },
+    { asin: 'B000000001', titulo: 'Sem descrição' },
+  ]));
+  const config = lerConfig({ BLOG_PASTA: dir, BLOG_URL: 'https://exemplo.github.io/achados/', BLOG_AMAZON_ARQUIVO: arquivo, AMAZON_TAG: 'minha-20' });
+  const r = await gerarBlog(bancoCom([produto(1), produto(2), produto(3)]), config, AGORA);
+  assert.ok(r.paginas.includes('amazon.html'));
+  const h = ler(dir, 'amazon.html');
+  assert.match(h, /amazon\.com\.br\/dp\/B0FPGF9J2J\?tag=minha-20/);
+  assert.match(h, /rel="sponsored nofollow noopener"/);
+  assert.ok(!h.includes('<b>X</b>') && !h.includes('ASIN inválido') && !h.includes('Sem descrição'));
+  assert.ok(!/R\$\s?\d/.test(h.replace(/<style[\s\S]*?<\/style>/g, '')), 'a página da Amazon não mostra preço');
+  assert.match(ler(dir, 'index.html'), /href="amazon\.html"/);
+  assert.match(ler(dir, 'sitemap.xml'), /achados\/amazon\.html/);
 });

@@ -63,6 +63,8 @@ export interface Config {
     telegramLink: string;
     /** Link do perfil do Instagram mostrado no blog (vem de BLOG_INSTAGRAM, só o @ ou o endereço). */
     instagramLink: string;
+    /** Arquivo com os achados da Amazon escolhidos à mão (página Amazon do blog). */
+    amazonArquivo: string;
   };
   /** Mensagens de WhatsApp para o enviador do PC (ver pasta enviador/). */
   whatsapp: { ativo: boolean };
@@ -220,6 +222,7 @@ export function lerConfig(env: Env = process.env): Config {
       publicar: opcao(env, 'BLOG_PUBLICAR', ['nao', 'git'] as const, 'nao'),
       telegramLink: (env.BLOG_TELEGRAM ?? '').trim() || (chatId.startsWith('@') ? `https://t.me/${chatId.slice(1)}` : ''),
       instagramLink: linkDoInstagram(env.BLOG_INSTAGRAM ?? ''),
+      amazonArquivo: (env.BLOG_AMAZON_ARQUIVO ?? '').trim() || 'amazon.json',
     },
     whatsapp: { ativo: ligado(env, 'WHATSAPP_ATIVO', true) },
     social: { ativo: ligado(env, 'SOCIAL_ATIVO', true) },

@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readdirSync, unlinkSync, writeFileSync } from 'n
 import { join } from 'node:path';
 import type { Config } from './config.ts';
 import { diaDe, type Banco, type PostSalvo } from './db.ts';
+import { lerAchadosDaAmazon, linkDoAchado, type AchadoDaAmazon } from './amazon.ts';
 import { explicacaoDoCriterio } from './dicas.ts';
 import { tituloParaArte } from './social.ts';
 import { chaveDoProduto, escolherParaGuia, perguntasDoGuia, TIPOS_DE_GUIA, type PerguntaFrequente, type ProdutoDoGuia, type TipoDeGuia } from './guias.ts';
@@ -215,6 +216,8 @@ interface Site {
   /** Temas que têm pelo menos um post no ar, na ordem do menu. */
   temas: string[];
   guias: Guia[];
+  /** Achados da Amazon escolhidos à mão (amazon.json). */
+  amazon: AchadoDaAmazon[];
 }
 
 const ICONE_DO_SITE = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23d6336c'/%3E%3Cpath d='M8 17l8-8h8v8l-8 8z' fill='%23fff'/%3E%3Ccircle cx='20.5' cy='11.5' r='2' fill='%23d6336c'/%3E%3C/svg%3E";
@@ -234,7 +237,7 @@ function moldura(site: Site, p: { arquivo: string; titulo: string; tituloSeo?: s
   const b = site.config.blog;
   const endereco = (arquivo: string) => (b.url ? `${b.url}/${arquivo === 'index.html' ? '' : arquivo}` : '');
   const canonica = endereco(p.arquivo);
-  const itensDoMenu: Array<[string, string]> = [['index.html', 'Início'], ...(site.guias.length ? [['guias.html', 'Guias'] as [string, string]] : []), ...site.temas.map((t): [string, string] => [`categoria-${t}.html`, nomeDoTema(t)]), ['arquivo.html', 'Arquivo']];
+  const itensDoMenu: Array<[string, string]> = [['index.html', 'Início'], ...(site.guias.length ? [['guias.html', 'Guias'] as [string, string]] : []), ...site.temas.map((t): [string, string] => [`categoria-${t}.html`, nomeDoTema(t)]), ...(site.amazon.length ? [['amazon.html', 'Amazon'] as [string, string]] : []), ['arquivo.html', 'Arquivo']];
   const nav = itensDoMenu.map(([arquivo, rotulo]) => `<a href="${arquivo}"${arquivo === p.arquivo ? ' aria-current="page"' : ''}>${esc(rotulo)}</a>`).join('');
   // O título da aba e dos resultados de busca fica em até 62 caracteres (o Google corta perto de 60): o nome do site só vai se couber.
   const tituloBase = p.tituloSeo ?? p.titulo;
@@ -304,7 +307,7 @@ ${migalhas}${p.corpo}
     </div>
     <div>
       <p class="rodape-titulo">Navegue</p>
-      <p class="rodape-links"><a href="index.html">Início</a> <a href="guias.html">Guias de compra</a> <a href="arquivo.html">Arquivo</a>${b.url ? ' <a href="feed.xml">RSS</a>' : ''}</p>
+      <p class="rodape-links"><a href="index.html">Início</a> <a href="guias.html">Guias de compra</a>${site.amazon.length ? ' <a href="amazon.html">Achadinhos da Amazon</a>' : ''} <a href="arquivo.html">Arquivo</a>${b.url ? ' <a href="feed.xml">RSS</a>' : ''}</p>
     </div>
     <div>
       <p class="rodape-titulo">Transparência</p>
@@ -571,6 +574,31 @@ function paginaInicial(site: Site): string {
   return moldura(site, { arquivo: 'index.html', titulo: 'guias de compra e ofertas do dia', descricao: `${b.nome}: guias de compra com os melhores produtos comparados por nota e vendas, e as ofertas do dia com histórico de preço.`, corpo, imagem: urlSegura(recentes[0]?.dados.itens[0]?.imagem), largo: true });
 }
 
+/** Achados da Amazon escolhidos à mão. Sem preço: o contrato de Associados só permite preço pela API oficial. */
+function paginaDaAmazon(site: Site): string {
+  const b = site.config.blog;
+  const cartoes = site.amazon
+    .map((a) => {
+      const link = linkDoAchado(a, site.config.amazon.tag);
+      return `  <article class="achado">
+    ${a.imagem ? `<img src="${esc(a.imagem)}" alt="${esc(a.titulo)}" width="320" height="320" loading="lazy" decoding="async" referrerpolicy="no-referrer">` : ''}
+    <div class="achado-texto">
+      <h2>${esc(a.titulo)}</h2>
+      ${a.subtitulo ? `<p class="achado-sub">${esc(a.subtitulo)}</p>` : ''}
+      <p>${esc(a.descricao)}</p>
+      <a class="botao" href="${esc(link)}" target="_blank" rel="sponsored nofollow noopener">Ver na Amazon</a>
+      <p class="achado-nota">Confira o preço atual no anúncio da Amazon.</p>
+    </div>
+  </article>`;
+    })
+    .join('\n');
+  const corpo = `  <h1>Achadinhos da Amazon</h1>
+  <p class="intro">Produtos que separamos na Amazon. Aqui não mostramos preço: ele muda toda hora, então vale conferir direto no anúncio antes de comprar.</p>
+${cartoes}
+  <p class="confianca">Como ${esc(b.nome)} participa do Programa de Associados da Amazon, podemos receber comissão pelas compras feitas pelos links desta página, sem custo extra para você. <a href="privacidade.html">Saiba mais</a>.</p>`;
+  return moldura(site, { arquivo: 'amazon.html', titulo: 'Achadinhos da Amazon', descricao: `Produtos selecionados na Amazon pelo ${b.nome}, com explicação do que cada um oferece e link direto para conferir o preço no anúncio.`, corpo, trilha: [['Amazon']] });
+}
+
 function paginaSobre(site: Site): string {
   const b = site.config.blog;
   const telegram = b.telegramLink && urlSegura(b.telegramLink) ? `<p>Dúvidas, sugestões ou algum erro? Fale com a gente pelo <a href="${esc(b.telegramLink)}" target="_blank" rel="noopener">canal do Telegram</a>.</p>` : '';
@@ -793,6 +821,11 @@ h2{line-height:1.25}
 .chamada strong{font-size:1.1rem;letter-spacing:-.01em}
 .chamada span{color:var(--suave);font-size:.92rem}
 .chamada span a{color:var(--cor-forte);font-weight:600}
+.achado{display:grid;grid-template-columns:minmax(0,300px) 1fr;gap:24px;align-items:center;background:var(--cartao);border:1px solid var(--borda);border-radius:var(--raio);box-shadow:var(--sombra);padding:20px;margin:20px 0}
+.achado img{width:100%;height:auto;aspect-ratio:1;object-fit:contain;background:#fff;border-radius:12px}
+.achado h2{margin:0 0 4px;font-size:1.35rem;letter-spacing:-.01em}.achado-sub{margin:0 0 10px;color:var(--suave);font-weight:600}
+.achado-nota{margin:10px 0 0;color:var(--suave);font-size:.85rem}
+@media (max-width:640px){.achado{grid-template-columns:1fr}}
 .tabela{overflow-x:auto;border:1px solid var(--borda);border-radius:var(--raio);background:var(--cartao);box-shadow:var(--sombra)}
 table{width:100%;min-width:760px;border-collapse:collapse;font-size:.9rem}
 th,td{padding:13px 14px;text-align:left;border-bottom:1px solid var(--borda);vertical-align:middle}
@@ -1317,7 +1350,8 @@ export async function gerarBlog(banco: Banco, config: Config, agora: Date = new 
     .map(paraGuia)
     .filter((g): g is Guia => g !== undefined)
     .sort((a, b) => b.dados.itens.length - a.dados.itens.length || a.titulo.localeCompare(b.titulo, 'pt-BR'));
-  const site: Site = { config, posts, hoje, agora, temas, guias };
+  const amazon = lerAchadosDaAmazon(b.amazonArquivo);
+  const site: Site = { config, posts, hoje, agora, temas, guias, amazon };
 
   mkdirSync(b.pasta, { recursive: true });
   if (b.url && (await gravarImagemPadrao(b.pasta, b.nome))) site.imagemPadrao = `${b.url}/og-padrao.png`;
@@ -1329,6 +1363,7 @@ export async function gerarBlog(banco: Banco, config: Config, agora: Date = new 
   for (const guia of guias) gravar(guia.arquivo, paginaDoGuia(site, guia));
   if (guias.length) gravar('guias.html', paginaDosGuias(site));
   for (const tema of temas) gravar(`categoria-${tema}.html`, paginaDoTema(site, tema));
+  if (amazon.length) gravar('amazon.html', paginaDaAmazon(site));
   gravar('arquivo.html', paginaDoArquivo(site));
   gravar('sobre.html', paginaSobre(site));
   gravar('privacidade.html', paginaPrivacidade(site));
