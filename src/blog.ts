@@ -351,7 +351,7 @@ function cartaoDoProduto(o: ItemDoPost, posicao: number): string {
     <p class="social">${esc(social.join(' · '))}${o.vistoEm ? ` · preço visto em ${esc(dataBr(diaDe(new Date(o.vistoEm))))}` : ''}</p>
     ${o.texto ? `<p class="analise">${esc(o.texto)}</p>` : ''}
     ${graficoDePreco(o.grafico ?? [])}
-    <a class="botao" href="${esc(o.link)}" target="_blank" rel="sponsored nofollow noopener">Ver oferta na ${esc(loja)}</a>
+    <a class="botao" href="${esc(o.link)}" target="_blank" rel="sponsored nofollow noopener">Ver oferta ${o.loja === 'mercadolivre' ? 'no' : 'na'} ${esc(loja)}</a>
   </div>
 </li>`;
 }
@@ -1054,6 +1054,9 @@ const REGRAS_DE_ESCRITA = `Regras:
 - De 2 a 3 frases, em português do Brasil, tom direto e útil.
 - Baseie-se somente no que está escrito abaixo. Não invente especificações, medidas, materiais nem recursos.
 - Não cite preços, percentuais de desconto nem prazos.
+- Se citar uma data, copie exatamente como está no título (por exemplo 04/10/2026). Nunca escreva datas nem números por extenso.
+- Só fale de voltagem, tomada ou rede elétrica se o produto for elétrico ou eletrônico.
+- Mercado Livre é masculino: escreva "no Mercado Livre". Shopee e Amazon: "na Shopee", "na Amazon".
 - Sem títulos, sem listas, sem emojis, sem aspas. Devolva só o parágrafo.`;
 
 function listaParaPrompt(itens: OfertaAvaliada[]): string {

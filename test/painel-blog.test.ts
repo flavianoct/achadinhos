@@ -211,7 +211,7 @@ test('blog: cria os posts do dia, página inicial, categorias e arquivo; escapa 
 
   const casa = ler(dir, 'post-2026-10-03-casa.html');
   assert.match(casa, /<h1>Top 3 ofertas de Casa e Cozinha em 03\/10\/2026<\/h1>/);
-  assert.ok(casa.includes('<s>R$ 300,00</s>') && casa.includes('Frete grátis') && casa.includes('Menor preço em 12 dias') && casa.includes('Ver oferta na Mercado Livre'));
+  assert.ok(casa.includes('<s>R$ 300,00</s>') && casa.includes('Frete grátis') && casa.includes('Menor preço em 12 dias') && casa.includes('Ver oferta no Mercado Livre'));
 
   const inicio = ler(dir, 'index.html');
   assert.match(inicio, /<h2 class="secao">Ofertas de hoje<\/h2>/);

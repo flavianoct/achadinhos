@@ -70,7 +70,7 @@ export function paginaDaBio(ofertas: OfertaAvaliada[], config: Config, agora: Da
   <div class="info">
     <p class="titulo">${esc(o.titulo.length > 80 ? `${o.titulo.slice(0, 77).trimEnd()}…` : o.titulo)}</p>
     <p class="preco">${de}<strong>${esc(formatarPreco(o.preco))}</strong> ${desc} ${frete}</p>
-    <a class="ver" href="${esc(o.link)}" target="_blank" rel="sponsored nofollow noopener">Ver oferta na ${esc(loja)}</a>
+    <a class="ver" href="${esc(o.link)}" target="_blank" rel="sponsored nofollow noopener">Ver oferta ${o.loja === 'mercadolivre' ? 'no' : 'na'} ${esc(loja)}</a>
   </div>
 </li>`;
     })
