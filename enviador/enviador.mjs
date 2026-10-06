@@ -151,8 +151,12 @@ function recibo(r, tipo) {
   log(`  ${tipo} aceito pelo WhatsApp (id ${r?.key?.id ?? '?'}, servidor ${r?.key?.server_id ?? r?.key?.serverId ?? 'sem id de servidor'}).`);
 }
 
+// Em canal, a mensagem com imagem do Mercado Livre (WebP) foi aceita pelo WhatsApp mas não apareceu para ninguém; o texto chega.
+// Por padrão vai só texto (o link já leva à oferta). Para tentar imagem de novo, ponha "enviarImagem": true no config.json.
+let enviarImagem = false;
+
 async function enviarUma(sock, jid, m) {
-  if (m.imagem) {
+  if (m.imagem && enviarImagem) {
     try {
       recibo(await sock.sendMessage(jid, { image: { url: m.imagem }, caption: m.texto }), 'imagem com legenda');
       return;
@@ -177,6 +181,7 @@ async function rodar() {
     log('config.json ainda não tem destinos. Rode "listar" (ou o listar.bat), copie o código do grupo e cole em "destinos".');
     process.exit(1);
   }
+  enviarImagem = config.enviarImagem === true;
   const sock = await conectar();
   const destinos = await resolverDestinos(sock, config);
   if (!destinos.length) throw new Error('Nenhum destino válido.');
