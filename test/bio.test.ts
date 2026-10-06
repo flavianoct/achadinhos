@@ -16,7 +16,7 @@ test('bio: página leva botões do blog e do Telegram, ofertas com link de afili
   assert.match(h, /href="https:\/\/t\.me\/topfera_achadinhos"/);
   assert.match(h, /matt_word=topfera/);
   assert.match(h, /Entrar no canal do Telegram/);
-  assert.equal(h.split('href="https://t.me/topfera_achadinhos"').length - 1, 2, 'chamada para o Telegram no topo e no fim');
+  assert.equal(h.split('href="https://t.me/topfera_achadinhos"').length - 1, 3, 'Telegram no topo, no fim e na mensagem de busca sem resultado');
   assert.match(h, /Publi:/);
   assert.match(h, /noindex/);
   assert.ok(!h.includes('<b>Elétrica'), 'título é escapado');
@@ -35,4 +35,30 @@ test('config: BLOG_INSTAGRAM aceita @, nome ou endereço https e rejeita o resto
   assert.equal(lerConfig({ BLOG_INSTAGRAM: 'https://instagram.com/x/' }).blog.instagramLink, 'https://instagram.com/x/');
   assert.equal(lerConfig({ BLOG_INSTAGRAM: 'javascript:alert(1)' }).blog.instagramLink, '');
   assert.equal(lerConfig({}).blog.instagramLink, '');
+});
+
+test('bio: busca no aparelho filtra por produto sem acento, guarda até 60 ofertas e mostra só 12 antes de digitar', async () => {
+  const muitas = Array.from({ length: 70 }, (_, i) => ({ ...oferta, idProduto: `MLB${i}`, titulo: i === 40 ? 'Tênis Corrida Masculino' : `Produto ${i}` }));
+  const h = paginaDaBio(muitas.slice(0, 60), config, new Date());
+  assert.equal(h.split('<li class="oferta').length - 1, 60);
+  assert.equal(h.split('class="oferta extra"').length - 1, 48, 'só 12 aparecem antes de digitar');
+  assert.match(h, /id="q" type="search"/);
+  assert.match(h, /data-b="[^"]*tenis corrida masculino[^"]*"/, 'texto de busca sem acento');
+  assert.match(h, /split\(\/\\s\+\/\)/, 'o JavaScript da página mantém as barras do regex');
+  assert.match(h, /\\u0300-\\u036f/);
+  assert.match(h, /id="nada"[^>]*>Não achei esse produto/);
+
+  // Executa o script da página de verdade, com um DOM mínimo, para garantir que a busca filtra.
+  const js = /<script>([\s\S]*?)<\/script>/.exec(h)![1]!;
+  const itens = [...h.matchAll(/<li class="oferta[^"]*" data-b="([^"]*)"/g)].map((m) => ({ b: m[1]!, escondido: false, classList: { toggle(_: string, v: boolean) { this.parent.escondido = v; }, parent: null as any }, getAttribute(n: string) { return n === 'data-b' ? this.b : null; } }));
+  for (const it of itens) it.classList.parent = it;
+  const el: Record<string, any> = { q: { value: '', addEventListener(_: string, fn: () => void) { this.fn = fn; } }, lista: { children: itens, className: '' }, busca: { hidden: true }, info: { textContent: '' }, nada: { classList: { v: true, toggle(_: string, v: boolean) { this.v = v; } } } };
+  new Function('document', js)({ getElementById: (id: string) => ({ q: el.q, lista: el.lista, busca: el.busca, info: el.info, nada: el.nada })[id] });
+  el.q.value = 'TENIS';
+  el.q.fn();
+  assert.equal(itens.filter((i) => !i.escondido).length, 1, 'acha o tênis digitando sem acento e em maiúsculas');
+  assert.equal(el.info.textContent, '1 oferta encontrada');
+  el.q.value = 'geladeira';
+  el.q.fn();
+  assert.equal(el.nada.classList.v, false, 'sem resultado mostra a mensagem com o blog e o Telegram');
 });

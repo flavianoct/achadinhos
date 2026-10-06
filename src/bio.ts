@@ -7,12 +7,19 @@ import { formatarPreco } from './mensagem.ts';
 
 /** Quantas horas para trás a página "link da bio" olha, e quantas ofertas mostra no máximo. */
 export const HORAS_DA_BIO = 48;
-export const MAXIMO_NA_BIO = 12;
+/** Quantas ofertas a página guarda (para a busca achar mais) e quantas aparecem antes de alguém digitar. */
+export const MAXIMO_NA_BIO = 60;
+export const MOSTRAR_NA_BIO = 12;
 
 const NOME_DA_LOJA: Record<string, string> = { shopee: 'Shopee', mercadolivre: 'Mercado Livre', amazon: 'Amazon' };
 
 function esc(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+/** Sem acento e em minúsculas, para a busca achar "tênis" digitando "tenis". */
+function semAcento(s: string): string {
+  return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 }
 
 function https(url: string | undefined): string | undefined {
@@ -60,13 +67,14 @@ export function paginaDaBio(ofertas: OfertaAvaliada[], config: Config, agora: Da
   if (blog) botoes.push(`<a class="botao blog" href="${esc(blog)}">Ver o blog com guias de compra</a>`);
 
   const cartoes = ofertas
-    .map((o) => {
+    .map((o, i) => {
       const img = https(o.imagem);
       const loja = NOME_DA_LOJA[o.loja] ?? o.loja;
       const de = o.precoOriginal && o.precoOriginal > o.preco ? `<s>${esc(formatarPreco(o.precoOriginal))}</s> ` : '';
       const desc = o.desconto && o.desconto > 0 ? `<span class="selo">-${Math.round(o.desconto)}%</span>` : '';
       const frete = o.freteGratis ? '<span class="selo verde">Frete grátis</span>' : '';
-      return `<li class="oferta">
+      const busca = semAcento(`${o.titulo} ${loja}`);
+      return `<li class="oferta${i >= MOSTRAR_NA_BIO ? ' extra' : ''}" data-b="${esc(busca)}">
   ${img ? `<img src="${esc(img)}" alt="" width="96" height="96" loading="lazy" decoding="async" referrerpolicy="no-referrer">` : '<div class="semfoto"></div>'}
   <div class="info">
     <p class="titulo">${esc(o.titulo.length > 80 ? `${o.titulo.slice(0, 77).trimEnd()}…` : o.titulo)}</p>
@@ -77,7 +85,14 @@ export function paginaDaBio(ofertas: OfertaAvaliada[], config: Config, agora: Da
     })
     .join('\n');
 
-  const vazio = '<p class="vazio">As ofertas de hoje estão chegando. Volte em alguns minutos.</p>';
+  // Busca no próprio aparelho: sem servidor e sem JavaScript de terceiros. Sem JavaScript a caixa nem aparece e a lista segue normal.
+  const buscador = `<div class="busca" id="busca" hidden>
+    <label for="q">Procurando uma promoção específica?</label>
+    <input id="q" type="search" placeholder="Digite o produto (ex.: air fryer, fone, tênis)" autocomplete="off" enterkeyhint="search">
+    <p class="busca-info" id="info" aria-live="polite"></p>
+  </div>`;
+  const semResultado = `<div class="semresultado escondido" id="nada">Não achei esse produto nas ofertas de agora.${blog ? ` Veja os <a href="${esc(blog)}">guias do blog</a>` : ''}${telegram ? ` ou entre no <a href="${esc(telegram)}" target="_blank" rel="noopener">canal do Telegram</a>: avisamos quando aparecer.` : '.'}</div>`;
+  const vazio ='<p class="vazio">As ofertas de hoje estão chegando. Volte em alguns minutos.</p>';
   const atualizado = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' }).format(agora).replace(',', ' às');
   return `<!doctype html>
 <html lang="pt-BR">
@@ -110,6 +125,9 @@ ul{list-style:none;margin:0;padding:0}
 .selo.verde{background:var(--okbg);color:var(--ok)}
 .ver{display:block;text-align:center;background:var(--lar);color:#fff;text-decoration:none;font-weight:700;padding:11px 10px;border-radius:10px}
 .fim{margin-top:20px}
+.busca{margin:0 0 14px}.busca label{display:block;font-weight:700;margin:0 0 6px}.busca input{width:100%;font:inherit;padding:13px 14px;border-radius:12px;border:2px solid var(--bd);background:var(--card);color:var(--tx)}.busca input:focus{outline:none;border-color:var(--cor)}.busca-info{font-size:13px;color:var(--mut);margin:6px 2px 0;min-height:1.2em}
+.extra{display:none}.achou .extra{display:flex}.escondido,.achou .escondido{display:none}
+.semresultado{background:var(--card);border:1px dashed var(--bd);border-radius:14px;padding:14px;text-align:center;color:var(--mut);font-size:14px}.semresultado.escondido{display:none}.semresultado a{color:var(--cor2);font-weight:700}
 .vazio{text-align:center;color:var(--mut)}
 .nota{color:var(--mut);font-size:12px;text-align:center;margin-top:22px}
 </style>
@@ -124,10 +142,32 @@ ul{list-style:none;margin:0;padding:0}
   ${chamada}
   ${botoes.join('\n  ')}
   <h2>Ofertas em destaque</h2>
-  ${cartoes ? `<ul>\n${cartoes}\n</ul>` : vazio}
+  ${cartoes ? buscador : ''}
+  ${cartoes ? `<ul id="lista">\n${cartoes}\n</ul>` : vazio}
+  ${cartoes ? semResultado : ''}
   ${chamadaFinal}
   <p class="nota">Publi: os links são de afiliado e o site pode ganhar uma comissão, sem custo extra para você. Preços e estoque podem mudar a qualquer momento. Atualizado em ${esc(atualizado)}.</p>
 </main>
+<script>
+(function(){
+  var q=document.getElementById('q'),lista=document.getElementById('lista'),box=document.getElementById('busca');
+  if(!q||!lista)return;
+  box.hidden=false;
+  var info=document.getElementById('info'),nada=document.getElementById('nada'),itens=[].slice.call(lista.children);
+  function limpar(s){return s.normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase().trim();}
+  function filtrar(){
+    var termos=limpar(q.value).split(/\\s+/).filter(Boolean),achados=0;
+    lista.className=termos.length?'achou':'';
+    itens.forEach(function(li){
+      var ok=termos.every(function(t){return (li.getAttribute('data-b')||'').indexOf(t)>-1;});
+      li.classList.toggle('escondido',!ok);if(ok)achados++;
+    });
+    nada.classList.toggle('escondido',!(termos.length&&!achados));
+    info.textContent=termos.length&&achados?achados+(achados===1?' oferta encontrada':' ofertas encontradas'):'';
+  }
+  q.addEventListener('input',filtrar);
+})();
+</script>
 </body>
 </html>
 `;
