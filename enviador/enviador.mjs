@@ -155,14 +155,34 @@ function recibo(r, tipo) {
 // Por padrão vai só texto (o link já leva à oferta). Para tentar imagem de novo, ponha "enviarImagem": true no config.json.
 let enviarImagem = false;
 
+let urlDoSiteAtual = '';
+
+/**
+ * A arte PNG da oferta (a mesma do Instagram), que o robô publica no blog em /social/. Baixa como arquivo e manda como
+ * imagem de verdade: o link da foto do Mercado Livre (WebP) era aceito pelo WhatsApp, mas o canal não publicava.
+ */
+async function baixarArte(id) {
+  const nome = `${id.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}-feed.png`;
+  try {
+    const r = await fetch(`${urlDoSiteAtual.replace(/\/+$/, '')}/social/${nome}`, { signal: AbortSignal.timeout(30_000) });
+    if (!r.ok) return undefined;
+    return Buffer.from(await r.arrayBuffer());
+  } catch {
+    return undefined;
+  }
+}
+
 async function enviarUma(sock, jid, m) {
-  if (m.imagem && enviarImagem) {
-    try {
-      recibo(await sock.sendMessage(jid, { image: { url: m.imagem }, caption: m.texto }), 'imagem com legenda');
-      return;
-    } catch (e) {
-      log(`  imagem falhou (${e.message}); enviando só o texto.`);
-    }
+  if (enviarImagem) {
+    const arte = await baixarArte(m.id);
+    if (arte) {
+      try {
+        recibo(await sock.sendMessage(jid, { image: arte, mimetype: 'image/png', caption: m.texto }), 'imagem com legenda');
+        return;
+      } catch (e) {
+        log(`  imagem falhou (${e.message}); enviando só o texto.`);
+      }
+    } else log('  sem arte no blog para esta oferta; enviando só o texto.');
   }
   recibo(await sock.sendMessage(jid, { text: m.texto }), 'texto');
 }
@@ -182,6 +202,7 @@ async function rodar() {
     process.exit(1);
   }
   enviarImagem = config.enviarImagem === true;
+  urlDoSiteAtual = config.urlDoSite;
   const sock = await conectar();
   const destinos = await resolverDestinos(sock, config);
   if (!destinos.length) throw new Error('Nenhum destino válido.');
@@ -255,11 +276,26 @@ async function rodar() {
 /** Manda uma frase de teste para os destinos do config.json, para conferir a entrega sem esperar uma oferta. */
 async function testar() {
   const config = lerConfig();
+  urlDoSiteAtual = config.urlDoSite;
   const sock = await conectar();
   const destinos = await resolverDestinos(sock, config);
+  const hora = new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+  // "testar imagem": manda a arte da oferta mais recente como imagem, para ver se o canal publica.
+  const fila = process.argv[3] === 'imagem' ? await buscarFila(config) : [];
+  const comArte = [];
+  for (const m of [...fila].reverse()) {
+    const arte = await baixarArte(m.id);
+    if (arte) {
+      comArte.push({ arte, m });
+      break;
+    }
+  }
   for (const jid of destinos) {
-    const r = await sock.sendMessage(jid, { text: `Teste do robô de ofertas (${new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' })}). Se você leu isto, o canal está recebendo.` });
-    recibo(r, 'teste');
+    if (comArte[0]) {
+      recibo(await sock.sendMessage(jid, { image: comArte[0].arte, mimetype: 'image/png', caption: `Teste de imagem do robô (${hora}). Se você viu a arte acima, o canal publica imagens.` }), 'teste de imagem');
+    } else {
+      recibo(await sock.sendMessage(jid, { text: `Teste do robô de ofertas (${hora}). Se você leu isto, o canal está recebendo.` }), 'teste');
+    }
   }
   await pausa(5000);
   process.exit(0);
