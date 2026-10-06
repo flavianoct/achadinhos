@@ -110,13 +110,11 @@ function tituloCompleto(titulo: string, max = 150): string {
  * depois a economia em reais (só quando o preço "de" não parece inflado) e, sem nada melhor, a categoria do produto.
  */
 /**
- * O desconto pode ir na arte e na legenda como promessa? Não, se o histórico mostra que o preço "de" é inflado. Sem histórico para confirmar,
- * produto do ranking dos mais vendidos ou com desconto de 60% ou mais não leva "de", economia nem porcentagem: só o preço atual.
+ * O desconto pode ir na arte e na legenda (preço "de" riscado, economia e porcentagem)? Sim, como em qualquer loja, a menos que o histórico
+ * do robô prove que o preço "de" é inflado (o produto nunca custou perto dele).
  */
 export function descontoConfiavel(o: OfertaAvaliada): boolean {
-  if (o.precoDe === 'inflado') return false;
-  if (o.precoDe === 'confirmado') return true;
-  return !(o.maisVendido || (o.desconto ?? 0) >= 60);
+  return o.precoDe !== 'inflado';
 }
 
 export function ganchoDaOferta(o: OfertaAvaliada): { gancho: string; curto: string; tipo: TipoDeGancho } {
