@@ -510,3 +510,19 @@ test('blog: achados da Amazon viram a página Amazon, sem preço, com a tag e se
   assert.match(ler(dir, 'index.html'), /href="amazon\.html"/);
   assert.match(ler(dir, 'sitemap.xml'), /achados\/amazon\.html/);
 });
+
+test('blog: canal do WhatsApp aparece no rodapé, na faixa de chamada e nos dados estruturados, e some quando não configurado', async () => {
+  const canal = 'https://whatsapp.com/channel/0029VbDtCLD2UPBAGBZ4UO1W';
+  const gerar = async (extra: Record<string, string>) => {
+    const dir = pasta();
+    const config = lerConfig({ BLOG_PASTA: dir, BLOG_URL: 'https://exemplo.github.io/achados/', TELEGRAM_CHAT_ID: '@meucanal', BLOG_AMAZON_ARQUIVO: join(dir, 'sem.json'), ...extra });
+    await gerarBlog(bancoCom([produto(1), produto(2), produto(3)]), config, AGORA);
+    return ler(dir, 'index.html');
+  };
+  const com = await gerar({ BLOG_WHATSAPP: canal });
+  assert.ok(com.includes(`href="${canal}" target="_blank" rel="noopener me">Canal no WhatsApp</a>`), 'rodapé');
+  assert.ok(com.includes('Também no <a href="' + canal), 'faixa de chamada');
+  assert.ok(com.includes(`"sameAs":["https://t.me/meucanal","${canal}"]`), 'dados estruturados');
+  const sem = await gerar({});
+  assert.ok(!sem.includes('whatsapp.com') && !sem.includes('Canal no WhatsApp'));
+});

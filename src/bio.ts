@@ -63,6 +63,8 @@ export function paginaDaBio(ofertas: OfertaAvaliada[], config: Config, agora: Da
   const chamadaFinal = telegram
     ? `<a class="botao telegram fim" href="${esc(telegram)}" target="_blank" rel="noopener">Quero receber as ofertas no Telegram</a>`
     : '';
+  const whatsapp = https(config.blog.whatsappLink);
+  const botaoWhatsapp = whatsapp ? `<a class="botao whatsapp" href="${esc(whatsapp)}" target="_blank" rel="noopener">Receber no WhatsApp</a>` : '';
   const botoes: string[] = [];
   if (blog) botoes.push(`<a class="botao blog" href="${esc(blog)}">Ver o blog com guias de compra</a>`);
 
@@ -111,6 +113,7 @@ h1{font-size:24px;letter-spacing:-.02em;margin:0 0 4px}.sub{color:var(--mut);fon
 .botao{display:flex;align-items:center;justify-content:center;text-align:center;text-decoration:none;font-weight:800;font-size:17px;padding:16px;border-radius:14px;margin:0 0 10px;box-shadow:0 6px 18px rgba(16,24,40,.12)}
 .botao.telegram{background:var(--tg);color:#fff}
 .botao.blog{background:var(--cor);color:#fff}
+.botao.whatsapp{background:#1fa855;color:#fff}
 .chamada{background:var(--card);border:1px solid var(--bd);border-radius:18px;padding:16px;margin:0 0 18px}
 .chamada-titulo{font-size:17px;font-weight:800;line-height:1.25;margin:0 0 4px;text-align:center}.chamada-texto{font-size:14px;color:var(--mut);margin:0 0 14px;text-align:center}.chamada-mini{font-size:12px;color:var(--mut);margin:0;text-align:center}
 .chamada .botao{margin-bottom:8px}
@@ -140,6 +143,7 @@ ul{list-style:none;margin:0;padding:0}
     <p class="sub">Ofertas conferidas, com o preço do momento</p>
   </header>
   ${chamada}
+  ${botaoWhatsapp}
   ${botoes.join('\n  ')}
   <h2>Ofertas em destaque</h2>
   ${cartoes ? buscador : ''}

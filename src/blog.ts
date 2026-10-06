@@ -227,7 +227,7 @@ type Trilha = Array<[string, string?]>;
 
 /** Endereços dos perfis oficiais da marca (Telegram e Instagram), só os seguros. */
 function redesDaMarca(b: Config['blog']): string[] {
-  return [b.telegramLink, b.instagramLink].filter((u) => u && urlSegura(u));
+  return [b.telegramLink, b.instagramLink, b.whatsappLink].filter((u) => u && urlSegura(u));
 }
 
 /** Muda sempre que o CSS muda, para o navegador não usar uma cópia antiga guardada. */
@@ -297,7 +297,7 @@ ${ld ? `<script type="application/ld+json">${JSON.stringify(ld).replace(/</g, '\
 </header>
 <main id="conteudo"${p.largo ? ' class="largo"' : ''}>
 ${migalhas}${p.corpo}
-  ${b.telegramLink && urlSegura(b.telegramLink) ? `<aside class="chamada"><div><strong>Receba as melhores ofertas na hora</strong><span>Nosso canal do Telegram avisa quando um bom preço aparece.${b.instagramLink && urlSegura(b.instagramLink) ? ` Ou <a href="${esc(b.instagramLink)}" target="_blank" rel="noopener me">siga no Instagram</a>.` : ''}</span></div><a class="botao" href="${esc(b.telegramLink)}" target="_blank" rel="noopener">Entrar no canal</a></aside>` : ''}
+  ${b.telegramLink && urlSegura(b.telegramLink) ? `<aside class="chamada"><div><strong>Receba as melhores ofertas na hora</strong><span>Nosso canal do Telegram avisa quando um bom preço aparece.${b.instagramLink && urlSegura(b.instagramLink) ? ` Ou <a href="${esc(b.instagramLink)}" target="_blank" rel="noopener me">siga no Instagram</a>.` : ''}${b.whatsappLink && urlSegura(b.whatsappLink) ? ` Também no <a href="${esc(b.whatsappLink)}" target="_blank" rel="noopener me">WhatsApp</a>.` : ''}</span></div><a class="botao" href="${esc(b.telegramLink)}" target="_blank" rel="noopener">Entrar no canal</a></aside>` : ''}
 </main>
 <footer class="rodape">
   <div class="rodape-miolo">
@@ -311,7 +311,7 @@ ${migalhas}${p.corpo}
     </div>
     <div>
       <p class="rodape-titulo">Transparência</p>
-      <p class="rodape-links"><a href="sobre.html">Como escolhemos</a> <a href="privacidade.html">Privacidade e afiliados</a>${b.telegramLink && urlSegura(b.telegramLink) ? ` <a href="${esc(b.telegramLink)}" target="_blank" rel="noopener">Canal no Telegram</a>` : ''}${b.instagramLink && urlSegura(b.instagramLink) ? ` <a href="${esc(b.instagramLink)}" target="_blank" rel="noopener me">Siga no Instagram</a>` : ''}</p>
+      <p class="rodape-links"><a href="sobre.html">Como escolhemos</a> <a href="privacidade.html">Privacidade e afiliados</a>${b.telegramLink && urlSegura(b.telegramLink) ? ` <a href="${esc(b.telegramLink)}" target="_blank" rel="noopener">Canal no Telegram</a>` : ''}${b.instagramLink && urlSegura(b.instagramLink) ? ` <a href="${esc(b.instagramLink)}" target="_blank" rel="noopener me">Siga no Instagram</a>` : ''}${b.whatsappLink && urlSegura(b.whatsappLink) ? ` <a href="${esc(b.whatsappLink)}" target="_blank" rel="noopener me">Canal no WhatsApp</a>` : ''}</p>
     </div>
     <div class="rodape-aviso">
       <p><strong>Aviso:</strong> este site participa de programas de afiliados. Ao comprar pelos links, podemos receber uma comissão, sem custo extra para você.</p>

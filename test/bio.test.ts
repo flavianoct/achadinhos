@@ -62,3 +62,18 @@ test('bio: busca no aparelho filtra por produto sem acento, guarda até 60 ofert
   el.q.fn();
   assert.equal(el.nada.classList.v, false, 'sem resultado mostra a mensagem com o blog e o Telegram');
 });
+test('whatsapp: BLOG_WHATSAPP só aceita endereço https do WhatsApp; a bio mostra o botão e o blog os links', async () => {
+  const canal = 'https://whatsapp.com/channel/0029VbDtCLD2UPBAGBZ4UO1W';
+  assert.equal(lerConfig({ BLOG_WHATSAPP: canal }).blog.whatsappLink, canal);
+  assert.equal(lerConfig({ BLOG_WHATSAPP: 'https://chat.whatsapp.com/ABC123' }).blog.whatsappLink, 'https://chat.whatsapp.com/ABC123');
+  assert.equal(lerConfig({ BLOG_WHATSAPP: 'https://wa.me/5511999999999' }).blog.whatsappLink, 'https://wa.me/5511999999999');
+  assert.equal(lerConfig({ BLOG_WHATSAPP: 'https://exemplo.com/channel/x' }).blog.whatsappLink, '');
+  assert.equal(lerConfig({ BLOG_WHATSAPP: 'javascript:alert(1)' }).blog.whatsappLink, '');
+  assert.equal(lerConfig({}).blog.whatsappLink, '');
+
+  const comWhats = lerConfig({ BLOG_URL: 'https://flavianoct.github.io/achadinhos', BLOG_TELEGRAM: 'https://t.me/topfera_achadinhos', BLOG_WHATSAPP: canal });
+  const h = paginaDaBio([oferta], comWhats, new Date());
+  assert.match(h, new RegExp(`class="botao whatsapp" href="${canal}"`));
+  assert.match(h, /Receber no WhatsApp/);
+  assert.ok(!paginaDaBio([oferta], config, new Date()).includes('Receber no WhatsApp'), 'sem o valor, o botão não aparece');
+});

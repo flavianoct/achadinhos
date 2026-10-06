@@ -66,6 +66,8 @@ export interface Config {
     telegramLink: string;
     /** Link do perfil do Instagram mostrado no blog (vem de BLOG_INSTAGRAM, só o @ ou o endereço). */
     instagramLink: string;
+    /** Canal ou grupo do WhatsApp mostrado no blog (BLOG_WHATSAPP): só endereços https do próprio WhatsApp. */
+    whatsappLink: string;
     /** Arquivo com os achados da Amazon escolhidos à mão (página Amazon do blog). */
     amazonArquivo: string;
   };
@@ -81,6 +83,12 @@ export interface Config {
 export type Env = Record<string, string | undefined>;
 
 /** Lista de horas ("12,18,21"). Sem a variável, usa o padrão; com a variável vazia, devolve vazio (sem restrição). */
+/** Só aceita endereço https do WhatsApp (canal, grupo ou wa.me); qualquer outra coisa vira vazio. */
+function linkDoWhatsapp(valor: string): string {
+  const v = valor.trim();
+  return /^https:\/\/(whatsapp\.com\/channel\/|chat\.whatsapp\.com\/|wa\.me\/)[A-Za-z0-9_\-/?=&.]+$/i.test(v) ? v : '';
+}
+
 /** Aceita "@perfil", "perfil" ou o endereço completo; devolve o endereço https do perfil, ou vazio. */
 function linkDoInstagram(valor: string): string {
   const v = valor.trim();
@@ -227,6 +235,7 @@ export function lerConfig(env: Env = process.env): Config {
       publicar: opcao(env, 'BLOG_PUBLICAR', ['nao', 'git'] as const, 'nao'),
       telegramLink: (env.BLOG_TELEGRAM ?? '').trim() || (chatId.startsWith('@') ? `https://t.me/${chatId.slice(1)}` : ''),
       instagramLink: linkDoInstagram(env.BLOG_INSTAGRAM ?? ''),
+      whatsappLink: linkDoWhatsapp(env.BLOG_WHATSAPP ?? ''),
       amazonArquivo: (env.BLOG_AMAZON_ARQUIVO ?? '').trim() || 'amazon.json',
     },
     whatsapp: { ativo: ligado(env, 'WHATSAPP_ATIVO', true) },
