@@ -127,7 +127,15 @@ async function resolverDestinos(sock, config) {
       try {
         const meta = await sock.newsletterMetadata('invite', t.codigo);
         prontos.push(meta.id);
-        const papel = meta.viewer_metadata?.role ?? 'não informado';
+        // A consulta pelo link não traz o papel da conta; pelo código do canal ela traz.
+        let completo = meta;
+        try {
+          completo = await sock.newsletterMetadata('jid', meta.id);
+        } catch {
+          // fica com o que a consulta pelo link trouxe
+        }
+        const papel = completo.viewer_metadata?.role ?? meta.viewer_metadata?.role ?? 'não informado';
+        log(`  dados do canal: campos da conta = ${Object.keys(completo.viewer_metadata ?? {}).join(',') || 'nenhum'}; estado = ${completo.state?.type ?? '?'}`);
         log(`Canal encontrado: ${meta.thread_metadata?.name?.text ?? meta.id} (papel desta conta: ${papel}; seguidores: ${meta.thread_metadata?.subscribers_count ?? '?'})`);
         if (papel !== 'OWNER' && papel !== 'ADMIN') log('  ATENÇÃO: esta conta não é dona nem administradora do canal. O WhatsApp aceita o envio e não publica. Escaneie o QR com a conta que criou o canal.');
       } catch (e) {
