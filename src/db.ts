@@ -128,6 +128,15 @@ export class Banco {
         publicado_em INTEGER,
         tentativas INTEGER NOT NULL DEFAULT 0
       );
+      CREATE TABLE IF NOT EXISTS instagram_reels (
+        chave TEXT PRIMARY KEY,
+        dia TEXT NOT NULL,
+        titulo TEXT NOT NULL,
+        dados TEXT NOT NULL,
+        criado_em INTEGER NOT NULL,
+        publicado_em INTEGER,
+        tentativas INTEGER NOT NULL DEFAULT 0
+      );
       CREATE TABLE IF NOT EXISTS saude_fontes (
         fonte TEXT PRIMARY KEY,
         falhas INTEGER NOT NULL,
@@ -328,6 +337,40 @@ export class Banco {
     return linhas.filter((l) => diaDe(new Date(l.t)) === hoje).length;
   }
 
+  // ───────── Reel do Instagram (vídeo "Top 3 achadinhos do dia") ─────────
+
+  /** Guarda o Reel do dia (as ofertas e as fotos, para refazer o vídeo a cada rodada até ele ser publicado). */
+  salvarReel(chave: string, titulo: string, dados: string, agora: Date): void {
+    this.db
+      .prepare(`INSERT OR REPLACE INTO instagram_reels (chave, dia, titulo, dados, criado_em, publicado_em) VALUES (?, ?, ?, ?, ?, NULL)`)
+      .run(chave, diaDe(agora), titulo, dados, agora.getTime());
+  }
+
+  reelCriadoNoDia(agora: Date): boolean {
+    return Boolean(this.db.prepare(`SELECT 1 FROM instagram_reels WHERE dia = ?`).get(diaDe(agora)));
+  }
+
+  /** O Reel de hoje que ainda não foi publicado (depois de 3 falhas desiste). */
+  reelPendente(agora: Date): { chave: string; titulo: string; dados: string; tentativas: number } | undefined {
+    return this.db
+      .prepare(`SELECT chave, titulo, dados, tentativas FROM instagram_reels WHERE dia = ? AND publicado_em IS NULL AND tentativas < 3 ORDER BY criado_em DESC LIMIT 1`)
+      .get(diaDe(agora)) as { chave: string; titulo: string; dados: string; tentativas: number } | undefined;
+  }
+
+  registrarFalhaDoReel(chave: string): void {
+    this.db.prepare(`UPDATE instagram_reels SET tentativas = tentativas + 1 WHERE chave = ?`).run(chave);
+  }
+
+  marcarReelPublicado(chave: string, agora: Date): void {
+    this.db.prepare(`UPDATE instagram_reels SET publicado_em = ?, dados = '{}' WHERE chave = ?`).run(agora.getTime(), chave);
+  }
+
+  reelsPublicadosNoDia(agora: Date): number {
+    const linhas = this.db.prepare(`SELECT publicado_em AS t FROM instagram_reels WHERE publicado_em IS NOT NULL`).all() as Array<{ t: number }>;
+    const hoje = diaDe(agora);
+    return linhas.filter((l) => diaDe(new Date(l.t)) === hoje).length;
+  }
+
   /** Anota o resultado da última coleta de uma loja. Sem `erro` zera a contagem de falhas seguidas. */
   registrarSaudeFonte(fonte: string, erro: string | undefined, agora: Date): void {
     if (erro === undefined) {
@@ -490,6 +533,8 @@ export class Banco {
     // Publicado vira só um registro (leve) e fica 30 dias, para o robô saber que assunto já usou; o que não saiu perde a validade em 2 dias.
     this.db.prepare(`DELETE FROM instagram_carrosseis WHERE criado_em < ?`).run(t - 30 * 86_400_000);
     this.db.prepare(`DELETE FROM instagram_carrosseis WHERE publicado_em IS NULL AND criado_em < ?`).run(t - 2 * 86_400_000);
+    this.db.prepare(`DELETE FROM instagram_reels WHERE criado_em < ?`).run(t - 30 * 86_400_000);
+    this.db.prepare(`DELETE FROM instagram_reels WHERE publicado_em IS NULL AND criado_em < ?`).run(t - 2 * 86_400_000);
     this.db.prepare(`DELETE FROM produtos WHERE visto_em < ?`).run(t - 7 * 86_400_000);
     this.db.prepare(`DELETE FROM guia_produtos WHERE visto_em < ?`).run(t - 30 * 86_400_000);
     this.db.prepare(`DELETE FROM textos WHERE criado_em < ? AND chave LIKE 'produto:%'`).run(t - 30 * 86_400_000);

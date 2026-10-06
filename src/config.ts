@@ -71,7 +71,7 @@ export interface Config {
   /** Arte de Story, legenda e roteiro de vídeo das ofertas postadas (aparecem no painel). */
   social: { ativo: boolean };
   /** Publicação automática no Instagram (conta profissional). Token e ID ficam nos Secrets. */
-  instagram: { ativo: boolean; token: string; userId: string; feedPorDia: number; storiesPorDia: number; intervaloFeedMin: number; intervaloStoryMin: number; notaMinima: number; vendasMinimas: number; palavrasBloqueadas: string[]; carrosselPorDia: number; carrosselItens: number; carrosselTetos: number[]; dicasDias: number[]; horariosFeed: number[]; horariosStories: number[]; tokenData: string };
+  instagram: { ativo: boolean; token: string; userId: string; feedPorDia: number; storiesPorDia: number; intervaloFeedMin: number; intervaloStoryMin: number; notaMinima: number; vendasMinimas: number; palavrasBloqueadas: string[]; carrosselPorDia: number; carrosselItens: number; carrosselTetos: number[]; dicasDias: number[]; horariosFeed: number[]; horariosStories: number[]; reelsPorDia: number; horariosReels: number[]; tokenData: string };
   painel: { porta: number };
 }
 
@@ -247,6 +247,8 @@ export function lerConfig(env: Env = process.env): Config {
       // mais gente está online em vez de saírem todos na primeira rodada do dia. Vazio = qualquer hora do horário de postagem.
       horariosFeed: horas(env.INSTAGRAM_HORARIOS_FEED, [12, 18, 21]),
       horariosStories: horas(env.INSTAGRAM_HORARIOS_STORIES, [8, 10, 12, 15, 18, 20, 21]),
+      reelsPorDia: numero(env, 'INSTAGRAM_REELS_POR_DIA', 1),
+      horariosReels: horas(env.INSTAGRAM_HORARIOS_REELS, [19, 20]),
       palavrasBloqueadas: env.INSTAGRAM_PALAVRAS_BLOQUEADAS === undefined ? ['generico', 'paralelo', 'similar', 'replica', 'imitacao', 'sem marca'] : lista(env.INSTAGRAM_PALAVRAS_BLOQUEADAS),
       tokenData: (env.INSTAGRAM_TOKEN_DATA ?? '').trim(),
     },

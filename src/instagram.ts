@@ -3,6 +3,7 @@ import type { Config } from './config.ts';
 import type { Banco } from './db.ts';
 import { horaDe } from './db.ts';
 import { HORAS_DO_SOCIAL, arquivoDaArte, arquivosDoCarrossel, legendaDoCarrossel, montarLegenda, totalDeImagens, type DadosDoCarrossel, type Fetch } from './social.ts';
+import { arquivoDoReel, legendaDoReel, type DadosDoReel } from './reel.ts';
 import type { OfertaAvaliada } from './types.ts';
 
 const BASE = 'https://graph.instagram.com/v23.0';
@@ -59,20 +60,25 @@ export class Instagram {
   }
 
   /** Cria o contêiner de mídia e espera o Instagram terminar de processar a imagem. Devolve o id do contêiner. */
-  private async criarContainer(params: Record<string, string>): Promise<string> {
+  private async criarContainer(params: Record<string, string>, verificacoes = 10): Promise<string> {
     const container = await this.chamar('POST', `${this.userId}/media`, params);
-    // A imagem leva alguns segundos para ser processada; espera até 10 verificações.
-    for (let i = 0; i < 10; i++) {
+    // A imagem leva alguns segundos para ser processada (um vídeo leva bem mais); espera pelas verificações.
+    let pronto = false;
+    for (let i = 0; i < verificacoes; i++) {
       const st = await this.chamar('GET', container.id, { fields: 'status_code' });
-      if (st.status_code === 'FINISHED') break;
-      if (st.status_code === 'ERROR' || st.status_code === 'EXPIRED') throw new ErroInstagram(`O Instagram não processou a imagem (${st.status_code}).`, false);
+      if (st.status_code === 'FINISHED') {
+        pronto = true;
+        break;
+      }
+      if (st.status_code === 'ERROR' || st.status_code === 'EXPIRED') throw new ErroInstagram(`O Instagram não processou a mídia (${st.status_code}).`, false);
       await pausa(this.esperaMs);
     }
+    if (!pronto && verificacoes > 10) throw new ErroInstagram('O Instagram demorou demais para processar o vídeo.', false);
     return container.id as string;
   }
 
-  private async publicar(params: Record<string, string>): Promise<string> {
-    const container = await this.criarContainer(params);
+  private async publicar(params: Record<string, string>, verificacoes = 10): Promise<string> {
+    const container = await this.criarContainer(params, verificacoes);
     const feito = await this.chamar('POST', `${this.userId}/media_publish`, { creation_id: container });
     return feito.id as string;
   }
@@ -89,6 +95,11 @@ export class Instagram {
     return this.publicar({ media_type: 'CAROUSEL', children: filhos.join(','), caption: legenda });
   }
 
+  /** Reel (vídeo vertical em mp4 já no ar no site). O Instagram leva de alguns segundos a poucos minutos para processar o vídeo. */
+  publicarReel(urlDoVideo: string, legenda: string): Promise<string> {
+    return this.publicar({ media_type: 'REELS', video_url: urlDoVideo, caption: legenda, share_to_feed: 'true' }, 60);
+  }
+
   /** Story pela API não aceita legenda nem adesivos. */
   publicarStory(urlDaImagem: string): Promise<string> {
     return this.publicar({ image_url: urlDaImagem, media_type: 'STORIES' });
@@ -98,6 +109,7 @@ export class Instagram {
 export interface ResumoDoInstagram {
   feed: number;
   stories: number;
+  reels: number;
   avisos: string[];
 }
 
@@ -140,7 +152,7 @@ async function pngNoAr(url: string, fetchFn: Fetch): Promise<boolean> {
  * Respeita horário, limite diário e escolhe a de maior pontuação primeiro.
  */
 export async function publicarNoInstagram(banco: Banco, config: Config, agora: Date, fetchFn: Fetch = fetch, cliente?: Instagram): Promise<ResumoDoInstagram> {
-  const resumo: ResumoDoInstagram = { feed: 0, stories: 0, avisos: [] };
+  const resumo: ResumoDoInstagram = { feed: 0, stories: 0, reels: 0, avisos: [] };
   const ig = config.instagram;
   if (!ig.ativo) return resumo;
   const aviso = avisoDoToken(config, agora);
@@ -210,6 +222,23 @@ export async function publicarNoInstagram(banco: Banco, config: Config, agora: D
           // O carrossel é um formato novo: se falhar, anota (3 tentativas no máximo) e os posts de foto seguem normalmente.
           banco.registrarFalhaDoCarrossel(carrossel.chave);
           resumo.avisos.push(`Instagram: o carrossel não saiu (tentativa ${carrossel.tentativas + 1} de 3): ${(e as Error).message}`);
+          if (e instanceof ErroInstagram && e.fatal) throw e;
+        }
+      }
+    }
+    // O Reel do dia é um formato à parte (vídeo): tem o próprio limite diário e as próprias horas.
+    const reel = ig.reelsPorDia > 0 && banco.reelsPublicadosNoDia(agora) < ig.reelsPorDia && (ig.horariosReels.length === 0 || ig.horariosReels.includes(hora)) ? banco.reelPendente(agora) : undefined;
+    if (reel) {
+      const video = `${config.blog.url}/social/${arquivoDoReel(reel.chave)}`;
+      if (await noAr(video)) {
+        try {
+          await api.publicarReel(video, legendaDoReel(JSON.parse(reel.dados) as DadosDoReel, config));
+          banco.marcarReelPublicado(reel.chave, agora);
+          resumo.reels++;
+          await pausa(2000);
+        } catch (e) {
+          banco.registrarFalhaDoReel(reel.chave);
+          resumo.avisos.push(`Instagram: o Reel não saiu (tentativa ${reel.tentativas + 1} de 3): ${(e as Error).message}`);
           if (e instanceof ErroInstagram && e.fatal) throw e;
         }
       }

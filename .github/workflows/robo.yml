@@ -37,6 +37,11 @@ jobs:
         with:
           node-version: 24
 
+      - name: Instalar o ffmpeg (monta o vídeo do Reel)
+        # Se falhar, o robô segue normalmente e só não publica o Reel do dia.
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+        continue-on-error: true
+
       - name: Instalar o conversor de imagens
         # Só o @resvg/resvg-js (arte de Story e feed em PNG). Se falhar, o robô segue sem as imagens do Instagram.
         run: npm install --omit=dev --no-audit --no-fund

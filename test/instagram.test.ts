@@ -163,7 +163,7 @@ test('instagram: respeita limite diário, horário e PNG que ainda não está no
   assert.deepEqual([r2.feed, r2.stories], [0, 0], 'limite do dia atingido');
 
   const madrugada = new Date('2026-10-03T05:00:00Z');
-  assert.deepEqual(await publicarNoInstagram(banco, config, madrugada, f, cliente), { feed: 0, stories: 0, avisos: [] });
+  assert.deepEqual(await publicarNoInstagram(banco, config, madrugada, f, cliente), { feed: 0, stories: 0, reels: 0, avisos: [] });
 
   const { banco: b2, config: c2 } = await bancoComOfertas();
   const sem = apiFalsa({ pngNoAr: false });
@@ -175,7 +175,7 @@ test('instagram: respeita limite diário, horário e PNG que ainda não está no
 test('instagram: avisa de falta de Secrets, desligado não faz nada, erro da API não derruba a rodada', async () => {
   const { banco } = await bancoComOfertas();
   const { f } = apiFalsa();
-  assert.deepEqual(await publicarNoInstagram(banco, lerConfig({ ...base, INSTAGRAM_ATIVO: '0' }), AGORA, f), { feed: 0, stories: 0, avisos: [] });
+  assert.deepEqual(await publicarNoInstagram(banco, lerConfig({ ...base, INSTAGRAM_ATIVO: '0' }), AGORA, f), { feed: 0, stories: 0, reels: 0, avisos: [] });
   const semToken = await publicarNoInstagram(banco, lerConfig({ ...base, INSTAGRAM_TOKEN: '' }), AGORA, f);
   assert.match(semToken.avisos.join(' '), /INSTAGRAM_TOKEN/);
   const ruim = apiFalsa({ erroNaPublicacao: { code: 190, message: 'token vencido' } });

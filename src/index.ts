@@ -6,6 +6,7 @@ import { Robo } from './robo.ts';
 import { publicarControle, type DadosDaRodada } from './exportar.ts';
 import { gravarPngsDoCarrossel, prepararCarrossel } from './carrossel.ts';
 import { publicarNoInstagram } from './instagram.ts';
+import { gravarReel, prepararReel } from './reel.ts';
 import { gravarPngs, prepararSocial } from './social.ts';
 import { gravarBio } from './bio.ts';
 import { PublicadorDeTeste } from './telegram.ts';
@@ -120,8 +121,12 @@ async function modoNuvem(): Promise<void> {
     // Carrossel do dia ("Top 5 até R$ X"): criado numa rodada, com as imagens no ar na seguinte, quando é publicado.
     if (await prepararCarrossel(robo.banco, robo.config, new Date())) dizer('- Instagram: carrossel do dia preparado; sai na próxima rodada, quando as imagens estiverem no ar.');
     await gravarPngsDoCarrossel(robo.banco, robo.config, new Date());
+    // Reel do dia (vídeo com trilha): montado numa rodada, publicado na seguinte (e dentro das horas dos Reels).
+    if (await prepararReel(robo.banco, robo.config, new Date())) dizer('- Instagram: Reel do dia preparado; sai quando o vídeo estiver no ar e na hora certa.');
+    const avisoDoReel = await gravarReel(robo.banco, robo.config, new Date());
+    if (avisoDoReel) dizer(`- Aviso do Instagram: ${avisoDoReel}`);
     const ig = await publicarNoInstagram(robo.banco, robo.config, new Date());
-    if (robo.config.instagram.ativo) dizer(`- Instagram: ${ig.feed} posts de feed e ${ig.stories} stories publicados.`);
+    if (robo.config.instagram.ativo) dizer(`- Instagram: ${ig.feed} posts de feed, ${ig.stories} stories e ${ig.reels} reels publicados.`);
     for (const a of ig.avisos) dizer(`- Aviso do Instagram: ${a}`);
     rodada.instagram = ig;
     publicarControle(robo.banco, robo.config, rodada, new Date());

@@ -9,3 +9,5 @@ dados.db-*
 node_modules/
 npm-debug.log*
 .DS_Store
+
+reel-*.mp4
