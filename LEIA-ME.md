@@ -96,7 +96,7 @@ O histórico, a fila e os posts ficam num banco de dados (`dados.db`) guardado n
 
 O Mercado Livre não tem API oficial para gerar link de afiliado. O robô faz assim:
 
-- **Dados dos produtos:** o robô lê a página pública de ofertas do Mercado Livre (a API oficial bloqueia a listagem para apps comuns, mesmo com as chaves do app). Não precisa de app.
+- **Dados dos produtos:** o robô lê a página pública de ofertas do Mercado Livre. Quando o site barra com captcha (a página abre, mas sem ofertas), ele usa a **API oficial como reserva**: troca `ML_CLIENT_ID` e `ML_CLIENT_SECRET` (Secrets, do app em developers.mercadolivre.com.br; permissão Items marcada) por um token, lê os 20 mais vendidos de 2 categorias por rodada (`/highlights`), monta cada oferta pelo produto de catálogo (`/products`: nome, foto, preço do anúncio vencedor e preço antigo, de onde vem a porcentagem) e tenta buscar a nota (`/reviews/item`) e as vendas (`/items`). A API **não informa vendas nos mais vendidos**; por isso o Instagram aceita produto do ranking sem esses números (`maisVendido`). Cada rodada escreve no log uma linha `[ml-api]` com o que veio e as falhas dos complementos. Sem o captcha, a leitura da página continua sendo a primeira opção. O teste local `node testar-api-ml.mjs` (com `ml-teste.env`, que não vai para o GitHub) mapeia todos os recursos.
 - **Categorias em rodízio:** das páginas lidas por rodada (`ML_PAGINAS`), algumas vão para as ofertas de uma categoria (`ML_PAGINAS_DE_CATEGORIA`, lista em `ML_CATEGORIAS`). O total de pedidos ao site não muda; os guias de compra ganham produtos que a vitrine geral não mostra. Para voltar a ler só a vitrine geral, use `ML_PAGINAS_DE_CATEGORIA=0`.
 - **Seu código de afiliado:** gere um link qualquer no painel de afiliados, abra esse link no navegador e olhe a URL final. Copie os valores de `matt_word` e `matt_tool`.
 
@@ -130,6 +130,14 @@ O mesmo robô também roda no seu computador, com um painel no navegador. Precis
 | `npm run checar` | Testa as chaves e sai. |
 | `npm run nuvem` | Uma rodada completa, como o GitHub Actions faz (usa `ajustes.env`). |
 | `npm test` | Testes automáticos. |
+
+## Bio, Reel e WhatsApp na nuvem
+
+- **Página do link da bio** (`bio.html`): as ofertas mais recentes primeiro (guarda até 60, mostra 12) e um **buscador** que filtra no aparelho, sem acento. O link do Instagram do blog vem de `BLOG_INSTAGRAM`.
+- **Reel do dia:** vídeo vertical de uns 17 segundos montado com ffmpeg a partir das artes de Story, com trilha sintetizada pelo próprio robô (sem direitos de terceiros). Horas em `INSTAGRAM_HORARIOS_REELS`; 0 em `INSTAGRAM_REELS_POR_DIA` desliga.
+- **WhatsApp:** o enviador (pasta `enviador/`) roda numa VM grátis da Oracle Cloud (Ubuntu, serviço `achadinhos-enviador`), instalada por `enviador/vm/instalar.sh`. Acompanhar: `journalctl -u achadinhos-enviador -f` na VM. O login do WhatsApp fica em `~/.achadinhos-enviador` na VM.
+- **Acordar o robô:** o agendador do GitHub atrasa; o cron-job.org chama o workflow às 8h05 (token só com Actions: leitura e escrita neste repositório).
+- **Página Amazon:** `amazon.json` lista produtos escolhidos à mão (sem preço, pelo contrato de Associados).
 
 ## Painel e WhatsApp
 
