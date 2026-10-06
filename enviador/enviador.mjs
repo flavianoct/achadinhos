@@ -154,7 +154,7 @@ function recibo(r, tipo) {
 // Em canal, a mensagem com imagem do Mercado Livre (WebP) foi aceita pelo WhatsApp mas não apareceu para ninguém; o texto chega.
 // Por padrão vai só texto (o link já leva à oferta). Para tentar imagem de novo, ponha "enviarImagem": true no config.json.
 let enviarImagem = false;
-let usarPrevia = false;
+let usarPrevia = true;
 
 let urlDoSiteAtual = '';
 
@@ -237,7 +237,7 @@ async function rodar() {
     process.exit(1);
   }
   enviarImagem = config.enviarImagem === true;
-  usarPrevia = config.usarPrevia === true;
+  usarPrevia = config.usarPrevia !== false;
   urlDoSiteAtual = config.urlDoSite;
   const sock = await conectar();
   const destinos = await resolverDestinos(sock, config);
