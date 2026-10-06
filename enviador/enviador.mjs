@@ -61,7 +61,7 @@ async function conectar() {
   const { version } = await fetchLatestBaileysVersion();
   return new Promise((resolve, reject) => {
     const abrir = () => {
-      const sock = makeWASocket({ version, auth: state, logger: pino({ level: 'silent' }), browser: Browsers.macOS('Desktop'), markOnlineOnConnect: false, syncFullHistory: false });
+      const sock = makeWASocket({ version, auth: state, logger: pino({ level: process.env.LOG_NIVEL || 'silent' }), browser: Browsers.macOS('Desktop'), markOnlineOnConnect: false, syncFullHistory: false });
       sock.ev.on('creds.update', saveCreds);
       sock.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {
         if (qr) {
