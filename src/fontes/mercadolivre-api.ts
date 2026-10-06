@@ -83,14 +83,46 @@ export class FonteMercadoLivreApi {
       for (const idProduto of produtos.slice(0, 20)) {
         await pausa(this.pausaMs);
         try {
-          const p = await this.autorizado(`/products/${idProduto}`);
-          let itemId = String(p?.buy_box_winner?.item_id ?? '');
-          if (!/^MLB\d+$/.test(itemId)) {
-            const lista = await this.autorizado(`/products/${idProduto}/items?limit=1`);
-            itemId = String(lista?.results?.[0]?.item_id ?? lista?.results?.[0]?.id ?? '');
+          let p = await this.autorizado(`/products/${idProduto}`);
+          // Produto "pai" (com variações) não tem vencedor próprio: usa a primeira variação que tiver.
+          if (!Number.isFinite(Number(p?.buy_box_winner?.price))) {
+            for (const filho of (Array.isArray(p?.children_ids) ? p.children_ids : []).slice(0, 3)) {
+              try {
+                const v = await this.autorizado(`/products/${filho}`);
+                if (Number.isFinite(Number(v?.buy_box_winner?.price))) {
+                  p = { ...v, name: v?.name ?? p?.name, pictures: v?.pictures?.length ? v.pictures : p?.pictures };
+                  break;
+                }
+              } catch (e) {
+                ultimoErro = (e as Error).message;
+              }
+            }
           }
-          if (/^MLB\d+$/.test(itemId)) ids.push(itemId);
-          else formatos.add(`produto sem anúncio (campos: ${Object.keys(p ?? {}).slice(0, 8).join(',')})`);
+          // O preço vem do anúncio vencedor; sem ele, do primeiro anúncio da lista do produto.
+          let vencedor = p?.buy_box_winner;
+          if (!Number.isFinite(Number(vencedor?.price))) {
+            try {
+              vencedor = (await this.autorizado(`/products/${idProduto}/items?limit=1`))?.results?.[0];
+            } catch (e) {
+              ultimoErro = (e as Error).message;
+            }
+          }
+          const oferta = this.converterProduto(p, vencedor, /^MLB\d+$/.test(String(p?.id ?? '')) ? String(p.id) : idProduto);
+          if (!oferta) {
+            formatos.add(`produto sem preço (campos: ${Object.keys(p ?? {}).slice(0, 10).join(',')}${vencedor ? `; vencedor: ${Object.keys(vencedor).slice(0, 8).join(',')}` : '; sem vencedor'})`);
+            continue;
+          }
+          // A nota é um complemento: se a API não der, a oferta segue sem ela.
+          const itemId = String(vencedor?.item_id ?? vencedor?.id ?? '');
+          if (/^MLB\d+$/.test(itemId)) {
+            try {
+              const media = Number((await this.autorizado(`/reviews/item/${itemId}`))?.rating_average);
+              if (Number.isFinite(media) && media > 0 && media <= 5) oferta.nota = Math.round(media * 10) / 10;
+            } catch {
+              // segue sem nota
+            }
+          }
+          if (!ofertas.has(oferta.idProduto)) ofertas.set(oferta.idProduto, oferta);
         } catch (e) {
           ultimoErro = (e as Error).message;
         }
@@ -99,8 +131,10 @@ export class FonteMercadoLivreApi {
       if (ids.length === 0) continue;
       let itens: any[] = [];
       try {
-        const r = await this.autorizado(`/items/bulk?ids=${ids.join(',')}&attributes=body.id,body.title,body.price,body.original_price,body.permalink,body.thumbnail,body.pictures,body.shipping,body.sold_quantity,body.status,body.condition`);
-        itens = (Array.isArray(r) ? r : []).map((x) => x?.body ?? x).filter((b) => b && b.id);
+        const r = await this.autorizado(`/items/bulk?ids=${ids.join(',')}`);
+        const lista = Array.isArray(r) ? r : [];
+        itens = lista.map((x) => x?.body ?? x).filter((b) => b && b.id);
+        if (itens.length === 0 && lista.length) formatos.add(`anúncios sem dados (status ${lista[0]?.status_code ?? lista[0]?.code}; campos: ${Object.keys(lista[0]?.body ?? lista[0] ?? {}).slice(0, 6).join(',')})`);
       } catch (e) {
         ultimoErro = (e as Error).message;
         continue;
@@ -124,6 +158,30 @@ export class FonteMercadoLivreApi {
       throw new ErroApiML(`API do Mercado Livre sem ofertas${ultimoErro ? `: ${ultimoErro}` : ''}${tipos ? ` (itens que a API devolveu em outro formato: ${tipos})` : ''}${formatos.size ? ` [${[...formatos].slice(0, 2).join('; ')}]` : ''}`);
     }
     return [...ofertas.values()];
+  }
+
+  /** Monta a oferta a partir do produto de catálogo e do anúncio que o vende (o vencedor). */
+  private converterProduto(p: any, vencedor: any, idProduto: string): Oferta | undefined {
+    const preco = Number(vencedor?.price);
+    const titulo = String(p?.name ?? p?.title ?? '').trim();
+    if (!titulo || !Number.isFinite(preco) || preco <= 0) return undefined;
+    if (vencedor?.condition && vencedor.condition !== 'new') return undefined;
+    const original = Number(vencedor?.original_price);
+    const precoOriginal = Number.isFinite(original) && original > preco ? original : undefined;
+    const foto = String(p?.pictures?.[0]?.url ?? p?.pictures?.[0]?.secure_url ?? '').replace(/^http:/, 'https:');
+    const permalink = /^https:\/\//.test(String(p?.permalink ?? '')) ? String(p.permalink) : `https://www.mercadolivre.com.br/p/${idProduto}`;
+    return {
+      loja: 'mercadolivre',
+      // O mesmo identificador que a leitura da página usa (o do produto), para a oferta não repetir quando a página voltar.
+      idProduto,
+      titulo,
+      preco,
+      precoOriginal,
+      desconto: precoOriginal ? Math.round((1 - preco / precoOriginal) * 100) : undefined,
+      imagem: foto || undefined,
+      link: linkAfiliadoML(permalink, this.opcoes.mattWord, this.opcoes.mattTool),
+      freteGratis: vencedor?.shipping?.free_shipping ? true : undefined,
+    };
   }
 
   private converter(b: any): Oferta | undefined {
