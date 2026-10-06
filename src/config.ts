@@ -254,7 +254,7 @@ export function lerConfig(env: Env = process.env): Config {
       horariosStories: horas(env.INSTAGRAM_HORARIOS_STORIES, [8, 10, 12, 15, 18, 20, 21]),
       reelsPorDia: numero(env, 'INSTAGRAM_REELS_POR_DIA', 1),
       horariosReels: horas(env.INSTAGRAM_HORARIOS_REELS, [19, 20]),
-      palavrasBloqueadas: env.INSTAGRAM_PALAVRAS_BLOQUEADAS === undefined ? ['generico', 'paralelo', 'similar', 'replica', 'imitacao', 'sem marca'] : lista(env.INSTAGRAM_PALAVRAS_BLOQUEADAS),
+      palavrasBloqueadas: env.INSTAGRAM_PALAVRAS_BLOQUEADAS === undefined ? ['generico', 'paralelo', 'similar', 'replica', 'imitacao', 'sem marca', 'inspirado', 'primeira linha'] : lista(env.INSTAGRAM_PALAVRAS_BLOQUEADAS),
       tokenData: (env.INSTAGRAM_TOKEN_DATA ?? '').trim(),
     },
     painel: { porta: numero(env, 'PAINEL_PORTA', 3210) },

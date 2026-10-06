@@ -7,8 +7,12 @@ const API = 'https://api.mercadolibre.com';
 const pausa = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** O nome do catálogo vem cheio de listas de modelos ("iPhone X Xr 11 12 13 14 15 16..."): tira as sequências de números soltos e corta em 110 caracteres, numa palavra inteira. */
+export function semListaDeModelos(titulo: string): string {
+  return titulo.replace(/\s+/g, ' ').replace(/(?:\s(?:[A-Za-z]{1,2}\s)?\d{1,2}){4,}/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
 export function limparTituloML(titulo: string): string {
-  const t = titulo.replace(/\s+/g, ' ').replace(/(?:\s(?:[A-Za-z]{1,2}\s)?\d{1,2}){4,}/g, ' ').replace(/\s+/g, ' ').trim();
+  const t = semListaDeModelos(titulo);
   if (t.length <= 110) return t;
   const corte = t.slice(0, 110);
   return corte.slice(0, Math.max(corte.lastIndexOf(' '), 60)).replace(/[\s,;:\-–]+$/, '');

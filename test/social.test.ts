@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { lerConfig } from '../src/config.ts';
-import { baixarImagemComoDataUri, ganchoDaOferta, hashtagsDaCategoria, montarGancho, montarLegenda, montarRoteiro, montarSvgDoFeed, montarSvgDoStory, nomeDoCanal, quebrarTexto, tituloParaArte } from '../src/social.ts';
+import { baixarImagemComoDataUri, descontoConfiavel, ganchoDaOferta, hashtagsDaCategoria, montarGancho, montarLegenda, montarRoteiro, montarSvgDoFeed, montarSvgDoStory, nomeDoCanal, quebrarTexto, tituloParaArte } from '../src/social.ts';
 import { layoutDoProduto, temaDaCategoria } from '../src/moldes.ts';
 import type { OfertaAvaliada } from '../src/types.ts';
 
@@ -166,4 +166,30 @@ test('social: foto WebP (Mercado Livre) vira JPEG para o conversor de PNG conseg
   assert.equal(await imagemParaPng('data:image/png;base64,AAAA'), 'data:image/png;base64,AAAA');
   assert.equal(await imagemParaPng(undefined), undefined);
   assert.equal(await imagemParaPng('data:image/webp;base64,lixo'), undefined);
+});
+
+test('social: desconto sem confirmação (ranking sem histórico ou 60%+) não vira "De", economia nem porcentagem', () => {
+  assert.equal(descontoConfiavel(oferta), true, 'oferta comum com 57%: segue como sempre');
+  assert.equal(descontoConfiavel({ ...oferta, desconto: 65 }), false, '60% ou mais sem histórico: não promete');
+  assert.equal(descontoConfiavel({ ...oferta, desconto: 65, precoDe: 'confirmado' }), true, 'com histórico que confirma, vale');
+  assert.equal(descontoConfiavel({ ...oferta, maisVendido: true }), false, 'veio do ranking e sem histórico');
+  assert.equal(descontoConfiavel({ ...oferta, maisVendido: true, precoDe: 'confirmado' }), true);
+  assert.equal(descontoConfiavel({ ...oferta, precoDe: 'confirmado', desconto: 30 }) && !descontoConfiavel({ ...oferta, precoDe: 'inflado' }), true);
+
+  const ranking = { ...oferta, maisVendido: true, desconto: 43, precoOriginal: 78.9, preco: 44.97 };
+  const legenda = montarLegenda(ranking, config);
+  assert.ok(!/De R\$ 78,90/.test(legenda) && !legenda.includes('(-43%)') && !legenda.includes('preço informado pela loja'));
+  assert.match(legenda, /Por R\$ 44,97/);
+  assert.ok(!montarGancho(ranking).includes('%'), 'o gancho não promete porcentagem');
+  assert.notEqual(ganchoDaOferta(ranking).tipo, 'economia', 'sem selo "ECONOMIZE"');
+  const arte = montarSvgDoStory(ranking, undefined);
+  assert.ok(!arte.includes('-43%') && !arte.includes('ECONOMIZE') && !arte.includes('78,90'));
+  assert.ok(arte.includes('44,97'));
+  assert.match(montarRoteiro(ranking, config), /preço baixo/);
+});
+
+test('social: lista de modelos do título (iPhone X 11 12 13 14...) sai da legenda sem cortar títulos normais', () => {
+  const l = montarLegenda({ ...oferta, titulo: 'Fone Bluetooth Compatível Com Iphone X Xr 11 12 13 14 15 16 17 Pro Max Sem Fio' }, config);
+  assert.ok(!/11 12 13 14/.test(l) && l.includes('Fone Bluetooth Compatível Com Iphone X'));
+  assert.ok(montarLegenda({ ...oferta, titulo: 'Galaxy S24 Ultra 512GB 5G' }, config).includes('Galaxy S24 Ultra 512GB 5G'));
 });

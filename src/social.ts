@@ -5,6 +5,7 @@ import type { Banco } from './db.ts';
 import { formatarPreco, formatarVendas } from './mensagem.ts';
 import { normalizar } from './categoria.ts';
 import { layoutDoProduto, svgDaCapaDaDica, svgDoCriterio, svgDoFechamentoDaDica, svgDoFeed, svgDoStory, temaDaCategoria, type DadosDaArte, type TipoDeGancho } from './moldes.ts';
+import { semListaDeModelos } from './fontes/mercadolivre-api.ts';
 import type { OfertaAvaliada } from './types.ts';
 
 export type Fetch = typeof fetch;
@@ -98,7 +99,7 @@ function quebrarSemCorte(texto: string, largura: number): string[] {
 
 /** Título inteiro para a legenda, sem reticências (corta numa palavra só se passar de `max`). */
 function tituloCompleto(titulo: string, max = 150): string {
-  const limpo = titulo.replace(/\s+/g, ' ').trim();
+  const limpo = semListaDeModelos(titulo);
   if (limpo.length <= max) return limpo;
   const corte = limpo.slice(0, max);
   return corte.slice(0, corte.lastIndexOf(' ') > 40 ? corte.lastIndexOf(' ') : max).replace(/[\s,;:\-–|]+$/, '');
@@ -108,9 +109,19 @@ function tituloCompleto(titulo: string, max = 150): string {
  * O selo do topo da arte: o motivo para parar o dedo. Prefere o que o histórico do robô prova (menor preço em N dias),
  * depois a economia em reais (só quando o preço "de" não parece inflado) e, sem nada melhor, a categoria do produto.
  */
+/**
+ * O desconto pode ir na arte e na legenda como promessa? Não, se o histórico mostra que o preço "de" é inflado. Sem histórico para confirmar,
+ * produto do ranking dos mais vendidos ou com desconto de 60% ou mais não leva "de", economia nem porcentagem: só o preço atual.
+ */
+export function descontoConfiavel(o: OfertaAvaliada): boolean {
+  if (o.precoDe === 'inflado') return false;
+  if (o.precoDe === 'confirmado') return true;
+  return !(o.maisVendido || (o.desconto ?? 0) >= 60);
+}
+
 export function ganchoDaOferta(o: OfertaAvaliada): { gancho: string; curto: string; tipo: TipoDeGancho } {
   if (o.menorPrecoEmDias) return { gancho: `MENOR PREÇO EM ${o.menorPrecoEmDias} DIAS`, curto: 'MENOR PREÇO', tipo: 'historico' };
-  const economia = o.precoOriginal && o.precoOriginal > o.preco && o.precoDe !== 'inflado' ? Math.round(o.precoOriginal - o.preco) : 0;
+  const economia = o.precoOriginal && o.precoOriginal > o.preco && descontoConfiavel(o) ? Math.round(o.precoOriginal - o.preco) : 0;
   if (economia >= 10) {
     const texto = `ECONOMIZE R$ ${economia.toLocaleString('pt-BR')}`;
     return { gancho: texto, curto: texto, tipo: 'economia' };
@@ -133,7 +144,7 @@ function escolha(id: string, n: number): number {
 export function montarGancho(o: OfertaAvaliada): string {
   const dias = o.menorPrecoEmDias;
   const queda = Math.round(o.quedaHistorica ?? 0);
-  const desc = Math.round(o.desconto ?? 0);
+  const desc = descontoConfiavel(o) ? Math.round(o.desconto ?? 0) : 0;
   let opcoes: string[];
   if (dias && queda >= 5) opcoes = [`📉 ${queda}% mais barato que o menor preço dos últimos ${dias} dias`, `📉 Caiu ${queda}% abaixo do nosso menor registro de ${dias} dias`];
   else if (dias) opcoes = [`📉 Menor preço dos últimos ${dias} dias`, `📉 O preço mais baixo que registramos em ${dias} dias`];
@@ -156,7 +167,7 @@ export function enderecoDoBlog(config: Config): string {
 }
 
 function titulosCurto(titulo: string, max = 70): string {
-  const limpo = titulo.replace(/\s+/g, ' ').trim();
+  const limpo = semListaDeModelos(titulo);
   if (limpo.length <= max) return limpo;
   const corte = limpo.slice(0, max);
   return `${corte.slice(0, corte.lastIndexOf(' ') > 30 ? corte.lastIndexOf(' ') : max).trimEnd()}…`;
@@ -169,9 +180,9 @@ export function montarLegenda(o: OfertaAvaliada, config: Config): string {
   linhas.push(`${montarGancho(o)} #publi`);
   linhas.push(tituloCompleto(o.titulo));
   linhas.push('');
-  const mostraDe = Boolean(o.precoOriginal && o.precoOriginal > o.preco && o.precoDe !== 'inflado');
+  const mostraDe = Boolean(o.precoOriginal && o.precoOriginal > o.preco && descontoConfiavel(o));
   const de = mostraDe ? `De ${formatarPreco(o.precoOriginal as number)} por ` : 'Por ';
-  const desc = o.desconto && o.desconto > 0 && o.precoDe !== 'inflado' ? ` (-${Math.round(o.desconto)}%)` : '';
+  const desc = o.desconto && o.desconto > 0 && descontoConfiavel(o) ? ` (-${Math.round(o.desconto)}%)` : '';
   linhas.push(`💰 ${de}${formatarPreco(o.preco)}${desc}`);
   if (mostraDe) linhas.push('📌 Desconto sobre o preço informado pela loja');
   if (o.freteGratis) linhas.push('🚚 Frete grátis');
@@ -188,7 +199,7 @@ export function montarLegenda(o: OfertaAvaliada, config: Config): string {
 /** Roteiro de 15 segundos para o Reels/TikTok: gancho, produto, preço, chamada. */
 export function montarRoteiro(o: OfertaAvaliada, config: Config): string {
   const preco = formatarPreco(o.preco);
-  const desc = o.desconto && o.desconto > 0 ? `${Math.round(o.desconto)}% de desconto` : 'preço baixo';
+  const desc = o.desconto && o.desconto > 0 && descontoConfiavel(o) ? `${Math.round(o.desconto)}% de desconto` : 'preço baixo';
   return [
     `0 a 3 s (gancho, mostre o produto): "Olha esse achado: ${titulosCurto(o.titulo, 45)}!"`,
     `3 a 8 s (mostre em uso ou de perto): "${o.nota ? `Nota ${o.nota.toFixed(1).replace('.', ',')}` : 'Bem avaliado'}${o.vendas ? ` e ${formatarVendas(o.vendas)} vendidos` : ''}${o.freteGratis ? ', com frete grátis' : ''}."`,
@@ -222,7 +233,7 @@ export function quebrarTexto(texto: string, largura: number, maxLinhas: number):
 /** Dados da arte que os moldes (moldes.ts) usam: o tema vem da categoria e o layout vem do produto. */
 function dadosDaArte(o: OfertaAvaliada, imagem: string | undefined, larguraDoTitulo: number): DadosDaArte {
   // Quando o histórico mostra que o produto nunca custou perto do preço "de", ele não vai riscado nem vira porcentagem na arte.
-  const inflado = o.precoDe === 'inflado';
+  const inflado = !descontoConfiavel(o);
   const temDe = Boolean(o.precoOriginal && o.precoOriginal > o.preco) && !inflado;
   const g = ganchoDaOferta(o);
   return {
