@@ -62,13 +62,16 @@ export class FonteMercadoLivreApi {
     if (!this.opcoes.clientId || !this.opcoes.clientSecret) throw new ErroApiML('faltam os Secrets ML_CLIENT_ID e ML_CLIENT_SECRET');
     const ofertas = new Map<string, Oferta>();
     const ignorados = new Map<string, number>();
+    const formatos = new Set<string>();
     let ultimoErro = '';
     for (const categoria of this.categoriasDoTurno(turno)) {
       let ids: string[] = [];
+      const produtos: string[] = [];
       try {
         const destaque = await this.autorizado(`/highlights/MLB/category/${categoria}`);
         for (const c of destaque?.content ?? []) {
           if (c?.type === 'ITEM' && /^MLB\d+$/.test(String(c.id))) ids.push(String(c.id));
+          else if (c?.type === 'PRODUCT' && /^MLB\d+$/.test(String(c.id))) produtos.push(String(c.id));
           else ignorados.set(String(c?.type), (ignorados.get(String(c?.type)) ?? 0) + 1);
         }
       } catch (e) {
@@ -76,7 +79,23 @@ export class FonteMercadoLivreApi {
         if (/^40[13]/.test(ultimoErro)) break; // sem permissão: insistir nas outras categorias não muda nada
         continue;
       }
-      ids = ids.slice(0, 20);
+      // Produto de catálogo (PRODUCT): o anúncio que vende é o "vencedor" (buy_box_winner); sem ele, o primeiro da lista de anúncios do produto.
+      for (const idProduto of produtos.slice(0, 20)) {
+        await pausa(this.pausaMs);
+        try {
+          const p = await this.autorizado(`/products/${idProduto}`);
+          let itemId = String(p?.buy_box_winner?.item_id ?? '');
+          if (!/^MLB\d+$/.test(itemId)) {
+            const lista = await this.autorizado(`/products/${idProduto}/items?limit=1`);
+            itemId = String(lista?.results?.[0]?.item_id ?? lista?.results?.[0]?.id ?? '');
+          }
+          if (/^MLB\d+$/.test(itemId)) ids.push(itemId);
+          else formatos.add(`produto sem anúncio (campos: ${Object.keys(p ?? {}).slice(0, 8).join(',')})`);
+        } catch (e) {
+          ultimoErro = (e as Error).message;
+        }
+      }
+      ids = [...new Set(ids)].slice(0, 20);
       if (ids.length === 0) continue;
       let itens: any[] = [];
       try {
@@ -102,7 +121,7 @@ export class FonteMercadoLivreApi {
     }
     if (ofertas.size === 0) {
       const tipos = [...ignorados].map(([t, n]) => `${n} do tipo ${t}`).join(', ');
-      throw new ErroApiML(`API do Mercado Livre sem ofertas${ultimoErro ? `: ${ultimoErro}` : ''}${tipos ? ` (itens que a API devolveu em outro formato: ${tipos})` : ''}`);
+      throw new ErroApiML(`API do Mercado Livre sem ofertas${ultimoErro ? `: ${ultimoErro}` : ''}${tipos ? ` (itens que a API devolveu em outro formato: ${tipos})` : ''}${formatos.size ? ` [${[...formatos].slice(0, 2).join('; ')}]` : ''}`);
     }
     return [...ofertas.values()];
   }

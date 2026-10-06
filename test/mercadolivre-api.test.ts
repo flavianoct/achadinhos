@@ -53,3 +53,33 @@ test('ML: se a página barra com captcha, usa a API; se as duas falham, o erro m
   const duas = new FonteMercadoLivre({ mattWord: 'a', mattTool: '1', paginas: 1, intervaloMs: 0, reserva: new FonteMercadoLivreApi(op, semApi.f, 0) }, captcha);
   await assert.rejects(duas.coletar(), /sem ofertas legíveis.*Reserva: .*403/s);
 });
+test('ML pela API: produto de catálogo (PRODUCT) vira oferta pelo anúncio vencedor, ou pelo primeiro da lista', async () => {
+  const f = (async (url: string, init: any = {}) => {
+    const u = String(url);
+    if (u.endsWith('/oauth/token')) return resposta({ access_token: 'TOKEN' });
+    if (u.includes('/highlights/')) return resposta({ content: [{ id: 'MLB5001', type: 'PRODUCT' }, { id: 'MLB5002', type: 'PRODUCT' }, { id: 'MLB5003', type: 'PRODUCT' }] });
+    if (u.endsWith('/products/MLB5001')) return resposta({ id: 'MLB5001', buy_box_winner: { item_id: 'MLB111', price: 150 } });
+    if (u.endsWith('/products/MLB5002')) return resposta({ id: 'MLB5002' });
+    if (u.includes('/products/MLB5002/items')) return resposta({ results: [{ item_id: 'MLB222' }] });
+    if (u.endsWith('/products/MLB5003')) return resposta({ id: 'MLB5003', nome: 'sem anúncio' });
+    if (u.includes('/products/MLB5003/items')) return resposta({ results: [] });
+    if (u.includes('/items/bulk')) {
+      const ids = new URL(u).searchParams.get('ids')!.split(',');
+      return resposta(ids.map((id) => ({ status_code: 200, body: { id, title: `Produto ${id}`, price: 100, permalink: `https://produto.mercadolivre.com.br/${id}`, thumbnail: 'https://x/a.jpg', sold_quantity: 500, status: 'active', condition: 'new' } })));
+    }
+    if (u.includes('/reviews/item/')) return resposta({ rating_average: 4.7 });
+    return resposta({}, 404);
+  }) as unknown as typeof fetch;
+  const ofertas = await new FonteMercadoLivreApi(op, f, 0).coletar(0);
+  assert.deepEqual(ofertas.map((o) => o.idProduto).sort(), ['MLB111', 'MLB222']);
+  assert.ok(ofertas.every((o) => o.nota === 4.7 && o.vendas === 500));
+
+  const soSemAnuncio = (async (url: string) => {
+    const u = String(url);
+    if (u.endsWith('/oauth/token')) return resposta({ access_token: 'T' });
+    if (u.includes('/highlights/')) return resposta({ content: [{ id: 'MLB5003', type: 'PRODUCT' }] });
+    if (u.includes('/items')) return resposta({ results: [] });
+    return resposta({ id: 'MLB5003', nome: 'x' });
+  }) as unknown as typeof fetch;
+  await assert.rejects(new FonteMercadoLivreApi(op, soSemAnuncio, 0).coletar(0), /produto sem anúncio \(campos: id,nome\)/);
+});
