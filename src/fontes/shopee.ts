@@ -42,14 +42,17 @@ export function converterItemShopee(item: any): Oferta | undefined {
   const link = item?.offerLink;
   if (!item?.itemId || !item?.productName || !link || preco === undefined) return undefined;
 
-  // A API informa o percentual de desconto, mas não o preço "de"; por isso o post mostra só o percentual.
+  // A API informa o percentual de desconto da página do produto, mas não o preço "de": calculamos o "de" a partir dele (preço / (1 - desconto)),
+  // que é o mesmo número que a página mostra riscado. Descontos fora de 5% a 90% são ignorados (dado estranho).
   const desconto = num(item.priceDiscountRate);
+  const precoOriginal = desconto !== undefined && desconto >= 5 && desconto <= 90 ? Math.round((preco / (1 - desconto / 100)) * 100) / 100 : undefined;
 
   return {
     loja: 'shopee',
     idProduto: String(item.itemId),
     titulo: String(item.productName),
     preco,
+    precoOriginal,
     desconto,
     imagem: item.imageUrl || undefined,
     link: String(link),
@@ -124,6 +127,9 @@ export class FonteShopee implements Fonte {
       const { itens } = await this.pagina(`keyword: ${JSON.stringify(palavra)}, sortType: 2, page: 1, limit: 50`);
       guardar(itens);
     }
-    return [...vistos.values()];
+    const lista = [...vistos.values()];
+    // Resumo para o log da rodada: o que a API trouxe.
+    console.log(`[shopee] ofertas: ${lista.length}; com desconto: ${lista.filter((o) => o.desconto).length}; com nota: ${lista.filter((o) => o.nota).length}; com vendas: ${lista.filter((o) => o.vendas).length}`);
+    return lista;
   }
 }
