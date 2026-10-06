@@ -3,6 +3,7 @@ import { lerArquivoEnv, lerConfig, problemasDeConfig, problemasDoBlog, salvarNoE
 import { Banco, horaDe } from './db.ts';
 import { FonteAmazon } from './fontes/amazon.ts';
 import { FonteMercadoLivre } from './fontes/mercadolivre.ts';
+import { FonteMercadoLivreApi } from './fontes/mercadolivre-api.ts';
 import { FonteShopee } from './fontes/shopee.ts';
 import { coletar, postarProxima, type ResultadoDoPost, type ResumoDaColeta } from './pipeline.ts';
 import { Telegram, type Publicador } from './telegram.ts';
@@ -29,7 +30,10 @@ export interface OpcoesDoRobo {
 function fontesReais(config: Config): Fonte[] {
   const fontes: Fonte[] = [];
   if (config.shopee.ativo) fontes.push(new FonteShopee(config.shopee));
-  if (config.ml.ativo) fontes.push(new FonteMercadoLivre(config.ml));
+  if (config.ml.ativo) {
+    const api = config.ml.clientId && config.ml.clientSecret ? new FonteMercadoLivreApi({ clientId: config.ml.clientId, clientSecret: config.ml.clientSecret, mattWord: config.ml.mattWord, mattTool: config.ml.mattTool, categorias: config.ml.categorias }) : undefined;
+    fontes.push(new FonteMercadoLivre({ ...config.ml, reserva: api }));
+  }
   if (config.amazon.ativo) fontes.push(new FonteAmazon());
   return fontes;
 }

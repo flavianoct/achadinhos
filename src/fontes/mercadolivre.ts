@@ -135,9 +135,10 @@ export class FonteMercadoLivre implements Fonte {
   private intervaloMs: number;
   private agora: () => number;
   private fetchFn: Fetch;
+  private reserva?: { coletar(): Promise<Oferta[]> };
 
   constructor(
-    opcoes: { mattWord: string; mattTool: string; paginas?: number; categorias?: string[]; paginasDeCategoria?: number; intervaloMs?: number; agora?: () => number },
+    opcoes: { mattWord: string; mattTool: string; paginas?: number; categorias?: string[]; paginasDeCategoria?: number; intervaloMs?: number; agora?: () => number; reserva?: { coletar(): Promise<Oferta[]> } },
     fetchFn: Fetch = fetch,
   ) {
     this.mattWord = opcoes.mattWord;
@@ -148,6 +149,7 @@ export class FonteMercadoLivre implements Fonte {
     this.intervaloMs = opcoes.intervaloMs ?? 1500;
     this.agora = opcoes.agora ?? Date.now;
     this.fetchFn = fetchFn;
+    this.reserva = opcoes.reserva;
   }
 
   private async baixar(url: string): Promise<string> {
@@ -159,7 +161,21 @@ export class FonteMercadoLivre implements Fonte {
     return resposta.text();
   }
 
+  /** Lê a página de ofertas; se o site barrar (captcha), tenta a API oficial e só falha se as duas falharem. */
   async coletar(): Promise<Oferta[]> {
+    try {
+      return await this.coletarDaPagina();
+    } catch (e) {
+      if (!this.reserva) throw e;
+      try {
+        return await this.reserva.coletar();
+      } catch (e2) {
+        throw new Error(`${(e as Error).message} Reserva: ${(e2 as Error).message}`);
+      }
+    }
+  }
+
+  private async coletarDaPagina(): Promise<Oferta[]> {
     const vistos = new Map<string, Oferta>();
     const guardar = (cartoes: any[]) => {
       for (const c of cartoes) {

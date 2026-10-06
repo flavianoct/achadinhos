@@ -2,9 +2,9 @@ name: Robô de ofertas
 
 on:
   schedule:
-    # A cada meia hora, só no horário de postagem: 8h às 23h em Brasília = 11h às 2h59 UTC.
+    # De hora em hora (o Mercado Livre passou a barrar com captcha), só no horário de postagem: 8h às 23h em Brasília = 11h às 2h59 UTC.
     # Se mudar HORA_INICIO ou HORA_FIM em ajustes.env, ajuste as horas aqui também.
-    - cron: '7,37 11-23,0-2 * * *'
+    - cron: '7 11-23,0-2 * * *'
     # Reforço da manhã: o agendador do GitHub às vezes atrasa ou pula disparos, e a primeira rodada do dia
     # chegou a sair 2 horas depois das 8h. Estes disparos extras só valem se ainda não houver rodada em andamento.
     - cron: '17,27,47,57 11 * * *'
@@ -79,6 +79,8 @@ jobs:
           SHOPEE_SECRET: ${{ secrets.SHOPEE_SECRET }}
           ML_MATT_WORD: ${{ secrets.ML_MATT_WORD }}
           ML_MATT_TOOL: ${{ secrets.ML_MATT_TOOL }}
+          ML_CLIENT_ID: ${{ secrets.ML_CLIENT_ID }}
+          ML_CLIENT_SECRET: ${{ secrets.ML_CLIENT_SECRET }}
           AMAZON_TAG: ${{ secrets.AMAZON_TAG }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -142,5 +144,5 @@ jobs:
             echo "A próxima rodada cairia às ${hora}h, fora do horário (${inicio:-8}h às ${fim:-23}h). Ciclo pausado até o cron de manhã."
             exit 0
           fi
-          sleep 1500
+          sleep 3300
           gh workflow run robo.yml --repo "$GITHUB_REPOSITORY" --ref main
