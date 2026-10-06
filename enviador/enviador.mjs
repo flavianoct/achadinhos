@@ -166,7 +166,14 @@ async function baixarArte(id) {
   try {
     const r = await fetch(`${urlDoSiteAtual.replace(/\/+$/, '')}/social/${nome}`, { signal: AbortSignal.timeout(30_000) });
     if (!r.ok) return undefined;
-    return Buffer.from(await r.arrayBuffer());
+    const png = Buffer.from(await r.arrayBuffer());
+    // JPEG é o formato mais aceito em canais (e mais leve). Sem o sharp instalado, segue com o PNG.
+    try {
+      const { default: sharp } = await import('sharp');
+      return { buffer: await sharp(png).jpeg({ quality: 85 }).toBuffer(), mimetype: 'image/jpeg' };
+    } catch {
+      return { buffer: png, mimetype: 'image/png' };
+    }
   } catch {
     return undefined;
   }
@@ -177,7 +184,7 @@ async function enviarUma(sock, jid, m) {
     const arte = await baixarArte(m.id);
     if (arte) {
       try {
-        recibo(await sock.sendMessage(jid, { image: arte, mimetype: 'image/png', caption: m.texto }), 'imagem com legenda');
+        recibo(await sock.sendMessage(jid, { image: arte.buffer, mimetype: arte.mimetype, caption: m.texto }), 'imagem com legenda');
         return;
       } catch (e) {
         log(`  imagem falhou (${e.message}); enviando só o texto.`);
@@ -292,7 +299,7 @@ async function testar() {
   }
   for (const jid of destinos) {
     if (comArte[0]) {
-      recibo(await sock.sendMessage(jid, { image: comArte[0].arte, mimetype: 'image/png', caption: `Teste de imagem do robô (${hora}). Se você viu a arte acima, o canal publica imagens.` }), 'teste de imagem');
+      recibo(await sock.sendMessage(jid, { image: comArte[0].arte.buffer, mimetype: comArte[0].arte.mimetype, caption: `Teste de imagem do robô (${hora}). Se você viu a arte acima, o canal publica imagens.` }), 'teste de imagem');
     } else {
       recibo(await sock.sendMessage(jid, { text: `Teste do robô de ofertas (${hora}). Se você leu isto, o canal está recebendo.` }), 'teste');
     }
