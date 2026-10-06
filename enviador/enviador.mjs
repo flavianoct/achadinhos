@@ -247,8 +247,21 @@ async function rodar() {
   }
 }
 
+/** Manda uma frase de teste para os destinos do config.json, para conferir a entrega sem esperar uma oferta. */
+async function testar() {
+  const config = lerConfig();
+  const sock = await conectar();
+  const destinos = await resolverDestinos(sock, config);
+  for (const jid of destinos) {
+    const r = await sock.sendMessage(jid, { text: `Teste do robô de ofertas (${new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' })}). Se você leu isto, o canal está recebendo.` });
+    recibo(r, 'teste');
+  }
+  await pausa(5000);
+  process.exit(0);
+}
+
 const comando = process.argv[2];
-(comando === 'listar' ? listar() : rodar()).catch((e) => {
+(comando === 'listar' ? listar() : comando === 'testar' ? testar() : rodar()).catch((e) => {
   console.error(`\nErro: ${e.message}`);
   process.exit(1);
 });
