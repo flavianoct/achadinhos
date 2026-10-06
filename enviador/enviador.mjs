@@ -61,7 +61,7 @@ async function conectar() {
   const { version } = await fetchLatestBaileysVersion();
   return new Promise((resolve, reject) => {
     const abrir = () => {
-      const sock = makeWASocket({ version, auth: state, logger: pino({ level: process.env.LOG_NIVEL || 'silent' }), browser: Browsers.macOS('Desktop'), markOnlineOnConnect: false, syncFullHistory: false });
+      const sock = makeWASocket({ version, auth: state, logger: pino({ level: process.env.LOG_NIVEL || 'silent' }), browser: Browsers.macOS('Desktop'), markOnlineOnConnect: false, generateHighQualityLinkPreview: false, syncFullHistory: false });
       sock.ev.on('creds.update', saveCreds);
       sock.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {
         if (qr) {
@@ -288,7 +288,7 @@ async function testar() {
   const destinos = await resolverDestinos(sock, config);
   const hora = new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' });
   // "testar imagem": manda a arte da oferta mais recente como imagem, para ver se o canal publica.
-  const fila = process.argv[3] === 'imagem' ? await buscarFila(config) : [];
+  const fila = process.argv[3] === 'imagem' || process.argv[3] === 'previa' ? await buscarFila(config) : [];
   const comArte = [];
   for (const m of [...fila].reverse()) {
     const arte = await baixarArte(m.id);
@@ -298,7 +298,11 @@ async function testar() {
     }
   }
   for (const jid of destinos) {
-    if (comArte[0]) {
+    if (process.argv[3] === 'previa') {
+      const m = fila.length ? [...fila].reverse()[0] : undefined;
+      const link = m?.link ?? 'https://flavianoct.github.io/achadinhos/';
+      recibo(await sock.sendMessage(jid, { text: `Teste de prévia do robô (${hora}). Se aparecer a foto do produto abaixo, o canal mostra prévia de link.\n${link}` }), 'teste de prévia');
+    } else if (comArte[0]) {
       recibo(await sock.sendMessage(jid, { image: comArte[0].arte.buffer, mimetype: comArte[0].arte.mimetype, caption: `Teste de imagem do robô (${hora}). Se você viu a arte acima, o canal publica imagens.` }), 'teste de imagem');
     } else {
       recibo(await sock.sendMessage(jid, { text: `Teste do robô de ofertas (${hora}). Se você leu isto, o canal está recebendo.` }), 'teste');
