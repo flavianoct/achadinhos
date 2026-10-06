@@ -131,8 +131,9 @@ export function avisoDoToken(config: Config, agora: Date): string | undefined {
 
 /** Nota alta, muitas vendas e sem palavras que passam desconfiança (genérico, paralelo...). Sem nota ou sem vendas informadas, não passa. */
 export function passaNoFiltroDoInstagram(o: OfertaAvaliada, ig: Config['instagram']): boolean {
-  if (!o.nota || o.nota < ig.notaMinima) return false;
-  if (!o.vendas || o.vendas < ig.vendasMinimas) return false;
+  // Produto do ranking dos mais vendidos da loja já é campeão de vendas: se a loja não informou nota ou vendas, vale pelo ranking.
+  if (o.nota ? o.nota < ig.notaMinima : !o.maisVendido) return false;
+  if (o.vendas ? o.vendas < ig.vendasMinimas : !o.maisVendido) return false;
   const titulo = normalizar(o.titulo);
   return !ig.palavrasBloqueadas.some((p) => contemPalavra(titulo, p));
 }

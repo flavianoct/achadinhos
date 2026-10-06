@@ -6,6 +6,14 @@ type Fetch = typeof fetch;
 const API = 'https://api.mercadolibre.com';
 const pausa = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** O nome do catálogo vem cheio de listas de modelos ("iPhone X Xr 11 12 13 14 15 16..."): tira as sequências de números soltos e corta em 110 caracteres, numa palavra inteira. */
+export function limparTituloML(titulo: string): string {
+  const t = titulo.replace(/\s+/g, ' ').replace(/(?:\s(?:[A-Za-z]{1,2}\s)?\d{1,2}){4,}/g, ' ').replace(/\s+/g, ' ').trim();
+  if (t.length <= 110) return t;
+  const corte = t.slice(0, 110);
+  return corte.slice(0, Math.max(corte.lastIndexOf(' '), 60)).replace(/[\s,;:\-–]+$/, '');
+}
+
 /** Erro da API com o código HTTP, para o resumo da rodada mostrar o motivo exato. */
 export class ErroApiML extends Error {}
 
@@ -64,6 +72,11 @@ export class FonteMercadoLivreApi {
     const ignorados = new Map<string, number>();
     const formatos = new Set<string>();
     let vistosNoRanking = 0;
+    const falhas = new Map<string, number>();
+    const falhou = (rotulo: string, e: unknown) => {
+      const codigo = /^(\d{3})/.exec((e as Error).message)?.[1] ?? 'erro';
+      falhas.set(` `, (falhas.get(` `) ?? 0) + 1);
+    };
     let ultimoErro = '';
     for (const categoria of this.categoriasDoTurno(turno)) {
       let ids: string[] = [];
@@ -120,14 +133,14 @@ export class FonteMercadoLivreApi {
             try {
               const vendidos = Number((await this.autorizado(`/items/${itemId}?attributes=sold_quantity`))?.sold_quantity);
               if (Number.isFinite(vendidos) && vendidos > 0) oferta.vendas = vendidos;
-            } catch {
-              // segue sem o número de vendas
+            } catch (e) {
+              falhou('anúncio', e);
             }
             try {
               const media = Number((await this.autorizado(`/reviews/item/${itemId}`))?.rating_average);
               if (Number.isFinite(media) && media > 0 && media <= 5) oferta.nota = Math.round(media * 10) / 10;
-            } catch {
-              // segue sem nota
+            } catch (e) {
+              falhou('avaliações', e);
             }
           }
           if (!ofertas.has(oferta.idProduto)) ofertas.set(oferta.idProduto, oferta);
@@ -163,7 +176,7 @@ export class FonteMercadoLivreApi {
     }
     const lista = [...ofertas.values()];
     // Resumo do que a API trouxe, para o log da rodada mostrar o que existe (e o que falta) sem adivinhar.
-    console.log(`[ml-api] ranking: ${vistosNoRanking} produtos; ofertas: ${lista.length}; com preço antigo: ${lista.filter((o) => o.precoOriginal).length}; com nota: ${lista.filter((o) => o.nota).length}; com vendas: ${lista.filter((o) => o.vendas).length}; com frete grátis: ${lista.filter((o) => o.freteGratis).length}`);
+    console.log(`[ml-api] ranking: ${vistosNoRanking} produtos; ofertas: ${lista.length}; com preço antigo: ${lista.filter((o) => o.precoOriginal).length}; com nota: ${lista.filter((o) => o.nota).length}; com vendas: ${lista.filter((o) => o.vendas).length}; com frete grátis: ${lista.filter((o) => o.freteGratis).length}; falhas dos complementos: ${[...falhas].map(([k, n]) => ` x${n}`).join(', ') || 'nenhuma'}`);
     if (ofertas.size === 0) {
       const tipos = [...ignorados].map(([t, n]) => `${n} do tipo ${t}`).join(', ');
       throw new ErroApiML(`API do Mercado Livre sem ofertas${ultimoErro ? `: ${ultimoErro}` : ''}${tipos ? ` (itens que a API devolveu em outro formato: ${tipos})` : ''}${formatos.size ? ` [${[...formatos].slice(0, 2).join('; ')}]` : ''}`);
@@ -174,7 +187,7 @@ export class FonteMercadoLivreApi {
   /** Monta a oferta a partir do produto de catálogo e do anúncio que o vende (o vencedor). */
   private converterProduto(p: any, vencedor: any, idProduto: string): Oferta | undefined {
     const preco = Number(vencedor?.price);
-    const titulo = String(p?.name ?? p?.title ?? '').trim();
+    const titulo = limparTituloML(String(p?.name ?? p?.title ?? ''));
     if (!titulo || !Number.isFinite(preco) || preco <= 0) return undefined;
     if (vencedor?.condition && vencedor.condition !== 'new') return undefined;
     const original = Number(vencedor?.original_price);
@@ -192,6 +205,7 @@ export class FonteMercadoLivreApi {
       imagem: foto || undefined,
       link: linkAfiliadoML(permalink, this.opcoes.mattWord, this.opcoes.mattTool),
       freteGratis: vencedor?.shipping?.free_shipping ? true : undefined,
+      maisVendido: true,
     };
   }
 

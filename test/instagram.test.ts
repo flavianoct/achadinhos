@@ -214,3 +214,12 @@ test('instagram: grava PNG de verdade (Story 1080x1920 e feed 1080x1350) em blog
   }
   assert.match(montarSvgDoFeed(oferta('A', 5), undefined, config), /width="1080" height="1350"/);
 });
+
+test('instagram: produto dos mais vendidos da loja passa mesmo sem nota e vendas informadas, mas palavra suspeita continua barrando', () => {
+  const ig = lerConfig(base).instagram;
+  const semDados = { ...oferta('R', 5), nota: undefined, vendas: undefined };
+  assert.equal(passaNoFiltroDoInstagram(semDados, ig), false, 'sem nota e vendas e fora do ranking: não passa');
+  assert.equal(passaNoFiltroDoInstagram({ ...semDados, maisVendido: true }, ig), true);
+  assert.equal(passaNoFiltroDoInstagram({ ...semDados, maisVendido: true, titulo: 'Fone Genérico Bluetooth' }, ig), false);
+  assert.equal(passaNoFiltroDoInstagram({ ...semDados, maisVendido: true, nota: 4.1 }, ig), false, 'nota informada e baixa continua barrando');
+});

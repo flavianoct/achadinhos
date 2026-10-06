@@ -19,7 +19,7 @@ function https(url: string | undefined): string | undefined {
   return url && /^https:\/\//i.test(url) ? url : undefined;
 }
 
-/** Ofertas postadas nas últimas horas, sem repetir produto, mais bem pontuadas primeiro. */
+/** Ofertas postadas nas últimas horas, sem repetir produto, as mais recentes primeiro. */
 export function ofertasDaBio(banco: Banco, agora: Date): OfertaAvaliada[] {
   const vistos = new Set<string>();
   const lista: OfertaAvaliada[] = [];
@@ -35,7 +35,8 @@ export function ofertasDaBio(banco: Banco, agora: Date): OfertaAvaliada[] {
     vistos.add(id);
     lista.push(o);
   }
-  return lista.sort((a, b) => b.pontos - a.pontos).slice(0, MAXIMO_NA_BIO);
+  // As mais recentes primeiro (a lista já chega do mais novo para o mais antigo): a página muda a cada rodada e mostra o que acabou de sair.
+  return lista.slice(0, MAXIMO_NA_BIO);
 }
 
 /** Página para o link da bio do Instagram/TikTok: leve, em coluna única, com botões grandes. */

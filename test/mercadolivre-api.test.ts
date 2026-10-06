@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { FonteMercadoLivre } from '../src/fontes/mercadolivre.ts';
-import { FonteMercadoLivreApi } from '../src/fontes/mercadolivre-api.ts';
+import { FonteMercadoLivreApi, limparTituloML } from '../src/fontes/mercadolivre-api.ts';
 
 const resposta = (corpo: unknown, status = 200) => new Response(typeof corpo === 'string' ? corpo : JSON.stringify(corpo), { status });
 const op = { clientId: 'id', clientSecret: 'segredo', mattWord: 'topfera', mattTool: '1', categorias: ['MLB1000'], porRodada: 1 };
@@ -92,4 +92,10 @@ test('ML pela API: produto de catálogo (PRODUCT) vira oferta com o preço do an
     return resposta({ id: 'MLB5003', name: 'x' });
   }) as unknown as typeof fetch;
   await assert.rejects(new FonteMercadoLivreApi(op, semPreco, 0).coletar(0), /produto sem preço \(campos: id,name; sem vencedor\)/);
+});
+test('ML pela API: título do catálogo perde a lista de modelos e fica com até 110 caracteres', () => {
+  assert.equal(limparTituloML('Fone Ouvido Bluetooth Compatível Com Iphone X Xr 11 12 13 14 15 16 17 Xs Pro Max Sem Fio'), 'Fone Ouvido Bluetooth Compatível Com Iphone X Xs Pro Max Sem Fio');
+  assert.equal(limparTituloML('Galaxy S24 Ultra 512GB'), 'Galaxy S24 Ultra 512GB');
+  const longo = limparTituloML('Kit '.repeat(5) + 'Organizador de Cozinha Premium com Tampa Hermética Livre de BPA para Geladeira e Despensa Alta Durabilidade');
+  assert.ok(longo.length <= 110 && !/\s$/.test(longo));
 });

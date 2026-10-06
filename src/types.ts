@@ -21,6 +21,8 @@ export interface Oferta {
   comissao?: number;
   nomeLoja?: string;
   freteGratis?: boolean;
+  /** Veio do ranking dos mais vendidos da loja (sem o número exato de vendas). */
+  maisVendido?: boolean;
 }
 
 /** Oferta aprovada pelo filtro, com os dados calculados por nós. */
