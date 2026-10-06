@@ -154,6 +154,7 @@ function recibo(r, tipo) {
 // Em canal, a mensagem com imagem do Mercado Livre (WebP) foi aceita pelo WhatsApp mas não apareceu para ninguém; o texto chega.
 // Por padrão vai só texto (o link já leva à oferta). Para tentar imagem de novo, ponha "enviarImagem": true no config.json.
 let enviarImagem = false;
+let usarPrevia = false;
 
 let urlDoSiteAtual = '';
 
@@ -179,6 +180,32 @@ async function baixarArte(id) {
   }
 }
 
+/**
+ * Prévia do link montada por nós: quem envia é que prepara a prévia (título, descrição e miniatura vão junto com a mensagem),
+ * e a biblioteca falha em buscar a página do Mercado Livre (que barra acesso automático). Aqui o título e o preço vêm do
+ * texto da oferta e a miniatura vem da foto do produto (reduzida e em JPEG).
+ */
+async function montarPrevia(m) {
+  const link = /https:\/\/\S+/.exec(m.texto)?.[0];
+  if (!link) return undefined;
+  const linhas = m.texto.split('\n').map((l) => l.trim()).filter(Boolean);
+  const titulo = (linhas[0] ?? '').replace(/[*🔥_~]/g, '').trim().slice(0, 100);
+  const descricao = linhas.find((l) => /^💰/.test(l))?.replace(/[*💰~_]/g, '').trim() ?? '';
+  let jpegThumbnail;
+  if (m.imagem) {
+    try {
+      const r = await fetch(m.imagem, { signal: AbortSignal.timeout(20_000) });
+      if (r.ok) {
+        const { default: sharp } = await import('sharp');
+        jpegThumbnail = await sharp(Buffer.from(await r.arrayBuffer())).resize(300, 300, { fit: 'inside' }).jpeg({ quality: 70 }).toBuffer();
+      }
+    } catch {
+      // sem miniatura a prévia sai só com título e descrição
+    }
+  }
+  return { 'canonical-url': link, 'matched-text': link, title: titulo, description: descricao, jpegThumbnail };
+}
+
 async function enviarUma(sock, jid, m) {
   if (enviarImagem) {
     const arte = await baixarArte(m.id);
@@ -191,7 +218,8 @@ async function enviarUma(sock, jid, m) {
       }
     } else log('  sem arte no blog para esta oferta; enviando só o texto.');
   }
-  recibo(await sock.sendMessage(jid, { text: m.texto }), 'texto');
+  const linkPreview = usarPrevia ? await montarPrevia(m) : undefined;
+  recibo(await sock.sendMessage(jid, linkPreview ? { text: m.texto, linkPreview } : { text: m.texto }), linkPreview ? 'texto com prévia' : 'texto');
 }
 
 async function buscarFila(config) {
@@ -209,6 +237,7 @@ async function rodar() {
     process.exit(1);
   }
   enviarImagem = config.enviarImagem === true;
+  usarPrevia = config.usarPrevia === true;
   urlDoSiteAtual = config.urlDoSite;
   const sock = await conectar();
   const destinos = await resolverDestinos(sock, config);
@@ -299,9 +328,11 @@ async function testar() {
   }
   for (const jid of destinos) {
     if (process.argv[3] === 'previa') {
-      const m = fila.length ? [...fila].reverse()[0] : undefined;
-      const link = m?.link ?? 'https://flavianoct.github.io/achadinhos/';
-      recibo(await sock.sendMessage(jid, { text: `Teste de prévia do robô (${hora}). Se aparecer a foto do produto abaixo, o canal mostra prévia de link.\n${link}` }), 'teste de prévia');
+      // Usa a oferta mais recente da fila, com a prévia montada por nós (título, preço e miniatura da foto).
+      const m = fila.length ? { ...[...fila].reverse()[0] } : undefined;
+      if (m) m.texto = `Teste de prévia do robô (${hora}). Se aparecer a foto do produto no cartão, a prévia funciona.\n\n${m.texto}`;
+      const linkPreview = m ? await montarPrevia(m) : undefined;
+      recibo(await sock.sendMessage(jid, linkPreview ? { text: m.texto, linkPreview } : { text: 'Teste de prévia sem oferta na fila.' }), 'teste de prévia');
     } else if (comArte[0]) {
       recibo(await sock.sendMessage(jid, { image: comArte[0].arte.buffer, mimetype: comArte[0].arte.mimetype, caption: `Teste de imagem do robô (${hora}). Se você viu a arte acima, o canal publica imagens.` }), 'teste de imagem');
     } else {
