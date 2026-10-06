@@ -112,9 +112,15 @@ export class FonteMercadoLivreApi {
             formatos.add(`produto sem preço (campos: ${Object.keys(p ?? {}).slice(0, 10).join(',')}${vencedor ? `; vencedor: ${Object.keys(vencedor).slice(0, 8).join(',')}` : '; sem vencedor'})`);
             continue;
           }
-          // A nota é um complemento: se a API não der, a oferta segue sem ela.
+          // Nota e vendas são complementos: se a API não der, a oferta segue sem eles.
           const itemId = String(vencedor?.item_id ?? vencedor?.id ?? '');
           if (/^MLB\d+$/.test(itemId)) {
+            try {
+              const vendidos = Number((await this.autorizado(`/items/${itemId}?attributes=sold_quantity`))?.sold_quantity);
+              if (Number.isFinite(vendidos) && vendidos > 0) oferta.vendas = vendidos;
+            } catch {
+              // segue sem o número de vendas
+            }
             try {
               const media = Number((await this.autorizado(`/reviews/item/${itemId}`))?.rating_average);
               if (Number.isFinite(media) && media > 0 && media <= 5) oferta.nota = Math.round(media * 10) / 10;
