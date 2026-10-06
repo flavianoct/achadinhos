@@ -70,9 +70,12 @@ async function conectar() {
         }
         if (connection === 'open') {
           log('WhatsApp conectado.');
+          sockAtual.sock = sock;
+          sockAtual.aberto = true;
           resolve(sock);
         }
         if (connection === 'close') {
+          if (sockAtual.sock === sock) sockAtual.aberto = false;
           const codigo = lastDisconnect?.error?.output?.statusCode;
           if (codigo === DisconnectReason.loggedOut) {
             reject(new Error('O WhatsApp desconectou este aparelho. Apague a pasta .achadinhos-enviador (na sua pasta de usuário) e rode de novo para escanear o QR.'));
@@ -87,7 +90,22 @@ async function conectar() {
     abrir();
   });
 }
-const sockAtual = { sock: null };
+/** O socket que está valendo agora. Muda a cada reconexão, por isso o envio sempre lê daqui (e não guarda o primeiro). */
+const sockAtual = { sock: null, aberto: false };
+
+/** Derruba a conexão atual de propósito: o evento "close" dispara e a reconexão automática abre uma nova. */
+function reiniciarConexao(motivo) {
+  log(`Reiniciando a conexão com o WhatsApp (${motivo}).`);
+  sockAtual.aberto = false;
+  try {
+    sockAtual.sock?.end?.(new Error(motivo));
+  } catch {
+    // se já estava morta, a reconexão já está em andamento
+  }
+}
+
+/** Erros que indicam queda da conexão (a mensagem não foi o problema): não vale descartá-la. */
+const ehQuedaDeConexao = (e) => /connection (closed|lost|failure)|timed out|socket|stream errored|not open/i.test(String(e?.message ?? e));
 
 async function listar() {
   const sock = await conectar();
@@ -150,6 +168,12 @@ async function rodar() {
   log(`Pronto. Enviando para ${destinos.length} destino(s). Deixe esta janela aberta. Ctrl+C para parar.`);
 
   let estado = lerEstado();
+  const falhasSeguidas = new Map();
+  // Vigia: a conexão pode morrer sem avisar (sem evento "close"). A cada 2 minutos confere se o canal de rede ainda está aberto.
+  setInterval(() => {
+    const ws = sockAtual.sock?.ws;
+    if (sockAtual.aberto && ws && (ws.isOpen === false || ws.isClosed === true || ws.isClosing === true)) reiniciarConexao('conexão morta detectada pelo vigia');
+  }, 120_000).unref?.();
   for (;;) {
     try {
       const agora = Date.now();
@@ -157,25 +181,41 @@ async function rodar() {
       const fila = await buscarFila(config);
       const pendentes = selecionarPendentes(fila, estado.enviados, agora, (config.idadeMaximaMin ?? 180) * 60_000);
       const regra = podeEnviarAgora({ agora, envios: estado.envios, maximoPorHora: config.maximoPorHora ?? 6, horaInicio: config.horaInicio ?? 8, horaFim: config.horaFim ?? 22 });
+      // Sem conexão aberta não adianta tentar (e não gasta a mensagem): espera a reconexão automática.
+      if (pendentes.length && regra.pode && !sockAtual.aberto) {
+        log(`${pendentes.length} na fila, aguardando a conexão com o WhatsApp voltar…`);
+        await pausa(15_000);
+        continue;
+      }
       if (pendentes.length && regra.pode) {
         const m = pendentes[0];
         log(`Enviando: ${m.texto.split('\n')[0].slice(0, 70)}`);
         let algumOk = false;
+        let queda = false;
         for (let i = 0; i < destinos.length; i++) {
           if (i > 0) await pausa(esperaAleatoria(8000, 20_000));
           try {
-            await enviarUma(sock, destinos[i], m);
+            await enviarUma(sockAtual.sock, destinos[i], m);
             algumOk = true;
           } catch (e) {
             log(`  falhou em ${destinos[i]}: ${e.message}`);
+            if (ehQuedaDeConexao(e)) queda = true;
           }
         }
         if (algumOk) {
           estado.enviados[m.id] = Date.now();
           estado.envios.push(Date.now());
+          falhasSeguidas.delete(m.id);
+        } else if (queda && (falhasSeguidas.get(m.id) ?? 0) < 4) {
+          // A conexão caiu: a mensagem está boa. Reinicia a conexão e tenta de novo depois (até 4 vezes), sem descartar.
+          falhasSeguidas.set(m.id, (falhasSeguidas.get(m.id) ?? 0) + 1);
+          reiniciarConexao('envio falhou por queda de conexão');
+          await pausa(20_000);
+          continue;
         } else {
-          // Nenhum destino recebeu: marca como enviada mesmo assim depois de falhar, para não ficar presa na frente da fila.
+          // Falha que não é de conexão (ou já tentou várias vezes): marca como enviada para não travar a fila.
           estado.enviados[m.id] = Date.now();
+          falhasSeguidas.delete(m.id);
           log('  nenhum destino recebeu; pulei esta mensagem.');
         }
         salvarEstado(estado);
