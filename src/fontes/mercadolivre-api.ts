@@ -63,6 +63,7 @@ export class FonteMercadoLivreApi {
     const ofertas = new Map<string, Oferta>();
     const ignorados = new Map<string, number>();
     const formatos = new Set<string>();
+    let vistosNoRanking = 0;
     let ultimoErro = '';
     for (const categoria of this.categoriasDoTurno(turno)) {
       let ids: string[] = [];
@@ -72,6 +73,7 @@ export class FonteMercadoLivreApi {
         for (const c of destaque?.content ?? []) {
           if (c?.type === 'ITEM' && /^MLB\d+$/.test(String(c.id))) ids.push(String(c.id));
           else if (c?.type === 'PRODUCT' && /^MLB\d+$/.test(String(c.id))) produtos.push(String(c.id));
+          if (c?.id) vistosNoRanking++;
           else ignorados.set(String(c?.type), (ignorados.get(String(c?.type)) ?? 0) + 1);
         }
       } catch (e) {
@@ -159,6 +161,9 @@ export class FonteMercadoLivreApi {
         if (!ofertas.has(oferta.idProduto)) ofertas.set(oferta.idProduto, oferta);
       }
     }
+    const lista = [...ofertas.values()];
+    // Resumo do que a API trouxe, para o log da rodada mostrar o que existe (e o que falta) sem adivinhar.
+    console.log(`[ml-api] ranking: ${vistosNoRanking} produtos; ofertas: ${lista.length}; com preço antigo: ${lista.filter((o) => o.precoOriginal).length}; com nota: ${lista.filter((o) => o.nota).length}; com vendas: ${lista.filter((o) => o.vendas).length}; com frete grátis: ${lista.filter((o) => o.freteGratis).length}`);
     if (ofertas.size === 0) {
       const tipos = [...ignorados].map(([t, n]) => `${n} do tipo ${t}`).join(', ');
       throw new ErroApiML(`API do Mercado Livre sem ofertas${ultimoErro ? `: ${ultimoErro}` : ''}${tipos ? ` (itens que a API devolveu em outro formato: ${tipos})` : ''}${formatos.size ? ` [${[...formatos].slice(0, 2).join('; ')}]` : ''}`);
