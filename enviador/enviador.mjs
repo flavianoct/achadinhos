@@ -127,7 +127,9 @@ async function resolverDestinos(sock, config) {
       try {
         const meta = await sock.newsletterMetadata('invite', t.codigo);
         prontos.push(meta.id);
-        log(`Canal encontrado: ${meta.thread_metadata?.name?.text ?? meta.id}`);
+        const papel = meta.viewer_metadata?.role ?? 'não informado';
+        log(`Canal encontrado: ${meta.thread_metadata?.name?.text ?? meta.id} (papel desta conta: ${papel}; seguidores: ${meta.thread_metadata?.subscribers_count ?? '?'})`);
+        if (papel !== 'OWNER' && papel !== 'ADMIN') log('  ATENÇÃO: esta conta não é dona nem administradora do canal. O WhatsApp aceita o envio e não publica. Escaneie o QR com a conta que criou o canal.');
       } catch (e) {
         log(`Não consegui abrir o canal pelo link (${e.message}). Confira o link e se a conta é dona do canal.`);
       }
@@ -136,16 +138,21 @@ async function resolverDestinos(sock, config) {
   return prontos;
 }
 
+/** Mostra o recibo que o WhatsApp devolveu (id e id do servidor): é a prova de que a mensagem foi aceita. */
+function recibo(r, tipo) {
+  log(`  ${tipo} aceito pelo WhatsApp (id ${r?.key?.id ?? '?'}, servidor ${r?.key?.server_id ?? r?.key?.serverId ?? 'sem id de servidor'}).`);
+}
+
 async function enviarUma(sock, jid, m) {
   if (m.imagem) {
     try {
-      await sock.sendMessage(jid, { image: { url: m.imagem }, caption: m.texto });
+      recibo(await sock.sendMessage(jid, { image: { url: m.imagem }, caption: m.texto }), 'imagem com legenda');
       return;
     } catch (e) {
       log(`  imagem falhou (${e.message}); enviando só o texto.`);
     }
   }
-  await sock.sendMessage(jid, { text: m.texto });
+  recibo(await sock.sendMessage(jid, { text: m.texto }), 'texto');
 }
 
 async function buscarFila(config) {
