@@ -76,7 +76,7 @@ export class FonteShopee implements Fonte {
     this.fetchFn = fetchFn;
   }
 
-  private async consultar(query: string): Promise<any> {
+  async consultar(query: string): Promise<any> {
     const payload = JSON.stringify({ query });
     const timestamp = Math.floor(Date.now() / 1000);
     const resposta = await this.fetchFn(ENDPOINT, {

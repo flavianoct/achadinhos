@@ -149,6 +149,20 @@ async function modoNuvem(): Promise<void> {
 async function main(): Promise<void> {
   const args = new Set(process.argv.slice(2));
   if (args.has('--nuvem')) return modoNuvem();
+  if (args.has('--shopee-schema')) {
+    const { descreverApiShopee } = await import('./descobrir.ts');
+    const appId = (process.env.SHOPEE_APP_ID ?? '').trim();
+    const secret = (process.env.SHOPEE_SECRET ?? '').trim();
+    if (!appId || !secret) {
+      console.log('Cadastre SHOPEE_APP_ID e SHOPEE_SECRET (Settings → Secrets and variables → Actions).');
+      process.exitCode = 1;
+      return;
+    }
+    const relatorio = await descreverApiShopee(appId, secret);
+    console.log(relatorio);
+    if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${relatorio}\n`);
+    return;
+  }
   const demonstracao = args.has('--teste');
   const robo = demonstracao ? criarRoboDeDemonstracao() : new Robo();
 
