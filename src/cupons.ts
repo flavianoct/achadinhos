@@ -3,7 +3,7 @@ import { diaDe } from './db.ts';
 
 /** Um cupom cadastrado por você no arquivo cupons.json. */
 export interface Cupom {
-  loja: 'mercadolivre' | 'amazon';
+  loja: 'mercadolivre' | 'shopee';
   /** Código para digitar no carrinho. Vazio quando o cupom é só ativar na página (cupom de "clique para ativar"). */
   codigo?: string;
   /** Resumo curto: "R$ 30 OFF em compras acima de R$ 200". */
@@ -16,12 +16,12 @@ export interface Cupom {
   validoAte?: string;
 }
 
-const NOME_DA_LOJA: Record<Cupom['loja'], string> = { mercadolivre: 'Mercado Livre', amazon: 'Amazon' };
+const NOME_DA_LOJA: Record<Cupom['loja'], string> = { mercadolivre: 'Mercado Livre', shopee: 'Shopee' };
 
 /** Endereços aceitos por loja. Evita link errado ou de outra loja no canal. */
 const SITES: Record<Cupom['loja'], RegExp> = {
   mercadolivre: /(^|\.)(mercadolivre\.com\.br|mercadolibre\.com|meli\.la)$/i,
-  amazon: /(^|\.)(amazon\.com\.br|amzn\.to|a\.co)$/i,
+  shopee: /(^|\.)(shopee\.com\.br|shp\.ee)$/i,
 };
 
 const DATA = /^\d{4}-\d{2}-\d{2}$/;
@@ -50,7 +50,7 @@ export function lerCupons(texto: string): CuponsLidos {
   bruto.forEach((item: any, i) => {
     const nome = `cupom ${i + 1}`;
     const loja = String(item?.loja ?? '').trim().toLowerCase();
-    if (loja !== 'mercadolivre' && loja !== 'amazon') return void resultado.avisos.push(`${nome}: "loja" precisa ser "mercadolivre" ou "amazon".`);
+    if (loja !== 'mercadolivre' && loja !== 'shopee') return void resultado.avisos.push(`${nome}: "loja" precisa ser "mercadolivre" ou "shopee".`);
     const titulo = String(item?.titulo ?? '').replace(/\s+/g, ' ').trim();
     if (!titulo) return void resultado.avisos.push(`${nome}: falta o "titulo".`);
     let host = '';
