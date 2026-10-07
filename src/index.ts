@@ -101,6 +101,14 @@ async function modoNuvem(): Promise<void> {
     rodada.postados = postados;
     rodada.parou = motivoDaParada;
     dizer(`- Telegram: ${postados} ofertas postadas${motivoDaParada ? ` (parou por: ${motivoDaParada})` : ''}. Na fila: ${robo.banco.tamanhoDaFila()}.`);
+
+    // Cupons do Mercado Livre e da Amazon, cadastrados em cupons.json (no máximo CUPONS_POR_DIA por dia).
+    if (robo.config.cupons.ativo) {
+      const cupom = await robo.postarCupomAgora();
+      for (const aviso of cupom.avisos) dizer(`- **Aviso nos cupons:** ${aviso}`);
+      if (cupom.resultado.postou) dizer(`- Cupom postado: ${cupom.resultado.cupom.titulo}`);
+      else if (cupom.resultado.motivo === 'erro') dizer(`- **Erro ao postar cupom:** ${cupom.resultado.detalhe}`);
+    }
   }
 
   // O blog é gravado mesmo sem chaves: assim o site existe desde a primeira execução.

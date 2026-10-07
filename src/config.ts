@@ -35,6 +35,8 @@ export interface Config {
     /** Modo nuvem: quantas ofertas postar no Telegram a cada execução. */
     postsPorRodada: number;
   };
+  /** Cupons do Mercado Livre e da Amazon, cadastrados por você em cupons.json. */
+  cupons: { ativo: boolean; arquivo: string; porDia: number; repetirDias: number };
   blog: {
     ativo: boolean;
     nome: string;
@@ -183,6 +185,12 @@ export function lerConfig(env: Env = process.env): Config {
       horaFim: numero(env, 'HORA_FIM', 23),
       maxPostsPorDia: numero(env, 'MAX_POSTS_POR_DIA', 60),
       postsPorRodada: numero(env, 'POSTS_POR_RODADA', 2),
+    },
+    cupons: {
+      ativo: ligado(env, 'CUPONS_ATIVO', true),
+      arquivo: (env.CUPONS_ARQUIVO ?? '').trim() || 'cupons.json',
+      porDia: numero(env, 'CUPONS_POR_DIA', 3),
+      repetirDias: numero(env, 'CUPONS_REPETIR_DIAS', 3),
     },
     blog: {
       ativo: ligado(env, 'BLOG_ATIVO', false),

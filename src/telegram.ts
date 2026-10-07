@@ -1,3 +1,4 @@
+import { montarMensagemCupom, type Cupom } from './cupons.ts';
 import { montarMensagem } from './mensagem.ts';
 import type { OfertaAvaliada } from './types.ts';
 
@@ -14,6 +15,7 @@ export class ErroTelegram extends Error {
 
 export interface Publicador {
   publicar(o: OfertaAvaliada): Promise<void>;
+  publicarCupom?(c: Cupom): Promise<void>;
 }
 
 const pausa = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -76,6 +78,16 @@ export class Telegram implements Publicador {
     });
   }
 
+  async publicarCupom(c: Cupom): Promise<void> {
+    await this.chamar('sendMessage', {
+      chat_id: this.chatId,
+      text: montarMensagemCupom(c),
+      parse_mode: 'HTML',
+      reply_markup: { inline_keyboard: [[{ text: '🎟️ Pegar cupom', url: c.link }]] },
+      link_preview_options: { is_disabled: true },
+    });
+  }
+
   /** Confere o token e se o bot enxerga o canal. Devolve um resumo legível. */
   async checar(): Promise<string> {
     const eu = await this.chamar('getMe', {});
@@ -91,6 +103,12 @@ export class Telegram implements Publicador {
 
 /** Publicador do modo de teste: só mostra o post na tela. */
 export class PublicadorDeTeste implements Publicador {
+  async publicarCupom(c: Cupom): Promise<void> {
+    console.log('\n──────── CUPOM (simulado, nada foi enviado) ────────');
+    console.log(montarMensagemCupom(c).replace(/<\/?[bicode]+>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&'));
+    console.log('────────────────────────────────────────────────────');
+  }
+
   async publicar(o: OfertaAvaliada): Promise<void> {
     console.log('\n──────── POST (simulado, nada foi enviado) ────────');
     console.log(montarMensagem(o).replace(/<\/?[bis]>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&'));

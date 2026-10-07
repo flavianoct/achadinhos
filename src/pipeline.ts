@@ -1,6 +1,7 @@
 import type { Config } from './config.ts';
 import { horaDe, type Banco } from './db.ts';
 import { montarMensagemWhatsapp } from './mensagem.ts';
+import { chaveDoCupom, escolherCupom, type Cupom } from './cupons.ts';
 import { contemPalavra, normalizar } from './categoria.ts';
 import { avaliar } from './filtro.ts';
 import { elegivelParaGuia, tipoDeGuia } from './guias.ts';
@@ -88,4 +89,25 @@ export async function postarProxima(publicador: Publicador, banco: Banco, config
   if (config.social.ativo) banco.guardarParaSocial(oferta, agora);
   banco.removerDaFila(oferta.loja, oferta.idProduto);
   return { postou: true, oferta };
+}
+
+export type ResultadoDoCupom =
+  | { postou: true; cupom: Cupom }
+  | { postou: false; motivo: 'desligado' | 'fora do horário' | 'limite diário' | 'sem cupom' | 'erro'; detalhe?: string };
+
+/** Posta o próximo cupom vigente, respeitando horário e o limite de cupons por dia. */
+export async function postarProximoCupom(publicador: Publicador, banco: Banco, cupons: Cupom[], config: Config, agora: Date = new Date()): Promise<ResultadoDoCupom> {
+  if (!config.cupons.ativo || !publicador.publicarCupom) return { postou: false, motivo: 'desligado' };
+  const hora = horaDe(agora);
+  if (hora < config.ritmo.horaInicio || hora >= config.ritmo.horaFim) return { postou: false, motivo: 'fora do horário' };
+  if (banco.cuponsNoDia(agora) >= config.cupons.porDia) return { postou: false, motivo: 'limite diário' };
+  const cupom = escolherCupom(cupons, (chave) => banco.ultimoPostDeCupom(chave), config.cupons.repetirDias, agora);
+  if (!cupom) return { postou: false, motivo: 'sem cupom' };
+  try {
+    await publicador.publicarCupom(cupom);
+  } catch (e) {
+    return { postou: false, motivo: 'erro', detalhe: (e as Error).message };
+  }
+  banco.registrarCupom(chaveDoCupom(cupom), agora);
+  return { postou: true, cupom };
 }

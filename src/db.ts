@@ -128,6 +128,11 @@ export class Banco {
         publicado_em INTEGER,
         tentativas INTEGER NOT NULL DEFAULT 0
       );
+      CREATE TABLE IF NOT EXISTS cupons_postados (
+        chave TEXT NOT NULL,
+        dia TEXT NOT NULL,
+        postado_em INTEGER NOT NULL
+      );
       CREATE TABLE IF NOT EXISTS saude_fontes (
         fonte TEXT PRIMARY KEY,
         falhas INTEGER NOT NULL,
@@ -184,6 +189,21 @@ export class Banco {
 
   postsNoDia(agora: Date): number {
     const linha = this.db.prepare(`SELECT COUNT(*) AS n FROM postados WHERE dia = ?`).get(diaDe(agora)) as { n: number };
+    return linha.n;
+  }
+
+  /** Quando o cupom foi postado pela última vez (ms), se já foi. */
+  ultimoPostDeCupom(chave: string): number | undefined {
+    const linha = this.db.prepare(`SELECT MAX(postado_em) AS t FROM cupons_postados WHERE chave = ?`).get(chave) as { t: number | null };
+    return linha.t ?? undefined;
+  }
+
+  registrarCupom(chave: string, agora: Date): void {
+    this.db.prepare(`INSERT INTO cupons_postados (chave, dia, postado_em) VALUES (?, ?, ?)`).run(chave, diaDe(agora), agora.getTime());
+  }
+
+  cuponsNoDia(agora: Date): number {
+    const linha = this.db.prepare(`SELECT COUNT(*) AS n FROM cupons_postados WHERE dia = ?`).get(diaDe(agora)) as { n: number };
     return linha.n;
   }
 
@@ -485,6 +505,7 @@ export class Banco {
     const t = agora.getTime();
     this.db.prepare(`DELETE FROM precos WHERE dia < ?`).run(diasAtras(agora, 90));
     this.db.prepare(`DELETE FROM postados WHERE postado_em < ?`).run(t - 90 * 86_400_000);
+    this.db.prepare(`DELETE FROM cupons_postados WHERE postado_em < ?`).run(t - 90 * 86_400_000);
     this.db.prepare(`DELETE FROM whatsapp_saida WHERE criado_em < ?`).run(t - 2 * 86_400_000);
     this.db.prepare(`DELETE FROM social_saida WHERE criado_em < ?`).run(t - 2 * 86_400_000);
     // Publicado vira só um registro (leve) e fica 30 dias, para o robô saber que assunto já usou; o que não saiu perde a validade em 2 dias.
