@@ -93,7 +93,7 @@ export function publicarControle(banco: Banco, config: Config, dados: DadosDaRod
     ? banco.mensagensDoWhatsapp(HORAS_DO_WHATSAPP, agora).map((m) => ({ id: m.chave, criadoEm: m.criadoEm, loja: m.loja, texto: m.texto, imagem: m.imagem, link: m.link }))
     : [];
   writeFileSync(join(pasta, 'status.json'), JSON.stringify(status, null, 2), 'utf8');
-  writeFileSync(join(pasta, 'whatsapp.json'), JSON.stringify({ atualizadoEm: agora.toISOString(), mensagens }, null, 2), 'utf8');
+  writeFileSync(join(pasta, 'whatsapp.json'), JSON.stringify({ atualizadoEm: agora.toISOString(), destinos: config.whatsapp.ativo ? config.whatsapp.destinos.map((link) => ({ tipo: link.includes('/channel/') ? 'canal' : 'grupo', link })) : [], mensagens }, null, 2), 'utf8');
   writeFileSync(join(pasta, 'social.json'), JSON.stringify({ atualizadoEm: agora.toISOString(), itens: conteudoSocialRecente(banco, config, agora) }), 'utf8');
   writeFileSync(join(pasta, 'painel.html'), PAGINA_DO_PAINEL, 'utf8');
 }
@@ -164,6 +164,11 @@ tr:last-child td{border-bottom:0}
 <div class="nota">Para cada oferta postada: a arte do Story (baixe em PNG), a legenda e o roteiro de 15 segundos. Publique no Instagram e no TikTok.</div>
 <div class="social" id="social"></div>
 
+<h2>WhatsApp: canais e grupos</h2>
+<div class="nota">Onde o enviador posta as ofertas. Para incluir mais um, é só acrescentar o link em <code>WHATSAPP_DESTINOS</code> (separados por vírgula): o enviador pega a mudança em até 10 minutos, sem reiniciar.</div>
+<div id="destinos"></div>
+<div class="btns" id="zapbotoes"></div>
+
 <h2>WhatsApp: mensagens prontas</h2>
 <div class="nota" id="zapnota"></div>
 <div id="zap"></div>
@@ -210,6 +215,10 @@ const t=new Date(s.atualizadoEm).getTime();
   const th=el('tr');['Quando','Loja','Produto','Preço'].forEach(x=>th.append(el('th','',x)));po.append(th);
   s.ultimosPosts.forEach(p=>{const r=el('tr');r.append(el('td','',quando(p.postadoEm)),el('td','',p.loja),el('td','',p.titulo.slice(0,90)),el('td','',reais(p.preco)));po.append(r)});
   if(!s.ultimosPosts.length){const r=el('tr');r.append(el('td','','Nenhum post ainda.'));po.append(r)}
+  const dz=document.getElementById('destinos');
+  (w.destinos||[]).forEach(d=>{const l=el('div','msg');const t=el('div','',(d.tipo==='canal'?'Canal':'Grupo')+': ');const a=el('a','',d.link);a.href=d.link;a.target='_blank';a.rel='noopener';t.append(a);l.append(t,el('div','sub',d.tipo==='canal'?'Recebe o texto da oferta com o link e a foto em miniatura (o canal não aceita imagem enviada).':'Recebe a arte da oferta como imagem, com a legenda e o link. O número do enviador precisa ser membro do grupo.'));dz.append(l)});
+  if(!(w.destinos||[]).length)dz.append(el('div','sub','Nenhum destino configurado. Acrescente o link de um canal ou grupo em WHATSAPP_DESTINOS.'));
+  if(s.repo){const ed=el('a','b','Editar canais e grupos (ajustes.env)');ed.href='https://github.com/'+s.repo+'/edit/main/ajustes.env';ed.target='_blank';ed.rel='noopener';document.getElementById('zapbotoes').append(ed)}
   document.getElementById('zapnota').textContent=s.canais.whatsapp?'O enviador do seu PC busca estas mensagens sozinho. Aqui você também pode copiar uma e mandar na mão, se preferir.':'WhatsApp desligado (WHATSAPP_ATIVO=0).';
   const sc=document.getElementById('social');
 const copiar=(btn,txt,rot)=>btn.onclick=()=>navigator.clipboard.writeText(txt).then(()=>{btn.textContent='Copiado!';setTimeout(()=>btn.textContent=rot,1500)});

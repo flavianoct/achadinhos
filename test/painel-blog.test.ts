@@ -8,6 +8,7 @@ import { test } from 'node:test';
 import { gerarBlog, graficoDePreco, limparTextoDeIA, modelosDoOllama, publicarComGit, tamanhoDoTop } from '../src/blog.ts';
 import { lerArquivoEnv, lerConfig, salvarNoEnv } from '../src/config.ts';
 import { Banco } from '../src/db.ts';
+import { publicarControle } from '../src/exportar.ts';
 import { iniciarPainel } from '../src/painel.ts';
 import { Robo } from '../src/robo.ts';
 import type { Publicador } from '../src/telegram.ts';
@@ -525,4 +526,20 @@ test('blog: canal do WhatsApp aparece no rodapé, na faixa de chamada e nos dado
   assert.ok(com.includes(`"sameAs":["https://t.me/meucanal","${canal}"]`), 'dados estruturados');
   const sem = await gerar({});
   assert.ok(!sem.includes('whatsapp.com') && !sem.includes('Canal no WhatsApp'));
+});
+test('painel: whatsapp.json publica os destinos (canal e grupo) e o painel tem a seção com o botão de editar', async () => {
+  const dir = pasta();
+  const canal = 'https://whatsapp.com/channel/0029VbDtCLD2UPBAGBZ4UO1W';
+  const grupo = 'https://chat.whatsapp.com/KRJ3OtHhmZ10XfReNMTIaw';
+  const config = lerConfig({ BLOG_PASTA: dir, WHATSAPP_DESTINOS: `${canal},${grupo}?s=cl` });
+  publicarControle(bancoCom([produto(1)]), config, { postados: 0 }, AGORA, 'dono/repo');
+  const w = JSON.parse(ler(dir, 'whatsapp.json'));
+  assert.deepEqual(w.destinos, [{ tipo: 'canal', link: canal }, { tipo: 'grupo', link: grupo }]);
+  const p = ler(dir, 'painel.html');
+  assert.match(p, /WhatsApp: canais e grupos/);
+  assert.match(p, /WHATSAPP_DESTINOS/);
+  assert.match(p, /edit\/main\/ajustes\.env/);
+  const desligado = lerConfig({ BLOG_PASTA: pasta(), WHATSAPP_ATIVO: '0', WHATSAPP_DESTINOS: canal });
+  publicarControle(bancoCom([]), desligado, { postados: 0 }, AGORA, 'dono/repo');
+  assert.deepEqual(JSON.parse(ler(desligado.blog.pasta, 'whatsapp.json')).destinos, [], 'WhatsApp desligado não publica destinos');
 });

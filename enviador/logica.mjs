@@ -49,5 +49,7 @@ export function tipoDeDestino(destino) {
   if (v.endsWith('@newsletter')) return { tipo: 'canal', jid: v };
   const codigo = codigoDoCanal(v);
   if (codigo) return { tipo: 'canal-por-link', codigo };
+  const convite = /chat\.whatsapp\.com\/([A-Za-z0-9_-]+)/.exec(v)?.[1];
+  if (convite) return { tipo: 'grupo-por-link', codigo: convite };
   return { tipo: 'invalido' };
 }

@@ -72,7 +72,7 @@ export interface Config {
     amazonArquivo: string;
   };
   /** Mensagens de WhatsApp para o enviador do PC (ver pasta enviador/). */
-  whatsapp: { ativo: boolean };
+  whatsapp: { ativo: boolean; /** Canais e grupos onde o enviador posta (links https do WhatsApp), de WHATSAPP_DESTINOS. */ destinos: string[] };
   /** Arte de Story, legenda e roteiro de vídeo das ofertas postadas (aparecem no painel). */
   social: { ativo: boolean };
   /** Publicação automática no Instagram (conta profissional). Token e ID ficam nos Secrets. */
@@ -83,6 +83,13 @@ export interface Config {
 export type Env = Record<string, string | undefined>;
 
 /** Lista de horas ("12,18,21"). Sem a variável, usa o padrão; com a variável vazia, devolve vazio (sem restrição). */
+/** Canais e grupos do WhatsApp (links https, separados por vírgula). Qualquer outra coisa é ignorada; sem repetidos. */
+export function destinosDoWhatsapp(valor: string): string[] {
+  const ok = /^https:\/\/(whatsapp\.com\/channel\/|chat\.whatsapp\.com\/)[A-Za-z0-9_-]{8,}\/?$/i;
+  // O WhatsApp acrescenta parâmetros ao copiar o link (?s=cl&p=a...): só o endereço até a interrogação importa.
+  return [...new Set(valor.split(/[,\s]+/).map((v) => v.trim().replace(/[?#].*$/, '')).filter((v) => ok.test(v)))];
+}
+
 /** Só aceita endereço https do WhatsApp (canal, grupo ou wa.me); qualquer outra coisa vira vazio. */
 function linkDoWhatsapp(valor: string): string {
   const v = valor.trim();
@@ -238,7 +245,7 @@ export function lerConfig(env: Env = process.env): Config {
       whatsappLink: linkDoWhatsapp(env.BLOG_WHATSAPP ?? ''),
       amazonArquivo: (env.BLOG_AMAZON_ARQUIVO ?? '').trim() || 'amazon.json',
     },
-    whatsapp: { ativo: ligado(env, 'WHATSAPP_ATIVO', true) },
+    whatsapp: { ativo: ligado(env, 'WHATSAPP_ATIVO', true), destinos: destinosDoWhatsapp(env.WHATSAPP_DESTINOS ?? '') },
     social: { ativo: ligado(env, 'SOCIAL_ATIVO', true) },
     instagram: {
       ativo: ligado(env, 'INSTAGRAM_ATIVO', false),

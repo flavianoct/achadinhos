@@ -141,9 +141,38 @@ async function resolverDestinos(sock, config) {
       } catch (e) {
         log(`Não consegui abrir o canal pelo link (${e.message}). Confira o link e se a conta é dona do canal.`);
       }
+    } else if (t.tipo === 'grupo-por-link') {
+      try {
+        const info = await sock.groupGetInviteInfo(t.codigo);
+        // Só dá para postar em grupo do qual o número é membro: confere (e avisa o que fazer se não for).
+        let membro = true;
+        try {
+          await sock.groupMetadata(info.id);
+        } catch {
+          membro = false;
+        }
+        log(`Grupo encontrado: ${info.subject ?? info.id} (${info.size ?? '?'} membros; este número ${membro ? 'é membro' : 'NÃO é membro'}).`);
+        if (membro) prontos.push(info.id);
+        else log('  ATENÇÃO: o número do enviador não está nesse grupo. Entre no grupo com ele (abra o link de convite no WhatsApp desse número) ou peça a um administrador para adicioná-lo. Enquanto isso, o grupo é pulado.');
+      } catch (e) {
+        log(`Não consegui abrir o grupo pelo link (${e.message}). Confira se o convite ainda vale.`);
+      }
     } else log(`Destino ignorado (não entendi): ${JSON.stringify(d)}`);
   }
   return prontos;
+}
+
+/** Destinos publicados pelo robô em whatsapp.json (vêm de WHATSAPP_DESTINOS no ajustes.env) + os do config.json local, sem repetir. */
+async function destinosCompletos(config) {
+  let remotos = [];
+  try {
+    const url = `${config.urlDoSite.replace(/\/+$/, '')}/whatsapp.json?t=${Date.now()}`;
+    const r = await fetch(url, { signal: AbortSignal.timeout(20_000), cache: 'no-store' });
+    if (r.ok) remotos = ((await r.json()).destinos ?? []).map((d) => d.link).filter(Boolean);
+  } catch {
+    // sem o site agora: segue só com os destinos locais
+  }
+  return [...new Set([...(config.destinos ?? []).map((d) => (typeof d === 'string' ? d : d.jid ?? d.link)), ...remotos])];
 }
 
 /** Mostra o recibo que o WhatsApp devolveu (id e id do servidor): é a prova de que a mensagem foi aceita. */
@@ -207,7 +236,8 @@ async function montarPrevia(m) {
 }
 
 async function enviarUma(sock, jid, m) {
-  if (enviarImagem) {
+  // Grupo aceita imagem normalmente (a arte da oferta com a legenda); canal só aceita texto.
+  if (enviarImagem || jid.endsWith('@g.us')) {
     const arte = await baixarArte(m.id);
     if (arte) {
       try {
@@ -232,17 +262,23 @@ async function buscarFila(config) {
 
 async function rodar() {
   const config = lerConfig();
-  if (!(config.destinos ?? []).length) {
-    log('config.json ainda não tem destinos. Rode "listar" (ou o listar.bat), copie o código do grupo e cole em "destinos".');
-    process.exit(1);
-  }
   enviarImagem = config.enviarImagem === true;
   usarPrevia = config.usarPrevia !== false;
   urlDoSiteAtual = config.urlDoSite;
   const sock = await conectar();
-  const destinos = await resolverDestinos(sock, config);
-  if (!destinos.length) throw new Error('Nenhum destino válido.');
-  log(`Pronto. Enviando para ${destinos.length} destino(s). Deixe esta janela aberta. Ctrl+C para parar.`);
+  // Os destinos vêm de WHATSAPP_DESTINOS (ajustes.env, publicado em whatsapp.json) e do config.json; a lista é recarregada a cada 10 minutos,
+  // então trocar de canal ou grupo não exige reiniciar o enviador.
+  let destinos = [];
+  let destinosEm = 0;
+  const recarregarDestinos = async () => {
+    const lista = await resolverDestinos(sockAtual.sock ?? sock, { destinos: await destinosCompletos(config) });
+    if (JSON.stringify(lista) !== JSON.stringify(destinos)) log(`Destinos atuais: ${lista.length}.`);
+    destinos = lista;
+    destinosEm = Date.now();
+  };
+  await recarregarDestinos();
+  if (!destinos.length) log('Nenhum destino válido por enquanto: confira WHATSAPP_DESTINOS no ajustes.env. Vou tentar de novo em alguns minutos.');
+  log(`Pronto. Deixe este serviço rodando. Ctrl+C para parar.`);
 
   let estado = lerEstado();
   const falhasSeguidas = new Map();
@@ -254,6 +290,7 @@ async function rodar() {
   for (;;) {
     try {
       const agora = Date.now();
+      if (sockAtual.aberto && agora - destinosEm > 10 * 60_000) await recarregarDestinos();
       estado = { ...estado, ...podarEstado(estado, agora) };
       const fila = await buscarFila(config);
       const pendentes = selecionarPendentes(fila, estado.enviados, agora, (config.idadeMaximaMin ?? 180) * 60_000);
@@ -262,6 +299,11 @@ async function rodar() {
       if (pendentes.length && regra.pode && !sockAtual.aberto) {
         log(`${pendentes.length} na fila, aguardando a conexão com o WhatsApp voltar…`);
         await pausa(15_000);
+        continue;
+      }
+      if (pendentes.length && regra.pode && !destinos.length) {
+        log(`${pendentes.length} na fila, mas não há destino válido (canal ou grupo).`);
+        await pausa(60_000);
         continue;
       }
       if (pendentes.length && regra.pode) {
@@ -314,7 +356,7 @@ async function testar() {
   const config = lerConfig();
   urlDoSiteAtual = config.urlDoSite;
   const sock = await conectar();
-  const destinos = await resolverDestinos(sock, config);
+  const destinos = await resolverDestinos(sock, { destinos: await destinosCompletos(config) });
   const hora = new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' });
   // "testar imagem": manda a arte da oferta mais recente como imagem, para ver se o canal publica.
   const fila = process.argv[3] === 'imagem' || process.argv[3] === 'previa' ? await buscarFila(config) : [];

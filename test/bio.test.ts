@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { lerConfig } from '../src/config.ts';
+import { destinosDoWhatsapp, lerConfig } from '../src/config.ts';
 import { paginaDaBio } from '../src/bio.ts';
 import type { OfertaAvaliada } from '../src/types.ts';
 
@@ -76,4 +76,13 @@ test('whatsapp: BLOG_WHATSAPP só aceita endereço https do WhatsApp; a bio most
   assert.match(h, new RegExp(`class="botao whatsapp" href="${canal}"`));
   assert.match(h, /Receber no WhatsApp/);
   assert.ok(!paginaDaBio([oferta], config, new Date()).includes('Receber no WhatsApp'), 'sem o valor, o botão não aparece');
+});
+test('whatsapp: WHATSAPP_DESTINOS aceita canal e grupo, limpa parâmetros do link, tira repetidos e descarta o que não é do WhatsApp', () => {
+  const canal = 'https://whatsapp.com/channel/0029VbDtCLD2UPBAGBZ4UO1W';
+  const grupo = 'https://chat.whatsapp.com/KRJ3OtHhmZ10XfReNMTIaw';
+  assert.deepEqual(destinosDoWhatsapp(`${canal}, ${grupo}?s=cl&p=a&mlu=4&ilr=4&iam=2`), [canal, grupo]);
+  assert.deepEqual(destinosDoWhatsapp(`${grupo} ${grupo}?x=1,${canal}`), [grupo, canal]);
+  assert.deepEqual(destinosDoWhatsapp('https://exemplo.com/channel/0029VbDtCLD2UPBAGBZ4UO1W,javascript:alert(1),  ,@g.us'), []);
+  assert.deepEqual(lerConfig({ WHATSAPP_DESTINOS: canal }).whatsapp.destinos, [canal]);
+  assert.deepEqual(lerConfig({}).whatsapp.destinos, []);
 });
