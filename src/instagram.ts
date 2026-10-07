@@ -173,8 +173,10 @@ export async function publicarNoInstagram(banco: Banco, config: Config, agora: D
   const todos = banco
     .socialRecentes(HORAS_DO_SOCIAL, 50, agora)
     .map((l) => ({ ...l, oferta: JSON.parse(l.dados) as OfertaAvaliada }));
+  // As lojas se alternam no Instagram: depois de publicar de uma, a próxima vem da outra (a de maior pontuação não ocupa tudo).
+  const ultimaLoja = banco.ultimaLojaNoInstagram();
   // Perfil de achadinhos vive de confiança: só vai para o Instagram produto bem avaliado, muito vendido e com cara de marca.
-  const candidatos = todos.filter((c) => passaNoFiltroDoInstagram(c.oferta, ig)).sort((a, b) => b.oferta.pontos - a.oferta.pontos);
+  const candidatos = todos.filter((c) => passaNoFiltroDoInstagram(c.oferta, ig)).sort((a, b) => (a.oferta.loja === ultimaLoja ? 1 : 0) - (b.oferta.loja === ultimaLoja ? 1 : 0) || b.oferta.pontos - a.oferta.pontos);
 
   const url = (chave: string, tipo: 'feed' | 'story') => `${config.blog.url}/social/${arquivoDaArte(chave, tipo)}`;
   const carrossel = ig.carrosselPorDia > 0 && banco.carrosseisPublicadosNoDia(agora) < ig.carrosselPorDia ? banco.carrosselPendente(agora) : undefined;

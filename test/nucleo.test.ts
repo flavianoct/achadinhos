@@ -303,3 +303,23 @@ test('config: lê valores, aceita vírgula decimal e aponta o que falta', () => 
   const completo = lerConfig({ TELEGRAM_BOT_TOKEN: 't', TELEGRAM_CHAT_ID: '@c', SHOPEE_APP_ID: 'a', SHOPEE_SECRET: 's' });
   assert.deepEqual(problemasDeConfig(completo), []);
 });
+
+test('fila: as lojas se alternam em vez de a de maior pontuação ocupar tudo', async () => {
+  const banco = new Banco(':memory:');
+  const av = (loja: 'shopee' | 'mercadolivre', id: string, pontos: number): OfertaAvaliada => ({ ...oferta({ idProduto: id }), loja, categoria: 'tech', pontos });
+  // A Shopee tem pontuação bem maior (desconto e vendas altos): sem alternar, ela postaria todas antes do Mercado Livre.
+  for (let i = 1; i <= 4; i++) banco.enfileirar(av('shopee', `S${i}`, 100 - i), AGORA);
+  for (let i = 1; i <= 4; i++) banco.enfileirar(av('mercadolivre', `M${i}`, 40 - i), AGORA);
+  const publicados: string[] = [];
+  const publicador: Publicador = { publicar: async (o) => void publicados.push(o.idProduto) } as Publicador;
+  for (let i = 0; i < 6; i++) await postarProxima(publicador, banco, config, new Date(AGORA.getTime() + i * 60_000));
+  assert.deepEqual(publicados, ['S1', 'M1', 'S2', 'M2', 'S3', 'M3'], 'uma de cada, sempre a melhor da loja da vez');
+
+  // Se só sobrar uma loja na fila, ela continua postando normalmente.
+  const so = new Banco(':memory:');
+  for (let i = 1; i <= 3; i++) so.enfileirar(av('shopee', `X${i}`, 50 - i), AGORA);
+  const lista: string[] = [];
+  const pub2: Publicador = { publicar: async (o) => void lista.push(o.idProduto) } as Publicador;
+  for (let i = 0; i < 3; i++) await postarProxima(pub2, so, config, new Date(AGORA.getTime() + i * 60_000));
+  assert.deepEqual(lista, ['X1', 'X2', 'X3']);
+});

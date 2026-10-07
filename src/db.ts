@@ -206,10 +206,28 @@ export class Banco {
       .run(o.loja, o.idProduto, JSON.stringify(o), o.pontos, agora.getTime());
   }
 
-  /** Melhor oferta da fila (maior pontuação), sem removê-la. */
-  melhorDaFila(): OfertaAvaliada | undefined {
-    const linha = this.db.prepare(`SELECT dados FROM fila ORDER BY pontos DESC, criado_em ASC LIMIT 1`).get() as { dados: string } | undefined;
+  /**
+   * Melhor oferta da fila (maior pontuação), sem removê-la. Com `evitar`, prefere a melhor de outra loja: assim as lojas se alternam
+   * em vez de uma (a que dá mais pontos) ocupar tudo. Se só houver ofertas da loja a evitar, usa a melhor delas.
+   */
+  melhorDaFila(evitar?: Loja): OfertaAvaliada | undefined {
+    const pegar = (sql: string, ...args: string[]) => this.db.prepare(sql).get(...args) as { dados: string } | undefined;
+    const base = 'SELECT dados FROM fila';
+    const ordem = 'ORDER BY pontos DESC, criado_em ASC LIMIT 1';
+    const linha = (evitar ? pegar(`${base} WHERE loja <> ? ${ordem}`, evitar) : undefined) ?? pegar(`${base} ${ordem}`);
     return linha ? (JSON.parse(linha.dados) as OfertaAvaliada) : undefined;
+  }
+
+  /** Loja da última oferta publicada no Instagram (feed ou story), para alternar as lojas lá também. */
+  ultimaLojaNoInstagram(): string | undefined {
+    const l = this.db.prepare(`SELECT chave FROM social_saida WHERE ig_feed_em IS NOT NULL OR ig_story_em IS NOT NULL ORDER BY MAX(COALESCE(ig_feed_em, 0), COALESCE(ig_story_em, 0)) DESC LIMIT 1`).get() as { chave: string } | undefined;
+    return l?.chave.split(':')[0];
+  }
+
+  /** Loja do último post feito, para a próxima oferta vir de outra loja. */
+  ultimaLojaPostada(): Loja | undefined {
+    const l = this.db.prepare(`SELECT loja FROM postados ORDER BY postado_em DESC LIMIT 1`).get() as { loja: Loja } | undefined;
+    return l?.loja;
   }
 
   removerDaFila(loja: Loja, idProduto: string): void {

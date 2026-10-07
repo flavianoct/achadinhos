@@ -71,7 +71,7 @@ export async function postarProxima(publicador: Publicador, banco: Banco, config
   if (banco.postsNoDia(agora) >= config.ritmo.maxPostsPorDia) return { postou: false, motivo: 'limite diário' };
 
   banco.limparFilaAntiga(HORAS_NA_FILA, agora);
-  const oferta = banco.melhorDaFila();
+  const oferta = banco.melhorDaFila(banco.ultimaLojaPostada());
   if (!oferta) return { postou: false, motivo: 'fila vazia' };
 
   try {
