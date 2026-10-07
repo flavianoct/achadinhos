@@ -5,6 +5,9 @@ on:
     # A cada meia hora, só no horário de postagem: 8h às 23h em Brasília = 11h às 2h59 UTC.
     # Se mudar HORA_INICIO ou HORA_FIM em ajustes.env, ajuste as horas aqui também.
     - cron: '7,37 11-23,0-2 * * *'
+    # Reforço da manhã: o agendador do GitHub às vezes atrasa ou pula disparos, e a primeira rodada do dia
+    # chegou a sair 2 horas depois das 8h. Estes disparos extras só valem se ainda não houver rodada em andamento.
+    - cron: '17,27,47,57 11 * * *'
   # Permite rodar na hora pelo botão "Run workflow" da aba Actions.
   workflow_dispatch:
 
@@ -33,6 +36,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+
+      - name: Instalar o ffmpeg (monta o vídeo do Reel)
+        # Se falhar, o robô segue normalmente e só não publica o Reel do dia.
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+        continue-on-error: true
 
       - name: Instalar o conversor de imagens
         # Só o @resvg/resvg-js (arte de Story e feed em PNG). Se falhar, o robô segue sem as imagens do Instagram.
@@ -71,6 +79,8 @@ jobs:
           SHOPEE_SECRET: ${{ secrets.SHOPEE_SECRET }}
           ML_MATT_WORD: ${{ secrets.ML_MATT_WORD }}
           ML_MATT_TOOL: ${{ secrets.ML_MATT_TOOL }}
+          ML_CLIENT_ID: ${{ secrets.ML_CLIENT_ID }}
+          ML_CLIENT_SECRET: ${{ secrets.ML_CLIENT_SECRET }}
           AMAZON_TAG: ${{ secrets.AMAZON_TAG }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}

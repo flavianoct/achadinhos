@@ -47,3 +47,10 @@ test('enviador: entende grupo, canal e link de canal', () => {
   assert.equal(codigoDoCanal('nada'), null);
   assert.equal(tipoDeDestino('qualquer coisa').tipo, 'invalido');
 });
+
+test('enviador: link de convite de grupo vira destino "grupo-por-link", com ou sem parâmetros extras', () => {
+  assert.deepEqual(tipoDeDestino('https://chat.whatsapp.com/KRJ3OtHhmZ10XfReNMTIaw'), { tipo: 'grupo-por-link', codigo: 'KRJ3OtHhmZ10XfReNMTIaw' });
+  assert.deepEqual(tipoDeDestino('https://chat.whatsapp.com/KRJ3OtHhmZ10XfReNMTIaw?s=cl&p=a&mlu=4'), { tipo: 'grupo-por-link', codigo: 'KRJ3OtHhmZ10XfReNMTIaw' });
+  assert.equal(tipoDeDestino('https://whatsapp.com/channel/0029VbDtCLD2UPBAGBZ4UO1W').tipo, 'canal-por-link');
+  assert.equal(tipoDeDestino('https://exemplo.com/x').tipo, 'invalido');
+});

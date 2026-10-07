@@ -8,6 +8,7 @@ import { test } from 'node:test';
 import { gerarBlog, graficoDePreco, limparTextoDeIA, modelosDoOllama, publicarComGit, tamanhoDoTop } from '../src/blog.ts';
 import { lerArquivoEnv, lerConfig, salvarNoEnv } from '../src/config.ts';
 import { Banco } from '../src/db.ts';
+import { publicarControle } from '../src/exportar.ts';
 import { iniciarPainel } from '../src/painel.ts';
 import { Robo } from '../src/robo.ts';
 import type { Publicador } from '../src/telegram.ts';
@@ -167,7 +168,7 @@ const ler = (dir: string, arquivo: string) => readFileSync(join(dir, arquivo), '
 
 test('blog: cria os posts do dia, página inicial, categorias e arquivo; escapa HTML e descarta link inseguro', async () => {
   const dir = pasta();
-  const config = lerConfig({ BLOG_PASTA: dir, BLOG_NOME: 'Meu <Blog>', BLOG_URL: 'https://exemplo.github.io/achados/', TELEGRAM_CHAT_ID: '@meucanal' });
+  const config = lerConfig({ BLOG_PASTA: dir, BLOG_NOME: 'Meu <Blog>', BLOG_URL: 'https://exemplo.github.io/achados/', TELEGRAM_CHAT_ID: '@meucanal', BLOG_AMAZON_ARQUIVO: join(dir, 'sem-amazon.json') });
   const produtos = [
     ...Array.from({ length: 6 }, (_, i) => produto(i + 1)),
     ...Array.from({ length: 3 }, (_, i) => produto(i + 10, { categoria: 'casa', loja: 'mercadolivre', precoOriginal: 300, freteGratis: true, menorPrecoEmDias: 12 })),
@@ -211,7 +212,7 @@ test('blog: cria os posts do dia, página inicial, categorias e arquivo; escapa 
 
   const casa = ler(dir, 'post-2026-10-03-casa.html');
   assert.match(casa, /<h1>Top 3 ofertas de Casa e Cozinha em 03\/10\/2026<\/h1>/);
-  assert.ok(casa.includes('<s>R$ 300,00</s>') && casa.includes('Frete grátis') && casa.includes('Menor preço em 12 dias') && casa.includes('Ver oferta na Mercado Livre'));
+  assert.ok(casa.includes('<s>R$ 300,00</s>') && casa.includes('Frete grátis') && casa.includes('Menor preço em 12 dias') && casa.includes('Ver oferta no Mercado Livre'));
 
   const inicio = ler(dir, 'index.html');
   assert.match(inicio, /<h2 class="secao">Ofertas de hoje<\/h2>/);
@@ -489,4 +490,56 @@ test('painel: mostra o estado, esconde segredos, salva configuração e recusa p
     servidor.close();
     robo.fechar();
   }
+});
+
+test('blog: achados da Amazon viram a página Amazon, sem preço, com a tag e sem aceitar entradas inválidas', async () => {
+  const dir = pasta();
+  const arquivo = join(dir, 'amazon.json');
+  writeFileSync(arquivo, JSON.stringify([
+    { asin: 'B0FPGF9J2J', titulo: 'Console <b>X</b>', descricao: 'Descrição do console.', imagem: 'https://m.media-amazon.com/images/I/x.jpg' },
+    { asin: 'curto', titulo: 'ASIN inválido', descricao: 'ignorado' },
+    { asin: 'B000000001', titulo: 'Sem descrição' },
+  ]));
+  const config = lerConfig({ BLOG_PASTA: dir, BLOG_URL: 'https://exemplo.github.io/achados/', BLOG_AMAZON_ARQUIVO: arquivo, AMAZON_TAG: 'minha-20' });
+  const r = await gerarBlog(bancoCom([produto(1), produto(2), produto(3)]), config, AGORA);
+  assert.ok(r.paginas.includes('amazon.html'));
+  const h = ler(dir, 'amazon.html');
+  assert.match(h, /amazon\.com\.br\/dp\/B0FPGF9J2J\?tag=minha-20/);
+  assert.match(h, /rel="sponsored nofollow noopener"/);
+  assert.ok(!h.includes('<b>X</b>') && !h.includes('ASIN inválido') && !h.includes('Sem descrição'));
+  assert.ok(!/R\$\s?\d/.test(h.replace(/<style[\s\S]*?<\/style>/g, '')), 'a página da Amazon não mostra preço');
+  assert.match(ler(dir, 'index.html'), /href="amazon\.html"/);
+  assert.match(ler(dir, 'sitemap.xml'), /achados\/amazon\.html/);
+});
+
+test('blog: canal do WhatsApp aparece no rodapé, na faixa de chamada e nos dados estruturados, e some quando não configurado', async () => {
+  const canal = 'https://whatsapp.com/channel/0029VbDtCLD2UPBAGBZ4UO1W';
+  const gerar = async (extra: Record<string, string>) => {
+    const dir = pasta();
+    const config = lerConfig({ BLOG_PASTA: dir, BLOG_URL: 'https://exemplo.github.io/achados/', TELEGRAM_CHAT_ID: '@meucanal', BLOG_AMAZON_ARQUIVO: join(dir, 'sem.json'), ...extra });
+    await gerarBlog(bancoCom([produto(1), produto(2), produto(3)]), config, AGORA);
+    return ler(dir, 'index.html');
+  };
+  const com = await gerar({ BLOG_WHATSAPP: canal });
+  assert.ok(com.includes(`href="${canal}" target="_blank" rel="noopener me">Canal no WhatsApp</a>`), 'rodapé');
+  assert.ok(com.includes('Também no <a href="' + canal), 'faixa de chamada');
+  assert.ok(com.includes(`"sameAs":["https://t.me/meucanal","${canal}"]`), 'dados estruturados');
+  const sem = await gerar({});
+  assert.ok(!sem.includes('whatsapp.com') && !sem.includes('Canal no WhatsApp'));
+});
+test('painel: whatsapp.json publica os destinos (canal e grupo) e o painel tem a seção com o botão de editar', async () => {
+  const dir = pasta();
+  const canal = 'https://whatsapp.com/channel/0029VbDtCLD2UPBAGBZ4UO1W';
+  const grupo = 'https://chat.whatsapp.com/KRJ3OtHhmZ10XfReNMTIaw';
+  const config = lerConfig({ BLOG_PASTA: dir, WHATSAPP_DESTINOS: `${canal},${grupo}?s=cl` });
+  publicarControle(bancoCom([produto(1)]), config, { postados: 0 }, AGORA, 'dono/repo');
+  const w = JSON.parse(ler(dir, 'whatsapp.json'));
+  assert.deepEqual(w.destinos, [{ tipo: 'canal', link: canal }, { tipo: 'grupo', link: grupo }]);
+  const p = ler(dir, 'painel.html');
+  assert.match(p, /WhatsApp: canais e grupos/);
+  assert.match(p, /WHATSAPP_DESTINOS/);
+  assert.match(p, /edit\/main\/ajustes\.env/);
+  const desligado = lerConfig({ BLOG_PASTA: pasta(), WHATSAPP_ATIVO: '0', WHATSAPP_DESTINOS: canal });
+  publicarControle(bancoCom([]), desligado, { postados: 0 }, AGORA, 'dono/repo');
+  assert.deepEqual(JSON.parse(ler(desligado.blog.pasta, 'whatsapp.json')).destinos, [], 'WhatsApp desligado não publica destinos');
 });

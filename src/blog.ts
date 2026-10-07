@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readdirSync, unlinkSync, writeFileSync } from 'n
 import { join } from 'node:path';
 import type { Config } from './config.ts';
 import { diaDe, type Banco, type PostSalvo } from './db.ts';
+import { lerAchadosDaAmazon, linkDoAchado, type AchadoDaAmazon } from './amazon.ts';
 import { explicacaoDoCriterio } from './dicas.ts';
 import { tituloParaArte } from './social.ts';
 import { chaveDoProduto, escolherParaGuia, perguntasDoGuia, TIPOS_DE_GUIA, type PerguntaFrequente, type ProdutoDoGuia, type TipoDeGuia } from './guias.ts';
@@ -165,6 +166,14 @@ function resumir(s: string, max: number): string {
   return (espaco > max * 0.5 ? corte.slice(0, espaco) : corte).replace(/[\s,;:\-–|(]+$/, '');
 }
 
+/** A primeira frase do texto (para o resumo em cartões); se for longa demais, corta numa palavra. */
+function primeiraFrase(s: string, max: number): string {
+  const limpo = s.replace(/\s+/g, ' ').trim();
+  const fim = limpo.search(/[.!?](\s|$)/);
+  if (fim >= 30 && fim + 1 <= max) return limpo.slice(0, fim + 1);
+  return resumir(limpo, max);
+}
+
 /** Descrição para buscadores e redes sociais: até 155 caracteres (o que o Google costuma mostrar), sem reticências. */
 function descricaoSeo(s: string): string {
   return resumir(s, 155);
@@ -207,12 +216,19 @@ interface Site {
   /** Temas que têm pelo menos um post no ar, na ordem do menu. */
   temas: string[];
   guias: Guia[];
+  /** Achados da Amazon escolhidos à mão (amazon.json). */
+  amazon: AchadoDaAmazon[];
 }
 
 const ICONE_DO_SITE = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23d6336c'/%3E%3Cpath d='M8 17l8-8h8v8l-8 8z' fill='%23fff'/%3E%3Ccircle cx='20.5' cy='11.5' r='2' fill='%23d6336c'/%3E%3C/svg%3E";
 const LOGO = '<svg class="logo" viewBox="0 0 32 32" width="30" height="30" aria-hidden="true"><rect width="32" height="32" rx="8" fill="currentColor"/><path d="M8 17l8-8h8v8l-8 8z" fill="#fff"/><circle cx="20.5" cy="11.5" r="2" fill="currentColor"/></svg>';
 
 type Trilha = Array<[string, string?]>;
+
+/** Endereços dos perfis oficiais da marca (Telegram e Instagram), só os seguros. */
+function redesDaMarca(b: Config['blog']): string[] {
+  return [b.telegramLink, b.instagramLink, b.whatsappLink].filter((u) => u && urlSegura(u));
+}
 
 /** Muda sempre que o CSS muda, para o navegador não usar uma cópia antiga guardada. */
 let VERSAO_DO_ESTILO = '1';
@@ -221,7 +237,7 @@ function moldura(site: Site, p: { arquivo: string; titulo: string; tituloSeo?: s
   const b = site.config.blog;
   const endereco = (arquivo: string) => (b.url ? `${b.url}/${arquivo === 'index.html' ? '' : arquivo}` : '');
   const canonica = endereco(p.arquivo);
-  const itensDoMenu: Array<[string, string]> = [['index.html', 'Início'], ...(site.guias.length ? [['guias.html', 'Guias'] as [string, string]] : []), ...site.temas.map((t): [string, string] => [`categoria-${t}.html`, nomeDoTema(t)]), ['arquivo.html', 'Arquivo']];
+  const itensDoMenu: Array<[string, string]> = [['index.html', 'Início'], ...(site.guias.length ? [['guias.html', 'Guias'] as [string, string]] : []), ...site.temas.map((t): [string, string] => [`categoria-${t}.html`, nomeDoTema(t)]), ...(site.amazon.length ? [['amazon.html', 'Amazon'] as [string, string]] : []), ['arquivo.html', 'Arquivo']];
   const nav = itensDoMenu.map(([arquivo, rotulo]) => `<a href="${arquivo}"${arquivo === p.arquivo ? ' aria-current="page"' : ''}>${esc(rotulo)}</a>`).join('');
   // O título da aba e dos resultados de busca fica em até 62 caracteres (o Google corta perto de 60): o nome do site só vai se couber.
   const tituloBase = p.tituloSeo ?? p.titulo;
@@ -237,7 +253,7 @@ function moldura(site: Site, p: { arquivo: string; titulo: string; tituloSeo?: s
   }
   if (b.url && p.arquivo === 'index.html') {
     grafo.push({ '@type': 'WebSite', '@id': `${b.url}/#site`, url: `${b.url}/`, name: b.nome, inLanguage: 'pt-BR' });
-    grafo.push({ '@type': 'Organization', '@id': `${b.url}/#org`, name: b.nome, url: `${b.url}/`, logo: ICONE_DO_SITE, ...(b.telegramLink && urlSegura(b.telegramLink) ? { sameAs: [b.telegramLink] } : {}) });
+    grafo.push({ '@type': 'Organization', '@id': `${b.url}/#org`, name: b.nome, url: `${b.url}/`, logo: ICONE_DO_SITE, ...(redesDaMarca(b).length ? { sameAs: redesDaMarca(b) } : {}) });
   }
   const ld = grafo.length ? { '@context': 'https://schema.org', '@graph': grafo } : undefined;
   const migalhas = p.trilha?.length
@@ -252,6 +268,7 @@ function moldura(site: Site, p: { arquivo: string; titulo: string; tituloSeo?: s
 <meta name="description" content="${esc(descricao)}">
 <meta name="robots" content="${p.arquivo === '404.html' ? 'noindex' : 'index,follow,max-image-preview:large'}">
 <meta name="theme-color" content="#d6336c">
+<meta name="color-scheme" content="light dark">
 <link rel="icon" href="${ICONE_DO_SITE}">
 ${canonica ? `<link rel="canonical" href="${esc(canonica)}">` : ''}
 <meta property="og:site_name" content="${esc(b.nome)}">
@@ -280,14 +297,26 @@ ${ld ? `<script type="application/ld+json">${JSON.stringify(ld).replace(/</g, '\
 </header>
 <main id="conteudo"${p.largo ? ' class="largo"' : ''}>
 ${migalhas}${p.corpo}
-  ${b.telegramLink && urlSegura(b.telegramLink) ? `<aside class="chamada"><div><strong>Receba as melhores ofertas na hora</strong><span>Nosso canal do Telegram avisa quando um bom preço aparece.</span></div><a class="botao" href="${esc(b.telegramLink)}" target="_blank" rel="noopener">Entrar no canal</a></aside>` : ''}
+  ${b.telegramLink && urlSegura(b.telegramLink) ? `<aside class="chamada"><div><strong>Receba as melhores ofertas na hora</strong><span>Nosso canal do Telegram avisa quando um bom preço aparece.${b.instagramLink && urlSegura(b.instagramLink) ? ` Ou <a href="${esc(b.instagramLink)}" target="_blank" rel="noopener me">siga no Instagram</a>.` : ''}${b.whatsappLink && urlSegura(b.whatsappLink) ? ` Também no <a href="${esc(b.whatsappLink)}" target="_blank" rel="noopener me">WhatsApp</a>.` : ''}</span></div><a class="botao" href="${esc(b.telegramLink)}" target="_blank" rel="noopener">Entrar no canal</a></aside>` : ''}
 </main>
 <footer class="rodape">
   <div class="rodape-miolo">
-    <p class="rodape-nome">${LOGO}<span>${esc(b.nome)}</span></p>
-    <p class="rodape-links"><a href="index.html">Início</a> <a href="guias.html">Guias</a> <a href="sobre.html">Como escolhemos</a> <a href="privacidade.html">Privacidade e afiliados</a>${b.url ? ' <a href="feed.xml">RSS</a>' : ''}</p>
-    <p><strong>Aviso:</strong> este site participa de programas de afiliados. Ao comprar pelos links, podemos receber uma comissão, sem custo extra para você.</p>
-    ${p.rodapeExtra ?? ''}
+    <div class="rodape-marca">
+      <p class="rodape-nome">${LOGO}<span>${esc(b.nome)}</span></p>
+      <p>Guias de compra e ofertas das lojas parceiras, com nota, vendas e histórico de preço, atualizados a cada 30 minutos.</p>
+    </div>
+    <div>
+      <p class="rodape-titulo">Navegue</p>
+      <p class="rodape-links"><a href="index.html">Início</a> <a href="guias.html">Guias de compra</a>${site.amazon.length ? ' <a href="amazon.html">Achadinhos da Amazon</a>' : ''} <a href="arquivo.html">Arquivo</a>${b.url ? ' <a href="feed.xml">RSS</a>' : ''}</p>
+    </div>
+    <div>
+      <p class="rodape-titulo">Transparência</p>
+      <p class="rodape-links"><a href="sobre.html">Como escolhemos</a> <a href="privacidade.html">Privacidade e afiliados</a>${b.telegramLink && urlSegura(b.telegramLink) ? ` <a href="${esc(b.telegramLink)}" target="_blank" rel="noopener">Canal no Telegram</a>` : ''}${b.instagramLink && urlSegura(b.instagramLink) ? ` <a href="${esc(b.instagramLink)}" target="_blank" rel="noopener me">Siga no Instagram</a>` : ''}${b.whatsappLink && urlSegura(b.whatsappLink) ? ` <a href="${esc(b.whatsappLink)}" target="_blank" rel="noopener me">Canal no WhatsApp</a>` : ''}</p>
+    </div>
+    <div class="rodape-aviso">
+      <p><strong>Aviso:</strong> este site participa de programas de afiliados. Ao comprar pelos links, podemos receber uma comissão, sem custo extra para você.</p>
+      ${p.rodapeExtra ?? ''}
+    </div>
   </div>
 </footer>
 </body>
@@ -304,9 +333,12 @@ function cartaoDoProduto(o: ItemDoPost, posicao: number): string {
   if (o.menorPrecoEmDias) selos.push(`<span class="selo">Menor preço em ${o.menorPrecoEmDias} dias</span>`);
   if (o.freteGratis) selos.push('<span class="selo">Frete grátis</span>');
 
+  const nota = o.nota && o.nota > 0 ? o.nota.toFixed(1).replace('.', ',') : '';
+  const avaliacao = [
+    nota ? `<span class="estrelas" role="img" aria-label="Nota ${nota} de 5"><svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true"><path d="M10 1.5l2.6 5.5 6 .8-4.4 4.2 1.1 6L10 15l-5.3 3 1.1-6L1.4 7.8l6-.8z" fill="currentColor"/></svg><b>${nota}</b></span>` : '',
+    o.vendas && o.vendas > 0 ? `<span>${formatarVendas(o.vendas)} vendidos</span>` : '',
+  ].filter(Boolean);
   const social: string[] = [];
-  if (o.nota && o.nota > 0) social.push(`Nota ${o.nota.toFixed(1).replace('.', ',')}`);
-  if (o.vendas && o.vendas > 0) social.push(`${formatarVendas(o.vendas)} vendidos`);
   if (o.precoVsMediana !== undefined && Math.abs(o.precoVsMediana) >= 3) social.push(`preço ${Math.abs(o.precoVsMediana)}% ${o.precoVsMediana < 0 ? 'abaixo' : 'acima'} da mediana da lista`);
   social.push(loja);
 
@@ -316,12 +348,13 @@ function cartaoDoProduto(o: ItemDoPost, posicao: number): string {
   ${imagem ? `<img src="${esc(imagem)}" alt="${esc(encurtar(o.titulo, 110))}" width="140" height="140" loading="${posicao <= 2 ? 'eager' : 'lazy'}" decoding="async" referrerpolicy="no-referrer">` : '<div class="semimagem" aria-hidden="true"></div>'}
   <div class="corpo">
     <h2>${esc(o.titulo)}</h2>
+    ${avaliacao.length ? `<p class="avaliacao">${avaliacao.join('')}</p>` : ''}
     <p class="preco">${de}<strong>${formatarPreco(o.preco)}</strong></p>
     ${selos.length ? `<p class="selos">${selos.join(' ')}</p>` : ''}
     <p class="social">${esc(social.join(' · '))}${o.vistoEm ? ` · preço visto em ${esc(dataBr(diaDe(new Date(o.vistoEm))))}` : ''}</p>
     ${o.texto ? `<p class="analise">${esc(o.texto)}</p>` : ''}
     ${graficoDePreco(o.grafico ?? [])}
-    <a class="botao" href="${esc(o.link)}" target="_blank" rel="sponsored nofollow noopener">Ver oferta na ${esc(loja)}</a>
+    <a class="botao" href="${esc(o.link)}" target="_blank" rel="sponsored nofollow noopener">Ver oferta ${o.loja === 'mercadolivre' ? 'no' : 'na'} ${esc(loja)}</a>
   </div>
 </li>`;
 }
@@ -370,7 +403,7 @@ function tabelaComparativa(itens: ItemDoPost[]): string {
     const nota = o.nota && o.nota > 0 ? o.nota.toFixed(1).replace('.', ',') : '—';
     const vendas = o.vendas && o.vendas > 0 ? formatarVendas(o.vendas) : '—';
     const vsMedia = o.precoVsMediana === undefined ? '—' : o.precoVsMediana === 0 ? 'na média' : `${o.precoVsMediana > 0 ? '+' : '−'}${Math.abs(o.precoVsMediana)}%`;
-    return `<tr><td>${i + 1}</td><td><a href="${esc(o.link)}" target="_blank" rel="sponsored nofollow noopener">${esc(tituloDoProduto(o.titulo, 44))}</a></td><td>${formatarPreco(o.preco)}</td><td>${vsMedia}</td><td>${nota}</td><td>${vendas}</td><td>${esc((o.destaques ?? []).join(', ') || '—')}</td></tr>`;
+    return `<tr><td>${i + 1}</td><td><a href="${esc(o.link)}" target="_blank" rel="sponsored nofollow noopener">${esc(tituloDoProduto(o.titulo, 32))}</a></td><td>${formatarPreco(o.preco)}</td><td>${vsMedia}</td><td>${nota}</td><td>${vendas}</td><td>${(o.destaques ?? []).length ? `<span class="etiquetas">${(o.destaques ?? []).map((d) => `<span class="etiqueta">${esc(d)}</span>`).join('')}</span>` : '—'}</td></tr>`;
   });
   return `<div class="tabela"><table>
 <thead><tr><th>#</th><th>Produto</th><th>Preço</th><th>vs. média da lista</th><th>Nota</th><th>Vendidos</th><th>Destaque</th></tr></thead>
@@ -486,7 +519,7 @@ function resumoDoPost(post: Post, site: Site): string {
   <div>
     <h3><a href="${post.arquivo}">${esc(post.titulo)}</a></h3>
     <p class="data">${hoje ? 'Hoje' : dataBr(post.dia)} · ${esc(nomeDoTema(post.tema))} · ${post.dados.itens.length} produtos</p>
-    <p>${esc(resumir(post.dados.intro, 170))}</p>
+    <p>${esc(primeiraFrase(post.dados.intro, 170))}</p>
   </div>
 </li>`;
 }
@@ -506,13 +539,20 @@ function heroDaHome(site: Site, titulo: string, texto: string): string {
   const produtos = new Set(site.guias.flatMap((g) => g.dados.itens.map(idDe))).size;
   const numeros = [site.guias.length ? `<li><strong>${site.guias.length}</strong><span>guias de compra</span></li>` : '', produtos ? `<li><strong>${produtos}</strong><span>produtos comparados</span></li>` : '', `<li><strong>30 min</strong><span>para atualizar</span></li>`].join('');
   const telegram = b.telegramLink && urlSegura(b.telegramLink) ? `<a class="botao claro" href="${esc(b.telegramLink)}" target="_blank" rel="noopener">Canal no Telegram</a>` : '';
+  const categorias = site.temas.filter((t) => t !== TEMA_GERAL);
+  const atalhos = categorias.length ? `\n  <nav class="chips" aria-label="Categorias">${categorias.map((t) => `<a href="categoria-${t}.html">${esc(nomeDoTema(t))}</a>`).join('')}</nav>` : '';
   return `<section class="hero">
-    <h1>${esc(titulo)}</h1>
-    <p>${esc(texto)}</p>
-    <div class="hero-acoes">${site.guias.length ? '<a class="botao" href="guias.html">Ver guias de compra</a>' : ''}${telegram}</div>
-    <ul class="hero-numeros">${numeros}</ul>
+    <div class="hero-texto">
+      <h1>${esc(titulo)}</h1>
+      <p>${esc(texto)}</p>
+      <div class="hero-acoes">${site.guias.length ? '<a class="botao" href="guias.html">Ver guias de compra</a>' : ''}${telegram}</div>
+    </div>
+    <div class="hero-painel">
+      <ul class="hero-numeros">${numeros}</ul>
+      <p class="vivo"><span class="ponto" aria-hidden="true"></span>Preços atualizados a cada 30 minutos</p>
+    </div>
   </section>
-  <p class="confianca">Ranking feito com dados reais de nota e vendas, com preços atualizados a cada 30 minutos. <a href="sobre.html">Veja como escolhemos</a>.</p>`;
+  <p class="confianca">Ranking feito com dados reais de nota e vendas. <a href="sobre.html">Veja como escolhemos</a>.</p>${atalhos}`;
 }
 
 function paginaInicial(site: Site): string {
@@ -534,16 +574,48 @@ function paginaInicial(site: Site): string {
   return moldura(site, { arquivo: 'index.html', titulo: 'guias de compra e ofertas do dia', descricao: `${b.nome}: guias de compra com os melhores produtos comparados por nota e vendas, e as ofertas do dia com histórico de preço.`, corpo, imagem: urlSegura(recentes[0]?.dados.itens[0]?.imagem), largo: true });
 }
 
+/** Achados da Amazon escolhidos à mão. Sem preço: o contrato de Associados só permite preço pela API oficial. */
+function paginaDaAmazon(site: Site): string {
+  const b = site.config.blog;
+  const cartoes = site.amazon
+    .map((a) => {
+      const link = linkDoAchado(a, site.config.amazon.tag);
+      return `  <article class="achado">
+    ${a.imagem ? `<img src="${esc(a.imagem)}" alt="${esc(a.titulo)}" width="320" height="320" loading="lazy" decoding="async" referrerpolicy="no-referrer">` : ''}
+    <div class="achado-texto">
+      <h2>${esc(a.titulo)}</h2>
+      ${a.subtitulo ? `<p class="achado-sub">${esc(a.subtitulo)}</p>` : ''}
+      <p>${esc(a.descricao)}</p>
+      <a class="botao" href="${esc(link)}" target="_blank" rel="sponsored nofollow noopener">Ver na Amazon</a>
+      <p class="achado-nota">Confira o preço atual no anúncio da Amazon.</p>
+    </div>
+  </article>`;
+    })
+    .join('\n');
+  const corpo = `  <h1>Achadinhos da Amazon</h1>
+  <p class="intro">Produtos que separamos na Amazon. Aqui não mostramos preço: ele muda toda hora, então vale conferir direto no anúncio antes de comprar.</p>
+${cartoes}
+  <p class="confianca">Como ${esc(b.nome)} participa do Programa de Associados da Amazon, podemos receber comissão pelas compras feitas pelos links desta página, sem custo extra para você. <a href="privacidade.html">Saiba mais</a>.</p>`;
+  return moldura(site, { arquivo: 'amazon.html', titulo: 'Achadinhos da Amazon', descricao: `Produtos selecionados na Amazon pelo ${b.nome}, com explicação do que cada um oferece e link direto para conferir o preço no anúncio.`, corpo, trilha: [['Amazon']] });
+}
+
 function paginaSobre(site: Site): string {
   const b = site.config.blog;
+  const telegram = b.telegramLink && urlSegura(b.telegramLink) ? `<p>Dúvidas, sugestões ou algum erro? Fale com a gente pelo <a href="${esc(b.telegramLink)}" target="_blank" rel="noopener">canal do Telegram</a>.</p>` : '';
   const corpo = `  <article class="texto">
   <h1>Como escolhemos os produtos</h1>
   <p class="intro">${esc(b.nome)} é um site de comparativos e ofertas mantido por um sistema automático. Aqui está, sem rodeios, como cada lista é montada.</p>
+  <nav class="indice" aria-label="Nesta página"><a href="#origem">De onde vêm os produtos</a><a href="#ranking">Como montamos o ranking</a><a href="#selos">Os selos</a><a href="#limites">O que não fazemos</a><a href="#dinheiro">Como ganhamos dinheiro</a></nav>
+  <section class="bloco" id="origem">
   <h2>De onde vêm os produtos</h2>
   <p>Todos os dias o sistema lê as ofertas publicadas nas lojas parceiras e guarda nome, preço, preço anterior, nota dos compradores e volume de vendas de cada produto. Os preços são os que o robô viu na data indicada em cada produto; eles podem mudar a qualquer momento.</p>
+  </section>
+  <section class="bloco" id="ranking">
   <h2>Como montamos o ranking</h2>
   <p>Só entram produtos com boa avaliação de quem comprou. A ordem usa a nota dos compradores, corrigida pelo volume de vendas (uma nota 5,0 com poucas vendas vale menos que uma 4,8 com milhares), e o próprio volume de vendas. Desconto e frete grátis não entram na ordem, porque mudam toda hora e não dizem se o produto é bom. Por isso um produto muito barato, mas mal avaliado, não aparece no topo.</p>
   <p>As listas têm 3, 5 ou 10 produtos, conforme quantos bons encontramos. Para a recomendação ser confiável, um produto só perde o lugar quando outro o supera por uma margem clara, ou quando deixa de aparecer nas lojas por semanas. Os preços são atualizados a cada rodada do robô.</p>
+  </section>
+  <section class="bloco" id="selos">
   <h2>O que significam os selos</h2>
   <ul>
     <li><strong>Melhor custo-benefício:</strong> a melhor pontuação (nota e vendas) em relação ao preço, comparado com o preço típico da lista. Não é necessariamente o primeiro colocado nem o mais barato.</li>
@@ -551,11 +623,16 @@ function paginaSobre(site: Site): string {
     <li><strong>Melhor avaliado:</strong> a maior nota entre os compradores.</li>
     <li><strong>Mais barato da lista:</strong> o menor preço entre os comparados, que não é necessariamente o melhor produto.</li>
   </ul>
+  </section>
+  <section class="bloco destaque-bloco" id="limites">
   <h2>O que não fazemos</h2>
   <p>Não recebemos os aparelhos para teste: as comparações usam os dados públicos das lojas, não testes próprios. Alguns textos são escritos por inteligência artificial a partir do nome e dos dados de cada produto, e o sistema é instruído a não inventar especificações. Mesmo assim, confira as características na página da loja antes de comprar.</p>
+  </section>
+  <section class="bloco" id="dinheiro">
   <h2>Como ganhamos dinheiro</h2>
   <p>Os links para as lojas são links de afiliado: se você comprar depois de clicar, podemos receber uma pequena comissão da loja, sem nenhum custo extra para você. Isso não muda a posição dos produtos nas listas. Veja mais em <a href="privacidade.html">Privacidade e afiliados</a>.</p>
-  ${b.telegramLink && urlSegura(b.telegramLink) ? `<p>Dúvidas, sugestões ou algum erro? Fale com a gente pelo <a href="${esc(b.telegramLink)}" target="_blank" rel="noopener">canal do Telegram</a>.</p>` : ''}
+  ${telegram}
+  </section>
   </article>`;
   return moldura(site, { arquivo: 'sobre.html', titulo: 'Como escolhemos os produtos', descricao: `Como o ${b.nome} escolhe e ordena os produtos: critérios do ranking, significado dos selos, origem dos dados e como o site ganha dinheiro.`, corpo, trilha: [['Como escolhemos']] });
 }
@@ -565,18 +642,42 @@ function paginaPrivacidade(site: Site): string {
   const corpo = `  <article class="texto">
   <h1>Privacidade e afiliados</h1>
   <p class="intro">Resumo claro do que acontece com os seus dados e dos links deste site.</p>
+  <nav class="indice" aria-label="Nesta página"><a href="#afiliados">Links de afiliado</a><a href="#dados">Dados pessoais</a><a href="#imagens">Imagens e preços</a><a href="#ia">Inteligência artificial</a><a href="#contato">Contato</a></nav>
+  <section class="bloco" id="afiliados">
   <h2>Links de afiliado</h2>
   <p>${esc(b.nome)} participa de programas de afiliados de lojas online. Quando você clica em um botão ou link de produto e compra, a loja pode nos pagar uma comissão. O preço para você é o mesmo. Esses links são marcados como patrocinados (<code>rel="sponsored"</code>).</p>
+  </section>
+  <section class="bloco" id="dados">
   <h2>Dados pessoais</h2>
   <p>Este site não tem cadastro, comentários nem formulários, e não coleta nome, e-mail ou telefone. Ele não usa cookies próprios de publicidade nem ferramentas de rastreamento. Ao abrir um link de loja, você passa a seguir as regras de privacidade dessa loja.</p>
+  </section>
+  <section class="bloco" id="imagens">
   <h2>Imagens e preços</h2>
   <p>As imagens e os preços pertencem às lojas e são exibidos para facilitar a comparação. O preço correto é sempre o que aparece na página da loja no momento da compra.</p>
+  </section>
+  <section class="bloco" id="ia">
   <h2>Inteligência artificial</h2>
   <p>Parte dos textos é escrita por inteligência artificial a partir dos dados públicos de cada produto. Eles não substituem a descrição oficial da loja.</p>
+  </section>
+  <section class="bloco" id="contato">
   <h2>Contato</h2>
   ${b.telegramLink && urlSegura(b.telegramLink) ? `<p>Pelo <a href="${esc(b.telegramLink)}" target="_blank" rel="noopener">canal do Telegram</a>.</p>` : '<p>Pelo canal do Telegram do site.</p>'}
+  </section>
   </article>`;
   return moldura(site, { arquivo: 'privacidade.html', titulo: 'Privacidade e afiliados', descricao: `Como o ${b.nome} usa links de afiliado, imagens e preços das lojas, e o que acontece com os seus dados: sem cadastro e sem rastreamento.`, corpo, trilha: [['Privacidade e afiliados']] });
+}
+
+/** Página 404 com saída clara: voltar ao início, ver os guias ou escolher uma categoria. */
+function pagina404(site: Site): string {
+  const categorias = site.temas.filter((t) => t !== TEMA_GERAL);
+  const atalhos = categorias.length ? `\n  <nav class="chips" aria-label="Categorias">${categorias.map((t) => `<a href="categoria-${t}.html">${esc(nomeDoTema(t))}</a>`).join('')}</nav>` : '';
+  const corpo = `  <section class="erro404">
+  <p class="numero" aria-hidden="true">404</p>
+  <h1>Página não encontrada</h1>
+  <p>Este endereço não existe ou o post saiu do ar: as ofertas antigas são removidas depois de um tempo. Os guias de compra e as ofertas de hoje continuam aqui.</p>
+  <div class="hero-acoes"><a class="botao" href="index.html">Ir para o início</a>${site.guias.length ? '<a class="botao claro" href="guias.html">Ver guias de compra</a>' : ''}</div>${atalhos}
+  </section>`;
+  return moldura(site, { arquivo: '404.html', titulo: 'Página não encontrada', descricao: `Esta página não existe mais. Veja os guias de compra e as ofertas de hoje do ${site.config.blog.nome}.`, corpo });
 }
 
 function paginaDoTema(site: Site, tema: string): string {
@@ -595,7 +696,7 @@ function paginaDoTema(site: Site, tema: string): string {
     'Os preços mudam o tempo todo: confira sempre o valor na loja antes de comprar. Para entender como montamos cada lista, leia <a href="sobre.html">Como escolhemos os produtos</a>.',
   ];
   const corpo = `  <h1>${esc(nome)}: ofertas do dia${guias.length ? ' e guias de compra' : ''}</h1>
-  ${paragrafos.map((p, i) => `<p${i === 0 ? ' class="intro"' : ''}>${p}</p>`).join('\n  ')}
+  ${paragrafos.map((p, i) => `<p class="intro${i === 0 ? '' : ' apoio'}">${p}</p>`).join('\n  ')}
   ${guias.length ? `<h2 class="secao">Guias de compra de ${esc(nome)}</h2>\n  <ul class="posts">\n${guias.map(cartaoDeGuia).join('\n')}\n  </ul>\n  ` : ''}<h2 class="secao">Ofertas de ${esc(nome)}, dia a dia</h2>
   ${listaDePosts(posts, site)}`;
   const descricao = guias.length
@@ -613,117 +714,171 @@ function paginaDoArquivo(site: Site): string {
   return moldura(site, { arquivo: 'arquivo.html', titulo: 'Arquivo de posts', descricao: `Arquivo de ofertas do ${site.config.blog.nome}: todos os posts por dia, com os preços do dia em que foram escritos e o histórico de preço.`, corpo, trilha: [['Arquivo']], largo: true });
 }
 
-const ESTILO = `:root{--fundo:#f5f6f8;--cartao:#fff;--texto:#15171c;--suave:#586070;--borda:#e3e6ec;--cor:#d6336c;--cor-forte:#b32459;--cor-texto:#fff;--cor-suave:#fdeaf1;--ok:#0a7d4f;--aviso-fundo:#fff3d6;--aviso:#7a4a00;--sombra:0 1px 2px rgba(20,24,35,.06),0 4px 14px rgba(20,24,35,.05);--raio:14px}
-@media (prefers-color-scheme:dark){:root{--fundo:#0f1116;--cartao:#171a21;--texto:#eceef3;--suave:#a3aab8;--borda:#272b35;--cor:#f06595;--cor-forte:#ff8ab0;--cor-texto:#14161b;--cor-suave:#2a1a22;--ok:#51cf8a;--aviso-fundo:#3a2c0c;--aviso:#f2c261;--sombra:none}}
+const ESTILO = `:root{--fundo:#f6f7f9;--cartao:#fff;--texto:#111827;--suave:#5b6474;--borda:#e4e7ee;--borda-forte:#cfd5e1;--cor:#d6336c;--cor-forte:#b5214f;--cor-texto:#fff;--cor-suave:#fdecf2;--ok:#0b7a52;--ok-fundo:#e6f6ef;--aviso-fundo:#fff4d6;--aviso:#7a4a00;--estrela:#f08c00;--sombra:0 1px 2px rgba(16,24,40,.05),0 6px 18px rgba(16,24,40,.06);--sombra-forte:0 2px 4px rgba(16,24,40,.06),0 16px 36px rgba(16,24,40,.10);--raio:16px}
+@media (prefers-color-scheme:dark){:root{--fundo:#0b0d12;--cartao:#141821;--texto:#eef0f5;--suave:#9aa3b3;--borda:#232837;--borda-forte:#323a4f;--cor:#f06595;--cor-forte:#ff8fb3;--cor-texto:#13151b;--cor-suave:#2a1823;--ok:#4cd694;--ok-fundo:#10281e;--aviso-fundo:#3a2c0c;--aviso:#f2c261;--estrela:#ffd43b;--sombra:none;--sombra-forte:0 12px 32px rgba(0,0,0,.40)}}
 *{box-sizing:border-box}
-html{scroll-behavior:smooth}
-body{margin:0;background:var(--fundo);color:var(--texto);font:16px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;-webkit-font-smoothing:antialiased}
+html{scroll-behavior:smooth;scroll-padding-top:76px}
+body{margin:0;background:var(--fundo);color:var(--texto);font:16px/1.65 system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 a{color:var(--cor-forte)}
 img{max-width:100%}
 .pular{position:absolute;left:-999px;top:8px;background:var(--texto);color:var(--fundo);padding:8px 12px;border-radius:8px;z-index:20}
 .pular:focus{left:8px}
-.topo{position:sticky;top:0;z-index:10;background:color-mix(in srgb,var(--cartao) 92%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--borda)}
-.topo-miolo{max-width:1040px;margin:0 auto;padding:10px 16px;display:flex;align-items:center;gap:8px 20px;flex-wrap:wrap}
-.marca{display:flex;align-items:center;gap:9px;font-weight:800;font-size:1.15rem;color:var(--texto);text-decoration:none;letter-spacing:-.01em}
+.topo{position:sticky;top:0;z-index:10;background:color-mix(in srgb,var(--cartao) 88%,transparent);backdrop-filter:saturate(1.4) blur(10px);border-bottom:1px solid var(--borda)}
+.topo-miolo{max-width:1120px;margin:0 auto;padding:12px 20px;display:flex;align-items:center;gap:8px 22px;flex-wrap:wrap}
+.marca{display:flex;align-items:center;gap:10px;font-weight:800;font-size:1.15rem;color:var(--texto);text-decoration:none;letter-spacing:-.015em}
 .logo{color:var(--cor);flex:none}
-nav[aria-label="Seções"]{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;flex:1;min-width:0}
+nav[aria-label="Seções"]{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;flex:1;min-width:0}
 nav[aria-label="Seções"]::-webkit-scrollbar{display:none}
-nav[aria-label="Seções"] a{white-space:nowrap;padding:6px 12px;border-radius:999px;color:var(--suave);text-decoration:none;font-size:.9rem;font-weight:500}
+nav[aria-label="Seções"] a{white-space:nowrap;padding:7px 14px;border-radius:999px;color:var(--suave);text-decoration:none;font-size:.9rem;font-weight:600;transition:background .12s,color .12s}
 nav[aria-label="Seções"] a:hover{background:var(--cor-suave);color:var(--cor-forte)}
 nav[aria-label="Seções"] a[aria-current]{background:var(--texto);color:var(--fundo)}
-main{max-width:860px;margin:0 auto;padding:20px 16px 8px}
-main.largo{max-width:1040px}
-.trilha{font-size:.85rem;color:var(--suave);margin:0 0 14px}
+main{max-width:880px;margin:0 auto;padding:28px 20px 12px}
+main.largo{max-width:1120px}
+.trilha{font-size:.84rem;color:var(--suave);margin:0 0 16px}
 .trilha a{color:var(--suave)}
-h1{font-size:clamp(1.55rem,4.2vw,2.15rem);line-height:1.18;letter-spacing:-.02em;margin:6px 0 8px}
+h1{font-size:clamp(1.7rem,4.4vw,2.4rem);line-height:1.12;letter-spacing:-.025em;margin:6px 0 10px}
 h2{line-height:1.25}
-.secao{font-size:1.35rem;margin:36px 0 14px;letter-spacing:-.01em}
-.data{color:var(--suave);margin:0 0 14px;font-size:.875rem}
+.secao{display:flex;align-items:center;gap:12px;font-size:1.4rem;margin:44px 0 18px;letter-spacing:-.015em}
+.secao::before{content:"";flex:none;width:5px;height:1.15em;border-radius:3px;background:var(--cor)}
+.data{color:var(--suave);margin:0 0 16px;font-size:.875rem}
 .data a{color:var(--suave)}
-.intro{margin:0 0 22px;font-size:1.0625rem;color:var(--texto)}
-.antigo{background:var(--aviso-fundo);color:var(--aviso);border-radius:10px;padding:10px 14px;margin:0 0 16px}
+.intro{margin:0 0 24px;font-size:1.08rem;color:var(--texto);max-width:68ch}
+.antigo{background:var(--aviso-fundo);color:var(--aviso);border-radius:12px;padding:12px 16px;margin:0 0 18px}
 .antigo a{color:inherit;font-weight:700}
-.hero{background:linear-gradient(135deg,var(--cor-suave),var(--cartao));border:1px solid var(--borda);border-radius:20px;padding:clamp(20px,5vw,40px);margin:4px 0 10px;box-shadow:var(--sombra)}
-.hero h1{font-size:clamp(1.7rem,5vw,2.6rem);max-width:20ch}
-.hero p{margin:0 0 18px;max-width:60ch;color:var(--suave);font-size:1.0625rem}
-.hero-acoes{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:22px}
-.hero-numeros{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:10px 32px}
-.hero-numeros li{display:flex;flex-direction:column}
-.hero-numeros strong{font-size:1.5rem;line-height:1.1}
-.hero-numeros span{font-size:.8rem;color:var(--suave)}
-.confianca{color:var(--suave);font-size:.875rem;margin:0 0 6px}
-.lista,.posts{list-style:none;margin:0;padding:0;display:grid;gap:14px}
-.posts{grid-template-columns:repeat(auto-fill,minmax(min(100%,320px),1fr))}
-.cartao{position:relative;display:flex;gap:18px;background:var(--cartao);border:1px solid var(--borda);border-radius:var(--raio);padding:18px;box-shadow:var(--sombra)}
-.cartao.primeiro{border-color:var(--cor);box-shadow:0 0 0 1px var(--cor),var(--sombra)}
-.posicao{position:absolute;top:-10px;left:-8px;min-width:32px;height:32px;border-radius:999px;background:var(--texto);color:var(--fundo);display:grid;place-items:center;font-weight:800;font-size:.9rem;box-shadow:var(--sombra)}
+.hero{position:relative;overflow:hidden;display:grid;grid-template-columns:1.2fr .8fr;gap:28px 36px;align-items:center;background:radial-gradient(760px 280px at 92% -12%,color-mix(in srgb,var(--cor) 26%,transparent),transparent 62%),linear-gradient(140deg,var(--cor-suave),var(--cartao) 70%);border:1px solid var(--borda);border-radius:26px;padding:clamp(24px,5vw,52px);margin:4px 0 16px;box-shadow:var(--sombra-forte)}
+.hero-texto h1{font-size:clamp(1.9rem,4.8vw,3rem);max-width:17ch;margin:0 0 16px;line-height:1.06;letter-spacing:-.032em}
+.hero-texto p{margin:0 0 24px;max-width:50ch;color:var(--suave);font-size:1.08rem}
+.hero-acoes{display:flex;flex-wrap:wrap;gap:12px}
+.hero-painel{display:grid;gap:14px}
+.hero-numeros{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.hero-numeros li{display:flex;flex-direction:column;align-items:center;text-align:center;background:color-mix(in srgb,var(--cartao) 78%,transparent);border:1px solid var(--borda);border-radius:16px;padding:16px 8px}
+.hero-numeros strong{font-size:clamp(1.3rem,5.4vw,1.75rem);line-height:1.05;letter-spacing:-.02em;white-space:nowrap}
+.hero-numeros span{font-size:.76rem;color:var(--suave);margin-top:4px;line-height:1.25}
+.vivo{display:flex;align-items:center;justify-content:center;gap:8px;margin:0;font-size:.85rem;color:var(--suave)}
+.ponto{width:9px;height:9px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 0 color-mix(in srgb,var(--ok) 55%,transparent);animation:pulso 2.4s infinite}
+@keyframes pulso{70%{box-shadow:0 0 0 9px transparent}100%{box-shadow:0 0 0 0 transparent}}
+.confianca{color:var(--suave);font-size:.875rem;margin:0 0 4px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0 0}
+.chips a{padding:8px 16px;border-radius:999px;border:1px solid var(--borda);background:var(--cartao);color:var(--texto);text-decoration:none;font-size:.9rem;font-weight:600;transition:border-color .12s,color .12s,transform .12s}
+.chips a:hover{border-color:var(--cor);color:var(--cor-forte);transform:translateY(-1px)}
+.lista,.posts{list-style:none;margin:0;padding:0;display:grid;gap:16px}
+.posts{grid-template-columns:repeat(auto-fill,minmax(min(100%,255px),1fr))}
+.cartao{position:relative;display:grid;grid-template-columns:168px 1fr;gap:24px;background:var(--cartao);border:1px solid var(--borda);border-radius:var(--raio);padding:22px;box-shadow:var(--sombra);transition:box-shadow .15s,border-color .15s}
+.cartao:hover{box-shadow:var(--sombra-forte)}
+.cartao.primeiro{border-color:var(--cor);box-shadow:0 0 0 1px var(--cor),var(--sombra-forte)}
+.posicao{position:absolute;top:-12px;left:-10px;min-width:34px;height:34px;padding:0 8px;border-radius:999px;background:var(--texto);color:var(--fundo);display:grid;place-items:center;font-weight:800;font-size:.95rem;box-shadow:var(--sombra-forte)}
 .cartao.primeiro .posicao{background:var(--cor);color:var(--cor-texto)}
-.cartao img,.semimagem{width:140px;height:140px;flex:none;border-radius:10px;object-fit:contain;background:#fff;border:1px solid var(--borda)}
+.cartao img,.semimagem{width:168px;height:168px;border-radius:14px;object-fit:contain;background:#fff;border:1px solid var(--borda);padding:8px}
 .semimagem{background:var(--borda)}
-.corpo{min-width:0;flex:1}
-.cartao h2{font-size:1.02rem;line-height:1.35;margin:0 0 8px;overflow-wrap:anywhere}
-.preco{margin:0 0 8px}
-.preco s{color:var(--suave);font-size:.9rem}
-.preco strong{font-size:1.5rem;letter-spacing:-.01em}
-.selos{margin:0 0 8px;display:flex;flex-wrap:wrap;gap:6px}
-.selo{font-size:.75rem;padding:3px 9px;border-radius:999px;border:1px solid var(--borda);color:var(--ok);background:var(--cartao)}
+.corpo{min-width:0;display:flex;flex-direction:column;gap:9px}
+.cartao h2{font-size:1.08rem;line-height:1.35;margin:0;overflow-wrap:anywhere}
+.avaliacao{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;margin:0;font-size:.9rem;color:var(--suave)}
+.estrelas{display:inline-flex;align-items:center;gap:5px;color:var(--estrela)}
+.estrelas b{color:var(--texto);font-size:.95rem}
+.estrelas svg{display:block}
+.preco{margin:0}
+.preco s{color:var(--suave);font-size:.95rem;margin-right:4px}
+.preco strong{font-size:1.8rem;letter-spacing:-.02em;line-height:1.1}
+.selos{margin:0;display:flex;flex-wrap:wrap;gap:6px}
+.selo{font-size:.76rem;font-weight:600;padding:4px 10px;border-radius:999px;border:1px solid color-mix(in srgb,var(--ok) 35%,transparent);color:var(--ok);background:var(--ok-fundo)}
 .selo.destaque{background:var(--cor);border-color:var(--cor);color:var(--cor-texto);font-weight:700}
-.social{margin:0 0 10px;color:var(--suave);font-size:.85rem}
-.analise{margin:0 0 12px}
-.grafico{margin:0 0 12px;color:var(--ok)}
+.social{margin:0;color:var(--suave);font-size:.82rem}
+.analise{margin:0}
+.grafico{margin:0;color:var(--ok)}
 .grafico svg{display:block}
 .grafico figcaption{color:var(--suave);font-size:.75rem}
-.botao{display:inline-block;background:var(--cor);color:var(--cor-texto);font-weight:700;text-decoration:none;padding:11px 20px;border-radius:10px;transition:transform .12s,background .12s}
+.botao{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:46px;padding:0 24px;background:var(--cor);color:var(--cor-texto);font-weight:700;text-decoration:none;border-radius:12px;box-shadow:0 1px 0 rgba(0,0,0,.10),0 8px 18px color-mix(in srgb,var(--cor) 26%,transparent);transition:transform .12s,background .12s,box-shadow .12s}
 .botao:hover{background:var(--cor-forte);transform:translateY(-1px)}
-.botao.claro{background:var(--cartao);color:var(--texto);border:1px solid var(--borda)}
+.cartao .botao{align-self:flex-start;margin-top:4px}
+.cartao .botao::after{content:"\\2197";font-weight:700}
+.botao.claro{background:var(--cartao);color:var(--texto);border:1px solid var(--borda-forte);box-shadow:none}
 .botao.claro:hover{background:var(--cor-suave);color:var(--cor-forte)}
-.botao:focus-visible,a:focus-visible{outline:3px solid var(--cor);outline-offset:2px}
-.resumo{display:flex;gap:14px;background:var(--cartao);border:1px solid var(--borda);border-radius:var(--raio);padding:14px;box-shadow:var(--sombra);transition:border-color .12s,transform .12s}
-.resumo:hover{border-color:var(--cor);transform:translateY(-2px)}
-.resumo img{width:84px;height:84px;flex:none;border-radius:10px;object-fit:contain;background:#fff;border:1px solid var(--borda)}
+.botao:focus-visible,a:focus-visible{outline:3px solid var(--cor);outline-offset:3px}
+.resumo{position:relative;display:flex;flex-direction:column;gap:14px;background:var(--cartao);border:1px solid var(--borda);border-radius:var(--raio);padding:14px;box-shadow:var(--sombra);transition:border-color .15s,transform .15s,box-shadow .15s}
+.resumo:hover{border-color:var(--cor);transform:translateY(-3px);box-shadow:var(--sombra-forte)}
+.resumo img{width:100%;height:150px;object-fit:contain;background:#fff;border-radius:12px;border:1px solid var(--borda);padding:10px}
 .resumo div{min-width:0}
-.resumo h3{font-size:1.02rem;line-height:1.3;margin:0 0 6px;overflow-wrap:anywhere}
+.resumo h3{font-size:1.04rem;line-height:1.3;margin:0 0 6px;overflow-wrap:anywhere;letter-spacing:-.005em}
 .resumo h3 a{color:var(--texto);text-decoration:none}
 .resumo h3 a::after{content:"";position:absolute;inset:0}
-.resumo{position:relative}
 .resumo p{margin:0;font-size:.9rem;color:var(--suave)}
-.resumo .data{margin:0 0 4px;font-size:.8rem}
-.escolhas{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr));gap:12px}
-.escolha{display:flex;flex-direction:column;gap:6px;background:var(--cartao);border:1px solid var(--borda);border-radius:var(--raio);padding:14px;box-shadow:var(--sombra)}
+.resumo .data{margin:0 0 6px;font-size:.8rem}
+.escolhas{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:14px}
+.escolha{display:flex;flex-direction:column;gap:8px;background:var(--cartao);border:1px solid var(--borda);border-top:3px solid var(--cor);border-radius:var(--raio);padding:16px;box-shadow:var(--sombra)}
 .escolha-selos{display:flex;flex-wrap:wrap;gap:6px}
-.escolha-rotulo{font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--cor-forte);background:var(--cor-suave);padding:3px 9px;border-radius:999px}
-.escolha img{width:72px;height:72px;object-fit:contain;background:#fff;border-radius:8px;border:1px solid var(--borda)}
-.escolha-nome{color:var(--texto);font-weight:600;font-size:.92rem;line-height:1.35;text-decoration:none;overflow-wrap:anywhere}
+.escolha-rotulo{font-size:.7rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--cor-forte);background:var(--cor-suave);padding:4px 10px;border-radius:999px}
+.escolha img{width:84px;height:84px;object-fit:contain;background:#fff;border-radius:10px;border:1px solid var(--borda);padding:4px}
+.escolha-nome{color:var(--texto);font-weight:600;font-size:.93rem;line-height:1.35;text-decoration:none;overflow-wrap:anywhere}
 .escolha-nome:hover{color:var(--cor-forte)}
-.escolha-preco{font-weight:800;font-size:1.15rem}
-.fim{margin:30px 0 0}
-.fim h2{font-size:1.3rem;margin:0 0 8px}
+.escolha-preco{font-weight:800;font-size:1.2rem;letter-spacing:-.01em}
+.fim{margin:34px 0 0}
+.fim h2{font-size:1.3rem;margin:0 0 10px}
 .fim p{margin:0}
-.fim ul{margin:0 0 12px;padding-left:20px}
-.fim li{margin-bottom:4px}
-.chamada{margin:36px 0 12px;padding:18px 20px;border:1px solid var(--borda);background:var(--cartao);border-radius:var(--raio);display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center;justify-content:space-between;box-shadow:var(--sombra)}
+.fim ul{margin:0 0 14px;padding-left:20px}
+.fim li{margin-bottom:8px}
+.chamada{margin:44px 0 14px;padding:24px 26px;border:1px solid var(--borda);background:linear-gradient(135deg,var(--cor-suave),var(--cartao) 75%);border-radius:20px;display:flex;flex-wrap:wrap;gap:14px 24px;align-items:center;justify-content:space-between;box-shadow:var(--sombra)}
 .chamada div{display:flex;flex-direction:column;min-width:0}
-.chamada span{color:var(--suave);font-size:.9rem}
+.chamada strong{font-size:1.1rem;letter-spacing:-.01em}
+.chamada span{color:var(--suave);font-size:.92rem}
+.chamada span a{color:var(--cor-forte);font-weight:600}
+.achado{display:grid;grid-template-columns:minmax(0,300px) 1fr;gap:24px;align-items:center;background:var(--cartao);border:1px solid var(--borda);border-radius:var(--raio);box-shadow:var(--sombra);padding:20px;margin:20px 0}
+.achado img{width:100%;height:auto;aspect-ratio:1;object-fit:contain;background:#fff;border-radius:12px}
+.achado h2{margin:0 0 4px;font-size:1.35rem;letter-spacing:-.01em}.achado-sub{margin:0 0 10px;color:var(--suave);font-weight:600}
+.achado-nota{margin:10px 0 0;color:var(--suave);font-size:.85rem}
+@media (max-width:640px){.achado{grid-template-columns:1fr}}
 .tabela{overflow-x:auto;border:1px solid var(--borda);border-radius:var(--raio);background:var(--cartao);box-shadow:var(--sombra)}
-table{width:100%;border-collapse:collapse;font-size:.9rem}
-th,td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--borda);vertical-align:top}
+table{width:100%;min-width:760px;border-collapse:collapse;font-size:.9rem}
+th,td{padding:13px 14px;text-align:left;border-bottom:1px solid var(--borda);vertical-align:middle}
+th:first-child,td:first-child{width:48px;text-align:center}
+td:nth-child(2){min-width:240px;line-height:1.4}
+td:nth-child(2) a{text-decoration-thickness:1px;text-underline-offset:3px}
+th:nth-child(4),td:nth-child(4){width:100px}
+th:nth-child(4){white-space:normal;line-height:1.25}
+td:nth-child(7){min-width:200px}
+.etiquetas{display:flex;flex-wrap:wrap;gap:5px}
+.etiqueta{white-space:nowrap;font-size:.72rem;font-weight:700;color:var(--cor-forte);background:var(--cor-suave);padding:3px 10px;border-radius:999px}
 tbody tr:last-child td{border-bottom:0}
-tbody tr:nth-child(even){background:color-mix(in srgb,var(--borda) 28%,transparent)}
-td:nth-child(3),td:nth-child(4),td:nth-child(5){white-space:nowrap}
-th{color:var(--suave);font-weight:700;font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
-.faq h3{font-size:1.02rem;margin:18px 0 4px}
-.faq p{margin:0}
-.texto h2{font-size:1.25rem;margin:28px 0 8px}
+tbody tr:nth-child(even){background:color-mix(in srgb,var(--borda) 26%,transparent)}
+tbody tr:hover{background:var(--cor-suave)}
+td:first-child{font-weight:800;color:var(--cor-forte)}
+td:nth-child(3),td:nth-child(4),td:nth-child(5),td:nth-child(6){white-space:nowrap}
+th{background:color-mix(in srgb,var(--borda) 40%,var(--cartao));color:var(--suave);font-weight:700;font-size:.74rem;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap;vertical-align:middle}
+.intro.apoio{font-size:1rem;color:var(--suave);margin:0 0 12px}
+h1+.intro,h1+.data{margin-top:14px}
+.bloco{background:var(--cartao);border:1px solid var(--borda);border-radius:var(--raio);padding:22px 26px;margin:0 0 16px;box-shadow:var(--sombra)}
+.texto .bloco h2,.bloco h2{margin:0 0 10px;font-size:1.2rem}
+.bloco p,.bloco li{max-width:70ch}
+.bloco p:last-child,.bloco ul:last-child{margin-bottom:0}
+.bloco ul{margin:0;padding-left:20px}
+.bloco li{margin-bottom:8px}
+.bloco.destaque-bloco{border-left:4px solid var(--cor)}
+.indice{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 24px}
+.indice a{padding:7px 14px;border:1px solid var(--borda);border-radius:999px;background:var(--cartao);color:var(--texto);text-decoration:none;font-size:.88rem;font-weight:600;transition:border-color .12s,color .12s}
+.indice a:hover{border-color:var(--cor);color:var(--cor-forte)}
+.erro404{text-align:center;padding:48px 0 12px}
+.erro404 .numero{font-size:clamp(4.5rem,18vw,8rem);font-weight:900;letter-spacing:-.05em;line-height:1;color:var(--cor);margin:0}
+.erro404 h1{margin:4px 0 12px}
+.erro404 p{color:var(--suave);max-width:48ch;margin:0 auto 24px}
+.erro404 .hero-acoes{justify-content:center}
+.erro404 .chips{justify-content:center;margin-top:28px}
+.faq h3{font-size:1.02rem;margin:20px 0 6px}
+.faq p{margin:0;color:var(--suave)}
+.texto h2{font-size:1.25rem;margin:30px 0 10px}
 .texto p,.texto li{max-width:70ch}
 .texto code{background:var(--borda);padding:1px 6px;border-radius:6px;font-size:.9em}
-.rodape{margin-top:36px;border-top:1px solid var(--borda);background:var(--cartao);color:var(--suave);font-size:.84rem}
-.rodape-miolo{max-width:1040px;margin:0 auto;padding:22px 16px 30px}
+.rodape{margin-top:48px;border-top:1px solid var(--borda);background:var(--cartao);color:var(--suave);font-size:.86rem}
+.rodape-miolo{max-width:1120px;margin:0 auto;padding:36px 20px 40px;display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:28px 40px}
 .rodape p{margin:0 0 10px}
-.rodape-nome{display:flex;align-items:center;gap:8px;font-weight:800;color:var(--texto);font-size:1rem}
-.rodape-links{display:flex;flex-wrap:wrap;gap:6px 18px}
-.rodape a{color:var(--suave)}
-@media (max-width:560px){.cartao{flex-direction:column;padding:16px}.cartao img{width:100%;height:190px}.semimagem{display:none}.posicao{left:-4px}.hero-acoes .botao{flex:1;text-align:center}}
-@media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
+.rodape-nome{display:flex;align-items:center;gap:9px;font-weight:800;color:var(--texto);font-size:1.05rem}
+.rodape-titulo{font-weight:800;color:var(--texto);font-size:.8rem;text-transform:uppercase;letter-spacing:.06em;margin:0 0 12px}
+.rodape-links{display:flex;flex-direction:column;gap:8px}
+.rodape-aviso{grid-column:1/-1;border-top:1px solid var(--borda);padding-top:20px}
+.rodape-aviso p{max-width:90ch}
+.rodape a{color:var(--suave);text-decoration:none}
+.rodape a:hover{color:var(--cor-forte);text-decoration:underline}
+@media (max-width:820px){table{min-width:600px}th,td{padding:12px 10px}th:nth-child(4),td:nth-child(4){display:none}.hero{grid-template-columns:1fr}.hero-texto h1{max-width:none}.rodape-miolo{grid-template-columns:1fr 1fr}.rodape-marca{grid-column:1/-1}}
+@media (max-width:560px){main{padding:20px 16px 8px}.topo-miolo{padding:10px 16px}.cartao{grid-template-columns:1fr;padding:18px}.cartao img{width:100%;height:200px}.semimagem{display:none}.posicao{left:-4px}.hero-acoes .botao{flex:1}.cartao .botao{align-self:stretch}.rodape-miolo{grid-template-columns:1fr}.secao{margin-top:36px;font-size:1.25rem}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
 `;
 VERSAO_DO_ESTILO = createHash('sha1').update(ESTILO).digest('hex').slice(0, 8);
 
@@ -932,6 +1087,9 @@ const REGRAS_DE_ESCRITA = `Regras:
 - De 2 a 3 frases, em português do Brasil, tom direto e útil.
 - Baseie-se somente no que está escrito abaixo. Não invente especificações, medidas, materiais nem recursos.
 - Não cite preços, percentuais de desconto nem prazos.
+- Se citar uma data, copie exatamente como está no título (por exemplo 04/10/2026). Nunca escreva datas nem números por extenso.
+- Só fale de voltagem, tomada ou rede elétrica se o produto for elétrico ou eletrônico.
+- Mercado Livre é masculino: escreva "no Mercado Livre". Shopee e Amazon: "na Shopee", "na Amazon".
 - Sem títulos, sem listas, sem emojis, sem aspas. Devolva só o parágrafo.`;
 
 function listaParaPrompt(itens: OfertaAvaliada[]): string {
@@ -1192,7 +1350,8 @@ export async function gerarBlog(banco: Banco, config: Config, agora: Date = new 
     .map(paraGuia)
     .filter((g): g is Guia => g !== undefined)
     .sort((a, b) => b.dados.itens.length - a.dados.itens.length || a.titulo.localeCompare(b.titulo, 'pt-BR'));
-  const site: Site = { config, posts, hoje, agora, temas, guias };
+  const amazon = lerAchadosDaAmazon(b.amazonArquivo);
+  const site: Site = { config, posts, hoje, agora, temas, guias, amazon };
 
   mkdirSync(b.pasta, { recursive: true });
   if (b.url && (await gravarImagemPadrao(b.pasta, b.nome))) site.imagemPadrao = `${b.url}/og-padrao.png`;
@@ -1204,11 +1363,12 @@ export async function gerarBlog(banco: Banco, config: Config, agora: Date = new 
   for (const guia of guias) gravar(guia.arquivo, paginaDoGuia(site, guia));
   if (guias.length) gravar('guias.html', paginaDosGuias(site));
   for (const tema of temas) gravar(`categoria-${tema}.html`, paginaDoTema(site, tema));
+  if (amazon.length) gravar('amazon.html', paginaDaAmazon(site));
   gravar('arquivo.html', paginaDoArquivo(site));
   gravar('sobre.html', paginaSobre(site));
   gravar('privacidade.html', paginaPrivacidade(site));
   gravar('index.html', paginaInicial(site));
-  gravar('404.html', moldura(site, { arquivo: '404.html', titulo: 'Página não encontrada', descricao: 'Página não encontrada.', corpo: '  <h1>Página não encontrada</h1>\n  <p class="intro">Este post pode ter saído do ar. <a href="index.html">Veja as ofertas mais recentes</a>.</p>' }));
+  gravar('404.html', pagina404(site));
 
   // Remove páginas que não existem mais (posts vencidos, categorias vazias, formato antigo), para não ficar oferta velha no ar.
   for (const arquivo of readdirSync(b.pasta)) {

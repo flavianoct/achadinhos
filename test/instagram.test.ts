@@ -11,7 +11,7 @@ import type { OfertaAvaliada } from '../src/types.ts';
 
 // 12h em Brasília
 const AGORA = new Date('2026-10-03T15:00:00Z');
-const base = { INSTAGRAM_ATIVO: '1', INSTAGRAM_TOKEN: 'tok-secreto', INSTAGRAM_USER_ID: '1789', BLOG_URL: 'https://fulano.github.io/achadinhos', HORA_INICIO: '8', HORA_FIM: '23' };
+const base = { INSTAGRAM_ATIVO: '1', INSTAGRAM_TOKEN: 'tok-secreto', INSTAGRAM_USER_ID: '1789', BLOG_URL: 'https://fulano.github.io/achadinhos', HORA_INICIO: '8', HORA_FIM: '23', INSTAGRAM_HORARIOS_FEED: '', INSTAGRAM_HORARIOS_STORIES: '' };
 const oferta = (id: string, pontos: number): OfertaAvaliada => ({
   loja: 'mercadolivre', idProduto: id, titulo: `Produto ${id}`, preco: 50, precoOriginal: 100, desconto: 50, link: 'https://x/' + id, categoria: 'casa', pontos, freteGratis: true, nota: 4.8, vendas: 1000,
 });
@@ -83,6 +83,35 @@ test('instagram: publica primeiro a oferta de maior pontuação, um feed e um st
   assert.deepEqual([r3.feed, r3.stories], [0, 0], 'acabaram as ofertas');
 });
 
+test('instagram: publica só nas horas escolhidas (janelas) e as lê de INSTAGRAM_HORARIOS_*', async () => {
+  const lida = lerConfig({ ...base, INSTAGRAM_HORARIOS_FEED: '21, 12,18,12, 25, x', INSTAGRAM_HORARIOS_STORIES: '8,10' }).instagram;
+  assert.deepEqual(lida.horariosFeed, [12, 18, 21], 'ordena, tira repetidas e ignora valor inválido');
+  assert.deepEqual(lida.horariosStories, [8, 10]);
+  const padrao = lerConfig({ ...base, INSTAGRAM_HORARIOS_FEED: undefined as any, INSTAGRAM_HORARIOS_STORIES: undefined as any }).instagram;
+  assert.deepEqual(padrao.horariosFeed, [12, 18, 21], 'padrão: almoço, fim da tarde e noite');
+  assert.ok(padrao.horariosStories.length >= 6 && padrao.horariosStories.every((h) => h >= 8 && h < 23));
+  assert.deepEqual(lerConfig({ ...base, INSTAGRAM_HORARIOS_FEED: '' }).instagram.horariosFeed, [], 'vazio = sem restrição');
+
+  const { banco } = await bancoComOfertas();
+  const config = lerConfig({ ...base, INSTAGRAM_HORARIOS_FEED: '18', INSTAGRAM_HORARIOS_STORIES: '18,20', INSTAGRAM_INTERVALO_FEED_MIN: '0', INSTAGRAM_INTERVALO_STORY_MIN: '0' });
+  const { f } = apiFalsa();
+  const cliente = new Instagram('tok-secreto', '1789', f, 0);
+  const em = (horaDeBrasilia: number, minuto = 7) => new Date(Date.UTC(2026, 9, 3, horaDeBrasilia + 3, minuto));
+  // 12h não é janela de nenhum dos dois: nada sai, mesmo havendo oferta pronta.
+  const r0 = await publicarNoInstagram(banco, config, em(12), f, cliente);
+  assert.deepEqual([r0.feed, r0.stories], [0, 0], 'fora da janela espera');
+  assert.equal(banco.instagramNoDia('feed', em(12)), 0);
+  // 18h é janela dos dois: sai um de cada.
+  const r1 = await publicarNoInstagram(banco, config, em(18), f, cliente);
+  assert.deepEqual([r1.feed, r1.stories], [1, 1]);
+  // 19h não é janela de nenhum: não sai mais nada.
+  const r2 = await publicarNoInstagram(banco, config, em(19), f, cliente);
+  assert.deepEqual([r2.feed, r2.stories], [0, 0]);
+  // 20h é janela só dos Stories: sai Story, não sai feed.
+  const r3 = await publicarNoInstagram(banco, config, em(20), f, cliente);
+  assert.deepEqual([r3.feed, r3.stories], [0, 1], 'o feed só sai nas horas do feed');
+});
+
 test('instagram: só vai produto bem avaliado, muito vendido e sem cara de genérico', async () => {
   const ig = lerConfig(base).instagram;
   const o = oferta('Z', 5);
@@ -134,7 +163,7 @@ test('instagram: respeita limite diário, horário e PNG que ainda não está no
   assert.deepEqual([r2.feed, r2.stories], [0, 0], 'limite do dia atingido');
 
   const madrugada = new Date('2026-10-03T05:00:00Z');
-  assert.deepEqual(await publicarNoInstagram(banco, config, madrugada, f, cliente), { feed: 0, stories: 0, avisos: [] });
+  assert.deepEqual(await publicarNoInstagram(banco, config, madrugada, f, cliente), { feed: 0, stories: 0, reels: 0, avisos: [] });
 
   const { banco: b2, config: c2 } = await bancoComOfertas();
   const sem = apiFalsa({ pngNoAr: false });
@@ -146,7 +175,7 @@ test('instagram: respeita limite diário, horário e PNG que ainda não está no
 test('instagram: avisa de falta de Secrets, desligado não faz nada, erro da API não derruba a rodada', async () => {
   const { banco } = await bancoComOfertas();
   const { f } = apiFalsa();
-  assert.deepEqual(await publicarNoInstagram(banco, lerConfig({ ...base, INSTAGRAM_ATIVO: '0' }), AGORA, f), { feed: 0, stories: 0, avisos: [] });
+  assert.deepEqual(await publicarNoInstagram(banco, lerConfig({ ...base, INSTAGRAM_ATIVO: '0' }), AGORA, f), { feed: 0, stories: 0, reels: 0, avisos: [] });
   const semToken = await publicarNoInstagram(banco, lerConfig({ ...base, INSTAGRAM_TOKEN: '' }), AGORA, f);
   assert.match(semToken.avisos.join(' '), /INSTAGRAM_TOKEN/);
   const ruim = apiFalsa({ erroNaPublicacao: { code: 190, message: 'token vencido' } });
@@ -184,4 +213,13 @@ test('instagram: grava PNG de verdade (Story 1080x1920 e feed 1080x1350) em blog
     assert.equal(png.readUInt32BE(20), alt, 'altura');
   }
   assert.match(montarSvgDoFeed(oferta('A', 5), undefined, config), /width="1080" height="1350"/);
+});
+
+test('instagram: produto dos mais vendidos da loja passa mesmo sem nota e vendas informadas, mas palavra suspeita continua barrando', () => {
+  const ig = lerConfig(base).instagram;
+  const semDados = { ...oferta('R', 5), nota: undefined, vendas: undefined };
+  assert.equal(passaNoFiltroDoInstagram(semDados, ig), false, 'sem nota e vendas e fora do ranking: não passa');
+  assert.equal(passaNoFiltroDoInstagram({ ...semDados, maisVendido: true }, ig), true);
+  assert.equal(passaNoFiltroDoInstagram({ ...semDados, maisVendido: true, titulo: 'Fone Genérico Bluetooth' }, ig), false);
+  assert.equal(passaNoFiltroDoInstagram({ ...semDados, maisVendido: true, nota: 4.1 }, ig), false, 'nota informada e baixa continua barrando');
 });

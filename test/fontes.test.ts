@@ -25,9 +25,15 @@ test('shopee: converte item e ignora item incompleto', () => {
     priceMin: '89.90', priceDiscountRate: 55, sales: 1200, ratingStar: '4.8', commissionRate: '0.1', shopName: 'Loja',
   });
   assert.deepEqual(o, {
-    loja: 'shopee', idProduto: '123456789012', titulo: 'Fone X', preco: 89.9, desconto: 55, imagem: 'https://img/x.jpg',
+    loja: 'shopee', idProduto: '123456789012', titulo: 'Fone X', preco: 89.9, precoOriginal: 199.78, desconto: 55, imagem: 'https://img/x.jpg',
     link: 'https://s.shopee.com.br/abc', nota: 4.8, vendas: 1200, comissao: 0.1, nomeLoja: 'Loja',
   });
+  // O preço "de" é calculado do desconto da página; desconto fora de 5% a 90% é dado estranho e não gera "de".
+  const base = { itemId: 1, productName: 'X', offerLink: 'https://s.shopee.com.br/x', priceMin: '50' };
+  assert.equal(converterItemShopee({ ...base, priceDiscountRate: 50 })!.precoOriginal, 100);
+  assert.equal(converterItemShopee({ ...base, priceDiscountRate: 3 })!.precoOriginal, undefined);
+  assert.equal(converterItemShopee({ ...base, priceDiscountRate: 99 })!.precoOriginal, undefined);
+  assert.equal(converterItemShopee(base)!.precoOriginal, undefined);
   assert.equal(converterItemShopee({ itemId: 1, productName: 'Sem link', priceMin: '10' }), undefined);
   assert.equal(converterItemShopee({ itemId: 1, productName: 'Sem preço', offerLink: 'https://x' }), undefined);
 });

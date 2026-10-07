@@ -61,7 +61,7 @@ async function conectar() {
   const { version } = await fetchLatestBaileysVersion();
   return new Promise((resolve, reject) => {
     const abrir = () => {
-      const sock = makeWASocket({ version, auth: state, logger: pino({ level: 'silent' }), browser: Browsers.macOS('Desktop'), markOnlineOnConnect: false, syncFullHistory: false });
+      const sock = makeWASocket({ version, auth: state, logger: pino({ level: process.env.LOG_NIVEL || 'silent' }), browser: Browsers.macOS('Desktop'), markOnlineOnConnect: false, generateHighQualityLinkPreview: false, syncFullHistory: false });
       sock.ev.on('creds.update', saveCreds);
       sock.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {
         if (qr) {
@@ -70,9 +70,12 @@ async function conectar() {
         }
         if (connection === 'open') {
           log('WhatsApp conectado.');
+          sockAtual.sock = sock;
+          sockAtual.aberto = true;
           resolve(sock);
         }
         if (connection === 'close') {
+          if (sockAtual.sock === sock) sockAtual.aberto = false;
           const codigo = lastDisconnect?.error?.output?.statusCode;
           if (codigo === DisconnectReason.loggedOut) {
             reject(new Error('O WhatsApp desconectou este aparelho. Apague a pasta .achadinhos-enviador (na sua pasta de usuário) e rode de novo para escanear o QR.'));
@@ -87,7 +90,22 @@ async function conectar() {
     abrir();
   });
 }
-const sockAtual = { sock: null };
+/** O socket que está valendo agora. Muda a cada reconexão, por isso o envio sempre lê daqui (e não guarda o primeiro). */
+const sockAtual = { sock: null, aberto: false };
+
+/** Derruba a conexão atual de propósito: o evento "close" dispara e a reconexão automática abre uma nova. */
+function reiniciarConexao(motivo) {
+  log(`Reiniciando a conexão com o WhatsApp (${motivo}).`);
+  sockAtual.aberto = false;
+  try {
+    sockAtual.sock?.end?.(new Error(motivo));
+  } catch {
+    // se já estava morta, a reconexão já está em andamento
+  }
+}
+
+/** Erros que indicam queda da conexão (a mensagem não foi o problema): não vale descartá-la. */
+const ehQuedaDeConexao = (e) => /connection (closed|lost|failure)|timed out|socket|stream errored|not open/i.test(String(e?.message ?? e));
 
 async function listar() {
   const sock = await conectar();
@@ -109,25 +127,129 @@ async function resolverDestinos(sock, config) {
       try {
         const meta = await sock.newsletterMetadata('invite', t.codigo);
         prontos.push(meta.id);
-        log(`Canal encontrado: ${meta.thread_metadata?.name?.text ?? meta.id}`);
+        // A consulta pelo link não traz o papel da conta; pelo código do canal ela traz.
+        let completo = meta;
+        try {
+          completo = await sock.newsletterMetadata('jid', meta.id);
+        } catch {
+          // fica com o que a consulta pelo link trouxe
+        }
+        const papel = completo.viewer_metadata?.role ?? meta.viewer_metadata?.role ?? 'não informado';
+        log(`  dados do canal: campos da conta = ${Object.keys(completo.viewer_metadata ?? {}).join(',') || 'nenhum'}; estado = ${completo.state?.type ?? '?'}`);
+        log(`Canal encontrado: ${meta.thread_metadata?.name?.text ?? meta.id} (papel desta conta: ${papel}; seguidores: ${meta.thread_metadata?.subscribers_count ?? '?'})`);
+        if (papel !== 'OWNER' && papel !== 'ADMIN') log('  ATENÇÃO: esta conta não é dona nem administradora do canal. O WhatsApp aceita o envio e não publica. Escaneie o QR com a conta que criou o canal.');
       } catch (e) {
         log(`Não consegui abrir o canal pelo link (${e.message}). Confira o link e se a conta é dona do canal.`);
+      }
+    } else if (t.tipo === 'grupo-por-link') {
+      try {
+        const info = await sock.groupGetInviteInfo(t.codigo);
+        // Só dá para postar em grupo do qual o número é membro: confere (e avisa o que fazer se não for).
+        let membro = true;
+        try {
+          await sock.groupMetadata(info.id);
+        } catch {
+          membro = false;
+        }
+        log(`Grupo encontrado: ${info.subject ?? info.id} (${info.size ?? '?'} membros; este número ${membro ? 'é membro' : 'NÃO é membro'}).`);
+        if (membro) prontos.push(info.id);
+        else log('  ATENÇÃO: o número do enviador não está nesse grupo. Entre no grupo com ele (abra o link de convite no WhatsApp desse número) ou peça a um administrador para adicioná-lo. Enquanto isso, o grupo é pulado.');
+      } catch (e) {
+        log(`Não consegui abrir o grupo pelo link (${e.message}). Confira se o convite ainda vale.`);
       }
     } else log(`Destino ignorado (não entendi): ${JSON.stringify(d)}`);
   }
   return prontos;
 }
 
-async function enviarUma(sock, jid, m) {
+/** Destinos publicados pelo robô em whatsapp.json (vêm de WHATSAPP_DESTINOS no ajustes.env) + os do config.json local, sem repetir. */
+async function destinosCompletos(config) {
+  let remotos = [];
+  try {
+    const url = `${config.urlDoSite.replace(/\/+$/, '')}/whatsapp.json?t=${Date.now()}`;
+    const r = await fetch(url, { signal: AbortSignal.timeout(20_000), cache: 'no-store' });
+    if (r.ok) remotos = ((await r.json()).destinos ?? []).map((d) => d.link).filter(Boolean);
+  } catch {
+    // sem o site agora: segue só com os destinos locais
+  }
+  return [...new Set([...(config.destinos ?? []).map((d) => (typeof d === 'string' ? d : d.jid ?? d.link)), ...remotos])];
+}
+
+/** Mostra o recibo que o WhatsApp devolveu (id e id do servidor): é a prova de que a mensagem foi aceita. */
+function recibo(r, tipo) {
+  log(`  ${tipo} aceito pelo WhatsApp (id ${r?.key?.id ?? '?'}, servidor ${r?.key?.server_id ?? r?.key?.serverId ?? 'sem id de servidor'}).`);
+}
+
+// Em canal, a mensagem com imagem do Mercado Livre (WebP) foi aceita pelo WhatsApp mas não apareceu para ninguém; o texto chega.
+// Por padrão vai só texto (o link já leva à oferta). Para tentar imagem de novo, ponha "enviarImagem": true no config.json.
+let enviarImagem = false;
+let usarPrevia = true;
+
+let urlDoSiteAtual = '';
+
+/**
+ * A arte PNG da oferta (a mesma do Instagram), que o robô publica no blog em /social/. Baixa como arquivo e manda como
+ * imagem de verdade: o link da foto do Mercado Livre (WebP) era aceito pelo WhatsApp, mas o canal não publicava.
+ */
+async function baixarArte(id) {
+  const nome = `${id.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}-feed.png`;
+  try {
+    const r = await fetch(`${urlDoSiteAtual.replace(/\/+$/, '')}/social/${nome}`, { signal: AbortSignal.timeout(30_000) });
+    if (!r.ok) return undefined;
+    const png = Buffer.from(await r.arrayBuffer());
+    // JPEG é o formato mais aceito em canais (e mais leve). Sem o sharp instalado, segue com o PNG.
+    try {
+      const { default: sharp } = await import('sharp');
+      return { buffer: await sharp(png).jpeg({ quality: 85 }).toBuffer(), mimetype: 'image/jpeg' };
+    } catch {
+      return { buffer: png, mimetype: 'image/png' };
+    }
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Prévia do link montada por nós: quem envia é que prepara a prévia (título, descrição e miniatura vão junto com a mensagem),
+ * e a biblioteca falha em buscar a página do Mercado Livre (que barra acesso automático). Aqui o título e o preço vêm do
+ * texto da oferta e a miniatura vem da foto do produto (reduzida e em JPEG).
+ */
+async function montarPrevia(m) {
+  const link = /https:\/\/\S+/.exec(m.texto)?.[0];
+  if (!link) return undefined;
+  const linhas = m.texto.split('\n').map((l) => l.trim()).filter(Boolean);
+  const titulo = (linhas[0] ?? '').replace(/[*🔥_~]/g, '').trim().slice(0, 100);
+  const descricao = linhas.find((l) => /^💰/.test(l))?.replace(/[*💰~_]/g, '').trim() ?? '';
+  let jpegThumbnail;
   if (m.imagem) {
     try {
-      await sock.sendMessage(jid, { image: { url: m.imagem }, caption: m.texto });
-      return;
-    } catch (e) {
-      log(`  imagem falhou (${e.message}); enviando só o texto.`);
+      const r = await fetch(m.imagem, { signal: AbortSignal.timeout(20_000) });
+      if (r.ok) {
+        const { default: sharp } = await import('sharp');
+        jpegThumbnail = await sharp(Buffer.from(await r.arrayBuffer())).resize(300, 300, { fit: 'inside' }).jpeg({ quality: 70 }).toBuffer();
+      }
+    } catch {
+      // sem miniatura a prévia sai só com título e descrição
     }
   }
-  await sock.sendMessage(jid, { text: m.texto });
+  return { 'canonical-url': link, 'matched-text': link, title: titulo, description: descricao, jpegThumbnail };
+}
+
+async function enviarUma(sock, jid, m) {
+  // Grupo aceita imagem normalmente (a arte da oferta com a legenda); canal só aceita texto.
+  if (enviarImagem || jid.endsWith('@g.us')) {
+    const arte = await baixarArte(m.id);
+    if (arte) {
+      try {
+        recibo(await sock.sendMessage(jid, { image: arte.buffer, mimetype: arte.mimetype, caption: m.texto }), 'imagem com legenda');
+        return;
+      } catch (e) {
+        log(`  imagem falhou (${e.message}); enviando só o texto.`);
+      }
+    } else log('  sem arte no blog para esta oferta; enviando só o texto.');
+  }
+  const linkPreview = usarPrevia ? await montarPrevia(m) : undefined;
+  recibo(await sock.sendMessage(jid, linkPreview ? { text: m.texto, linkPreview } : { text: m.texto }), linkPreview ? 'texto com prévia' : 'texto');
 }
 
 async function buscarFila(config) {
@@ -140,42 +262,79 @@ async function buscarFila(config) {
 
 async function rodar() {
   const config = lerConfig();
-  if (!(config.destinos ?? []).length) {
-    log('config.json ainda não tem destinos. Rode "listar" (ou o listar.bat), copie o código do grupo e cole em "destinos".');
-    process.exit(1);
-  }
+  enviarImagem = config.enviarImagem === true;
+  usarPrevia = config.usarPrevia !== false;
+  urlDoSiteAtual = config.urlDoSite;
   const sock = await conectar();
-  const destinos = await resolverDestinos(sock, config);
-  if (!destinos.length) throw new Error('Nenhum destino válido.');
-  log(`Pronto. Enviando para ${destinos.length} destino(s). Deixe esta janela aberta. Ctrl+C para parar.`);
+  // Os destinos vêm de WHATSAPP_DESTINOS (ajustes.env, publicado em whatsapp.json) e do config.json; a lista é recarregada a cada 10 minutos,
+  // então trocar de canal ou grupo não exige reiniciar o enviador.
+  let destinos = [];
+  let destinosEm = 0;
+  const recarregarDestinos = async () => {
+    const lista = await resolverDestinos(sockAtual.sock ?? sock, { destinos: await destinosCompletos(config) });
+    if (JSON.stringify(lista) !== JSON.stringify(destinos)) log(`Destinos atuais: ${lista.length}.`);
+    destinos = lista;
+    destinosEm = Date.now();
+  };
+  await recarregarDestinos();
+  if (!destinos.length) log('Nenhum destino válido por enquanto: confira WHATSAPP_DESTINOS no ajustes.env. Vou tentar de novo em alguns minutos.');
+  log(`Pronto. Deixe este serviço rodando. Ctrl+C para parar.`);
 
   let estado = lerEstado();
+  const falhasSeguidas = new Map();
+  // Vigia: a conexão pode morrer sem avisar (sem evento "close"). A cada 2 minutos confere se o canal de rede ainda está aberto.
+  setInterval(() => {
+    const ws = sockAtual.sock?.ws;
+    if (sockAtual.aberto && ws && (ws.isOpen === false || ws.isClosed === true || ws.isClosing === true)) reiniciarConexao('conexão morta detectada pelo vigia');
+  }, 120_000).unref?.();
   for (;;) {
     try {
       const agora = Date.now();
+      if (sockAtual.aberto && agora - destinosEm > 10 * 60_000) await recarregarDestinos();
       estado = { ...estado, ...podarEstado(estado, agora) };
       const fila = await buscarFila(config);
       const pendentes = selecionarPendentes(fila, estado.enviados, agora, (config.idadeMaximaMin ?? 180) * 60_000);
       const regra = podeEnviarAgora({ agora, envios: estado.envios, maximoPorHora: config.maximoPorHora ?? 6, horaInicio: config.horaInicio ?? 8, horaFim: config.horaFim ?? 22 });
+      // Sem conexão aberta não adianta tentar (e não gasta a mensagem): espera a reconexão automática.
+      if (pendentes.length && regra.pode && !sockAtual.aberto) {
+        log(`${pendentes.length} na fila, aguardando a conexão com o WhatsApp voltar…`);
+        await pausa(15_000);
+        continue;
+      }
+      if (pendentes.length && regra.pode && !destinos.length) {
+        log(`${pendentes.length} na fila, mas não há destino válido (canal ou grupo).`);
+        await pausa(60_000);
+        continue;
+      }
       if (pendentes.length && regra.pode) {
         const m = pendentes[0];
         log(`Enviando: ${m.texto.split('\n')[0].slice(0, 70)}`);
         let algumOk = false;
+        let queda = false;
         for (let i = 0; i < destinos.length; i++) {
           if (i > 0) await pausa(esperaAleatoria(8000, 20_000));
           try {
-            await enviarUma(sock, destinos[i], m);
+            await enviarUma(sockAtual.sock, destinos[i], m);
             algumOk = true;
           } catch (e) {
             log(`  falhou em ${destinos[i]}: ${e.message}`);
+            if (ehQuedaDeConexao(e)) queda = true;
           }
         }
         if (algumOk) {
           estado.enviados[m.id] = Date.now();
           estado.envios.push(Date.now());
+          falhasSeguidas.delete(m.id);
+        } else if (queda && (falhasSeguidas.get(m.id) ?? 0) < 4) {
+          // A conexão caiu: a mensagem está boa. Reinicia a conexão e tenta de novo depois (até 4 vezes), sem descartar.
+          falhasSeguidas.set(m.id, (falhasSeguidas.get(m.id) ?? 0) + 1);
+          reiniciarConexao('envio falhou por queda de conexão');
+          await pausa(20_000);
+          continue;
         } else {
-          // Nenhum destino recebeu: marca como enviada mesmo assim depois de falhar, para não ficar presa na frente da fila.
+          // Falha que não é de conexão (ou já tentou várias vezes): marca como enviada para não travar a fila.
           estado.enviados[m.id] = Date.now();
+          falhasSeguidas.delete(m.id);
           log('  nenhum destino recebeu; pulei esta mensagem.');
         }
         salvarEstado(estado);
@@ -192,8 +351,44 @@ async function rodar() {
   }
 }
 
+/** Manda uma frase de teste para os destinos do config.json, para conferir a entrega sem esperar uma oferta. */
+async function testar() {
+  const config = lerConfig();
+  urlDoSiteAtual = config.urlDoSite;
+  const sock = await conectar();
+  let destinos = await resolverDestinos(sock, { destinos: await destinosCompletos(config) });
+  // "testar imagem grupo": só nos grupos (o canal não mostra imagem enviada).
+  if (process.argv[4] === 'grupo') destinos = destinos.filter((d) => d.endsWith('@g.us'));
+  const hora = new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+  // "testar imagem": manda a arte da oferta mais recente como imagem, para ver se o canal publica.
+  const fila = process.argv[3] === 'imagem' || process.argv[3] === 'previa' ? await buscarFila(config) : [];
+  const comArte = [];
+  for (const m of [...fila].reverse()) {
+    const arte = await baixarArte(m.id);
+    if (arte) {
+      comArte.push({ arte, m });
+      break;
+    }
+  }
+  for (const jid of destinos) {
+    if (process.argv[3] === 'previa') {
+      // Usa a oferta mais recente da fila, com a prévia montada por nós (título, preço e miniatura da foto).
+      const m = fila.length ? { ...[...fila].reverse()[0] } : undefined;
+      if (m) m.texto = `Teste de prévia do robô (${hora}). Se aparecer a foto do produto no cartão, a prévia funciona.\n\n${m.texto}`;
+      const linkPreview = m ? await montarPrevia(m) : undefined;
+      recibo(await sock.sendMessage(jid, linkPreview ? { text: m.texto, linkPreview } : { text: 'Teste de prévia sem oferta na fila.' }), 'teste de prévia');
+    } else if (comArte[0]) {
+      recibo(await sock.sendMessage(jid, { image: comArte[0].arte.buffer, mimetype: comArte[0].arte.mimetype, caption: `Teste de imagem do robô (${hora}). Se você viu a arte acima, o canal publica imagens.` }), 'teste de imagem');
+    } else {
+      recibo(await sock.sendMessage(jid, { text: `Teste do robô de ofertas (${hora}). Se você leu isto, o canal está recebendo.` }), 'teste');
+    }
+  }
+  await pausa(5000);
+  process.exit(0);
+}
+
 const comando = process.argv[2];
-(comando === 'listar' ? listar() : rodar()).catch((e) => {
+(comando === 'listar' ? listar() : comando === 'testar' ? testar() : rodar()).catch((e) => {
   console.error(`\nErro: ${e.message}`);
   process.exit(1);
 });

@@ -71,7 +71,7 @@ test('nuvem: rodadas seguidas coletam, postam sem repetir, escrevem o blog com I
   assert.match(readFileSync(join(pasta, 'blog', 'painel.html'), 'utf8'), /noindex/);
   const bio = readFileSync(join(pasta, 'blog', 'bio.html'), 'utf8');
   assert.match(bio, /noindex/);
-  assert.match(bio, /Ver oferta na/, 'a página do link da bio lista as ofertas postadas');
+  assert.match(bio, /Ver oferta n[ao] /, 'a página do link da bio lista as ofertas postadas');
   assert.match(bio, /rel="sponsored nofollow noopener"/);
   const social = JSON.parse(readFileSync(join(pasta, 'blog', 'social.json'), 'utf8'));
   assert.equal(social.itens.length, 2, 'cada oferta postada ganha conteúdo de Story e Reels');

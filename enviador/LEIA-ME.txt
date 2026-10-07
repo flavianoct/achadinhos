@@ -28,3 +28,8 @@ COMO ELE SE COMPORTA
 - PC desligado: o WhatsApp pausa; Telegram e blog continuam normais.
 - O login do WhatsApp fica na pasta .achadinhos-enviador do seu usuário, fora
   deste projeto. NUNCA envie essa pasta para o GitHub.
+
+CANAL DO WHATSAPP: IMAGEM E PREVIA
+- Em canal, a mensagem com imagem e rejeitada pelo servidor do WhatsApp (erro 479) com a biblioteca atual. Por isso as ofertas vao como TEXTO COM PREVIA: o enviador monta a previa do link (titulo, preco e miniatura da foto) e a envia junto. Para desligar a previa: "usarPrevia": false no config.json.
+- Para testar sem esperar uma oferta: node enviador.mjs testar (texto), testar previa ou testar imagem (com o servico parado: sudo systemctl stop achadinhos-enviador).
+- Se a conexao cair, o enviador reconecta e tenta de novo sem descartar a mensagem. Logs: journalctl -u achadinhos-enviador -f. LOG_NIVEL=debug mostra o detalhe da biblioteca.

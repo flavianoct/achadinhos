@@ -8,6 +8,9 @@ export interface Config {
     ativo: boolean;
     mattWord: string;
     mattTool: string;
+    /** App do DevCenter do Mercado Livre (API oficial, usada como reserva da leitura da página). */
+    clientId: string;
+    clientSecret: string;
     /** Quantas páginas de ofertas ler a cada rodada, no total (cerca de 48 produtos por página). */
     paginas: number;
     /** Categorias do Mercado Livre lidas em rodízio (IDs como MLB1051). Vazio = só a vitrine geral. */
@@ -63,17 +66,51 @@ export interface Config {
     publicar: 'nao' | 'git';
     /** Link do canal do Telegram mostrado no blog. */
     telegramLink: string;
+    /** Link do perfil do Instagram mostrado no blog (vem de BLOG_INSTAGRAM, só o @ ou o endereço). */
+    instagramLink: string;
+    /** Canal ou grupo do WhatsApp mostrado no blog (BLOG_WHATSAPP): só endereços https do próprio WhatsApp. */
+    whatsappLink: string;
+    /** Arquivo com os achados da Amazon escolhidos à mão (página Amazon do blog). */
+    amazonArquivo: string;
   };
   /** Mensagens de WhatsApp para o enviador do PC (ver pasta enviador/). */
-  whatsapp: { ativo: boolean };
+  whatsapp: { ativo: boolean; /** Canais e grupos onde o enviador posta (links https do WhatsApp), de WHATSAPP_DESTINOS. */ destinos: string[] };
   /** Arte de Story, legenda e roteiro de vídeo das ofertas postadas (aparecem no painel). */
   social: { ativo: boolean };
   /** Publicação automática no Instagram (conta profissional). Token e ID ficam nos Secrets. */
-  instagram: { ativo: boolean; token: string; userId: string; feedPorDia: number; storiesPorDia: number; intervaloFeedMin: number; intervaloStoryMin: number; notaMinima: number; vendasMinimas: number; palavrasBloqueadas: string[]; carrosselPorDia: number; carrosselItens: number; carrosselTetos: number[]; dicasDias: number[]; tokenData: string };
+  instagram: { ativo: boolean; token: string; userId: string; feedPorDia: number; storiesPorDia: number; intervaloFeedMin: number; intervaloStoryMin: number; notaMinima: number; vendasMinimas: number; palavrasBloqueadas: string[]; carrosselPorDia: number; carrosselItens: number; carrosselTetos: number[]; dicasDias: number[]; horariosFeed: number[]; horariosStories: number[]; reelsPorDia: number; horariosReels: number[]; tokenData: string };
   painel: { porta: number };
 }
 
 export type Env = Record<string, string | undefined>;
+
+/** Lista de horas ("12,18,21"). Sem a variável, usa o padrão; com a variável vazia, devolve vazio (sem restrição). */
+/** Canais e grupos do WhatsApp (links https, separados por vírgula). Qualquer outra coisa é ignorada; sem repetidos. */
+export function destinosDoWhatsapp(valor: string): string[] {
+  const ok = /^https:\/\/(whatsapp\.com\/channel\/|chat\.whatsapp\.com\/)[A-Za-z0-9_-]{8,}\/?$/i;
+  // O WhatsApp acrescenta parâmetros ao copiar o link (?s=cl&p=a...): só o endereço até a interrogação importa.
+  return [...new Set(valor.split(/[,\s]+/).map((v) => v.trim().replace(/[?#].*$/, '')).filter((v) => ok.test(v)))];
+}
+
+/** Só aceita endereço https do WhatsApp (canal, grupo ou wa.me); qualquer outra coisa vira vazio. */
+function linkDoWhatsapp(valor: string): string {
+  const v = valor.trim();
+  return /^https:\/\/(whatsapp\.com\/channel\/|chat\.whatsapp\.com\/|wa\.me\/)[A-Za-z0-9_\-/?=&.]+$/i.test(v) ? v : '';
+}
+
+/** Aceita "@perfil", "perfil" ou o endereço completo; devolve o endereço https do perfil, ou vazio. */
+function linkDoInstagram(valor: string): string {
+  const v = valor.trim();
+  if (!v) return '';
+  if (/^https:\/\//i.test(v)) return v;
+  const nome = v.replace(/^@/, '');
+  return /^[A-Za-z0-9._]{1,30}$/.test(nome) ? `https://www.instagram.com/${nome}/` : '';
+}
+
+function horas(valor: string | undefined, padrao: number[]): number[] {
+  if (valor === undefined) return padrao;
+  return [...new Set(lista(valor).map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n <= 23))].sort((a, b) => a - b);
+}
 
 function lista(valor: string | undefined): string[] {
   return (valor ?? '')
@@ -159,6 +196,8 @@ export function lerConfig(env: Env = process.env): Config {
       ativo: ligado(env, 'ML_ATIVO', false),
       mattWord: (env.ML_MATT_WORD ?? '').trim(),
       mattTool: (env.ML_MATT_TOOL ?? '').trim(),
+      clientId: (env.ML_CLIENT_ID ?? '').trim(),
+      clientSecret: (env.ML_CLIENT_SECRET ?? '').trim(),
       paginas: numero(env, 'ML_PAGINAS', 3),
       // Eletrônicos, Celulares, Informática, Eletrodomésticos, Casa, Games, Beleza e Esportes.
       categorias: env.ML_CATEGORIAS === undefined ? ['MLB1000', 'MLB1051', 'MLB1648', 'MLB5726', 'MLB1574', 'MLB1144', 'MLB1246', 'MLB1276'] : lista(env.ML_CATEGORIAS).map((c) => c.toUpperCase()),
@@ -210,8 +249,11 @@ export function lerConfig(env: Env = process.env): Config {
       geminiReserva: (env.GEMINI_RESERVA ?? '').trim() || 'gemini-3.1-flash-lite',
       publicar: opcao(env, 'BLOG_PUBLICAR', ['nao', 'git'] as const, 'nao'),
       telegramLink: (env.BLOG_TELEGRAM ?? '').trim() || (chatId.startsWith('@') ? `https://t.me/${chatId.slice(1)}` : ''),
+      instagramLink: linkDoInstagram(env.BLOG_INSTAGRAM ?? ''),
+      whatsappLink: linkDoWhatsapp(env.BLOG_WHATSAPP ?? ''),
+      amazonArquivo: (env.BLOG_AMAZON_ARQUIVO ?? '').trim() || 'amazon.json',
     },
-    whatsapp: { ativo: ligado(env, 'WHATSAPP_ATIVO', true) },
+    whatsapp: { ativo: ligado(env, 'WHATSAPP_ATIVO', true), destinos: destinosDoWhatsapp(env.WHATSAPP_DESTINOS ?? '') },
     social: { ativo: ligado(env, 'SOCIAL_ATIVO', true) },
     instagram: {
       ativo: ligado(env, 'INSTAGRAM_ATIVO', false),
@@ -230,7 +272,13 @@ export function lerConfig(env: Env = process.env): Config {
       carrosselTetos: lista(env.INSTAGRAM_CARROSSEL_TETOS === undefined ? '50,100,200' : env.INSTAGRAM_CARROSSEL_TETOS).map(Number).filter((n) => Number.isFinite(n) && n > 0),
       // Dias da semana (0 = domingo ... 6 = sábado) em que o carrossel do dia é a dica "Antes de comprar"; nos outros dias é o "Top 5 até R$ X".
       dicasDias: lista(env.INSTAGRAM_DICAS_DIAS === undefined ? '2,4,6' : env.INSTAGRAM_DICAS_DIAS).map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6),
-      palavrasBloqueadas: env.INSTAGRAM_PALAVRAS_BLOQUEADAS === undefined ? ['generico', 'paralelo', 'similar', 'replica', 'imitacao', 'sem marca'] : lista(env.INSTAGRAM_PALAVRAS_BLOQUEADAS),
+      // Horas (0 a 23, de Brasília) em que o robô pode publicar. Fora delas ele espera, para os posts caírem nos horários em que
+      // mais gente está online em vez de saírem todos na primeira rodada do dia. Vazio = qualquer hora do horário de postagem.
+      horariosFeed: horas(env.INSTAGRAM_HORARIOS_FEED, [12, 18, 21]),
+      horariosStories: horas(env.INSTAGRAM_HORARIOS_STORIES, [8, 10, 12, 15, 18, 20, 21]),
+      reelsPorDia: numero(env, 'INSTAGRAM_REELS_POR_DIA', 1),
+      horariosReels: horas(env.INSTAGRAM_HORARIOS_REELS, [19, 20]),
+      palavrasBloqueadas: env.INSTAGRAM_PALAVRAS_BLOQUEADAS === undefined ? ['generico', 'paralelo', 'similar', 'replica', 'imitacao', 'sem marca', 'inspirado', 'primeira linha'] : lista(env.INSTAGRAM_PALAVRAS_BLOQUEADAS),
       tokenData: (env.INSTAGRAM_TOKEN_DATA ?? '').trim(),
     },
     painel: { porta: numero(env, 'PAINEL_PORTA', 3210) },
