@@ -356,7 +356,9 @@ async function testar() {
   const config = lerConfig();
   urlDoSiteAtual = config.urlDoSite;
   const sock = await conectar();
-  const destinos = await resolverDestinos(sock, { destinos: await destinosCompletos(config) });
+  let destinos = await resolverDestinos(sock, { destinos: await destinosCompletos(config) });
+  // "testar imagem grupo": só nos grupos (o canal não mostra imagem enviada).
+  if (process.argv[4] === 'grupo') destinos = destinos.filter((d) => d.endsWith('@g.us'));
   const hora = new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' });
   // "testar imagem": manda a arte da oferta mais recente como imagem, para ver se o canal publica.
   const fila = process.argv[3] === 'imagem' || process.argv[3] === 'previa' ? await buscarFila(config) : [];
