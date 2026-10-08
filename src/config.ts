@@ -58,6 +58,10 @@ export interface Config {
   };
   /** Cupons do Mercado Livre e da Amazon, cadastrados por você em cupons.json. */
   cupons: { ativo: boolean; arquivo: string; porDia: number; repetirDias: number };
+  /** Vendas e comissão da Shopee (conversionReport), lidas de tempos em tempos para o painel. */
+  vendas: { ativo: boolean; horasEntreLeituras: number; dias: number };
+  /** Campanhas da própria Shopee postadas no canal geral do Telegram. 0 = desligado. */
+  campanhas: { porDia: number; repetirDias: number };
   blog: {
     ativo: boolean;
     nome: string;
@@ -309,6 +313,8 @@ export function lerConfig(env: Env = process.env): Config {
       maxPostsPorDia: numero(env, 'MAX_POSTS_POR_DIA', 60),
       postsPorRodada: numero(env, 'POSTS_POR_RODADA', 2),
     },
+    vendas: { ativo: ligado(env, 'VENDAS_ATIVO', true), horasEntreLeituras: numero(env, 'VENDAS_HORAS', 3), dias: numero(env, 'VENDAS_DIAS', 30) },
+    campanhas: { porDia: numero(env, 'CAMPANHAS_POR_DIA', 0), repetirDias: numero(env, 'CAMPANHAS_REPETIR_DIAS', 7) },
     cupons: {
       ativo: ligado(env, 'CUPONS_ATIVO', true),
       arquivo: (env.CUPONS_ARQUIVO ?? '').trim() || 'cupons.json',

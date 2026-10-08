@@ -128,6 +128,23 @@ export class Banco {
         publicado_em INTEGER,
         tentativas INTEGER NOT NULL DEFAULT 0
       );
+      CREATE TABLE IF NOT EXISTS vendas (
+        chave TEXT PRIMARY KEY,
+        loja TEXT NOT NULL,
+        item_id TEXT NOT NULL,
+        nome TEXT NOT NULL,
+        categoria TEXT NOT NULL,
+        valor REAL NOT NULL,
+        comissao REAL NOT NULL,
+        status TEXT,
+        dia TEXT NOT NULL,
+        comprado_em INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS campanhas_postadas (
+        id TEXT NOT NULL,
+        dia TEXT NOT NULL,
+        postado_em INTEGER NOT NULL
+      );
       CREATE TABLE IF NOT EXISTS cupons_postados (
         chave TEXT NOT NULL,
         dia TEXT NOT NULL,
@@ -221,6 +238,46 @@ export class Banco {
   postsNoDia(agora: Date): number {
     const linha = this.db.prepare(`SELECT COUNT(*) AS n FROM postados WHERE dia = ?`).get(diaDe(agora)) as { n: number };
     return linha.n;
+  }
+
+  /** Categoria que o robô deu ao produto quando o postou (a mais recente), se postou. */
+  categoriaPostada(loja: Loja, idProduto: string): string | undefined {
+    const l = this.db.prepare(`SELECT categoria FROM postados WHERE loja = ? AND id_produto = ? ORDER BY postado_em DESC LIMIT 1`).get(loja, idProduto) as { categoria: string } | undefined;
+    return l?.categoria;
+  }
+
+  /** Grava (ou atualiza o status de) um item vendido. */
+  guardarVenda(v: { chave: string; loja: Loja; itemId: string; nome: string; categoria: string; valor: number; comissao: number; status?: string; compradoEm: number }): void {
+    this.db
+      .prepare(
+        `INSERT INTO vendas (chave, loja, item_id, nome, categoria, valor, comissao, status, dia, comprado_em) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT (chave) DO UPDATE SET valor = excluded.valor, comissao = excluded.comissao, status = excluded.status`,
+      )
+      .run(v.chave, v.loja, v.itemId, v.nome, v.categoria, v.valor, v.comissao, v.status ?? null, diaDe(new Date(v.compradoEm)), v.compradoEm);
+  }
+
+  /** Vendas e comissão por categoria nos últimos `dias` dias (pedidos cancelados ficam de fora). */
+  vendasPorCategoria(dias: number, agora: Date): Array<{ categoria: string; vendas: number; valor: number; comissao: number }> {
+    return this.db
+      .prepare(
+        `SELECT categoria, COUNT(*) AS vendas, SUM(valor) AS valor, SUM(comissao) AS comissao FROM vendas
+         WHERE dia >= ? AND COALESCE(LOWER(status), '') NOT LIKE '%cancel%' GROUP BY categoria ORDER BY comissao DESC`,
+      )
+      .all(diasAtras(agora, dias - 1))
+      .map((l) => ({ categoria: String(l.categoria), vendas: Number(l.vendas), valor: Math.round(Number(l.valor) * 100) / 100, comissao: Math.round(Number(l.comissao) * 100) / 100 }));
+  }
+
+  ultimoPostDeCampanha(id: string): number | undefined {
+    const l = this.db.prepare(`SELECT MAX(postado_em) AS t FROM campanhas_postadas WHERE id = ?`).get(id) as { t: number | null };
+    return l.t ?? undefined;
+  }
+
+  registrarCampanha(id: string, agora: Date): void {
+    this.db.prepare(`INSERT INTO campanhas_postadas (id, dia, postado_em) VALUES (?, ?, ?)`).run(id, diaDe(agora), agora.getTime());
+  }
+
+  campanhasNoDia(agora: Date): number {
+    return (this.db.prepare(`SELECT COUNT(*) AS n FROM campanhas_postadas WHERE dia = ?`).get(diaDe(agora)) as { n: number }).n;
   }
 
   /** Quando o cupom foi postado pela última vez (ms), se já foi. */
@@ -591,6 +648,8 @@ export class Banco {
     this.db.prepare(`DELETE FROM precos WHERE dia < ?`).run(diasAtras(agora, 90));
     this.db.prepare(`DELETE FROM postados WHERE postado_em < ?`).run(t - 90 * 86_400_000);
     this.db.prepare(`DELETE FROM cupons_postados WHERE postado_em < ?`).run(t - 90 * 86_400_000);
+    this.db.prepare(`DELETE FROM campanhas_postadas WHERE postado_em < ?`).run(t - 90 * 86_400_000);
+    this.db.prepare(`DELETE FROM vendas WHERE comprado_em < ?`).run(t - 120 * 86_400_000);
     this.db.prepare(`DELETE FROM whatsapp_saida WHERE criado_em < ?`).run(t - 2 * 86_400_000);
     this.db.prepare(`DELETE FROM social_saida WHERE criado_em < ?`).run(t - 2 * 86_400_000);
     // Publicado vira só um registro (leve) e fica 30 dias, para o robô saber que assunto já usou; o que não saiu perde a validade em 2 dias.

@@ -7,7 +7,8 @@ import { FonteMercadoLivre } from './fontes/mercadolivre.ts';
 import { FonteMercadoLivreApi } from './fontes/mercadolivre-api.ts';
 import { FonteShopee } from './fontes/shopee.ts';
 import { lerCupons } from './cupons.ts';
-import { coletar, postarProxima, postarProximoCupom, type ResultadoDoCupom, type ResultadoDoPost, type ResumoDaColeta } from './pipeline.ts';
+import { buscarCampanhas, buscarVendas } from './shopee-extra.ts';
+import { atualizarVendas, coletar, postarCampanha, postarProxima, postarProximoCupom, type ResultadoDaCampanha, type ResultadoDoCupom, type ResultadoDoPost, type ResumoDaColeta } from './pipeline.ts';
 import { Telegram, type Publicador } from './telegram.ts';
 import type { Fonte, Loja } from './types.ts';
 
@@ -142,6 +143,35 @@ export class Robo {
         for (const aviso of r.avisos) this.log(`AVISO: ${aviso}`);
       }
       else if (r.motivo === 'erro') this.log(`ERRO ao postar: ${r.detalhe}`);
+      return r;
+    });
+  }
+
+  /** A Shopee com as chaves da configuração, se estiver ativa e configurada. */
+  private shopee(): FonteShopee | undefined {
+    const s = this.config.shopee;
+    return s.ativo && s.appId && s.secret ? new FonteShopee(s) : undefined;
+  }
+
+  /** Lê as vendas da Shopee (no máximo a cada VENDAS_HORAS horas). Devolve quantos itens leu, ou undefined se não era hora. */
+  atualizarVendasAgora(agora: Date = new Date()): Promise<number | undefined> {
+    return this.emSerie(async () => {
+      const shopee = this.shopee();
+      if (!shopee) return undefined;
+      const n = await atualizarVendas((dias) => buscarVendas(shopee, dias, agora), this.banco, this.config, agora);
+      if (n !== undefined) this.log(`vendas da Shopee: ${n} itens lidos`);
+      return n;
+    });
+  }
+
+  /** Posta uma campanha da Shopee no canal geral (até CAMPANHAS_POR_DIA por dia). */
+  postarCampanhaAgora(agora: Date = new Date()): Promise<ResultadoDaCampanha> {
+    return this.emSerie(async () => {
+      const shopee = this.shopee();
+      if (!this.publicador || !shopee) return { postou: false, motivo: 'desligado' } as ResultadoDaCampanha;
+      const r = await postarCampanha(this.publicador, () => buscarCampanhas(shopee), this.banco, this.config, agora);
+      if (r.postou) this.log(`campanha postada: ${r.campanha.nome.slice(0, 60)}`);
+      else if (r.motivo === 'erro') this.log(`ERRO na campanha: ${r.detalhe}`);
       return r;
     });
   }

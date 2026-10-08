@@ -1,8 +1,9 @@
 import type { Config } from './config.ts';
 import { horaDe, type Banco } from './db.ts';
-import { montarMensagemWhatsapp } from './mensagem.ts';
+import { escaparHtml, montarMensagemWhatsapp } from './mensagem.ts';
+import { escolherCampanha, type Campanha, type ItemVendido } from './shopee-extra.ts';
 import { chaveDoCupom, escolherCupom, type Cupom } from './cupons.ts';
-import { contemPalavra, normalizar } from './categoria.ts';
+import { categorizar, contemPalavra, normalizar } from './categoria.ts';
 import { avaliar } from './filtro.ts';
 import { elegivelParaGuia, tipoDeGuia } from './guias.ts';
 import { destinosDaOferta, geralAceita, nichosNoLimite, temWhatsappDoNicho } from './rotas.ts';
@@ -146,4 +147,50 @@ export async function postarProximoCupom(publicador: Publicador, banco: Banco, c
   }
   banco.registrarCupom(chaveDoCupom(cupom), agora);
   return { postou: true, cupom };
+}
+
+/**
+ * Lê as vendas da Shopee e grava por nicho: o nicho é o que o robô deu ao produto quando o postou ou, se ele não foi
+ * postado (a pessoa comprou outra coisa depois do clique), o que o classificador dá pelo nome. Lê no máximo a cada
+ * VENDAS_HORAS horas. Devolve quantos itens foram lidos, ou undefined se não era hora.
+ */
+export async function atualizarVendas(buscar: (dias: number) => Promise<ItemVendido[]>, banco: Banco, config: Config, agora: Date = new Date()): Promise<number | undefined> {
+  if (!config.vendas.ativo) return undefined;
+  if (banco.textoSalvo('vendas:lidas', config.vendas.horasEntreLeituras / 24, agora)) return undefined;
+  const itens = await buscar(config.vendas.dias);
+  for (const v of itens) {
+    const categoria = banco.categoriaPostada('shopee', v.itemId) ?? categorizar(v.nome);
+    banco.guardarVenda({ ...v, loja: 'shopee', categoria });
+  }
+  banco.salvarTexto('vendas:lidas', agora.toISOString(), agora);
+  return itens.length;
+}
+
+export function montarMensagemCampanha(c: Campanha): string {
+  const linhas = ['🛍️ <b>CAMPANHA SHOPEE</b>', '', `🔥 <b>${escaparHtml(c.nome)}</b>`];
+  if (c.fim) {
+    const fim = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit' }).format(new Date(c.fim));
+    linhas.push(`⏰ Até ${fim}`);
+  }
+  linhas.push('', 'Ofertas e cupons da própria Shopee, reunidos numa página só.', '', `👉 ${escaparHtml(c.link)}`, '', '<i>Preços e cupons sujeitos à disponibilidade.</i>');
+  return linhas.join('\n');
+}
+
+export type ResultadoDaCampanha = { postou: true; campanha: Campanha } | { postou: false; motivo: 'desligado' | 'fora do horário' | 'limite diário' | 'sem campanha' | 'erro'; detalhe?: string };
+
+/** Posta no canal geral uma campanha da Shopee em vigor que não saiu nos últimos CAMPANHAS_REPETIR_DIAS dias. */
+export async function postarCampanha(publicador: Publicador, buscar: () => Promise<Campanha[]>, banco: Banco, config: Config, agora: Date = new Date()): Promise<ResultadoDaCampanha> {
+  if (config.campanhas.porDia <= 0 || !publicador.publicarAviso) return { postou: false, motivo: 'desligado' };
+  const hora = horaDe(agora);
+  if (hora < config.ritmo.horaInicio || hora >= config.ritmo.horaFim) return { postou: false, motivo: 'fora do horário' };
+  if (banco.campanhasNoDia(agora) >= config.campanhas.porDia) return { postou: false, motivo: 'limite diário' };
+  try {
+    const campanha = escolherCampanha(await buscar(), (id) => banco.ultimoPostDeCampanha(id), config.campanhas.repetirDias, agora);
+    if (!campanha) return { postou: false, motivo: 'sem campanha' };
+    await publicador.publicarAviso({ texto: montarMensagemCampanha(campanha), botao: '🛍️ Ver a campanha', url: campanha.link, imagem: campanha.imagem }, config.telegram.chatId);
+    banco.registrarCampanha(campanha.id, agora);
+    return { postou: true, campanha };
+  } catch (e) {
+    return { postou: false, motivo: 'erro', detalhe: (e as Error).message };
+  }
 }

@@ -54,6 +54,9 @@ export interface Nicho {
   naFila: number;
   /** Ofertas aprovadas nas últimas 24 horas. */
   aprovadas24h: number;
+  /** Vendas da Shopee nos últimos 7 dias (itens) e comissão em reais. */
+  vendas7d: number;
+  comissao7d: number;
   /** Tem canal próprio no Telegram? */
   temRota: boolean;
   /** O filtro do canal geral aceita este nicho? */
@@ -68,7 +71,8 @@ export function montarNichos(banco: Banco, config: Config, agora: Date): Nicho[]
   const semana = new Map(banco.postsPorCategoria(7, agora).map((c) => [c.categoria, c.posts]));
   const fila = new Map(banco.filaPorCategoria().map((c) => [c.categoria, c.total]));
   const aprovadas = new Map(banco.categoriasRecentes(24, agora).map((c) => [c.categoria, c.total]));
-  const conhecidas = new Set<string>([...CATEGORIAS, ...hoje.keys(), ...semana.keys(), ...fila.keys(), ...aprovadas.keys()]);
+  const vendas = new Map(banco.vendasPorCategoria(7, agora).map((c) => [c.categoria, c]));
+  const conhecidas = new Set<string>([...CATEGORIAS, ...hoje.keys(), ...semana.keys(), ...fila.keys(), ...aprovadas.keys(), ...vendas.keys()]);
   return [...conhecidas]
     .map((chave): Nicho => {
       const rota = config.rotas.porCategoria[chave];
@@ -80,12 +84,14 @@ export function montarNichos(banco: Banco, config: Config, agora: Date): Nicho[]
         posts7dias: semana.get(chave) ?? 0,
         naFila: fila.get(chave) ?? 0,
         aprovadas24h: aprovadas.get(chave) ?? 0,
+        vendas7d: vendas.get(chave)?.vendas ?? 0,
+        comissao7d: vendas.get(chave)?.comissao ?? 0,
         temRota: Boolean(rota),
         noGeral: geralAceita(chave, config),
         canal: rota?.startsWith('@') ? rota : undefined,
       };
     })
-    .filter((n) => n.postsHoje || n.posts7dias || n.naFila || n.aprovadas24h || n.temRota)
+    .filter((n) => n.postsHoje || n.posts7dias || n.naFila || n.aprovadas24h || n.vendas7d || n.temRota)
     .sort((a, b) => b.posts7dias - a.posts7dias || b.aprovadas24h - a.aprovadas24h || a.nome.localeCompare(b.nome));
 }
 
@@ -236,7 +242,7 @@ tr:last-child td{border-bottom:0}
 <div class="card" style="overflow-x:auto"><table id="nichos"></table></div>
 </div>
 <div id="avisos-rotas"></div>
-<p class="nota">Posts = ofertas disparadas no Telegram. Cliques não aparecem aqui: o link de afiliado leva direto à loja, então só a Shopee e o Mercado Livre sabem quantos cliques ou vendas vieram (veja no painel de afiliados de cada um).</p>
+<p class="nota">Posts = ofertas disparadas no Telegram. Vendas e comissão vêm do relatório de afiliados da Shopee (lido a cada poucas horas, pedidos cancelados ficam de fora); o Mercado Livre não tem esse relatório por API, então as vendas dele aparecem só no painel de afiliados do próprio Mercado Livre.</p>
 
 <h2>Controles</h2>
 <div class="btns" id="controles"></div>
@@ -301,6 +307,7 @@ const t=new Date(s.atualizadoEm).getTime();
   const topFila=nichos.slice().sort((a,b)=>b.naFila-a.naFila)[0];
   [[topHoje&&topHoje.postsHoje?topHoje.emoji+' '+topHoje.nome:'-','nicho que mais disparou hoje'+(topHoje&&topHoje.postsHoje?' ('+topHoje.postsHoje+' posts)':'')],
    [topFila&&topFila.naFila?topFila.emoji+' '+topFila.nome:'-','maior fila de espera'+(topFila&&topFila.naFila?' ('+topFila.naFila+' ofertas)':'')],
+   (()=>{const v=nichos.slice().sort((a,b)=>b.comissao7d-a.comissao7d)[0];return [v&&v.comissao7d?v.emoji+' '+v.nome:'-',v&&v.comissao7d?'nicho que mais rendeu em 7 dias ('+reais(v.comissao7d)+' de comissão na Shopee)':'nicho que mais rendeu (ainda sem vendas lidas da Shopee)']})(),
    [nichos.filter(n=>n.temRota).length+' de '+nichos.length,'nichos com canal próprio']].forEach(([n,l])=>{const c=el('div','card');c.append(el('div','n',n),el('div','l',l));dest.append(c)});
   let ang=0;const fatias=[];
   nichos.filter(n=>n.posts7dias>0).forEach(n=>{const f=n.posts7dias/tot7*100;fatias.push(cor(n.chave)+' '+ang+'% '+(ang+f)+'%');ang+=f});
@@ -309,8 +316,8 @@ const t=new Date(s.atualizadoEm).getTime();
   nichos.filter(n=>n.posts7dias>0).forEach(n=>{const d=el('div');const q=el('i');q.style.background=cor(n.chave);d.append(q,el('b','',n.emoji+' '+n.nome),el('span','',n.posts7dias+' ('+Math.round(n.posts7dias/tot7*100)+'%)'));lg.append(d)});
   if(!tot7)lg.append(el('div','sub','Ainda sem posts nos últimos 7 dias.'));
   const tn=document.getElementById('nichos');
-  const hn=el('tr');['Nicho','Hoje','7 dias','Na fila','Aprovadas 24h','Canal'].forEach(x=>hn.append(el('th','',x)));tn.append(hn);
-  nichos.forEach(n=>{const r=el('tr');r.append(el('td','',n.emoji+' '+n.nome),el('td','',String(n.postsHoje)),el('td','',String(n.posts7dias)),el('td','',String(n.naFila)),el('td','',String(n.aprovadas24h)),el('td','',(n.temRota?(n.canal||'canal próprio'):'')+(n.noGeral&&(!n.temRota||s.tambemNoGeral)?(n.temRota?' + geral':'canal geral'):(n.temRota?'':'não enviado'))));tn.append(r)});
+  const hn=el('tr');['Nicho','Hoje','7 dias','Na fila','Aprovadas 24h','Vendas 7d','Comissão 7d','Canal'].forEach(x=>hn.append(el('th','',x)));tn.append(hn);
+  nichos.forEach(n=>{const r=el('tr');r.append(el('td','',n.emoji+' '+n.nome),el('td','',String(n.postsHoje)),el('td','',String(n.posts7dias)),el('td','',String(n.naFila)),el('td','',String(n.aprovadas24h)),el('td','',String(n.vendas7d)),el('td','',n.comissao7d?reais(n.comissao7d):'-'),el('td','',(n.temRota?(n.canal||'canal próprio'):'')+(n.noGeral&&(!n.temRota||s.tambemNoGeral)?(n.temRota?' + geral':'canal geral'):(n.temRota?'':'não enviado'))));tn.append(r)});
   if(!nichos.length){const r=el('tr');r.append(el('td','','Ainda sem ofertas por nicho: aparece depois da próxima rodada.'));tn.append(r)}
   const ar=document.getElementById('avisos-rotas');
   (s.avisosDeRotas||[]).forEach(m=>ar.append(el('div','aviso',m)));

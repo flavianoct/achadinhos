@@ -112,6 +112,17 @@ async function modoNuvem(): Promise<void> {
       if (cupom.resultado.postou) dizer(`- Cupom postado: ${cupom.resultado.cupom.titulo}`);
       else if (cupom.resultado.motivo === 'erro') dizer(`- **Erro ao postar cupom:** ${cupom.resultado.detalhe}`);
     }
+
+    // Campanhas da Shopee (CAMPANHAS_POR_DIA) e leitura das vendas para o painel. Erro aqui é aviso: não derruba a rodada.
+    const campanha = await robo.postarCampanhaAgora();
+    if (campanha.postou) dizer(`- Campanha da Shopee postada: ${campanha.campanha.nome}`);
+    else if (campanha.motivo === 'erro') dizer(`- **Aviso na campanha da Shopee:** ${campanha.detalhe}`);
+    try {
+      const vendas = await robo.atualizarVendasAgora();
+      if (vendas !== undefined) dizer(`- Vendas da Shopee: ${vendas} itens lidos (últimos ${robo.config.vendas.dias} dias).`);
+    } catch (e) {
+      dizer(`- **Aviso nas vendas da Shopee:** ${(e as Error).message}`);
+    }
   }
 
   // O blog é gravado mesmo sem chaves: assim o site existe desde a primeira execução.
