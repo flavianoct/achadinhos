@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { destinosDoWhatsapp, lerConfig } from '../src/config.ts';
 import { paginaDaBio } from '../src/bio.ts';
+import { convitePeloInstagram, montarMensagemWhatsapp } from '../src/mensagem.ts';
+import { montarLegenda } from '../src/social.ts';
 import type { OfertaAvaliada } from '../src/types.ts';
 
 const config = lerConfig({ BLOG_URL: 'https://flavianoct.github.io/achadinhos', BLOG_TELEGRAM: 'https://t.me/topfera_achadinhos' });
@@ -85,4 +87,24 @@ test('whatsapp: WHATSAPP_DESTINOS aceita canal e grupo, limpa parâmetros do lin
   assert.deepEqual(destinosDoWhatsapp('https://exemplo.com/channel/0029VbDtCLD2UPBAGBZ4UO1W,javascript:alert(1),  ,@g.us'), []);
   assert.deepEqual(lerConfig({ WHATSAPP_DESTINOS: canal }).whatsapp.destinos, [canal]);
   assert.deepEqual(lerConfig({}).whatsapp.destinos, []);
+});
+test('links cruzados: o WhatsApp leva o Instagram no fim da mensagem e o Instagram avisa do WhatsApp (e a bio tem canal e grupo)', () => {
+  const canal = 'https://whatsapp.com/channel/0029VbDtCLD2UPBAGBZ4UO1W';
+  const grupo = 'https://chat.whatsapp.com/KRJ3OtHhmZ10XfReNMTIaw';
+  const completo = lerConfig({ BLOG_URL: 'https://flavianoct.github.io/achadinhos', BLOG_TELEGRAM: 'https://t.me/topfera_achadinhos', BLOG_INSTAGRAM: '@mulher_empreededoraoficial', BLOG_WHATSAPP: canal, WHATSAPP_DESTINOS: `${canal},${grupo}` });
+
+  assert.equal(convitePeloInstagram(completo), '📸 Siga no Instagram: instagram.com/mulher_empreededoraoficial/');
+  assert.equal(convitePeloInstagram(config), '', 'sem Instagram configurado, não acrescenta nada');
+  const msg = montarMensagemWhatsapp(oferta, convitePeloInstagram(completo));
+  assert.ok(msg.trimEnd().endsWith('instagram.com/mulher_empreededoraoficial/'), 'o convite fica no fim');
+  assert.ok(msg.indexOf('mercadolivre') >= 0 && msg.indexOf('matt_word') < msg.indexOf('instagram.com'), 'o link da oferta vem antes do convite (a prévia do WhatsApp usa o primeiro link)');
+  assert.equal(montarMensagemWhatsapp(oferta), montarMensagemWhatsapp(oferta, ''), 'sem rodapé a mensagem não muda');
+
+  assert.match(montarLegenda(oferta, completo), /💬 Receba as ofertas também no WhatsApp \(canal e grupo\): link na bio/);
+  assert.ok(!montarLegenda(oferta, config).includes('WhatsApp'), 'sem WhatsApp configurado, a legenda não promete');
+
+  const h = paginaDaBio([oferta], completo, new Date());
+  assert.match(h, new RegExp(`href="${canal}"[^>]*>Receber no WhatsApp \\(canal\\)`));
+  assert.match(h, new RegExp(`href="${grupo}"[^>]*>Entrar no grupo do WhatsApp`));
+  assert.ok(!paginaDaBio([oferta], lerConfig({ BLOG_WHATSAPP: canal }), new Date()).includes('Entrar no grupo'), 'sem grupo configurado não aparece o botão do grupo');
 });

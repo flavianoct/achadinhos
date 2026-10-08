@@ -1,6 +1,6 @@
 import type { Config } from './config.ts';
 import { horaDe, type Banco } from './db.ts';
-import { escaparHtml, montarMensagemWhatsapp } from './mensagem.ts';
+import { convitePeloInstagram, escaparHtml, montarMensagemWhatsapp } from './mensagem.ts';
 import { escolherCampanha, type Campanha, type ItemVendido } from './shopee-extra.ts';
 import { chaveDoCupom, escolherCupom, type Cupom } from './cupons.ts';
 import { categorizar, contemPalavra, normalizar } from './categoria.ts';
@@ -122,7 +122,7 @@ export async function postarProxima(publicador: Publicador, banco: Banco, config
   banco.registrarPost(oferta, agora, canais[0] ?? 'whatsapp');
   // A mesma oferta que saiu no Telegram também vira mensagem de WhatsApp (o enviador do PC é quem posta e escolhe os
   // grupos e canais pelo nicho dela).
-  if (config.whatsapp.ativo) banco.guardarParaWhatsapp(oferta, montarMensagemWhatsapp(oferta), agora);
+  if (config.whatsapp.ativo) banco.guardarParaWhatsapp(oferta, montarMensagemWhatsapp(oferta, convitePeloInstagram(config)), agora);
   if (config.social.ativo) banco.guardarParaSocial(oferta, agora);
   banco.removerDaFila(oferta.loja, oferta.idProduto);
   return { postou: true, oferta, canais, avisos };

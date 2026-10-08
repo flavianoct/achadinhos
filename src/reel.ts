@@ -7,7 +7,7 @@ import { escolherParaCarrossel } from './carrossel.ts';
 import type { Config } from './config.ts';
 import { diaDe, horaDe, type Banco } from './db.ts';
 import { sintetizarMusica } from './musica.ts';
-import { baixarImagemComoDataUri, montarSvgDoStory, renderizarPng, type Fetch } from './social.ts';
+import { baixarImagemComoDataUri, montarSvgDoStory, renderizarPng, temWhatsapp, type Fetch } from './social.ts';
 import type { OfertaAvaliada } from './types.ts';
 
 const executar = promisify(execFile);
@@ -89,7 +89,7 @@ export function legendaDoReel(dados: DadosDoReel, config: Config): string {
     '',
     ...linhas,
     '',
-    `Salva para não perder e manda para quem vai gostar 💾${telegram}`,
+    `Salva para não perder e manda para quem vai gostar 💾${telegram}${temWhatsapp(config) ? '\n💬 Também no WhatsApp: canal e grupo, link na bio' : ''}`,
     '',
     'Publi: links de afiliado. Preços e estoque podem mudar a qualquer momento.',
     '',

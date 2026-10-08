@@ -172,6 +172,11 @@ function titulosCurto(titulo: string, max = 70): string {
 }
 
 /** Legenda para Instagram e TikTok. O link não é clicável na legenda: manda para a bio. */
+/** O blog tem canal ou grupo de WhatsApp configurado? Se sim, as legendas e a bio divulgam. */
+export function temWhatsapp(config: Config): boolean {
+  return Boolean(config.blog.whatsappLink || config.whatsapp.destinos.length);
+}
+
 export function montarLegenda(o: OfertaAvaliada, config: Config): string {
   const linhas: string[] = [];
   // A primeira linha é o que aparece antes do "mais": gancho e aviso de publicidade já ali.
@@ -187,6 +192,7 @@ export function montarLegenda(o: OfertaAvaliada, config: Config): string {
   if (o.nota && o.nota > 0) linhas.push(`⭐ ${o.nota.toFixed(1).replace('.', ',')}${o.vendas ? ` · ${formatarVendas(o.vendas)} vendidos` : ''}`);
   linhas.push('');
   linhas.push(`👉 Todas as ofertas no blog, link na bio: ${enderecoDoBlog(config)}`);
+  if (temWhatsapp(config)) linhas.push('💬 Receba as ofertas também no WhatsApp (canal e grupo): link na bio');
   linhas.push('');
   linhas.push('Publi: link de afiliado. O preço pode mudar a qualquer momento.');
   linhas.push('');

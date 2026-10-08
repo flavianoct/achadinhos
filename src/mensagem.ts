@@ -1,3 +1,4 @@
+import type { Config } from './config.ts';
 import type { OfertaAvaliada } from './types.ts';
 
 const NOME_DA_LOJA: Record<string, string> = {
@@ -61,7 +62,14 @@ export function montarMensagem(o: OfertaAvaliada): string {
  * Texto do WhatsApp: formatação própria (*negrito*, ~riscado~, _itálico_) e o link solto,
  * porque o WhatsApp não tem botão como o Telegram.
  */
-export function montarMensagemWhatsapp(o: OfertaAvaliada): string {
+/** Linha de convite no fim das mensagens de WhatsApp: leva o grupo e o canal para o Instagram. Vazia se o Instagram do blog não estiver configurado. */
+export function convitePeloInstagram(config: Config): string {
+  const link = config.blog.instagramLink;
+  return link ? `📸 Siga no Instagram: ${link.replace(/^https:\/\/(www\.)?/, '')}` : '';
+}
+
+/** `rodape` é uma linha extra no fim (por exemplo, o convite para o Instagram); vazio = não acrescenta nada. */
+export function montarMensagemWhatsapp(o: OfertaAvaliada, rodape = ''): string {
   const linhas: string[] = [];
   linhas.push(`🔥 *${encurtar(o.titulo, 140).replace(/[*_~]/g, '')}*`);
   linhas.push('');
@@ -79,5 +87,6 @@ export function montarMensagemWhatsapp(o: OfertaAvaliada): string {
   linhas.push(`👉 ${o.link}`);
   linhas.push('');
   linhas.push('_Preço pode mudar a qualquer momento._');
+  if (rodape) linhas.push('', rodape);
   return linhas.join('\n');
 }

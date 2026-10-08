@@ -64,7 +64,9 @@ export function paginaDaBio(ofertas: OfertaAvaliada[], config: Config, agora: Da
     ? `<a class="botao telegram fim" href="${esc(telegram)}" target="_blank" rel="noopener">Quero receber as ofertas no Telegram</a>`
     : '';
   const whatsapp = https(config.blog.whatsappLink);
-  const botaoWhatsapp = whatsapp ? `<a class="botao whatsapp" href="${esc(whatsapp)}" target="_blank" rel="noopener">Receber no WhatsApp</a>` : '';
+  // O canal do WhatsApp (BLOG_WHATSAPP) e, se houver, o grupo (um link chat.whatsapp.com em WHATSAPP_DESTINOS).
+  const grupo = https(config.whatsapp.destinos.find((d) => /chat\.whatsapp\.com\//i.test(d)));
+  const botaoWhatsapp = [whatsapp ? `<a class="botao whatsapp" href="${esc(whatsapp)}" target="_blank" rel="noopener">Receber no WhatsApp (canal)</a>` : '', grupo ? `<a class="botao whatsapp" href="${esc(grupo)}" target="_blank" rel="noopener">Entrar no grupo do WhatsApp</a>` : ''].filter(Boolean).join('\n  ');
   const botoes: string[] = [];
   if (blog) botoes.push(`<a class="botao blog" href="${esc(blog)}">Ver o blog com guias de compra</a>`);
 
