@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ResultadoDoBlog } from './blog.ts';
 import { CATEGORIAS, NICHOS, nomeDoNicho } from './categoria.ts';
@@ -174,6 +174,15 @@ export function publicarControle(banco: Banco, config: Config, dados: DadosDaRod
   writeFileSync(join(pasta, 'whatsapp.json'), JSON.stringify(montarWhatsapp(config, mensagens, agora), null, 2), 'utf8');
   writeFileSync(join(pasta, 'social.json'), JSON.stringify({ atualizadoEm: agora.toISOString(), itens: conteudoSocialRecente(banco, config, agora) }), 'utf8');
   writeFileSync(join(pasta, 'painel.html'), PAGINA_DO_PAINEL, 'utf8');
+  writeFileSync(join(pasta, 'configurar.html'), paginaDeConfigurar(), 'utf8');
+}
+
+/** Página de configuração com seletores (src/configurar.html), com a lista de nichos embutida. */
+export function paginaDeConfigurar(): string {
+  const nichos = CATEGORIAS.map((chave) => ({ chave, nome: NICHOS[chave]!.nome, emoji: NICHOS[chave]!.emoji }));
+  // JSON dentro de <script>: "<" escapado para nenhum texto fechar a tag.
+  const json = JSON.stringify(nichos).replace(/</g, '\\u003c');
+  return readFileSync(new URL('./configurar.html', import.meta.url), 'utf8').replace('/*NICHOS*/[]', json);
 }
 
 export const PAGINA_DO_PAINEL = `<!doctype html>
@@ -220,6 +229,8 @@ tr:last-child td{border-bottom:0}
 .rosca::after{content:'';position:absolute;inset:30px;background:var(--card);border-radius:50%}
 .leg{width:100%;font-size:13px}.leg div{display:flex;align-items:center;gap:6px;padding:1px 0}.leg i{width:10px;height:10px;border-radius:3px;flex:none}.leg span{margin-left:auto;color:var(--mut)}
 .filtros{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}.filtros button{background:var(--card);color:var(--tx);border:1px solid var(--bd);border-radius:99px;padding:4px 12px;font:inherit;font-size:13px;cursor:pointer}.filtros button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+#nicho-destaques .n{font-size:20px;overflow-wrap:anywhere}
+@media(max-width:600px){table{display:block;overflow-x:auto}}
 .mini{display:flex;height:8px;border-radius:4px;overflow:hidden;background:var(--bd);min-width:60px}.mini i{display:block;height:100%}
 </style>
 </head>
@@ -324,7 +335,7 @@ const t=new Date(s.atualizadoEm).getTime();
   const c=document.getElementById('controles');
   if(s.repo){
     const base='https://github.com/'+s.repo;
-    [['Rodar agora',base+'/actions/workflows/robo.yml',''],['Editar ajustes',base+'/edit/main/ajustes.env','s'],['Ver rodadas',base+'/actions','s'],['Chaves (Secrets)',base+'/settings/secrets/actions','s']].forEach(([n,u,k])=>{const a=el('a','b '+k,n);a.href=u;a.target='_blank';a.rel='noopener';c.append(a)});
+    [['Configurar (seletores)','configurar.html',''],['Rodar agora',base+'/actions/workflows/robo.yml','s'],['Editar ajustes',base+'/edit/main/ajustes.env','s'],['Ver rodadas',base+'/actions','s'],['Chaves (Secrets)',base+'/settings/secrets/actions','s']].forEach(([n,u,k])=>{const a=el('a','b '+k,n);a.href=u;a.target='_blank';a.rel='noopener';c.append(a)});
   }
   if(s.blogUrl){const a=el('a','b s','Abrir o blog');a.href=s.blogUrl;a.target='_blank';c.append(a)}
   if(s.telegramLink){const a=el('a','b s','Abrir o canal do Telegram');a.href=s.telegramLink;a.target='_blank';c.append(a)}

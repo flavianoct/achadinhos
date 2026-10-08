@@ -207,3 +207,11 @@ test('whatsapp por nicho: rotas viram destinos com nichos, o filtro do geral vai
   assert.equal(msgs.length, 1);
   assert.equal(msgs[0].categoria, 'pet');
 });
+
+test('configurar: a página sai com a lista de nichos embutida e o painel tem o link para ela', async () => {
+  const { paginaDeConfigurar, PAGINA_DO_PAINEL } = await import('../src/exportar.ts');
+  const html = paginaDeConfigurar();
+  assert.ok(!html.includes('/*NICHOS*/'));
+  assert.match(html, /const NICHOS = \[\{"chave":"tech","nome":"Eletrônicos"/);
+  assert.match(PAGINA_DO_PAINEL, /configurar\.html/);
+});
