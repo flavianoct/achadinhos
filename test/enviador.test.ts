@@ -66,3 +66,10 @@ test('enviador: destino de nicho recebe só o nicho dele; destino geral segue o 
   assert.equal(destinoAceita(geral, 'casa', { nichos: ['tech'] }), false);
   assert.equal(destinoAceita(geral, 'tech', { nichos: ['tech'] }), true);
 });
+
+test('enviador: foto do Mercado Livre é pedida primeiro em JPEG (sem precisar do conversor); outras ficam como estão', async () => {
+  const { enderecosDaFoto } = await import('../enviador/logica.mjs');
+  assert.deepEqual(enderecosDaFoto('https://http2.mlstatic.com/D_Q_NP_2X_123-AB.webp'), ['https://http2.mlstatic.com/D_Q_NP_2X_123-AB.jpg', 'https://http2.mlstatic.com/D_Q_NP_2X_123-AB.webp']);
+  assert.deepEqual(enderecosDaFoto('https://down-br.img.susercontent.com/file/abc'), ['https://down-br.img.susercontent.com/file/abc']);
+  assert.deepEqual(enderecosDaFoto(undefined), []);
+});

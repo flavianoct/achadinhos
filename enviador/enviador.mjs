@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import makeWASocket, { Browsers, DisconnectReason, fetchLatestBaileysVersion, useMultiFileAuthState } from '@whiskeysockets/baileys';
 import pino from 'pino';
 import qrcode from 'qrcode-terminal';
-import { destinoAceita, esperaAleatoria, podarEstado, podeEnviarAgora, selecionarPendentes, tipoDeDestino } from './logica.mjs';
+import { destinoAceita, enderecosDaFoto, esperaAleatoria, podarEstado, podeEnviarAgora, selecionarPendentes, tipoDeDestino } from './logica.mjs';
 
 const aqui = dirname(fileURLToPath(import.meta.url));
 const CAMINHO_CONFIG = join(aqui, 'config.json');
@@ -233,32 +233,36 @@ async function baixarArte(id) {
   }
 }
 
-/**
- * A foto do produto, a mesma que o robô manda no Telegram. O Mercado Livre entrega WebP, então converte para JPEG
- * (o WhatsApp aceita JPEG em qualquer lugar). Sem o sharp instalado, só segue se a foto já for JPEG ou PNG.
- */
+/** A foto do produto, a mesma que o robô manda no Telegram, em JPEG ou PNG (o que o WhatsApp aceita em grupo). */
 async function baixarFoto(url) {
-  if (!url) return undefined;
-  try {
-    const r = await fetch(url, { signal: AbortSignal.timeout(30_000) });
-    if (!r.ok) return undefined;
-    const bruto = Buffer.from(await r.arrayBuffer());
+  for (const endereco of enderecosDaFoto(url)) {
     try {
-      const { default: sharp } = await import('sharp');
-      return { buffer: await sharp(bruto).jpeg({ quality: 88 }).toBuffer(), mimetype: 'image/jpeg' };
-    } catch {
+      const r = await fetch(endereco, { signal: AbortSignal.timeout(30_000) });
+      if (!r.ok) continue;
+      const bruto = Buffer.from(await r.arrayBuffer());
       const tipo = (r.headers.get('content-type') ?? '').split(';')[0];
-      return tipo === 'image/jpeg' || tipo === 'image/png' ? { buffer: bruto, mimetype: tipo } : undefined;
+      if (tipo === 'image/jpeg' || tipo === 'image/png') return { buffer: bruto, mimetype: tipo };
+      // Outro formato (WebP): converte com o sharp, se estiver instalado.
+      try {
+        const { default: sharp } = await import('sharp');
+        return { buffer: await sharp(bruto).jpeg({ quality: 88 }).toBuffer(), mimetype: 'image/jpeg' };
+      } catch {
+        // sem o sharp: tenta o próximo endereço
+      }
+    } catch {
+      // tenta o próximo endereço
     }
-  } catch {
-    return undefined;
   }
+  return undefined;
 }
 
-/** A imagem do grupo conforme o ajuste: a foto do produto primeiro (igual ao Telegram), a arte como reserva, ou o contrário. */
+/**
+ * A imagem do grupo: a foto do produto, igual ao Telegram. A arte do Instagram só entra com "imagemDoGrupo": "arte"
+ * no config.json. Se a foto não baixar, a mensagem vai como texto com a prévia do link (nunca a arte no lugar da foto).
+ */
 async function imagemParaGrupo(m) {
   if (imagemDoGrupo === 'arte') return (await baixarArte(m.id)) ?? (await baixarFoto(m.imagem));
-  return (await baixarFoto(m.imagem)) ?? (await baixarArte(m.id));
+  return baixarFoto(m.imagem);
 }
 
 /**
@@ -293,12 +297,12 @@ async function enviarUma(sock, jid, m) {
     const arte = await imagemParaGrupo(m);
     if (arte) {
       try {
-        recibo(await sock.sendMessage(jid, { image: arte.buffer, mimetype: arte.mimetype, caption: m.texto }), 'imagem com legenda');
+        recibo(await sock.sendMessage(jid, { image: arte.buffer, mimetype: arte.mimetype, caption: m.texto }), imagemDoGrupo === 'arte' ? 'arte com legenda' : 'foto do produto com legenda');
         return;
       } catch (e) {
         log(`  imagem falhou (${e.message}); enviando só o texto.`);
       }
-    } else log('  sem foto nem arte para esta oferta; enviando só o texto.');
+    } else log(`  a foto do produto não baixou (${m.imagem ?? 'oferta sem foto'}); enviando o texto com a prévia do link.`);
   }
   const linkPreview = usarPrevia ? await montarPrevia(m) : undefined;
   recibo(await sock.sendMessage(jid, linkPreview ? { text: m.texto, linkPreview } : { text: m.texto }), linkPreview ? 'texto com prévia' : 'texto');
