@@ -38,8 +38,17 @@ jobs:
           node-version: 24
 
       - name: Instalar o ffmpeg (monta o vídeo do Reel)
-        # Se falhar, o robô segue normalmente e só não publica o Reel do dia.
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+        # Se já vier instalado, não faz nada. Se falhar ou demorar mais de 3 minutos, o robô segue normalmente e só não publica o Reel do dia.
+        # (Uma vez o apt travou por 20 minutos e derrubou a rodada inteira: por isso o limite próprio deste passo.)
+        timeout-minutes: 3
+        run: |
+          if command -v ffmpeg >/dev/null 2>&1; then
+            ffmpeg -version | head -1
+          else
+            export DEBIAN_FRONTEND=noninteractive
+            sudo apt-get -o DPkg::Lock::Timeout=60 -o Acquire::Retries=1 -o Acquire::http::Timeout=20 update -qq
+            sudo apt-get -o DPkg::Lock::Timeout=60 install -y -qq --no-install-recommends ffmpeg
+          fi
         continue-on-error: true
 
       - name: Instalar o conversor de imagens
