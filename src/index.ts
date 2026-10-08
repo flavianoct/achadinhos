@@ -176,7 +176,8 @@ async function main(): Promise<void> {
       process.exitCode = 1;
       return;
     }
-    const relatorio = await descreverApiShopee(appId, secret);
+    const { listarCampanhasShopee } = await import('./descobrir.ts');
+    const relatorio = `${await descreverApiShopee(appId, secret)}\n\n${await listarCampanhasShopee(appId, secret)}`;
     console.log(relatorio);
     if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${relatorio}\n`);
     return;
