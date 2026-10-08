@@ -149,6 +149,7 @@ ROTAS_TELEGRAM=tech=@meucanaltech,moda=@meucanalmoda
 - O bot precisa ser administrador de cada canal (a opção "Testar chaves" do painel local confere todos).
 - Nicho sem rota vai para o canal geral (`TELEGRAM_CHAT_ID`). Assim o geral recebe tudo o que não tem canal próprio.
 - `ROTAS_TAMBEM_NO_GERAL=1` faz as ofertas de nichos com canal próprio saírem também no geral.
+- **Filtro do canal geral:** `GERAL_NICHOS=tech,casa` deixa entrar no geral só esses nichos (vazio = todos); `GERAL_SEM_NICHOS=bebe,pet` tira esses nichos do geral. Uma oferta de nicho sem canal próprio que o geral não aceita não é postada no Telegram (continua no blog). O filtro vale também para `ROTAS_TAMBEM_NO_GERAL` e para o desvio quando um canal de nicho recusa. Na tabela do painel, esses nichos aparecem como "não enviado".
 - Se um canal de nicho recusar o post (bot sem permissão, canal apagado), a oferta não se perde: vai para o canal geral e a rodada mostra um aviso.
 - Nome de nicho que não existe ou canal escrito errado é ignorado e aparece como aviso no resumo da rodada e no painel.
 
