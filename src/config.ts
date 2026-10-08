@@ -8,7 +8,15 @@ export interface Config {
    * Roteamento por nicho: cada categoria pode ter o seu canal do Telegram (ROTAS_TELEGRAM=tech=@canaltech,moda=@canalmoda).
    * Categoria sem rota vai para o canal geral (TELEGRAM_CHAT_ID). Rota inválida é ignorada e vira aviso.
    */
-  rotas: { porCategoria: Record<string, string>; tambemNoGeral: boolean; avisos: string[] };
+  rotas: {
+    porCategoria: Record<string, string>;
+    tambemNoGeral: boolean;
+    /** Nichos aceitos no canal geral (GERAL_NICHOS). Vazio = todos. */
+    geralNichos: string[];
+    /** Nichos que nunca vão para o canal geral (GERAL_SEM_NICHOS). */
+    geralSem: string[];
+    avisos: string[];
+  };
   shopee: { ativo: boolean; appId: string; secret: string; palavras: string[]; paginas: number };
   ml: {
     ativo: boolean;
@@ -185,8 +193,18 @@ export function salvarNoEnv(alteracoes: Record<string, string>, caminho = '.env'
 }
 
 /** Lê "categoria=@canal, categoria=-100123" do ajuste ROTAS_TELEGRAM. */
-export function lerRotas(texto: string | undefined, tambemNoGeral: boolean): Config['rotas'] {
-  const rotas: Config['rotas'] = { porCategoria: {}, tambemNoGeral, avisos: [] };
+export function lerRotas(texto: string | undefined, tambemNoGeral: boolean, geralNichos?: string, geralSem?: string): Config['rotas'] {
+  const rotas: Config['rotas'] = { porCategoria: {}, tambemNoGeral, geralNichos: [], geralSem: [], avisos: [] };
+  const nichos = (valor: string | undefined, chave: string): string[] =>
+    lista(valor)
+      .map((n) => n.toLowerCase())
+      .filter((n) => {
+        if (CATEGORIAS.includes(n)) return true;
+        rotas.avisos.push(`${chave}: nicho "${n}" não existe (use: ${CATEGORIAS.join(', ')}).`);
+        return false;
+      });
+  rotas.geralNichos = nichos(geralNichos, 'GERAL_NICHOS');
+  rotas.geralSem = nichos(geralSem, 'GERAL_SEM_NICHOS');
   for (const item of lista(texto)) {
     const [categoria, ...resto] = item.split('=');
     const chave = (categoria ?? '').trim().toLowerCase();
@@ -201,7 +219,7 @@ export function lerRotas(texto: string | undefined, tambemNoGeral: boolean): Con
 export function lerConfig(env: Env = process.env): Config {
   const chatId = (env.TELEGRAM_CHAT_ID ?? '').trim();
   return {
-    rotas: lerRotas(env.ROTAS_TELEGRAM, ligado(env, 'ROTAS_TAMBEM_NO_GERAL', false)),
+    rotas: lerRotas(env.ROTAS_TELEGRAM, ligado(env, 'ROTAS_TAMBEM_NO_GERAL', false), env.GERAL_NICHOS, env.GERAL_SEM_NICHOS),
     telegram: {
       token: (env.TELEGRAM_BOT_TOKEN ?? '').trim(),
       chatId,

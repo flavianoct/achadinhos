@@ -38,7 +38,7 @@ test('rotas: lê categoria=canal, ignora o que é inválido e avisa', () => {
   assert.equal(r.avisos.length, 3);
   assert.match(r.avisos.join('\n'), /categoria "x" não existe/);
   assert.match(r.avisos.join('\n'), /canal "abc" de "casa"/);
-  assert.deepEqual(lerRotas('', false), { porCategoria: {}, tambemNoGeral: false, avisos: [] });
+  assert.deepEqual(lerRotas('', false), { porCategoria: {}, tambemNoGeral: false, geralNichos: [], geralSem: [], avisos: [] });
 });
 
 test('rotas: nicho com canal vai só para ele; sem rota vai ao geral; "também no geral" manda aos dois', () => {
@@ -47,6 +47,18 @@ test('rotas: nicho com canal vai só para ele; sem rota vai ao geral; "também n
   assert.deepEqual(destinosDaOferta('moda', c), ['@geral_canal']);
   assert.deepEqual(destinosDaOferta('tech', lerConfig({ ...base, ROTAS_TELEGRAM: 'tech=@canal_tech', ROTAS_TAMBEM_NO_GERAL: '1' })), ['@canal_tech', '@geral_canal']);
   assert.deepEqual(destinosDaOferta('tech', lerConfig({ ...base, ROTAS_TELEGRAM: 'tech=@geral_canal' })), ['@geral_canal'], 'rota igual ao geral não duplica');
+});
+
+test('canal geral: GERAL_NICHOS escolhe o que entra, GERAL_SEM_NICHOS tira; nicho com canal próprio não é afetado', () => {
+  const so = lerConfig({ ...base, GERAL_NICHOS: 'tech, casa', ROTAS_TELEGRAM: 'moda=@canal_moda' });
+  assert.deepEqual(destinosDaOferta('tech', so), ['@geral_canal']);
+  assert.deepEqual(destinosDaOferta('pet', so), [], 'pet não tem canal e o geral não aceita');
+  assert.deepEqual(destinosDaOferta('moda', so), ['@canal_moda']);
+  const sem = lerConfig({ ...base, GERAL_SEM_NICHOS: 'bebe,pet', ROTAS_TELEGRAM: 'pet=@canal_pet', ROTAS_TAMBEM_NO_GERAL: '1' });
+  assert.deepEqual(destinosDaOferta('bebe', sem), []);
+  assert.deepEqual(destinosDaOferta('pet', sem), ['@canal_pet'], 'também-no-geral respeita o filtro do geral');
+  assert.deepEqual(destinosDaOferta('casa', sem), ['@geral_canal']);
+  assert.match(lerConfig({ ...base, GERAL_NICHOS: 'eletronicos' }).rotas.avisos[0], /GERAL_NICHOS: nicho "eletronicos" não existe/);
 });
 
 class Falso implements Publicador {
@@ -90,6 +102,19 @@ test('envio: canal do nicho que recusa não perde a oferta, ela vai ao geral com
   const r2 = await postarProxima(rede, banco, c, AGORA);
   assert.equal(r2.postou, false);
   assert.equal(banco.tamanhoDaFila(), 1, 'fica na fila para a próxima rodada');
+});
+
+test('envio: oferta que não vai para canal nenhum sai da fila e a próxima é postada', async () => {
+  const banco = new Banco(':memory:');
+  const c = lerConfig({ ...base, GERAL_SEM_NICHOS: 'pet' });
+  const pub = new Falso();
+  banco.enfileirar({ ...oferta('Ração para Cães 15kg', 'PET'), pontos: 99 }, AGORA);
+  banco.enfileirar(oferta('Air Fryer 4L', 'CASA'), AGORA);
+  const r = await postarProxima(pub, banco, c, AGORA);
+  assert.ok(r.postou);
+  assert.deepEqual(pub.enviados, [{ id: 'CASA', destino: '@geral_canal' }]);
+  assert.equal(banco.tamanhoDaFila(), 0, 'a de pet foi descartada');
+  assert.deepEqual(await postarProxima(pub, banco, c, AGORA), { postou: false, motivo: 'fila vazia' });
 });
 
 test('painel: números por nicho juntam posts, fila e rotas', () => {

@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import type { ResultadoDoBlog } from './blog.ts';
 import { CATEGORIAS, NICHOS, nomeDoNicho } from './categoria.ts';
 import type { Config } from './config.ts';
+import { geralAceita } from './rotas.ts';
 import type { Banco } from './db.ts';
 import type { ResumoDaColeta } from './pipeline.ts';
 import type { ResumoDoInstagram } from './instagram.ts';
@@ -41,6 +42,7 @@ export interface StatusPublico {
   nichos: Nicho[];
   /** Avisos de configuração das rotas (categoria ou canal inválido). */
   avisosDeRotas: string[];
+  tambemNoGeral: boolean;
 }
 
 export interface Nicho {
@@ -54,6 +56,8 @@ export interface Nicho {
   aprovadas24h: number;
   /** Tem canal próprio no Telegram? */
   temRota: boolean;
+  /** O filtro do canal geral aceita este nicho? */
+  noGeral: boolean;
   /** Só mostra o canal quando é público (@nome); ID numérico não aparece no arquivo público. */
   canal?: string;
 }
@@ -77,6 +81,7 @@ export function montarNichos(banco: Banco, config: Config, agora: Date): Nicho[]
         naFila: fila.get(chave) ?? 0,
         aprovadas24h: aprovadas.get(chave) ?? 0,
         temRota: Boolean(rota),
+        noGeral: geralAceita(chave, config),
         canal: rota?.startsWith('@') ? rota : undefined,
       };
     })
@@ -126,6 +131,7 @@ export function montarStatus(banco: Banco, config: Config, dados: DadosDaRodada,
     ultimosPosts: banco.ultimosPosts(40).map((p) => ({ loja: p.loja, titulo: p.titulo, categoria: p.categoria, preco: p.preco, postadoEm: p.postadoEm })),
     nichos: montarNichos(banco, config, agora),
     avisosDeRotas: config.rotas.avisos,
+    tambemNoGeral: config.rotas.tambemNoGeral,
   };
 }
 
@@ -286,7 +292,7 @@ const t=new Date(s.atualizadoEm).getTime();
   if(!tot7)lg.append(el('div','sub','Ainda sem posts nos últimos 7 dias.'));
   const tn=document.getElementById('nichos');
   const hn=el('tr');['Nicho','Hoje','7 dias','Na fila','Aprovadas 24h','Canal'].forEach(x=>hn.append(el('th','',x)));tn.append(hn);
-  nichos.forEach(n=>{const r=el('tr');r.append(el('td','',n.emoji+' '+n.nome),el('td','',String(n.postsHoje)),el('td','',String(n.posts7dias)),el('td','',String(n.naFila)),el('td','',String(n.aprovadas24h)),el('td','',n.temRota?(n.canal||'canal próprio'):'canal geral'));tn.append(r)});
+  nichos.forEach(n=>{const r=el('tr');r.append(el('td','',n.emoji+' '+n.nome),el('td','',String(n.postsHoje)),el('td','',String(n.posts7dias)),el('td','',String(n.naFila)),el('td','',String(n.aprovadas24h)),el('td','',(n.temRota?(n.canal||'canal próprio'):'')+(n.noGeral&&(!n.temRota||s.tambemNoGeral)?(n.temRota?' + geral':'canal geral'):(n.temRota?'':'não enviado'))));tn.append(r)});
   if(!nichos.length){const r=el('tr');r.append(el('td','','Ainda sem ofertas por nicho: aparece depois da próxima rodada.'));tn.append(r)}
   const ar=document.getElementById('avisos-rotas');
   (s.avisosDeRotas||[]).forEach(m=>ar.append(el('div','aviso',m)));

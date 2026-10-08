@@ -5,7 +5,7 @@ import { chaveDoCupom, escolherCupom, type Cupom } from './cupons.ts';
 import { contemPalavra, normalizar } from './categoria.ts';
 import { avaliar } from './filtro.ts';
 import { elegivelParaGuia, tipoDeGuia } from './guias.ts';
-import { destinosDaOferta } from './rotas.ts';
+import { destinosDaOferta, geralAceita } from './rotas.ts';
 import { ErroTelegram, type Publicador } from './telegram.ts';
 import type { Fonte, OfertaAvaliada } from './types.ts';
 
@@ -73,20 +73,31 @@ export async function postarProxima(publicador: Publicador, banco: Banco, config
   if (banco.postsNoDia(agora) >= config.ritmo.maxPostsPorDia) return { postou: false, motivo: 'limite diário' };
 
   banco.limparFilaAntiga(HORAS_NA_FILA, agora);
-  const oferta = banco.melhorDaFila(banco.ultimaLojaPostada());
+  // Oferta de um nicho que não tem canal próprio e que o filtro do canal geral recusa não vai a lugar nenhum:
+  // sai da fila e a próxima é tentada.
+  let oferta: OfertaAvaliada | undefined;
+  let destinos: string[] = [];
+  for (let tentativa = 0; tentativa < 200; tentativa++) {
+    oferta = banco.melhorDaFila(banco.ultimaLojaPostada());
+    if (!oferta) break;
+    destinos = destinosDaOferta(oferta.categoria, config);
+    if (destinos.length) break;
+    banco.removerDaFila(oferta.loja, oferta.idProduto);
+    oferta = undefined;
+  }
   if (!oferta) return { postou: false, motivo: 'fila vazia' };
 
-  // Roteamento por nicho: o canal da categoria da oferta; sem rota, o canal geral.
+  // Roteamento por nicho: o canal da categoria da oferta; sem rota, o canal geral (se o filtro dele aceitar).
   const geral = config.telegram.chatId;
   const canais: string[] = [];
   const avisos: string[] = [];
-  for (const destino of destinosDaOferta(oferta.categoria, config)) {
+  for (const destino of destinos) {
     try {
       await publicador.publicar(oferta, destino);
       canais.push(destino);
     } catch (e) {
       const permanente = e instanceof ErroTelegram && e.permanente;
-      if (permanente && destino !== geral && !canais.includes(geral)) {
+      if (permanente && destino !== geral && !canais.includes(geral) && geralAceita(oferta.categoria, config)) {
         // O canal do nicho recusou (bot sem permissão, canal apagado): a oferta não se perde, vai para o canal geral.
         avisos.push(`canal ${destino} recusou (${(e as Error).message}); enviada ao canal geral`);
         try {
