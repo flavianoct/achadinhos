@@ -64,12 +64,36 @@ export function nomeDoNicho(categoria: string): string {
   return NICHOS[categoria]?.nome ?? categoria;
 }
 
+/**
+ * Ajustes das palavras vindos do ajustes.env (NICHO_PALAVRAS_MODA=cropped,biquini,-relogio):
+ * palavra comum soma à lista do nicho; com "-" na frente, tira a palavra do nicho.
+ */
+let ajustes: Record<string, { mais: string[]; menos: string[] }> = {};
+
+export function definirPalavrasDosNichos(porNicho: Record<string, string[]>): void {
+  ajustes = {};
+  for (const [nicho, lista] of Object.entries(porNicho)) {
+    const mais = lista.filter((p) => !p.startsWith('-')).map(normalizar);
+    const menos = lista.filter((p) => p.startsWith('-')).map((p) => normalizar(p.slice(1)));
+    ajustes[nicho] = { mais, menos };
+  }
+}
+
+function regrasEmVigor(): Array<[string, string[]]> {
+  const regras: Array<[string, string[]]> = REGRAS.map(([c, palavras]) => {
+    const a = ajustes[c];
+    return [c, a ? [...palavras.filter((p) => !a.menos.includes(p)), ...a.mais] : palavras];
+  });
+  // Palavras para "geral" não fazem sentido (é o que sobra); nicho fora da lista não existe.
+  return regras;
+}
+
 /** Pontos de cada categoria que casou com o título (só as que casaram). Serve para entender e testar a decisão. */
 export function pontuarCategorias(titulo: string): Array<{ categoria: string; pontos: number }> {
   const t = normalizar(titulo);
   const inicio = t.split(/\s+/).slice(0, 4).join(' ');
   const resultado: Array<{ categoria: string; pontos: number }> = [];
-  for (const [categoria, palavras] of REGRAS) {
+  for (const [categoria, palavras] of regrasEmVigor()) {
     let pontos = 0;
     for (const p of palavras) {
       if (!contemPalavra(t, p)) continue;

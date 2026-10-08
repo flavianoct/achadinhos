@@ -54,3 +54,15 @@ test('enviador: link de convite de grupo vira destino "grupo-por-link", com ou s
   assert.equal(tipoDeDestino('https://whatsapp.com/channel/0029VbDtCLD2UPBAGBZ4UO1W').tipo, 'canal-por-link');
   assert.equal(tipoDeDestino('https://exemplo.com/x').tipo, 'invalido');
 });
+test('enviador: destino de nicho recebe só o nicho dele; destino geral segue o filtro do geral', async () => {
+  const { destinoAceita } = await import('../enviador/logica.mjs');
+  const moda = { jid: 'a@g.us', nichos: ['moda'] };
+  const geral = { jid: 'b@g.us' };
+  assert.equal(destinoAceita(moda, 'moda'), true);
+  assert.equal(destinoAceita(moda, 'tech'), false);
+  assert.equal(destinoAceita(geral, 'tech'), true);
+  assert.equal(destinoAceita(geral, undefined), true, 'mensagem antiga sem categoria vai ao geral');
+  assert.equal(destinoAceita(geral, 'pet', { sem: ['pet'] }), false);
+  assert.equal(destinoAceita(geral, 'casa', { nichos: ['tech'] }), false);
+  assert.equal(destinoAceita(geral, 'tech', { nichos: ['tech'] }), true);
+});

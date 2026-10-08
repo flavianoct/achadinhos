@@ -130,9 +130,27 @@ export function montarStatus(banco: Banco, config: Config, dados: DadosDaRodada,
     },
     ultimosPosts: banco.ultimosPosts(40).map((p) => ({ loja: p.loja, titulo: p.titulo, categoria: p.categoria, preco: p.preco, postadoEm: p.postadoEm })),
     nichos: montarNichos(banco, config, agora),
-    avisosDeRotas: config.rotas.avisos,
+    avisosDeRotas: [...config.rotas.avisos, ...config.whatsapp.avisos],
     tambemNoGeral: config.rotas.tambemNoGeral,
   };
+}
+
+/**
+ * O que o enviador do WhatsApp lê: destinos gerais (sem `nichos`, seguem o filtro do geral em `geral`),
+ * destinos de nicho (com `nichos`) e as mensagens com a categoria de cada uma.
+ */
+export function montarWhatsapp(config: Config, mensagens: unknown[], agora: Date) {
+  const tipo = (link: string) => (link.includes('/channel/') ? 'canal' : 'grupo');
+  const destinos: Array<{ tipo: string; link: string; nichos?: string[] }> = [];
+  if (config.whatsapp.ativo) {
+    for (const link of config.whatsapp.destinos) destinos.push({ tipo: tipo(link), link });
+    for (const r of config.whatsapp.rotas) {
+      const ja = destinos.find((d) => d.link === r.link && d.nichos);
+      if (ja) ja.nichos!.push(r.nicho);
+      else destinos.push({ tipo: tipo(r.link), link: r.link, nichos: [r.nicho] });
+    }
+  }
+  return { atualizadoEm: agora.toISOString(), geral: { nichos: config.rotas.geralNichos, sem: config.rotas.geralSem }, destinos, mensagens };
 }
 
 /**
@@ -144,10 +162,10 @@ export function publicarControle(banco: Banco, config: Config, dados: DadosDaRod
   mkdirSync(pasta, { recursive: true });
   const status = montarStatus(banco, config, dados, agora, repo);
   const mensagens = config.whatsapp.ativo
-    ? banco.mensagensDoWhatsapp(HORAS_DO_WHATSAPP, agora).map((m) => ({ id: m.chave, criadoEm: m.criadoEm, loja: m.loja, texto: m.texto, imagem: m.imagem, link: m.link }))
+    ? banco.mensagensDoWhatsapp(HORAS_DO_WHATSAPP, agora).map((m) => ({ id: m.chave, criadoEm: m.criadoEm, loja: m.loja, categoria: m.categoria, texto: m.texto, imagem: m.imagem, link: m.link }))
     : [];
   writeFileSync(join(pasta, 'status.json'), JSON.stringify(status, null, 2), 'utf8');
-  writeFileSync(join(pasta, 'whatsapp.json'), JSON.stringify({ atualizadoEm: agora.toISOString(), destinos: config.whatsapp.ativo ? config.whatsapp.destinos.map((link) => ({ tipo: link.includes('/channel/') ? 'canal' : 'grupo', link })) : [], mensagens }, null, 2), 'utf8');
+  writeFileSync(join(pasta, 'whatsapp.json'), JSON.stringify(montarWhatsapp(config, mensagens, agora), null, 2), 'utf8');
   writeFileSync(join(pasta, 'social.json'), JSON.stringify({ atualizadoEm: agora.toISOString(), itens: conteudoSocialRecente(banco, config, agora) }), 'utf8');
   writeFileSync(join(pasta, 'painel.html'), PAGINA_DO_PAINEL, 'utf8');
 }
@@ -319,7 +337,7 @@ const t=new Date(s.atualizadoEm).getTime();
   [['', 'Todos']].concat(nichos.filter(n=>s.ultimosPosts.some(p=>p.categoria===n.chave)).map(n=>[n.chave,n.emoji+' '+n.nome])).forEach(([k,t])=>{const b=el('button','',t);b.dataset.f=k;b.onclick=()=>desenhar(k);fl.append(b)});
   desenhar('');
   const dz=document.getElementById('destinos');
-  (w.destinos||[]).forEach(d=>{const l=el('div','msg');const t=el('div','',(d.tipo==='canal'?'Canal':'Grupo')+': ');const a=el('a','',d.link);a.href=d.link;a.target='_blank';a.rel='noopener';t.append(a);l.append(t,el('div','sub',d.tipo==='canal'?'Recebe o texto da oferta com o link e a foto em miniatura (o canal não aceita imagem enviada).':'Recebe a arte da oferta como imagem, com a legenda e o link. O número do enviador precisa ser membro do grupo.'));dz.append(l)});
+  (w.destinos||[]).forEach(d=>{const l=el('div','msg');const t=el('div','',(d.tipo==='canal'?'Canal':'Grupo')+(d.nichos&&d.nichos.length?' de '+d.nichos.map(nomeDe).join(', '):' geral')+': ');const a=el('a','',d.link);a.href=d.link;a.target='_blank';a.rel='noopener';t.append(a);l.append(t,el('div','sub',d.tipo==='canal'?'Recebe o texto da oferta com o link e a foto em miniatura (o canal não aceita imagem enviada).':'Recebe a arte da oferta como imagem, com a legenda e o link. O número do enviador precisa ser membro do grupo.'));dz.append(l)});
   if(!(w.destinos||[]).length)dz.append(el('div','sub','Nenhum destino configurado. Acrescente o link de um canal ou grupo em WHATSAPP_DESTINOS.'));
   if(s.repo){const ed=el('a','b','Editar canais e grupos (ajustes.env)');ed.href='https://github.com/'+s.repo+'/edit/main/ajustes.env';ed.target='_blank';ed.rel='noopener';document.getElementById('zapbotoes').append(ed)}
   document.getElementById('zapnota').textContent=s.canais.whatsapp?'O enviador do seu PC busca estas mensagens sozinho. Aqui você também pode copiar uma e mandar na mão, se preferir.':'WhatsApp desligado (WHATSAPP_ATIVO=0).';

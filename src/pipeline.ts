@@ -5,7 +5,7 @@ import { chaveDoCupom, escolherCupom, type Cupom } from './cupons.ts';
 import { contemPalavra, normalizar } from './categoria.ts';
 import { avaliar } from './filtro.ts';
 import { elegivelParaGuia, tipoDeGuia } from './guias.ts';
-import { destinosDaOferta, geralAceita } from './rotas.ts';
+import { destinosDaOferta, geralAceita, nichosNoLimite, temWhatsappDoNicho } from './rotas.ts';
 import { ErroTelegram, type Publicador } from './telegram.ts';
 import type { Fonte, OfertaAvaliada } from './types.ts';
 
@@ -64,7 +64,7 @@ export async function coletar(fontes: Fonte[], banco: Banco, config: Config, ago
 
 export type ResultadoDoPost =
   | { postou: true; oferta: OfertaAvaliada; canais: string[]; avisos: string[] }
-  | { postou: false; motivo: 'fora do horário' | 'limite diário' | 'fila vazia' | 'erro'; detalhe?: string };
+  | { postou: false; motivo: 'fora do horário' | 'limite diário' | 'fila vazia' | 'nichos no limite' | 'erro'; detalhe?: string };
 
 /** Posta a melhor oferta da fila, respeitando horário e limite diário. */
 export async function postarProxima(publicador: Publicador, banco: Banco, config: Config, agora: Date = new Date()): Promise<ResultadoDoPost> {
@@ -77,15 +77,17 @@ export async function postarProxima(publicador: Publicador, banco: Banco, config
   // sai da fila e a próxima é tentada.
   let oferta: OfertaAvaliada | undefined;
   let destinos: string[] = [];
+  const cheios = nichosNoLimite(banco.postsPorCategoria(1, agora), config);
   for (let tentativa = 0; tentativa < 200; tentativa++) {
-    oferta = banco.melhorDaFila(banco.ultimaLojaPostada());
+    oferta = banco.melhorDaFila(banco.ultimaLojaPostada(), cheios);
     if (!oferta) break;
     destinos = destinosDaOferta(oferta.categoria, config);
-    if (destinos.length) break;
+    // Sem canal no Telegram, mas com grupo ou canal de WhatsApp do nicho: vai só para o WhatsApp.
+    if (destinos.length || temWhatsappDoNicho(oferta.categoria, config)) break;
     banco.removerDaFila(oferta.loja, oferta.idProduto);
     oferta = undefined;
   }
-  if (!oferta) return { postou: false, motivo: 'fila vazia' };
+  if (!oferta) return { postou: false, motivo: cheios.length && banco.tamanhoDaFila() > 0 ? 'nichos no limite' : 'fila vazia' };
 
   // Roteamento por nicho: o canal da categoria da oferta; sem rota, o canal geral (se o filtro dele aceitar).
   const geral = config.telegram.chatId;
@@ -116,8 +118,9 @@ export async function postarProxima(publicador: Publicador, banco: Banco, config
     }
   }
 
-  banco.registrarPost(oferta, agora, canais[0]);
-  // A mesma oferta que saiu no Telegram também vira mensagem de WhatsApp (o enviador do PC é quem posta).
+  banco.registrarPost(oferta, agora, canais[0] ?? 'whatsapp');
+  // A mesma oferta que saiu no Telegram também vira mensagem de WhatsApp (o enviador do PC é quem posta e escolhe os
+  // grupos e canais pelo nicho dela).
   if (config.whatsapp.ativo) banco.guardarParaWhatsapp(oferta, montarMensagemWhatsapp(oferta), agora);
   if (config.social.ativo) banco.guardarParaSocial(oferta, agora);
   banco.removerDaFila(oferta.loja, oferta.idProduto);

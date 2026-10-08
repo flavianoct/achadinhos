@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import makeWASocket, { Browsers, DisconnectReason, fetchLatestBaileysVersion, useMultiFileAuthState } from '@whiskeysockets/baileys';
 import pino from 'pino';
 import qrcode from 'qrcode-terminal';
-import { esperaAleatoria, podarEstado, podeEnviarAgora, selecionarPendentes, tipoDeDestino } from './logica.mjs';
+import { destinoAceita, esperaAleatoria, podarEstado, podeEnviarAgora, selecionarPendentes, tipoDeDestino } from './logica.mjs';
 
 const aqui = dirname(fileURLToPath(import.meta.url));
 const CAMINHO_CONFIG = join(aqui, 'config.json');
@@ -117,16 +117,27 @@ async function listar() {
   process.exit(0);
 }
 
-/** Resolve os destinos do config.json em códigos (JID). Links de canal viram o código do canal. */
+/**
+ * Resolve os destinos em códigos (JID), guardando os nichos de cada um: { jid, nichos }. Links de canal viram o código do canal.
+ * Destino sem nichos é geral (recebe o que o filtro do geral aceita).
+ */
 async function resolverDestinos(sock, config) {
   const prontos = [];
   for (const d of config.destinos ?? []) {
+    const nichos = typeof d === 'string' ? undefined : d.nichos;
+    const add = (jid) => {
+      const ja = prontos.find((p) => p.jid === jid);
+      // O mesmo grupo listado como geral e como de nicho fica geral (recebe mais, não menos).
+      if (!ja) prontos.push({ jid, nichos });
+      else if (!nichos || !ja.nichos) ja.nichos = undefined;
+      else ja.nichos = [...new Set([...ja.nichos, ...nichos])];
+    };
     const t = tipoDeDestino(typeof d === 'string' ? d : d.jid ?? d.link);
-    if (t.tipo === 'grupo' || t.tipo === 'canal') prontos.push(t.jid);
+    if (t.tipo === 'grupo' || t.tipo === 'canal') add(t.jid);
     else if (t.tipo === 'canal-por-link') {
       try {
         const meta = await sock.newsletterMetadata('invite', t.codigo);
-        prontos.push(meta.id);
+        add(meta.id);
         // A consulta pelo link não traz o papel da conta; pelo código do canal ela traz.
         let completo = meta;
         try {
@@ -152,7 +163,7 @@ async function resolverDestinos(sock, config) {
           membro = false;
         }
         log(`Grupo encontrado: ${info.subject ?? info.id} (${info.size ?? '?'} membros; este número ${membro ? 'é membro' : 'NÃO é membro'}).`);
-        if (membro) prontos.push(info.id);
+        if (membro) add(info.id);
         else log('  ATENÇÃO: o número do enviador não está nesse grupo. Entre no grupo com ele (abra o link de convite no WhatsApp desse número) ou peça a um administrador para adicioná-lo. Enquanto isso, o grupo é pulado.');
       } catch (e) {
         log(`Não consegui abrir o grupo pelo link (${e.message}). Confira se o convite ainda vale.`);
@@ -162,17 +173,28 @@ async function resolverDestinos(sock, config) {
   return prontos;
 }
 
-/** Destinos publicados pelo robô em whatsapp.json (vêm de WHATSAPP_DESTINOS no ajustes.env) + os do config.json local, sem repetir. */
+/** Filtro do canal geral publicado pelo robô (GERAL_NICHOS e GERAL_SEM_NICHOS). */
+let filtroGeral = {};
+
+/**
+ * Destinos publicados pelo robô em whatsapp.json (WHATSAPP_DESTINOS e WHATSAPP_ROTAS do ajustes.env) + os do config.json
+ * local (gerais). Cada um: { link, nichos? }.
+ */
 async function destinosCompletos(config) {
   let remotos = [];
   try {
     const url = `${config.urlDoSite.replace(/\/+$/, '')}/whatsapp.json?t=${Date.now()}`;
     const r = await fetch(url, { signal: AbortSignal.timeout(20_000), cache: 'no-store' });
-    if (r.ok) remotos = ((await r.json()).destinos ?? []).map((d) => d.link).filter(Boolean);
+    if (r.ok) {
+      const dados = await r.json();
+      remotos = (dados.destinos ?? []).filter((d) => d.link).map((d) => ({ link: d.link, nichos: d.nichos }));
+      filtroGeral = dados.geral ?? {};
+    }
   } catch {
     // sem o site agora: segue só com os destinos locais
   }
-  return [...new Set([...(config.destinos ?? []).map((d) => (typeof d === 'string' ? d : d.jid ?? d.link)), ...remotos])];
+  const locais = (config.destinos ?? []).map((d) => (typeof d === 'string' ? d : d.jid ?? d.link)).filter(Boolean).map((link) => ({ link }));
+  return [...locais, ...remotos];
 }
 
 /** Mostra o recibo que o WhatsApp devolveu (id e id do servidor): é a prova de que a mensagem foi aceita. */
@@ -339,16 +361,24 @@ async function rodar() {
       }
       if (pendentes.length && regra.pode) {
         const m = pendentes[0];
-        log(`Enviando: ${m.texto.split('\n')[0].slice(0, 70)}`);
+        // Só os destinos do nicho da oferta (e os gerais, se o filtro do geral aceitar o nicho).
+        const alvos = destinos.filter((d) => destinoAceita(d, m.categoria, filtroGeral));
+        log(`Enviando${m.categoria ? ` [${m.categoria}]` : ''} para ${alvos.length} destino(s): ${m.texto.split('\n')[0].slice(0, 70)}`);
+        if (!alvos.length) {
+          // Nenhum grupo ou canal recebe este nicho: marca como resolvida para não travar a fila.
+          estado.enviados[m.id] = Date.now();
+          salvarEstado(estado);
+          continue;
+        }
         let algumOk = false;
         let queda = false;
-        for (let i = 0; i < destinos.length; i++) {
+        for (let i = 0; i < alvos.length; i++) {
           if (i > 0) await pausa(esperaAleatoria(8000, 20_000));
           try {
-            await enviarUma(sockAtual.sock, destinos[i], m);
+            await enviarUma(sockAtual.sock, alvos[i].jid, m);
             algumOk = true;
           } catch (e) {
-            log(`  falhou em ${destinos[i]}: ${e.message}`);
+            log(`  falhou em ${alvos[i].jid}: ${e.message}`);
             if (ehQuedaDeConexao(e)) queda = true;
           }
         }
@@ -389,7 +419,7 @@ async function testar() {
   const sock = await conectar();
   let destinos = await resolverDestinos(sock, { destinos: await destinosCompletos(config) });
   // "testar imagem grupo": só nos grupos (o canal não mostra imagem enviada).
-  if (process.argv[4] === 'grupo') destinos = destinos.filter((d) => d.endsWith('@g.us'));
+  if (process.argv[4] === 'grupo') destinos = destinos.filter((d) => d.jid.endsWith('@g.us'));
   const hora = new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' });
   // "testar imagem": manda a arte da oferta mais recente como imagem, para ver se o canal publica.
   const fila = process.argv[3] === 'imagem' || process.argv[3] === 'previa' ? await buscarFila(config) : [];
@@ -401,7 +431,7 @@ async function testar() {
       break;
     }
   }
-  for (const jid of destinos) {
+  for (const { jid } of destinos) {
     if (process.argv[3] === 'previa') {
       // Usa a oferta mais recente da fila, com a prévia montada por nós (título, preço e miniatura da foto).
       const m = fila.length ? { ...[...fila].reverse()[0] } : undefined;

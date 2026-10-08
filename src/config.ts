@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { parseEnv } from 'node:util';
-import { CATEGORIAS } from './categoria.ts';
+import { CATEGORIAS, definirPalavrasDosNichos } from './categoria.ts';
 
 export interface Config {
   telegram: { token: string; chatId: string };
@@ -15,6 +15,10 @@ export interface Config {
     geralNichos: string[];
     /** Nichos que nunca vão para o canal geral (GERAL_SEM_NICHOS). */
     geralSem: string[];
+    /** Máximo de posts por dia de cada nicho (NICHO_MAX_POR_DIA). 0 = sem limite. */
+    limitePorDia: number;
+    /** Limite próprio de alguns nichos (NICHO_LIMITES=moda=5,tech=10); vale mais que o geral. */
+    limites: Record<string, number>;
     avisos: string[];
   };
   shopee: { ativo: boolean; appId: string; secret: string; palavras: string[]; paginas: number };
@@ -88,7 +92,14 @@ export interface Config {
     amazonArquivo: string;
   };
   /** Mensagens de WhatsApp para o enviador do PC (ver pasta enviador/). */
-  whatsapp: { ativo: boolean; /** Canais e grupos onde o enviador posta (links https do WhatsApp), de WHATSAPP_DESTINOS. */ destinos: string[] };
+  whatsapp: {
+    ativo: boolean;
+    /** Canais e grupos gerais onde o enviador posta (links https do WhatsApp), de WHATSAPP_DESTINOS. Seguem o filtro do geral. */
+    destinos: string[];
+    /** Canais e grupos de um nicho (WHATSAPP_ROTAS=moda=https://chat.whatsapp.com/...): recebem só as ofertas desse nicho. */
+    rotas: Array<{ nicho: string; link: string }>;
+    avisos: string[];
+  };
   /** Arte de Story, legenda e roteiro de vídeo das ofertas postadas (aparecem no painel). */
   social: { ativo: boolean };
   /** Publicação automática no Instagram (conta profissional). Token e ID ficam nos Secrets. */
@@ -104,6 +115,21 @@ export function destinosDoWhatsapp(valor: string): string[] {
   const ok = /^https:\/\/(whatsapp\.com\/channel\/|chat\.whatsapp\.com\/)[A-Za-z0-9_-]{8,}\/?$/i;
   // O WhatsApp acrescenta parâmetros ao copiar o link (?s=cl&p=a...): só o endereço até a interrogação importa.
   return [...new Set(valor.split(/[,\s]+/).map((v) => v.trim().replace(/[?#].*$/, '')).filter((v) => ok.test(v)))];
+}
+
+/** WHATSAPP_ROTAS: "nicho=link" separados por vírgula; um nicho pode ter vários links. Inválido vira aviso. */
+export function rotasDoWhatsapp(valor: string | undefined): { rotas: Array<{ nicho: string; link: string }>; avisos: string[] } {
+  const rotas: Array<{ nicho: string; link: string }> = [];
+  const avisos: string[] = [];
+  for (const item of lista(valor)) {
+    const i = item.indexOf('=');
+    const nicho = item.slice(0, Math.max(0, i)).trim().toLowerCase();
+    const link = destinosDoWhatsapp(item.slice(i + 1))[0];
+    if (!CATEGORIAS.includes(nicho)) avisos.push(`WHATSAPP_ROTAS: nicho "${nicho}" não existe (use: ${CATEGORIAS.join(', ')}).`);
+    else if (!link) avisos.push(`WHATSAPP_ROTAS: o link de "${nicho}" precisa ser de um canal (https://whatsapp.com/channel/...) ou grupo (https://chat.whatsapp.com/...).`);
+    else if (!rotas.some((r) => r.nicho === nicho && r.link === link)) rotas.push({ nicho, link });
+  }
+  return { rotas, avisos };
 }
 
 /** Só aceita endereço https do WhatsApp (canal, grupo ou wa.me); qualquer outra coisa vira vazio. */
@@ -193,8 +219,15 @@ export function salvarNoEnv(alteracoes: Record<string, string>, caminho = '.env'
 }
 
 /** Lê "categoria=@canal, categoria=-100123" do ajuste ROTAS_TELEGRAM. */
-export function lerRotas(texto: string | undefined, tambemNoGeral: boolean, geralNichos?: string, geralSem?: string): Config['rotas'] {
-  const rotas: Config['rotas'] = { porCategoria: {}, tambemNoGeral, geralNichos: [], geralSem: [], avisos: [] };
+export function lerRotas(texto: string | undefined, tambemNoGeral: boolean, geralNichos?: string, geralSem?: string, limitePorDia = 0, limites?: string): Config['rotas'] {
+  const rotas: Config['rotas'] = { porCategoria: {}, tambemNoGeral, geralNichos: [], geralSem: [], limitePorDia: Math.max(0, limitePorDia), limites: {}, avisos: [] };
+  for (const item of lista(limites)) {
+    const [nicho, valor] = item.split('=').map((x) => x.trim().toLowerCase());
+    const n = Number(valor);
+    if (!CATEGORIAS.includes(nicho ?? '')) rotas.avisos.push(`NICHO_LIMITES: nicho "${nicho}" não existe (use: ${CATEGORIAS.join(', ')}).`);
+    else if (!Number.isInteger(n) || n < 0) rotas.avisos.push(`NICHO_LIMITES: "${item}" precisa ser nicho=número (0 = sem limite).`);
+    else rotas.limites[nicho!] = n;
+  }
   const nichos = (valor: string | undefined, chave: string): string[] =>
     lista(valor)
       .map((n) => n.toLowerCase())
@@ -216,10 +249,22 @@ export function lerRotas(texto: string | undefined, tambemNoGeral: boolean, gera
   return rotas;
 }
 
+/** NICHO_PALAVRAS_<NICHO>=palavra,-palavra para cada nicho que tiver o ajuste. */
+export function lerPalavrasDosNichos(env: Env): Record<string, string[]> {
+  const porNicho: Record<string, string[]> = {};
+  for (const nicho of CATEGORIAS) {
+    const lido = lista(env[`NICHO_PALAVRAS_${nicho.toUpperCase()}`]);
+    if (lido.length && nicho !== 'geral') porNicho[nicho] = lido;
+  }
+  return porNicho;
+}
+
 export function lerConfig(env: Env = process.env): Config {
   const chatId = (env.TELEGRAM_CHAT_ID ?? '').trim();
+  // As palavras dos nichos valem para o classificador inteiro (filtro, painel, guias), por isso são aplicadas aqui.
+  definirPalavrasDosNichos(lerPalavrasDosNichos(env));
   return {
-    rotas: lerRotas(env.ROTAS_TELEGRAM, ligado(env, 'ROTAS_TAMBEM_NO_GERAL', false), env.GERAL_NICHOS, env.GERAL_SEM_NICHOS),
+    rotas: lerRotas(env.ROTAS_TELEGRAM, ligado(env, 'ROTAS_TAMBEM_NO_GERAL', false), env.GERAL_NICHOS, env.GERAL_SEM_NICHOS, numero(env, 'NICHO_MAX_POR_DIA', 0), env.NICHO_LIMITES),
     telegram: {
       token: (env.TELEGRAM_BOT_TOKEN ?? '').trim(),
       chatId,
@@ -292,7 +337,7 @@ export function lerConfig(env: Env = process.env): Config {
       whatsappLink: linkDoWhatsapp(env.BLOG_WHATSAPP ?? ''),
       amazonArquivo: (env.BLOG_AMAZON_ARQUIVO ?? '').trim() || 'amazon.json',
     },
-    whatsapp: { ativo: ligado(env, 'WHATSAPP_ATIVO', true), destinos: destinosDoWhatsapp(env.WHATSAPP_DESTINOS ?? '') },
+    whatsapp: { ativo: ligado(env, 'WHATSAPP_ATIVO', true), destinos: destinosDoWhatsapp(env.WHATSAPP_DESTINOS ?? ''), ...rotasDoWhatsapp(env.WHATSAPP_ROTAS) },
     social: { ativo: ligado(env, 'SOCIAL_ATIVO', true) },
     instagram: {
       ativo: ligado(env, 'INSTAGRAM_ATIVO', false),

@@ -152,6 +152,8 @@ export class Banco {
     // Bancos antigos (guardados no ramo "dados") não têm a coluna do canal: acrescenta sem perder nada.
     const colunas = this.db.prepare(`PRAGMA table_info(postados)`).all() as Array<{ name: string }>;
     if (!colunas.some((c) => c.name === 'canal')) this.db.exec(`ALTER TABLE postados ADD COLUMN canal TEXT`);
+    const colunasZap = this.db.prepare(`PRAGMA table_info(whatsapp_saida)`).all() as Array<{ name: string }>;
+    if (!colunasZap.some((c) => c.name === 'categoria')) this.db.exec(`ALTER TABLE whatsapp_saida ADD COLUMN categoria TEXT`);
     // Bancos criados antes do Instagram não têm estas colunas.
     for (const coluna of ['imagem TEXT', 'ig_feed_em INTEGER', 'ig_story_em INTEGER']) {
       try {
@@ -250,11 +252,13 @@ export class Banco {
    * Melhor oferta da fila (maior pontuação), sem removê-la. Com `evitar`, prefere a melhor de outra loja: assim as lojas se alternam
    * em vez de uma (a que dá mais pontos) ocupar tudo. Se só houver ofertas da loja a evitar, usa a melhor delas.
    */
-  melhorDaFila(evitar?: Loja): OfertaAvaliada | undefined {
+  melhorDaFila(evitar?: Loja, semCategorias: string[] = []): OfertaAvaliada | undefined {
     const pegar = (sql: string, ...args: string[]) => this.db.prepare(sql).get(...args) as { dados: string } | undefined;
-    const base = 'SELECT dados FROM fila';
+    // Nichos que já bateram o limite do dia ficam de fora (continuam na fila para amanhã).
+    const filtro = semCategorias.length ? `COALESCE(json_extract(dados, '$.categoria'), 'geral') NOT IN (${semCategorias.map(() => '?').join(', ')})` : '1 = 1';
+    const base = `SELECT dados FROM fila WHERE ${filtro}`;
     const ordem = 'ORDER BY pontos DESC, criado_em ASC LIMIT 1';
-    const linha = (evitar ? pegar(`${base} WHERE loja <> ? ${ordem}`, evitar) : undefined) ?? pegar(`${base} ${ordem}`);
+    const linha = (evitar ? pegar(`${base} AND loja <> ? ${ordem}`, ...semCategorias, evitar) : undefined) ?? pegar(`${base} ${ordem}`, ...semCategorias);
     return linha ? (JSON.parse(linha.dados) as OfertaAvaliada) : undefined;
   }
 
@@ -311,8 +315,8 @@ export class Banco {
   /** Guarda a mensagem de WhatsApp de uma oferta já postada. O enviador do PC lê isto pelo arquivo whatsapp.json. */
   guardarParaWhatsapp(o: OfertaAvaliada, texto: string, agora: Date): void {
     this.db
-      .prepare(`INSERT OR REPLACE INTO whatsapp_saida (chave, loja, texto, imagem, link, criado_em) VALUES (?, ?, ?, ?, ?, ?)`)
-      .run(`${o.loja}:${o.idProduto}:${agora.getTime()}`, o.loja, texto, o.imagem ?? null, o.link, agora.getTime());
+      .prepare(`INSERT OR REPLACE INTO whatsapp_saida (chave, loja, texto, imagem, link, criado_em, categoria) VALUES (?, ?, ?, ?, ?, ?, ?)`)
+      .run(`${o.loja}:${o.idProduto}:${agora.getTime()}`, o.loja, texto, o.imagem ?? null, o.link, agora.getTime(), o.categoria ?? null);
   }
 
   /** Guarda a oferta postada para virar conteúdo de Stories e Reels. A arte é feita depois (precisa baixar a foto). */
@@ -462,11 +466,11 @@ export class Banco {
   }
 
   /** Mensagens de WhatsApp criadas nas últimas `horas` horas, da mais antiga para a mais nova. */
-  mensagensDoWhatsapp(horas: number, agora: Date): Array<{ chave: string; loja: string; texto: string; imagem?: string; link: string; criadoEm: number }> {
+  mensagensDoWhatsapp(horas: number, agora: Date): Array<{ chave: string; loja: string; texto: string; imagem?: string; link: string; criadoEm: number; categoria: string }> {
     const linhas = this.db
-      .prepare(`SELECT chave, loja, texto, imagem, link, criado_em FROM whatsapp_saida WHERE criado_em >= ? ORDER BY criado_em ASC`)
-      .all(agora.getTime() - horas * 3_600_000) as Array<{ chave: string; loja: string; texto: string; imagem: string | null; link: string; criado_em: number }>;
-    return linhas.map((l) => ({ chave: l.chave, loja: l.loja, texto: l.texto, imagem: l.imagem ?? undefined, link: l.link, criadoEm: l.criado_em }));
+      .prepare(`SELECT chave, loja, texto, imagem, link, criado_em, categoria FROM whatsapp_saida WHERE criado_em >= ? ORDER BY criado_em ASC`)
+      .all(agora.getTime() - horas * 3_600_000) as Array<{ chave: string; loja: string; texto: string; imagem: string | null; link: string; criado_em: number; categoria: string | null }>;
+    return linhas.map((l) => ({ chave: l.chave, loja: l.loja, texto: l.texto, imagem: l.imagem ?? undefined, link: l.link, criadoEm: l.criado_em, categoria: l.categoria ?? 'geral' }));
   }
 
   /** Guarda a última versão de uma oferta boa. O blog lê daqui. */
