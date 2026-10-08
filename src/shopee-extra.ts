@@ -166,8 +166,12 @@ export function converterCampanhas(nodes: any[]): Campanha[] {
   const lista: Campanha[] = [];
   for (const n of nodes ?? []) {
     const link = String(n?.offerLink ?? '');
-    const nome = String(n?.offerName ?? '').replace(/\s+/g, ' ').trim();
-    if (!/^https:\/\//.test(link) || !nome) continue;
+    // Tira traços e pontuação soltos no começo e no fim ("- - Health" vira "Health").
+    const nome = String(n?.offerName ?? '').replace(/\s+/g, ' ').replace(/^[\s\-–—|:.,_*#]+|[\s\-–—|:.,_*#]+$/g, '').trim();
+    // Nome de verdade: pelo menos duas palavras com letras e 8 letras no total; senão é um rótulo interno da Shopee.
+    const palavras = nome.split(' ').filter((p) => /\p{L}{2,}/u.test(p));
+    const letras = (nome.match(/\p{L}/gu) ?? []).length;
+    if (!/^https:\/\//.test(link) || palavras.length < 2 || letras < 8) continue;
     lista.push({
       id: String(n.collectionId ?? n.originalLink ?? link),
       nome,
@@ -181,14 +185,19 @@ export function converterCampanhas(nodes: any[]): Campanha[] {
   return lista;
 }
 
-export async function buscarCampanhas(fonte: FonteShopee): Promise<Campanha[]> {
+/** Os nós como a Shopee devolve (para conferência). */
+export async function buscarCampanhasBrutas(fonte: FonteShopee): Promise<any[]> {
   const consultar: Consultar = (q) => fonte.consultar(q);
   const tipo = await tipoDaConsulta(consultar, 'shopeeOfferV2');
   if (!tipo) throw new Error('a API da Shopee não tem shopeeOfferV2');
   const selecao = await montarSelecao(consultar, tipo, DESEJO_CAMPANHAS);
   if (!selecao.includes('offerLink')) throw new Error('shopeeOfferV2 sem o link da campanha');
   const dados = await consultar(`{ shopeeOfferV2(page: 1, limit: 30) { ${selecao} } }`);
-  return converterCampanhas(dados?.shopeeOfferV2?.nodes ?? []);
+  return dados?.shopeeOfferV2?.nodes ?? [];
+}
+
+export async function buscarCampanhas(fonte: FonteShopee): Promise<Campanha[]> {
+  return converterCampanhas(await buscarCampanhasBrutas(fonte));
 }
 
 /** Campanha em vigor que ainda não saiu nos últimos dias; a de maior comissão primeiro. */

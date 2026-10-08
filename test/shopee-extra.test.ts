@@ -69,10 +69,13 @@ const c2: Campanha = { id: '2', nome: 'Frete Grátis', link: 'https://s.shopee.c
 const vencida: Campanha = { id: '3', nome: 'Antiga', link: 'https://s.shopee.com.br/c', comissao: 0.5, fim: AGORA.getTime() - 1 };
 
 test('shopee: campanhas em vigor, maior comissão primeiro, sem repetir; nó sem link é ignorado', () => {
-  assert.deepEqual(converterCampanhas([{ offerName: ' X  Y ', offerLink: 'https://s/x', periodEndTime: 1759600000, commissionRate: '0.08' }, { offerName: 'sem link' }]), [
-    { id: 'https://s/x', nome: 'X Y', link: 'https://s/x', imagem: undefined, comissao: 0.08, inicio: undefined, fim: 1759600000000 },
+  assert.deepEqual(converterCampanhas([{ offerName: ' Ofertas  Relâmpago ', offerLink: 'https://s/x', periodEndTime: 1759600000, commissionRate: '0.08' }, { offerName: 'sem link' }]), [
+    { id: 'https://s/x', nome: 'Ofertas Relâmpago', link: 'https://s/x', imagem: undefined, comissao: 0.08, inicio: undefined, fim: 1759600000000 },
   ]);
   assert.equal(escolherCampanha([c2, vencida, c1], () => undefined, 7, AGORA)?.id, '1');
+  // Nomes quebrados (rótulos internos) não viram post.
+  const nomes = converterCampanhas(['- - Health', 'Health', '---', 'Moda - - ', 'Semana do Consumidor', '— Super Ofertas de Beleza —'].map((offerName, i) => ({ offerName, offerLink: 'https://s/' + i }))).map((c) => c.nome);
+  assert.deepEqual(nomes, ['Semana do Consumidor', 'Super Ofertas de Beleza']);
   assert.equal(escolherCampanha([c2, c1], (id) => (id === '1' ? AGORA.getTime() : undefined), 7, AGORA)?.id, '2');
 });
 

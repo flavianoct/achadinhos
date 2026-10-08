@@ -60,3 +60,17 @@ export async function descreverApiShopee(appId: string, secret: string, fetchFn:
   linhas.push(...(achados.length ? achados.map((a) => `- ${a}`) : ['Nada encontrado com esses nomes (voucher, coupon, cupom, promo, campaign, discount, deal, flash).']));
   return linhas.join('\n');
 }
+
+/** Lista as campanhas que a Shopee devolve hoje (nome, link, período, comissão), para conferir antes de postar. */
+export async function listarCampanhasShopee(appId: string, secret: string, fetchFn: typeof fetch = fetch): Promise<string> {
+  const { buscarCampanhasBrutas } = await import('./shopee-extra.ts');
+  const linhas = ['## Campanhas da Shopee (shopeeOfferV2)', ''];
+  try {
+    const nodes = await buscarCampanhasBrutas(new FonteShopee({ appId, secret }, fetchFn));
+    linhas.push(`${nodes.length} campanhas recebidas.`, '');
+    for (const n of nodes) linhas.push(`- ${JSON.stringify(n)}`);
+  } catch (e) {
+    linhas.push(`Não consegui listar: ${(e as Error).message}`);
+  }
+  return linhas.join('\n');
+}
