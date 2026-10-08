@@ -58,6 +58,8 @@ export interface Config {
   };
   /** Cupons do Mercado Livre e da Amazon, cadastrados por você em cupons.json. */
   cupons: { ativo: boolean; arquivo: string; porDia: number; repetirDias: number };
+  /** Convite discreto aos outros canais (WhatsApp, Telegram, Instagram): poucas vezes, sem encher o canal. */
+  convite: { ativo: boolean; aCadaDias: number; hora: number };
   /** Vendas e comissão da Shopee (conversionReport), lidas de tempos em tempos para o painel. */
   vendas: { ativo: boolean; horasEntreLeituras: number; dias: number };
   /** Campanhas da própria Shopee postadas no canal geral do Telegram. 0 = desligado. */
@@ -98,6 +100,8 @@ export interface Config {
   /** Mensagens de WhatsApp para o enviador do PC (ver pasta enviador/). */
   whatsapp: {
     ativo: boolean;
+    /** Duas linhas no fim de cada oferta com o Telegram e o Instagram (WHATSAPP_RODAPE). */
+    rodape: boolean;
     /** Canais e grupos gerais onde o enviador posta (links https do WhatsApp), de WHATSAPP_DESTINOS. Seguem o filtro do geral. */
     destinos: string[];
     /** Canais e grupos de um nicho (WHATSAPP_ROTAS=moda=https://chat.whatsapp.com/...): recebem só as ofertas desse nicho. */
@@ -343,7 +347,8 @@ export function lerConfig(env: Env = process.env): Config {
       whatsappLink: linkDoWhatsapp(env.BLOG_WHATSAPP ?? ''),
       amazonArquivo: (env.BLOG_AMAZON_ARQUIVO ?? '').trim() || 'amazon.json',
     },
-    whatsapp: { ativo: ligado(env, 'WHATSAPP_ATIVO', true), destinos: destinosDoWhatsapp(env.WHATSAPP_DESTINOS ?? ''), ...rotasDoWhatsapp(env.WHATSAPP_ROTAS) },
+    convite: { ativo: ligado(env, 'CONVITE_ATIVO', false), aCadaDias: Math.max(1, numero(env, 'CONVITE_A_CADA_DIAS', 1)), hora: Math.min(21, Math.max(0, numero(env, 'CONVITE_HORA', 12))) },
+    whatsapp: { ativo: ligado(env, 'WHATSAPP_ATIVO', true), rodape: ligado(env, 'WHATSAPP_RODAPE', true), destinos: destinosDoWhatsapp(env.WHATSAPP_DESTINOS ?? ''), ...rotasDoWhatsapp(env.WHATSAPP_ROTAS) },
     social: { ativo: ligado(env, 'SOCIAL_ATIVO', true) },
     instagram: {
       ativo: ligado(env, 'INSTAGRAM_ATIVO', false),

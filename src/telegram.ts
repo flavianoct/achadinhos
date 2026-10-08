@@ -1,5 +1,5 @@
 import { montarMensagemCupom, type Cupom } from './cupons.ts';
-import { montarMensagem } from './mensagem.ts';
+import { escaparHtml, montarMensagem } from './mensagem.ts';
 import type { OfertaAvaliada } from './types.ts';
 
 export type Fetch = typeof fetch;
@@ -17,6 +17,8 @@ export interface Publicador {
   /** `destino` troca o canal só nesta chamada (roteamento por nicho); sem ele vale o canal geral. */
   publicar(o: OfertaAvaliada, destino?: string): Promise<void>;
   publicarCupom?(c: Cupom): Promise<void>;
+  /** Mensagem de texto simples (sem botão e sem prévia de link): o convite aos outros canais. */
+  publicarTexto?(texto: string, destino?: string): Promise<void>;
   /** Post livre (campanhas): texto HTML, um botão e, se houver, uma foto. */
   publicarAviso?(a: { texto: string; botao: string; url: string; imagem?: string }, destino?: string): Promise<void>;
 }
@@ -104,6 +106,10 @@ export class Telegram implements Publicador {
     await this.chamar('sendMessage', { chat_id: destino, text: a.texto, parse_mode: 'HTML', reply_markup });
   }
 
+  async publicarTexto(texto: string, destino: string = this.chatId): Promise<void> {
+    await this.chamar('sendMessage', { chat_id: destino, text: escaparHtml(texto), parse_mode: 'HTML', link_preview_options: { is_disabled: true } });
+  }
+
   /** Confere o token e se o bot enxerga o canal. Devolve um resumo legível. */
   async checar(destino: string = this.chatId): Promise<string> {
     const eu = await this.chamar('getMe', {});
@@ -119,6 +125,11 @@ export class Telegram implements Publicador {
 
 /** Publicador do modo de teste: só mostra o post na tela. */
 export class PublicadorDeTeste implements Publicador {
+  async publicarTexto(texto: string): Promise<void> {
+    console.log('\n──────── TEXTO (simulado) ────────');
+    console.log(texto);
+  }
+
   async publicarAviso(a: { texto: string; botao: string; url: string }): Promise<void> {
     console.log('\n──────── AVISO (simulado) ────────');
     console.log(a.texto.replace(/<[^>]+>/g, ''));

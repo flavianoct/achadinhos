@@ -325,6 +325,11 @@ async function montarPrevia(m) {
 }
 
 async function enviarUma(sock, jid, m) {
+  // O convite aos outros canais é só texto, sem foto e sem cartão de prévia.
+  if (String(m.id).startsWith('convite:')) {
+    recibo(await sock.sendMessage(jid, { text: m.texto }), 'convite');
+    return;
+  }
   // Grupo aceita imagem normalmente (a foto do produto, como no Telegram, com a legenda); canal só aceita texto.
   if (enviarImagem || jid.endsWith('@g.us')) {
     const arte = await imagemParaGrupo(m);

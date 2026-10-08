@@ -62,13 +62,20 @@ export function montarMensagem(o: OfertaAvaliada): string {
  * Texto do WhatsApp: formatação própria (*negrito*, ~riscado~, _itálico_) e o link solto,
  * porque o WhatsApp não tem botão como o Telegram.
  */
-/** Linha de convite no fim das mensagens de WhatsApp: leva o grupo e o canal para o Instagram. Vazia se o Instagram do blog não estiver configurado. */
-export function convitePeloInstagram(config: Config): string {
-  const link = config.blog.instagramLink;
-  return link ? `📸 Siga no Instagram: ${link.replace(/^https:\/\/(www\.)?/, '')}` : '';
+/**
+ * Rodapé discreto das ofertas do WhatsApp: leva quem está no grupo ou no canal para o Telegram e o Instagram, se quiser seguir também.
+ * Duas linhas curtas, depois do link da oferta (a prévia do link continua sendo a do produto). Vazio se nenhum dos dois estiver configurado.
+ */
+export function rodapeDoWhatsapp(config: Config): string {
+  if (!config.whatsapp.rodape) return '';
+  const curto = (l: string) => l.replace(/^https:\/\/(www\.)?/, '');
+  const linhas: string[] = [];
+  if (config.blog.telegramLink) linhas.push(`✈️ Telegram: ${curto(config.blog.telegramLink)}`);
+  if (config.blog.instagramLink) linhas.push(`📸 Instagram: ${curto(config.blog.instagramLink)}`);
+  return linhas.length ? `Quer seguir também?\n${linhas.join('\n')}` : '';
 }
 
-/** `rodape` é uma linha extra no fim (por exemplo, o convite para o Instagram); vazio = não acrescenta nada. */
+/** `rodape` é o texto extra no fim (veja rodapeDoWhatsapp); vazio = a mensagem não muda. */
 export function montarMensagemWhatsapp(o: OfertaAvaliada, rodape = ''): string {
   const linhas: string[] = [];
   linhas.push(`🔥 *${encurtar(o.titulo, 140).replace(/[*_~]/g, '')}*`);

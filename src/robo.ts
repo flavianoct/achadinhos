@@ -6,6 +6,7 @@ import { FonteAmazon } from './fontes/amazon.ts';
 import { FonteMercadoLivre } from './fontes/mercadolivre.ts';
 import { FonteMercadoLivreApi } from './fontes/mercadolivre-api.ts';
 import { FonteShopee } from './fontes/shopee.ts';
+import { conviteDeHoje } from './convite.ts';
 import { lerCupons } from './cupons.ts';
 import { buscarCampanhas, buscarVendas } from './shopee-extra.ts';
 import { atualizarVendas, coletar, postarCampanha, postarProxima, postarProximoCupom, type ResultadoDaCampanha, type ResultadoDoCupom, type ResultadoDoPost, type ResumoDaColeta } from './pipeline.ts';
@@ -161,6 +162,25 @@ export class Robo {
       const n = await atualizarVendas((dias) => buscarVendas(shopee, dias, agora), this.banco, this.config, agora);
       if (n !== undefined) this.log(`vendas da Shopee: ${n} itens lidos`);
       return n;
+    });
+  }
+
+  /** Convite discreto aos outros canais, no canal geral do Telegram: no máximo uma vez por dia de convite, na hora configurada. */
+  postarConviteAgora(agora: Date = new Date()): Promise<{ postou: boolean; motivo?: string }> {
+    return this.emSerie(async () => {
+      const convite = conviteDeHoje(this.config, agora);
+      if (!convite) return { postou: false, motivo: 'fora do dia ou da hora do convite' };
+      if (!this.publicador?.publicarTexto) return { postou: false, motivo: 'Telegram não configurado' };
+      if (this.banco.convitePostado('telegram', convite.dia)) return { postou: false, motivo: 'já postado hoje' };
+      try {
+        await this.publicador.publicarTexto(convite.texto);
+      } catch (e) {
+        this.log(`ERRO ao postar o convite: ${(e as Error).message}`);
+        return { postou: false, motivo: (e as Error).message };
+      }
+      this.banco.marcarConvitePostado('telegram', convite.dia, agora);
+      this.log('convite aos outros canais postado no Telegram');
+      return { postou: true };
     });
   }
 

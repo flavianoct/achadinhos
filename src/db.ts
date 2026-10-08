@@ -160,6 +160,12 @@ export class Banco {
         publicado_em INTEGER,
         tentativas INTEGER NOT NULL DEFAULT 0
       );
+      CREATE TABLE IF NOT EXISTS convites_postados (
+        canal TEXT NOT NULL,
+        dia TEXT NOT NULL,
+        postado_em INTEGER NOT NULL,
+        PRIMARY KEY (canal, dia)
+      );
       CREATE TABLE IF NOT EXISTS avisos_do_robo (
         chave TEXT PRIMARY KEY,
         texto TEXT NOT NULL,
@@ -463,6 +469,17 @@ export class Banco {
     const linhas = this.db.prepare(`SELECT publicado_em AS t FROM instagram_carrosseis WHERE publicado_em IS NOT NULL`).all() as Array<{ t: number }>;
     const hoje = diaDe(agora);
     return linhas.filter((l) => diaDe(new Date(l.t)) === hoje).length;
+  }
+
+  // ───────── Convite discreto aos outros canais ─────────
+
+  convitePostado(canal: string, dia: string): boolean {
+    return Boolean(this.db.prepare(`SELECT 1 FROM convites_postados WHERE canal = ? AND dia = ?`).get(canal, dia));
+  }
+
+  marcarConvitePostado(canal: string, dia: string, agora: Date): void {
+    this.db.prepare(`INSERT OR IGNORE INTO convites_postados (canal, dia, postado_em) VALUES (?, ?, ?)`).run(canal, dia, agora.getTime());
+    this.db.prepare(`DELETE FROM convites_postados WHERE postado_em < ?`).run(agora.getTime() - 30 * 86_400_000);
   }
 
   // ───────── Avisos do robô para o dono (só no painel) ─────────
