@@ -1,3 +1,4 @@
+import { montarMensagemCupom, type Cupom } from './cupons.ts';
 import { montarMensagem } from './mensagem.ts';
 import type { OfertaAvaliada } from './types.ts';
 
@@ -13,7 +14,9 @@ export class ErroTelegram extends Error {
 }
 
 export interface Publicador {
-  publicar(o: OfertaAvaliada): Promise<void>;
+  /** `destino` troca o canal só nesta chamada (roteamento por nicho); sem ele vale o canal geral. */
+  publicar(o: OfertaAvaliada, destino?: string): Promise<void>;
+  publicarCupom?(c: Cupom): Promise<void>;
 }
 
 const pausa = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -54,13 +57,13 @@ export class Telegram implements Publicador {
     throw new ErroTelegram(`Telegram recusou (${resposta.status}): ${dados.description ?? 'erro desconhecido'}`, permanente);
   }
 
-  async publicar(o: OfertaAvaliada): Promise<void> {
+  async publicar(o: OfertaAvaliada, destino: string = this.chatId): Promise<void> {
     const texto = montarMensagem(o);
     const botao = { inline_keyboard: [[{ text: '🛒 Ver oferta', url: o.link }]] };
 
     if (o.imagem) {
       try {
-        await this.chamar('sendPhoto', { chat_id: this.chatId, photo: o.imagem, caption: texto, parse_mode: 'HTML', reply_markup: botao });
+        await this.chamar('sendPhoto', { chat_id: destino, photo: o.imagem, caption: texto, parse_mode: 'HTML', reply_markup: botao });
         return;
       } catch (e) {
         // Se a foto não carregar, o post sai só com texto. Erro de rede sobe para tentar depois.
@@ -68,7 +71,7 @@ export class Telegram implements Publicador {
       }
     }
     await this.chamar('sendMessage', {
-      chat_id: this.chatId,
+      chat_id: destino,
       text: texto,
       parse_mode: 'HTML',
       reply_markup: botao,
@@ -76,23 +79,43 @@ export class Telegram implements Publicador {
     });
   }
 
+  async publicarCupom(c: Cupom): Promise<void> {
+    await this.chamar('sendMessage', {
+      chat_id: this.chatId,
+      text: montarMensagemCupom(c),
+      parse_mode: 'HTML',
+      reply_markup: { inline_keyboard: [[{ text: '🎟️ Pegar cupom', url: c.link }]] },
+      link_preview_options: { is_disabled: true },
+    });
+  }
+
   /** Confere o token e se o bot enxerga o canal. Devolve um resumo legível. */
-  async checar(): Promise<string> {
+  async checar(destino: string = this.chatId): Promise<string> {
     const eu = await this.chamar('getMe', {});
-    const chat = await this.chamar('getChat', { chat_id: this.chatId });
-    const membro = await this.chamar('getChatMember', { chat_id: this.chatId, user_id: eu.id });
+    const chat = await this.chamar('getChat', { chat_id: destino });
+    const membro = await this.chamar('getChatMember', { chat_id: destino, user_id: eu.id });
     const podePostar = membro.status === 'creator' || (membro.status === 'administrator' && membro.can_post_messages !== false);
     if (!podePostar) {
-      throw new ErroTelegram(`O bot @${eu.username} não é administrador de "${chat.title ?? this.chatId}" com permissão de postar.`, true);
+      throw new ErroTelegram(`O bot @${eu.username} não é administrador de "${chat.title ?? destino}" com permissão de postar.`, true);
     }
-    return `bot @${eu.username} pode postar em "${chat.title ?? this.chatId}"`;
+    return `bot @${eu.username} pode postar em "${chat.title ?? destino}"`;
   }
 }
 
 /** Publicador do modo de teste: só mostra o post na tela. */
 export class PublicadorDeTeste implements Publicador {
-  async publicar(o: OfertaAvaliada): Promise<void> {
-    console.log('\n──────── POST (simulado, nada foi enviado) ────────');
+  async checar(destino?: string): Promise<string> {
+    return `modo de teste${destino ? ` (${destino})` : ''}`;
+  }
+
+  async publicarCupom(c: Cupom): Promise<void> {
+    console.log('\n──────── CUPOM (simulado, nada foi enviado) ────────');
+    console.log(montarMensagemCupom(c).replace(/<\/?[bicode]+>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&'));
+    console.log('────────────────────────────────────────────────────');
+  }
+
+  async publicar(o: OfertaAvaliada, destino?: string): Promise<void> {
+    console.log(`\n──────── POST (simulado, nada foi enviado)${destino ? ` → ${destino}` : ''} ────────`);
     console.log(montarMensagem(o).replace(/<\/?[bis]>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&'));
     console.log(`[botão] Ver oferta → ${o.link}`);
     console.log(`[imagem] ${o.imagem ?? '(sem imagem)'}   [pontos] ${o.pontos}`);

@@ -1,3 +1,4 @@
+import { existsSync, readFileSync } from 'node:fs';
 import { gerarBlog, modelosDoOllama, pedirAoGemini, pedirAoGitHub, type ResultadoDoBlog } from './blog.ts';
 import { lerArquivoEnv, lerConfig, problemasDeConfig, problemasDoBlog, salvarNoEnv, type Config, type Env } from './config.ts';
 import { Banco, horaDe } from './db.ts';
@@ -5,7 +6,8 @@ import { FonteAmazon } from './fontes/amazon.ts';
 import { FonteMercadoLivre } from './fontes/mercadolivre.ts';
 import { FonteMercadoLivreApi } from './fontes/mercadolivre-api.ts';
 import { FonteShopee } from './fontes/shopee.ts';
-import { coletar, postarProxima, type ResultadoDoPost, type ResumoDaColeta } from './pipeline.ts';
+import { lerCupons } from './cupons.ts';
+import { coletar, postarProxima, postarProximoCupom, type ResultadoDoCupom, type ResultadoDoPost, type ResumoDaColeta } from './pipeline.ts';
 import { Telegram, type Publicador } from './telegram.ts';
 import type { Fonte, Loja } from './types.ts';
 
@@ -23,7 +25,7 @@ export interface OpcoesDoRobo {
   envBase?: Env;
   /** Trocáveis nos testes. */
   criarFontes?: (config: Config) => Fonte[];
-  criarPublicador?: (config: Config) => Publicador & { checar?: () => Promise<string> };
+  criarPublicador?: (config: Config) => Publicador & { checar?: (destino?: string) => Promise<string> };
   silencioso?: boolean;
 }
 
@@ -53,7 +55,7 @@ export class Robo {
 
   private opcoes: OpcoesDoRobo;
   private fontes: Fonte[] = [];
-  private publicador?: Publicador & { checar?: () => Promise<string> };
+  private publicador?: Publicador & { checar?: (destino?: string) => Promise<string> };
   private coletaEm = 0;
   private postEm = 0;
   private blogEm = 0;
@@ -134,9 +136,26 @@ export class Robo {
       if (!this.publicador) return { postou: false, motivo: 'erro', detalhe: 'Telegram não configurado' } as ResultadoDoPost;
       const config: Config = forcar ? { ...this.config, ritmo: { ...this.config.ritmo, horaInicio: 0, horaFim: 24, maxPostsPorDia: Number.MAX_SAFE_INTEGER } } : this.config;
       const r = await postarProxima(this.publicador, this.banco, config, agora);
-      if (r.postou) this.log(`postado: [${r.oferta.loja}] ${r.oferta.titulo.slice(0, 60)}`);
+      if (r.postou) {
+        const destino = Object.keys(this.config.rotas.porCategoria).length ? ` [${r.oferta.categoria} → ${r.canais.join(' + ')}]` : '';
+        this.log(`postado: [${r.oferta.loja}] ${r.oferta.titulo.slice(0, 60)}${destino}`);
+        for (const aviso of r.avisos) this.log(`AVISO: ${aviso}`);
+      }
       else if (r.motivo === 'erro') this.log(`ERRO ao postar: ${r.detalhe}`);
       return r;
+    });
+  }
+
+  /** Lê o cupons.json e posta o próximo cupom vigente (no máximo CUPONS_POR_DIA por dia). Devolve também os avisos do arquivo. */
+  postarCupomAgora(agora: Date = new Date()): Promise<{ resultado: ResultadoDoCupom; avisos: string[] }> {
+    return this.emSerie(async () => {
+      if (!this.publicador) return { resultado: { postou: false, motivo: 'erro', detalhe: 'Telegram não configurado' } as ResultadoDoCupom, avisos: [] };
+      const arquivo = this.config.cupons.arquivo;
+      const lido = lerCupons(existsSync(arquivo) ? readFileSync(arquivo, 'utf8') : '');
+      const resultado = await postarProximoCupom(this.publicador, this.banco, lido.cupons, this.config, agora);
+      if (resultado.postou) this.log(`cupom postado: [${resultado.cupom.loja}] ${resultado.cupom.titulo.slice(0, 60)}`);
+      else if (resultado.motivo === 'erro') this.log(`ERRO ao postar cupom: ${resultado.detalhe}`);
+      return { resultado, avisos: lido.avisos };
     });
   }
 
@@ -179,7 +198,15 @@ export class Robo {
       } catch (e) {
         linhas.push({ ok: false, texto: `Telegram: ${(e as Error).message}` });
       }
+      for (const [categoria, canal] of Object.entries(this.config.rotas.porCategoria)) {
+        try {
+          linhas.push({ ok: true, texto: `Rota ${categoria}: ${await this.publicador.checar(canal)}` });
+        } catch (e) {
+          linhas.push({ ok: false, texto: `Rota ${categoria}: ${(e as Error).message}` });
+        }
+      }
     }
+    for (const aviso of this.config.rotas.avisos) linhas.push({ ok: false, texto: aviso });
     for (const fonte of this.fontes) {
       if (fonte.nome === 'amazon') continue;
       try {

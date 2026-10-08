@@ -31,5 +31,6 @@ COMO ELE SE COMPORTA
 
 CANAL DO WHATSAPP: IMAGEM E PREVIA
 - Em canal, a mensagem com imagem e rejeitada pelo servidor do WhatsApp (erro 479) com a biblioteca atual. Por isso as ofertas vao como TEXTO COM PREVIA: o enviador monta a previa do link (titulo, preco e miniatura da foto) e a envia junto. Para desligar a previa: "usarPrevia": false no config.json.
+- Nos GRUPOS a imagem enviada e a mesma foto do produto que vai no Telegram (se a foto falhar, vai a arte do Instagram; se nada baixar, vai so o texto). Para voltar a mandar a arte do Instagram: "imagemDoGrupo": "arte" no config.json.
 - Para testar sem esperar uma oferta: node enviador.mjs testar (texto), testar previa ou testar imagem (com o servico parado: sudo systemctl stop achadinhos-enviador).
 - Se a conexao cair, o enviador reconecta e tenta de novo sem descartar a mensagem. Logs: journalctl -u achadinhos-enviador -f. LOG_NIVEL=debug mostra o detalhe da biblioteca.

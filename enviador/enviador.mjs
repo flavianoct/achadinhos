@@ -184,6 +184,8 @@ function recibo(r, tipo) {
 // Por padrão vai só texto (o link já leva à oferta). Para tentar imagem de novo, ponha "enviarImagem": true no config.json.
 let enviarImagem = false;
 let usarPrevia = true;
+// Imagem enviada nos grupos: "foto" (a mesma foto do produto que vai no Telegram) ou "arte" (a arte do Instagram).
+let imagemDoGrupo = 'foto';
 
 let urlDoSiteAtual = '';
 
@@ -207,6 +209,34 @@ async function baixarArte(id) {
   } catch {
     return undefined;
   }
+}
+
+/**
+ * A foto do produto, a mesma que o robô manda no Telegram. O Mercado Livre entrega WebP, então converte para JPEG
+ * (o WhatsApp aceita JPEG em qualquer lugar). Sem o sharp instalado, só segue se a foto já for JPEG ou PNG.
+ */
+async function baixarFoto(url) {
+  if (!url) return undefined;
+  try {
+    const r = await fetch(url, { signal: AbortSignal.timeout(30_000) });
+    if (!r.ok) return undefined;
+    const bruto = Buffer.from(await r.arrayBuffer());
+    try {
+      const { default: sharp } = await import('sharp');
+      return { buffer: await sharp(bruto).jpeg({ quality: 88 }).toBuffer(), mimetype: 'image/jpeg' };
+    } catch {
+      const tipo = (r.headers.get('content-type') ?? '').split(';')[0];
+      return tipo === 'image/jpeg' || tipo === 'image/png' ? { buffer: bruto, mimetype: tipo } : undefined;
+    }
+  } catch {
+    return undefined;
+  }
+}
+
+/** A imagem do grupo conforme o ajuste: a foto do produto primeiro (igual ao Telegram), a arte como reserva, ou o contrário. */
+async function imagemParaGrupo(m) {
+  if (imagemDoGrupo === 'arte') return (await baixarArte(m.id)) ?? (await baixarFoto(m.imagem));
+  return (await baixarFoto(m.imagem)) ?? (await baixarArte(m.id));
 }
 
 /**
@@ -236,9 +266,9 @@ async function montarPrevia(m) {
 }
 
 async function enviarUma(sock, jid, m) {
-  // Grupo aceita imagem normalmente (a arte da oferta com a legenda); canal só aceita texto.
+  // Grupo aceita imagem normalmente (a foto do produto, como no Telegram, com a legenda); canal só aceita texto.
   if (enviarImagem || jid.endsWith('@g.us')) {
-    const arte = await baixarArte(m.id);
+    const arte = await imagemParaGrupo(m);
     if (arte) {
       try {
         recibo(await sock.sendMessage(jid, { image: arte.buffer, mimetype: arte.mimetype, caption: m.texto }), 'imagem com legenda');
@@ -246,7 +276,7 @@ async function enviarUma(sock, jid, m) {
       } catch (e) {
         log(`  imagem falhou (${e.message}); enviando só o texto.`);
       }
-    } else log('  sem arte no blog para esta oferta; enviando só o texto.');
+    } else log('  sem foto nem arte para esta oferta; enviando só o texto.');
   }
   const linkPreview = usarPrevia ? await montarPrevia(m) : undefined;
   recibo(await sock.sendMessage(jid, linkPreview ? { text: m.texto, linkPreview } : { text: m.texto }), linkPreview ? 'texto com prévia' : 'texto');
@@ -264,6 +294,7 @@ async function rodar() {
   const config = lerConfig();
   enviarImagem = config.enviarImagem === true;
   usarPrevia = config.usarPrevia !== false;
+  imagemDoGrupo = config.imagemDoGrupo === 'arte' ? 'arte' : 'foto';
   urlDoSiteAtual = config.urlDoSite;
   const sock = await conectar();
   // Os destinos vêm de WHATSAPP_DESTINOS (ajustes.env, publicado em whatsapp.json) e do config.json; a lista é recarregada a cada 10 minutos,

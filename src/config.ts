@@ -1,8 +1,14 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { parseEnv } from 'node:util';
+import { CATEGORIAS } from './categoria.ts';
 
 export interface Config {
   telegram: { token: string; chatId: string };
+  /**
+   * Roteamento por nicho: cada categoria pode ter o seu canal do Telegram (ROTAS_TELEGRAM=tech=@canaltech,moda=@canalmoda).
+   * Categoria sem rota vai para o canal geral (TELEGRAM_CHAT_ID). Rota inválida é ignorada e vira aviso.
+   */
+  rotas: { porCategoria: Record<string, string>; tambemNoGeral: boolean; avisos: string[] };
   shopee: { ativo: boolean; appId: string; secret: string; palavras: string[]; paginas: number };
   ml: {
     ativo: boolean;
@@ -38,6 +44,8 @@ export interface Config {
     /** Modo nuvem: quantas ofertas postar no Telegram a cada execução. */
     postsPorRodada: number;
   };
+  /** Cupons do Mercado Livre e da Amazon, cadastrados por você em cupons.json. */
+  cupons: { ativo: boolean; arquivo: string; porDia: number; repetirDias: number };
   blog: {
     ativo: boolean;
     nome: string;
@@ -176,9 +184,24 @@ export function salvarNoEnv(alteracoes: Record<string, string>, caminho = '.env'
   writeFileSync(caminho, texto, 'utf8');
 }
 
+/** Lê "categoria=@canal, categoria=-100123" do ajuste ROTAS_TELEGRAM. */
+export function lerRotas(texto: string | undefined, tambemNoGeral: boolean): Config['rotas'] {
+  const rotas: Config['rotas'] = { porCategoria: {}, tambemNoGeral, avisos: [] };
+  for (const item of lista(texto)) {
+    const [categoria, ...resto] = item.split('=');
+    const chave = (categoria ?? '').trim().toLowerCase();
+    const canal = resto.join('=').trim();
+    if (!CATEGORIAS.includes(chave)) rotas.avisos.push(`ROTAS_TELEGRAM: categoria "${chave}" não existe (use: ${CATEGORIAS.join(', ')}).`);
+    else if (!/^(@[A-Za-z][A-Za-z0-9_]{4,}|-?\d{5,})$/.test(canal)) rotas.avisos.push(`ROTAS_TELEGRAM: canal "${canal}" de "${chave}" precisa ser @nomedocanal ou o ID numérico.`);
+    else rotas.porCategoria[chave] = canal;
+  }
+  return rotas;
+}
+
 export function lerConfig(env: Env = process.env): Config {
   const chatId = (env.TELEGRAM_CHAT_ID ?? '').trim();
   return {
+    rotas: lerRotas(env.ROTAS_TELEGRAM, ligado(env, 'ROTAS_TAMBEM_NO_GERAL', false)),
     telegram: {
       token: (env.TELEGRAM_BOT_TOKEN ?? '').trim(),
       chatId,
@@ -222,6 +245,12 @@ export function lerConfig(env: Env = process.env): Config {
       horaFim: numero(env, 'HORA_FIM', 23),
       maxPostsPorDia: numero(env, 'MAX_POSTS_POR_DIA', 60),
       postsPorRodada: numero(env, 'POSTS_POR_RODADA', 2),
+    },
+    cupons: {
+      ativo: ligado(env, 'CUPONS_ATIVO', true),
+      arquivo: (env.CUPONS_ARQUIVO ?? '').trim() || 'cupons.json',
+      porDia: numero(env, 'CUPONS_POR_DIA', 3),
+      repetirDias: numero(env, 'CUPONS_REPETIR_DIAS', 3),
     },
     blog: {
       ativo: ligado(env, 'BLOG_ATIVO', false),

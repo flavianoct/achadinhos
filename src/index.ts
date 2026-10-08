@@ -98,10 +98,20 @@ async function modoNuvem(): Promise<void> {
         break;
       }
       postados++;
+      for (const aviso of r.avisos) dizer(`- **Aviso de roteamento:** ${aviso}`);
     }
+    for (const aviso of robo.config.rotas.avisos) dizer(`- **Aviso nas rotas:** ${aviso}`);
     rodada.postados = postados;
     rodada.parou = motivoDaParada;
     dizer(`- Telegram: ${postados} ofertas postadas${motivoDaParada ? ` (parou por: ${motivoDaParada})` : ''}. Na fila: ${robo.banco.tamanhoDaFila()}.`);
+
+    // Cupons do Mercado Livre e da Amazon, cadastrados em cupons.json (no máximo CUPONS_POR_DIA por dia).
+    if (robo.config.cupons.ativo) {
+      const cupom = await robo.postarCupomAgora();
+      for (const aviso of cupom.avisos) dizer(`- **Aviso nos cupons:** ${aviso}`);
+      if (cupom.resultado.postou) dizer(`- Cupom postado: ${cupom.resultado.cupom.titulo}`);
+      else if (cupom.resultado.motivo === 'erro') dizer(`- **Erro ao postar cupom:** ${cupom.resultado.detalhe}`);
+    }
   }
 
   // O blog é gravado mesmo sem chaves: assim o site existe desde a primeira execução.
@@ -146,6 +156,20 @@ async function modoNuvem(): Promise<void> {
 async function main(): Promise<void> {
   const args = new Set(process.argv.slice(2));
   if (args.has('--nuvem')) return modoNuvem();
+  if (args.has('--shopee-schema')) {
+    const { descreverApiShopee } = await import('./descobrir.ts');
+    const appId = (process.env.SHOPEE_APP_ID ?? '').trim();
+    const secret = (process.env.SHOPEE_SECRET ?? '').trim();
+    if (!appId || !secret) {
+      console.log('Cadastre SHOPEE_APP_ID e SHOPEE_SECRET (Settings → Secrets and variables → Actions).');
+      process.exitCode = 1;
+      return;
+    }
+    const relatorio = await descreverApiShopee(appId, secret);
+    console.log(relatorio);
+    if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${relatorio}\n`);
+    return;
+  }
   const demonstracao = args.has('--teste');
   const robo = demonstracao ? criarRoboDeDemonstracao() : new Robo();
 
