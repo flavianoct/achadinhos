@@ -39,7 +39,7 @@ function criarRoboDeDemonstracao(): Robo {
       HORA_INICIO: '0',
       HORA_FIM: '24',
       BLOG_ATIVO: '1',
-      BLOG_NOME: 'Achadinhos do Dia (demonstração)',
+      BLOG_NOME: 'Mata Preço (demonstração)',
       BLOG_PASTA: 'blog-demonstracao',
     },
     criarFontes: () => [new FonteSimulada()],

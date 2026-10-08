@@ -3,12 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Painel do Achadinhos Bot</title>
+<title>Painel do Mata Preço</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20200%20200%22%3E%3Cg%20transform%3D%22translate(0%200)%20scale(1)%22%3E%3Crect%20width%3D%22200%22%20height%3D%22200%22%20rx%3D%2244%22%20fill%3D%22%23E10600%22%2F%3E%3Cg%20transform%3D%22translate(22%2022)%20scale(.78)%22%3E%3Cg%20transform%3D%22rotate(-18%20100%20100)%22%3E%3Cpath%20d%3D%22M26%20100%20L74%2050%20H164%20Q176%2050%20176%2062%20V138%20Q176%20150%20164%20150%20H74%20Z%22%20fill%3D%22%23ffffff%22%20stroke%3D%22%23ffffff%22%20stroke-width%3D%2210%22%20stroke-linejoin%3D%22round%22%2F%3E%3Ccircle%20cx%3D%2270%22%20cy%3D%22100%22%20r%3D%2210%22%20fill%3D%22%23E10600%22%2F%3E%3C%2Fg%3E%3Cpath%20d%3D%22M128%2010%20L82%20106%20H112%20L90%20190%20L154%2084%20H122%20L146%2010%20Z%22%20fill%3D%22%23FFD60A%22%20stroke%3D%22%23E10600%22%20stroke-width%3D%2210%22%20stroke-linejoin%3D%22round%22%20paint-order%3D%22stroke%22%2F%3E%3C%2Fg%3E%3C%2Fg%3E%3C%2Fsvg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@1,800;1,900&family=Barlow:wght@400;500;600;700;800&display=swap">
 <style>
-:root{--fundo:#f4f5f7;--cartao:#fff;--texto:#16181d;--suave:#5b6370;--borda:#e0e3e8;--cor:#2f6fed;--cor-texto:#fff;--ok:#0a7d4f;--ok-fundo:#e3f6ec;--alerta:#9a5b00;--alerta-fundo:#fff3d6;--erro:#b3261e;--erro-fundo:#fde8e6}
-@media (prefers-color-scheme:dark){:root{--fundo:#111318;--cartao:#1a1d24;--texto:#eceef2;--suave:#a0a7b4;--borda:#2b303b;--cor:#7aa5ff;--cor-texto:#0d1117;--ok:#51cf8a;--ok-fundo:#12301f;--alerta:#f2c261;--alerta-fundo:#3a2c0c;--erro:#ff8a80;--erro-fundo:#3b1614}}
+.mp-barra{display:flex;align-items:center;gap:6px;background:#0E0E10;color:#fff;border-radius:14px;padding:8px 16px;margin-bottom:16px;font-size:28px}.mp-barra small{margin-left:auto;font:700 11px/1 Barlow,system-ui,sans-serif;letter-spacing:.18em;text-transform:uppercase;background:#FFD60A;color:#0E0E10;padding:6px 9px 5px 11px;border-radius:6px}.marca-nome{font-family:"Barlow Condensed","Arial Narrow",Impact,sans-serif;font-style:italic;font-weight:900;text-transform:uppercase;letter-spacing:-.01em;line-height:1;white-space:nowrap}.risco{position:relative;display:inline-block;color:#FFD60A}.risco::after{content:"";position:absolute;left:-4%;right:-4%;top:46%;height:.09em;background:#E10600;border-radius:.05em;transform:rotate(-5deg);box-shadow:0 0 0 .03em #0E0E10}
+:root{--fundo:#f4f5f7;--cartao:#fff;--texto:#16181d;--suave:#5b6370;--borda:#e0e3e8;--cor:#E10600;--cor-texto:#fff;--ok:#0a7d4f;--ok-fundo:#e3f6ec;--alerta:#9a5b00;--alerta-fundo:#fff3d6;--erro:#b3261e;--erro-fundo:#fde8e6}
+@media (prefers-color-scheme:dark){:root{--fundo:#0E0E10;--cartao:#17171B;--texto:#fff;--suave:#A9A9B3;--borda:#2A2A31;--cor:#FF3B30;--cor-texto:#fff;--ok:#51cf8a;--ok-fundo:#12301f;--alerta:#f2c261;--alerta-fundo:#3a2c0c;--erro:#ff8a80;--erro-fundo:#3b1614}}
 *{box-sizing:border-box}
-body{margin:0;background:var(--fundo);color:var(--texto);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+body{margin:0;background:var(--fundo);color:var(--texto);font:15px/1.5 Barlow,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 .pagina{max-width:1040px;margin:0 auto;padding:20px 16px 48px}
 header{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;margin-bottom:16px}
 h1{font-size:1.375rem;margin:0}
@@ -59,8 +62,9 @@ a{color:var(--cor)}
 </head>
 <body>
 <div class="pagina">
+  <div class="mp-barra"><svg class="logo" viewBox="0 0 200 200" width="40" height="40" aria-hidden="true"><g transform="rotate(-18 100 100)"><path d="M26 100 L74 50 H164 Q176 50 176 62 V138 Q176 150 164 150 H74 Z" fill="#E10600" stroke="#E10600" stroke-width="10" stroke-linejoin="round"/><circle cx="70" cy="100" r="10" fill="#0E0E10"/></g><path d="M128 10 L82 106 H112 L90 190 L154 84 H122 L146 10 Z" fill="#FFD60A" stroke="#0E0E10" stroke-width="10" stroke-linejoin="round" paint-order="stroke"/></svg><span class="marca-nome">Mata <span class="risco">Preço</span></span><small>Painel local</small></div>
   <header>
-    <h1>Achadinhos Bot</h1>
+    <h1>Robô do Mata Preço</h1>
     <span id="situacao" class="pilula">carregando…</span>
     <span id="canal" class="canal"></span>
   </header>

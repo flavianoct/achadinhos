@@ -4,6 +4,7 @@ import type { Banco } from './db.ts';
 import type { Config } from './config.ts';
 import type { OfertaAvaliada } from './types.ts';
 import { formatarPreco } from './mensagem.ts';
+import { FONTES, ICONE, estiloDaMarca, nomeDaMarca, simbolo } from './marca.ts';
 
 /** Quantas horas para trás a página "link da bio" olha, e quantas ofertas mostra no máximo. */
 export const HORAS_DA_BIO = 48;
@@ -104,18 +105,21 @@ export function paginaDaBio(ofertas: OfertaAvaliada[], config: Config, agora: Da
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, follow">
+<meta name="theme-color" content="#0E0E10">
+<link rel="icon" href="${ICONE}">
+${FONTES}
 <title>${esc(nome)}: ofertas de hoje</title>
 <style>
-:root{--bg:#f6f7f9;--card:#fff;--tx:#111827;--mut:#5b6474;--bd:#e4e7ee;--cor:#d6336c;--cor2:#b5214f;--ok:#0b7a52;--okbg:#e6f6ef;--lar:#e8590c;--tg:#229ed9}
-@media(prefers-color-scheme:dark){:root{--bg:#0b0d12;--card:#141821;--tx:#eef0f5;--mut:#9aa3b3;--bd:#232837;--cor:#f06595;--cor2:#ff8fb3;--ok:#4cd694;--okbg:#10281e}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+:root{color-scheme:dark;--fundo:#0E0E10;--bg:#0E0E10;--card:#17171B;--tx:#fff;--mut:#A9A9B3;--bd:#2A2A31;--cor:#E10600;--cor2:#FFD60A;--ok:#4cd694;--okbg:#10281e;--lar:#E10600;--tg:#2AABEE}
+${estiloDaMarca()}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.45 Barlow,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:radial-gradient(520px 320px at 50% -80px,rgba(225,6,0,.38),transparent 70%) no-repeat var(--bg)}
 main{max-width:520px;margin:0 auto;padding:28px 16px 48px}
-.marca{text-align:center;margin:0 0 18px}.logo{width:64px;height:64px;color:var(--cor);display:block;margin:0 auto 10px}
-h1{font-size:24px;letter-spacing:-.02em;margin:0 0 4px}.sub{color:var(--mut);font-size:14px;margin:0}
+.marca{text-align:center;margin:0 0 18px}.logo{display:block;margin:0 auto 2px}
+h1{font-size:46px;margin:0 0 6px;font-weight:400}.sub{color:var(--mut);font-size:14px;margin:0}
 .botao{display:flex;align-items:center;justify-content:center;text-align:center;text-decoration:none;font-weight:800;font-size:17px;padding:16px;border-radius:14px;margin:0 0 10px;box-shadow:0 6px 18px rgba(16,24,40,.12)}
-.botao.telegram{background:var(--tg);color:#fff}
+.botao.telegram{background:var(--tg);color:#041018}
 .botao.blog{background:var(--cor);color:#fff}
-.botao.whatsapp{background:#1fa855;color:#fff}
+.botao.whatsapp{background:#25D366;color:#06120A}
 .chamada{background:var(--card);border:1px solid var(--bd);border-radius:18px;padding:16px;margin:0 0 18px}
 .chamada-titulo{font-size:17px;font-weight:800;line-height:1.25;margin:0 0 4px;text-align:center}.chamada-texto{font-size:14px;color:var(--mut);margin:0 0 14px;text-align:center}.chamada-mini{font-size:12px;color:var(--mut);margin:0;text-align:center}
 .chamada .botao{margin-bottom:8px}
@@ -125,7 +129,7 @@ ul{list-style:none;margin:0;padding:0}
 .oferta img,.semfoto{width:96px;height:96px;object-fit:contain;background:#fff;border-radius:12px;flex:none}
 .semfoto{background:var(--bd)}
 .info{min-width:0;flex:1}.titulo{margin:0 0 4px;font-size:14px;font-weight:600}
-.preco{margin:0 0 8px;font-size:15px}.preco strong{font-size:20px}.preco s{color:var(--mut);font-size:13px}
+.preco{margin:0 0 8px;font-size:15px}.preco strong{font-size:22px;color:var(--cor2)}.preco s{color:var(--mut);font-size:13px;text-decoration-color:var(--cor)}
 .selo{display:inline-block;background:var(--cor);color:#fff;font-size:12px;font-weight:700;padding:1px 7px;border-radius:99px}
 .selo.verde{background:var(--okbg);color:var(--ok)}
 .ver{display:block;text-align:center;background:var(--lar);color:#fff;text-decoration:none;font-weight:700;padding:11px 10px;border-radius:10px}
@@ -140,8 +144,8 @@ ul{list-style:none;margin:0;padding:0}
 <body>
 <main>
   <header class="marca">
-    <svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="currentColor"/><path d="M8 17l8-8h8v8l-8 8z" fill="#fff"/><circle cx="20.5" cy="11.5" r="2" fill="currentColor"/></svg>
-    <h1>${esc(nome)}</h1>
+    ${simbolo(92)}
+    <h1>${nomeDaMarca(esc(nome))}</h1>
     <p class="sub">Ofertas conferidas, com o preço do momento</p>
   </header>
   ${chamada}

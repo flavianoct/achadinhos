@@ -327,7 +327,7 @@ export function lerConfig(env: Env = process.env): Config {
     },
     blog: {
       ativo: ligado(env, 'BLOG_ATIVO', false),
-      nome: (env.BLOG_NOME ?? '').trim() || 'Achadinhos do Dia',
+      nome: (env.BLOG_NOME ?? '').trim() || 'Mata Preço',
       url: (env.BLOG_URL ?? '').trim().replace(/\/+$/, ''),
       pasta: (env.BLOG_PASTA ?? '').trim() || 'blog',
       horas: numero(env, 'BLOG_HORAS', 6),

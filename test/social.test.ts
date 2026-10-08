@@ -105,7 +105,7 @@ test('moldes: todo tema e todo layout geram arte válida, com preço, aviso de p
       layouts.add(layoutDoProduto(o.idProduto));
       for (const [svg, w, h] of [[montarSvgDoStory(o, 'data:image/png;base64,AAAA'), 1080, 1920], [montarSvgDoFeed(o, 'data:image/png;base64,AAAA'), 1080, 1350]] as const) {
         assert.match(svg, new RegExp(`^<svg[^>]+width="${w}" height="${h}"`));
-        assert.ok(svg.includes('R$ 34,41') && svg.includes('Publi · link de afiliado') && svg.includes('Link na bio') && svg.includes('ACHADINHOS DO DIA'));
+        assert.ok(svg.includes('R$ 34,41') && svg.includes('Publi · link de afiliado') && svg.includes('Link na bio') && svg.includes('MATA PREÇO'));
         assert.ok(!svg.includes('Ofertas no link da bio'), 'sem botão falso: a chamada é texto simples');
         assert.ok(svg.includes('4,8') && svg.includes('5 mil vendidos') && svg.includes('<polygon'), 'nota, vendas e estrela no próprio card');
         assert.ok(!svg.includes('<INMA>') && svg.includes('&lt;INMA&gt;'), 'título escapado');

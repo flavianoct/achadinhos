@@ -1,7 +1,7 @@
 /**
  * Moldes das artes do Instagram: temas de cor (um por categoria) e layouts (três para o Story, três para o feed).
  * O tema vem da categoria e o layout vem do produto, então o mesmo produto sempre sai igual.
- * Fica fixo em todos: o nome "ACHADINHOS DO DIA", a fonte, o aviso de publi e o preço em destaque (identidade do perfil).
+ * Fica fixo em todos: o nome "MATA PREÇO", a fonte, o aviso de publi e o preço em destaque (identidade do perfil).
  */
 
 export function esc(s: string): string {
@@ -145,7 +145,7 @@ const aviso = (y: number, tamanho: number, cor = '#e2e8f0') => `<text x="540" y=
 function storyClassico(d: DadosDaArte): string {
   return `${gradiente('fundo', d.tema)}
 <rect width="1080" height="1920" fill="url(#fundo)"/>
-${texto(540, 170, 46, '#ffffff', 'ACHADINHOS DO DIA', ' letter-spacing="6"')}
+${texto(540, 170, 46, '#ffffff', 'MATA PREÇO', ' letter-spacing="6"')}
 ${ganchoDoStory(d, 215)}
 <rect x="90" y="360" width="900" height="900" rx="56" fill="#ffffff"/>
 ${foto(d, 130, 400, 820, 820, 64)}
@@ -161,7 +161,7 @@ ${aviso(1892, 28)}`;
 function storyPainel(d: DadosDaArte): string {
   return `${gradiente('fundo', d.tema)}
 <rect width="1080" height="1920" fill="url(#fundo)"/>
-${texto(540, 150, 46, '#ffffff', 'ACHADINHOS DO DIA', ' letter-spacing="6"')}
+${texto(540, 150, 46, '#ffffff', 'MATA PREÇO', ' letter-spacing="6"')}
 ${ganchoDoStory(d, 195)}
 <rect x="140" y="320" width="800" height="800" rx="56" fill="#ffffff"/>
 ${foto(d, 180, 360, 720, 720, 60)}
@@ -179,7 +179,7 @@ function storyClaro(d: DadosDaArte): string {
   return `${gradiente('fundo', d.tema)}
 <rect width="1080" height="1920" fill="#f8fafc"/>
 <rect width="1080" height="300" fill="url(#fundo)"/>
-${texto(540, 120, 46, '#ffffff', 'ACHADINHOS DO DIA', ' letter-spacing="6"')}
+${texto(540, 120, 46, '#ffffff', 'MATA PREÇO', ' letter-spacing="6"')}
 ${ganchoDoStory(d, 160)}
 <rect x="90" y="330" width="900" height="900" rx="48" fill="#ffffff" stroke="#e2e8f0" stroke-width="4"/>
 ${foto(d, 130, 370, 820, 820, 64)}
@@ -206,7 +206,7 @@ export function svgDoStory(d: DadosDaArte): string {
 const cabecalhoDoFeed = (d: DadosDaArte) => {
   const tamanho = 30;
   const largura = larguraDaPilula(d.ganchoCurto, tamanho, 220, 400);
-  return `<text x="60" y="92" font-size="34" font-weight="700" fill="#ffffff" letter-spacing="4">ACHADINHOS DO DIA</text>
+  return `<text x="60" y="92" font-size="34" font-weight="700" fill="#ffffff" letter-spacing="4">MATA PREÇO</text>
 ${pilula(1020 - largura / 2, 52, 64, largura, corDoGancho(d), tamanho, d.ganchoCurto, d.ganchoTipo === 'categoria' ? 0.2 : 1)}`;
 };
 
@@ -283,7 +283,7 @@ export function svgDaCapaDoCarrossel(d: DadosDaCapa): string {
     .join('\n');
   const corpo = `${gradiente('fundo', d.tema)}
 <rect width="1080" height="1350" fill="url(#fundo)"/>
-<text x="60" y="92" font-size="38" font-weight="700" fill="#ffffff" letter-spacing="5">ACHADINHOS DO DIA</text>
+<text x="60" y="92" font-size="38" font-weight="700" fill="#ffffff" letter-spacing="5">MATA PREÇO</text>
 ${texto(540, 430, 250, '#ffffff', `TOP ${d.total}`)}
 ${texto(540, 580, 120, d.tema.preco, `ATÉ R$ ${d.teto}`)}
 ${texto(540, 680, 46, '#ffffff', 'Bem avaliados e muito vendidos')}
@@ -328,7 +328,7 @@ export interface DadosDaCapaDaDica {
 export function svgDaCapaDaDica(d: DadosDaCapaDaDica): string {
   return envolver(`${gradiente('fundo', d.tema)}
 <rect width="1080" height="1350" fill="url(#fundo)"/>
-<text x="60" y="92" font-size="34" font-weight="700" fill="#ffffff" letter-spacing="4">ACHADINHOS DO DIA</text>
+<text x="60" y="92" font-size="34" font-weight="700" fill="#ffffff" letter-spacing="4">MATA PREÇO</text>
 ${texto(540, 300, 52, d.tema.preco, 'ANTES DE COMPRAR', ' letter-spacing="6"')}
 ${texto(540, 640, 380, '#ffffff', String(d.numero))}
 ${texto(540, 745, 84, '#ffffff', 'coisas para olhar')}
@@ -363,7 +363,7 @@ export function svgDoCriterio(d: DadosDoCriterio): string {
   const yExplicacao = topo + d.titulo.length * passoDoTitulo + 40 + 40;
   return envolver(`${gradiente('fundo', d.tema)}
 <rect width="1080" height="1350" fill="url(#fundo)"/>
-<text x="60" y="92" font-size="34" font-weight="700" fill="#ffffff" letter-spacing="4">ACHADINHOS DO DIA</text>
+<text x="60" y="92" font-size="34" font-weight="700" fill="#ffffff" letter-spacing="4">MATA PREÇO</text>
 <circle cx="540" cy="290" r="108" fill="${d.tema.preco}"/>
 ${texto(540, 350, 156, d.tema.f1, String(d.posicao))}
 ${texto(540, 480, 34, '#e2e8f0', d.assunto.toUpperCase())}
@@ -395,7 +395,7 @@ ${partes ? `${it.nota ? estrela(estrelaX + 14, y + 238, 14) : ''}${textoEsq(estr
   });
   return envolver(`${gradiente('fundo', d.tema)}
 <rect width="1080" height="1350" fill="url(#fundo)"/>
-<text x="60" y="92" font-size="34" font-weight="700" fill="#ffffff" letter-spacing="4">ACHADINHOS DO DIA</text>
+<text x="60" y="92" font-size="34" font-weight="700" fill="#ffffff" letter-spacing="4">MATA PREÇO</text>
 ${texto(540, 200, 66, '#ffffff', 'Os 3 do nosso guia')}
 ${d.assunto.map((l, i) => texto(540, 262 + i * 50, 44, d.tema.preco, l)).join('\n')}
 ${linhas.join('\n')}

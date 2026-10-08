@@ -1,0 +1,38 @@
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@1,800;1,900&family=Barlow:wght@400;500;600;700;800&display=block');
+
+:root {
+  --red: #E10600;
+  --red-dark: #A80400;
+  --yellow: #FFD60A;
+  --black: #0E0E10;
+  --ink: #1B1B1F;
+  --white: #FFFFFF;
+  --gray: #9A9AA3;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { font-family: 'Barlow', Arial, sans-serif; color: var(--white); }
+
+.sym { display: inline-block; line-height: 0; }
+.sym svg { width: 100%; height: 100%; display: block; }
+
+/* Wordmark */
+.wm {
+  font-family: 'Barlow Condensed', 'Arial Narrow', Impact, sans-serif;
+  font-style: italic; font-weight: 900; text-transform: uppercase;
+  line-height: .82; letter-spacing: -.01em; display: inline-flex; gap: .18em;
+  white-space: nowrap;
+}
+.wm.stack { flex-direction: column; gap: 0; }
+.wm .a { color: var(--white); }
+.wm .b { color: var(--yellow); position: relative; display: inline-block; }
+.wm .b::after {
+  content: ''; position: absolute; left: -4%; right: -4%; top: 46%;
+  height: .09em; background: var(--strike, var(--red)); transform: rotate(-5deg);
+  border-radius: .05em; box-shadow: 0 0 0 .025em var(--strike-edge, var(--black));
+}
+.oficial {
+  font-family: 'Barlow', sans-serif; font-weight: 800; font-style: normal;
+  text-transform: uppercase; letter-spacing: .22em; font-size: .16em;
+  background: var(--yellow); color: var(--black); padding: .35em .7em .3em .9em;
+  border-radius: .3em; display: inline-block; line-height: 1;
+}

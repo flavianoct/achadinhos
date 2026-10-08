@@ -450,7 +450,7 @@ test('painel: mostra o estado, esconde segredos, salva configuração e recusa p
   try {
     const pagina = await fetch(base + '/');
     assert.equal(pagina.status, 200);
-    assert.match(await pagina.text(), /Achadinhos Bot/);
+    assert.match(await pagina.text(), /Robô do Mata Preço/);
 
     const coleta = await (await post('/api/acao', { acao: 'coletar' })).json();
     assert.equal(coleta.resumo.aprovadas, 1);
