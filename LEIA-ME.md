@@ -136,6 +136,24 @@ Para cadastrar, abra `cupons.json` no GitHub (ícone do lápis), escreva a lista
 - O robô posta primeiro os cupons que ainda não saíram e, depois, repete os que vencem antes. Limites em `ajustes.env`: `CUPONS_POR_DIA` (padrão 3), `CUPONS_REPETIR_DIAS` (padrão 3) e `CUPONS_ATIVO=0` para desligar.
 - Erros no arquivo (vírgula faltando, link de outra loja, data errada) aparecem no resumo da rodada, na aba Actions, e o cupom com problema é ignorado.
 
+## Nichos e canais por categoria
+
+Toda oferta que entra no robô é classificada sozinha em um nicho, pelas palavras do título: **Eletrônicos** (`tech`), **Games**, **Moda**, **Casa & Cozinha** (`casa`), **Esportes** (`esporte`), **Beleza**, **Bebê & Infantil** (`bebe`), **Pet**, **Ferramentas** e **Geral**. Cada nicho soma pontos pelas palavras que aparecem (palavra no começo do título vale o dobro) e vence o que tiver mais; título sem palavra conhecida fica em Geral. O nicho vai junto com a oferta na fila, no histórico e no blog. As palavras ficam em `src/categoria.ts`.
+
+**Um canal por nicho (opcional).** Em `ajustes.env`, preencha `ROTAS_TELEGRAM` com `nicho=canal` separados por vírgula:
+
+```
+ROTAS_TELEGRAM=tech=@meucanaltech,moda=@meucanalmoda
+```
+
+- O bot precisa ser administrador de cada canal (a opção "Testar chaves" do painel local confere todos).
+- Nicho sem rota vai para o canal geral (`TELEGRAM_CHAT_ID`). Assim o geral recebe tudo o que não tem canal próprio.
+- `ROTAS_TAMBEM_NO_GERAL=1` faz as ofertas de nichos com canal próprio saírem também no geral.
+- Se um canal de nicho recusar o post (bot sem permissão, canal apagado), a oferta não se perde: vai para o canal geral e a rodada mostra um aviso.
+- Nome de nicho que não existe ou canal escrito errado é ignorado e aparece como aviso no resumo da rodada e no painel.
+
+**No painel online** (`painel.html`), a seção "Ofertas por nicho" mostra o nicho que mais disparou hoje, a maior fila, a distribuição dos posts dos últimos 7 dias (gráfico de rosca) e uma tabela com posts de hoje e da semana, ofertas na fila, aprovadas nas últimas 24 h e o canal de cada nicho. A lista de últimas ofertas tem filtro por nicho. O painel não mostra cliques: o link de afiliado vai direto para a loja, então os cliques só aparecem nos painéis de afiliado da Shopee e do Mercado Livre.
+
 ## Avisos
 
 - **Um lugar só:** não rode o robô no PC e na nuvem ao mesmo tempo com o mesmo canal, senão as ofertas saem repetidas.

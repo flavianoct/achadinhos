@@ -25,7 +25,7 @@ export interface OpcoesDoRobo {
   envBase?: Env;
   /** Trocáveis nos testes. */
   criarFontes?: (config: Config) => Fonte[];
-  criarPublicador?: (config: Config) => Publicador & { checar?: () => Promise<string> };
+  criarPublicador?: (config: Config) => Publicador & { checar?: (destino?: string) => Promise<string> };
   silencioso?: boolean;
 }
 
@@ -55,7 +55,7 @@ export class Robo {
 
   private opcoes: OpcoesDoRobo;
   private fontes: Fonte[] = [];
-  private publicador?: Publicador & { checar?: () => Promise<string> };
+  private publicador?: Publicador & { checar?: (destino?: string) => Promise<string> };
   private coletaEm = 0;
   private postEm = 0;
   private blogEm = 0;
@@ -136,7 +136,11 @@ export class Robo {
       if (!this.publicador) return { postou: false, motivo: 'erro', detalhe: 'Telegram não configurado' } as ResultadoDoPost;
       const config: Config = forcar ? { ...this.config, ritmo: { ...this.config.ritmo, horaInicio: 0, horaFim: 24, maxPostsPorDia: Number.MAX_SAFE_INTEGER } } : this.config;
       const r = await postarProxima(this.publicador, this.banco, config, agora);
-      if (r.postou) this.log(`postado: [${r.oferta.loja}] ${r.oferta.titulo.slice(0, 60)}`);
+      if (r.postou) {
+        const destino = Object.keys(this.config.rotas.porCategoria).length ? ` [${r.oferta.categoria} → ${r.canais.join(' + ')}]` : '';
+        this.log(`postado: [${r.oferta.loja}] ${r.oferta.titulo.slice(0, 60)}${destino}`);
+        for (const aviso of r.avisos) this.log(`AVISO: ${aviso}`);
+      }
       else if (r.motivo === 'erro') this.log(`ERRO ao postar: ${r.detalhe}`);
       return r;
     });
@@ -194,7 +198,15 @@ export class Robo {
       } catch (e) {
         linhas.push({ ok: false, texto: `Telegram: ${(e as Error).message}` });
       }
+      for (const [categoria, canal] of Object.entries(this.config.rotas.porCategoria)) {
+        try {
+          linhas.push({ ok: true, texto: `Rota ${categoria}: ${await this.publicador.checar(canal)}` });
+        } catch (e) {
+          linhas.push({ ok: false, texto: `Rota ${categoria}: ${(e as Error).message}` });
+        }
+      }
     }
+    for (const aviso of this.config.rotas.avisos) linhas.push({ ok: false, texto: aviso });
     for (const fonte of this.fontes) {
       if (fonte.nome === 'amazon') continue;
       try {

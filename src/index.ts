@@ -98,7 +98,9 @@ async function modoNuvem(): Promise<void> {
         break;
       }
       postados++;
+      for (const aviso of r.avisos) dizer(`- **Aviso de roteamento:** ${aviso}`);
     }
+    for (const aviso of robo.config.rotas.avisos) dizer(`- **Aviso nas rotas:** ${aviso}`);
     rodada.postados = postados;
     rodada.parou = motivoDaParada;
     dizer(`- Telegram: ${postados} ofertas postadas${motivoDaParada ? ` (parou por: ${motivoDaParada})` : ''}. Na fila: ${robo.banco.tamanhoDaFila()}.`);

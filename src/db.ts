@@ -149,6 +149,9 @@ export class Banco {
         ultimo_ok_em INTEGER
       );
     `);
+    // Bancos antigos (guardados no ramo "dados") não têm a coluna do canal: acrescenta sem perder nada.
+    const colunas = this.db.prepare(`PRAGMA table_info(postados)`).all() as Array<{ name: string }>;
+    if (!colunas.some((c) => c.name === 'canal')) this.db.exec(`ALTER TABLE postados ADD COLUMN canal TEXT`);
     // Bancos criados antes do Instagram não têm estas colunas.
     for (const coluna of ['imagem TEXT', 'ig_feed_em INTEGER', 'ig_story_em INTEGER']) {
       try {
@@ -190,10 +193,27 @@ export class Banco {
     return linha ? { preco: linha.preco, postadoEm: linha.postado_em } : undefined;
   }
 
-  registrarPost(o: OfertaAvaliada, agora: Date): void {
+  /** `canal` é o destino principal do post no Telegram (o canal do nicho ou o geral). */
+  registrarPost(o: OfertaAvaliada, agora: Date, canal?: string): void {
     this.db
-      .prepare(`INSERT INTO postados (loja, id_produto, titulo, categoria, preco, dia, postado_em) VALUES (?, ?, ?, ?, ?, ?, ?)`)
-      .run(o.loja, o.idProduto, o.titulo, o.categoria, o.preco, diaDe(agora), agora.getTime());
+      .prepare(`INSERT INTO postados (loja, id_produto, titulo, categoria, preco, dia, postado_em, canal) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(o.loja, o.idProduto, o.titulo, o.categoria, o.preco, diaDe(agora), agora.getTime(), canal ?? null);
+  }
+
+  /** Posts por categoria nos últimos `dias` dias (1 = só hoje), do maior para o menor. */
+  postsPorCategoria(dias: number, agora: Date): Array<{ categoria: string; posts: number }> {
+    return this.db
+      .prepare(`SELECT categoria, COUNT(*) AS posts FROM postados WHERE dia >= ? GROUP BY categoria ORDER BY posts DESC, categoria ASC`)
+      .all(diasAtras(agora, dias - 1))
+      .map((l) => ({ categoria: String(l.categoria), posts: Number(l.posts) }));
+  }
+
+  /** Ofertas esperando na fila, por categoria. */
+  filaPorCategoria(): Array<{ categoria: string; total: number }> {
+    return this.db
+      .prepare(`SELECT COALESCE(json_extract(dados, '$.categoria'), 'geral') AS categoria, COUNT(*) AS total FROM fila GROUP BY categoria ORDER BY total DESC, categoria ASC`)
+      .all()
+      .map((l) => ({ categoria: String(l.categoria), total: Number(l.total) }));
   }
 
   postsNoDia(agora: Date): number {

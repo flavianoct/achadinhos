@@ -5,6 +5,7 @@ import { chaveDoCupom, escolherCupom, type Cupom } from './cupons.ts';
 import { contemPalavra, normalizar } from './categoria.ts';
 import { avaliar } from './filtro.ts';
 import { elegivelParaGuia, tipoDeGuia } from './guias.ts';
+import { destinosDaOferta } from './rotas.ts';
 import { ErroTelegram, type Publicador } from './telegram.ts';
 import type { Fonte, OfertaAvaliada } from './types.ts';
 
@@ -62,7 +63,7 @@ export async function coletar(fontes: Fonte[], banco: Banco, config: Config, ago
 }
 
 export type ResultadoDoPost =
-  | { postou: true; oferta: OfertaAvaliada }
+  | { postou: true; oferta: OfertaAvaliada; canais: string[]; avisos: string[] }
   | { postou: false; motivo: 'fora do horário' | 'limite diário' | 'fila vazia' | 'erro'; detalhe?: string };
 
 /** Posta a melhor oferta da fila, respeitando horário e limite diário. */
@@ -75,20 +76,41 @@ export async function postarProxima(publicador: Publicador, banco: Banco, config
   const oferta = banco.melhorDaFila(banco.ultimaLojaPostada());
   if (!oferta) return { postou: false, motivo: 'fila vazia' };
 
-  try {
-    await publicador.publicar(oferta);
-  } catch (e) {
-    // Erro definitivo (post inválido): tira da fila para não travar. Erro de rede: fica para a próxima.
-    if (e instanceof ErroTelegram && e.permanente) banco.removerDaFila(oferta.loja, oferta.idProduto);
-    return { postou: false, motivo: 'erro', detalhe: (e as Error).message };
+  // Roteamento por nicho: o canal da categoria da oferta; sem rota, o canal geral.
+  const geral = config.telegram.chatId;
+  const canais: string[] = [];
+  const avisos: string[] = [];
+  for (const destino of destinosDaOferta(oferta.categoria, config)) {
+    try {
+      await publicador.publicar(oferta, destino);
+      canais.push(destino);
+    } catch (e) {
+      const permanente = e instanceof ErroTelegram && e.permanente;
+      if (permanente && destino !== geral && !canais.includes(geral)) {
+        // O canal do nicho recusou (bot sem permissão, canal apagado): a oferta não se perde, vai para o canal geral.
+        avisos.push(`canal ${destino} recusou (${(e as Error).message}); enviada ao canal geral`);
+        try {
+          await publicador.publicar(oferta, geral);
+          canais.push(geral);
+          continue;
+        } catch (e2) {
+          if (e2 instanceof ErroTelegram && e2.permanente) banco.removerDaFila(oferta.loja, oferta.idProduto);
+          return { postou: false, motivo: 'erro', detalhe: (e2 as Error).message };
+        }
+      }
+      // Erro definitivo (post inválido): tira da fila para não travar. Erro de rede: fica para a próxima.
+      if (permanente) banco.removerDaFila(oferta.loja, oferta.idProduto);
+      if (canais.length === 0) return { postou: false, motivo: 'erro', detalhe: (e as Error).message };
+      avisos.push(`canal ${destino} falhou (${(e as Error).message}) depois de postar em ${canais.join(', ')}`);
+    }
   }
 
-  banco.registrarPost(oferta, agora);
+  banco.registrarPost(oferta, agora, canais[0]);
   // A mesma oferta que saiu no Telegram também vira mensagem de WhatsApp (o enviador do PC é quem posta).
   if (config.whatsapp.ativo) banco.guardarParaWhatsapp(oferta, montarMensagemWhatsapp(oferta), agora);
   if (config.social.ativo) banco.guardarParaSocial(oferta, agora);
   banco.removerDaFila(oferta.loja, oferta.idProduto);
-  return { postou: true, oferta };
+  return { postou: true, oferta, canais, avisos };
 }
 
 export type ResultadoDoCupom =
