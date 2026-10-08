@@ -2,6 +2,7 @@
 // Lê https://SEU-SITE/whatsapp.json (a fila que o robô publica) e posta nos seus grupos e canal.
 // Uso: node enviador.mjs            (fica rodando e enviando)
 //      node enviador.mjs listar     (mostra seus grupos e os códigos deles)
+import { execFile } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -20,6 +21,38 @@ const CAMINHO_ESTADO = join(PASTA_DE_DADOS, 'estado.json');
 const PASTA_LOGIN = join(PASTA_DE_DADOS, 'login-whatsapp');
 const pausa = (ms) => new Promise((r) => setTimeout(r, ms));
 const log = (m) => console.log(`[${new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' })}] ${m}`);
+
+/** Roda um comando e devolve a saída (sem shell: os argumentos vão separados). */
+function executar(cmd, args, cwd) {
+  return new Promise((resolve, reject) => {
+    execFile(cmd, args, { cwd, timeout: 180_000 }, (erro, saida, falha) => (erro ? reject(new Error((falha || erro.message).trim())) : resolve(String(saida).trim())));
+  });
+}
+
+/**
+ * Atualização automática (só na VPS, quando roda como serviço do systemd): busca a main no GitHub e, se houver versão
+ * nova, avança a pasta (só avanço simples, nunca apaga mudanças locais), reinstala as dependências se o package.json
+ * mudou e encerra; o systemd religa em 30 segundos já com o código novo. Desliga com "atualizarSozinho": false.
+ */
+async function procurarAtualizacao() {
+  const raiz = join(aqui, '..');
+  if (!process.env.INVOCATION_ID || !existsSync(join(raiz, '.git'))) return;
+  try {
+    await executar('git', ['fetch', '--depth=1', 'origin', 'main'], raiz);
+    const atual = await executar('git', ['rev-parse', 'HEAD'], raiz);
+    const nova = await executar('git', ['rev-parse', 'FETCH_HEAD'], raiz);
+    if (atual === nova) return;
+    const pacoteMudou = (await executar('git', ['diff', '--name-only', atual, nova], raiz)).split('\n').includes('enviador/package.json');
+    // O clone da VPS é raso (--depth=1): não dá para "avançar" com merge. reset --keep troca para a versão nova e recusa
+    // (sem mexer em nada) se algum arquivo mudado no GitHub também tiver mudança local.
+    await executar('git', ['reset', '--keep', 'FETCH_HEAD'], raiz);
+    if (pacoteMudou) await executar('npm', ['install', '--omit=dev', '--no-audit', '--no-fund'], aqui);
+    log(`Atualizado para a versão ${nova.slice(0, 7)} do GitHub. Reiniciando para usar o código novo…`);
+    process.exit(0);
+  } catch (e) {
+    log(`Não consegui atualizar sozinho (${e.message.split('\n')[0]}). Sigo com a versão atual; tento de novo mais tarde.`);
+  }
+}
 
 function lerConfig() {
   if (!existsSync(CAMINHO_CONFIG)) {
@@ -344,9 +377,15 @@ async function rodar() {
     const ws = sockAtual.sock?.ws;
     if (sockAtual.aberto && ws && (ws.isOpen === false || ws.isClosed === true || ws.isClosing === true)) reiniciarConexao('conexão morta detectada pelo vigia');
   }, 120_000).unref?.();
+  // Uma olhada por hora se há versão nova do enviador no GitHub (veja procurarAtualizacao).
+  let atualizacaoEm = 0;
   for (;;) {
     try {
       const agora = Date.now();
+      if (config.atualizarSozinho !== false && agora - atualizacaoEm > 60 * 60_000) {
+        atualizacaoEm = agora;
+        await procurarAtualizacao();
+      }
       if (sockAtual.aberto && agora - destinosEm > 10 * 60_000) await recarregarDestinos();
       estado = { ...estado, ...podarEstado(estado, agora) };
       const fila = await buscarFila(config);
