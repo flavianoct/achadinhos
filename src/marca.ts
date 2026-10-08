@@ -21,6 +21,11 @@ export function simboloNoQuadro(x = 0, y = 0, lado = 200): string {
   return `<g transform="translate(${x} ${y}) scale(${e})"><rect width="200" height="200" rx="44" fill="${CORES.vermelho}"/><g transform="translate(22 22) scale(.78)">${tracos('#ffffff', CORES.vermelho)}</g></g>`;
 }
 
+/** Símbolo para dentro de uma arte em SVG (Instagram): canto em (x, y), com `lado` de largura. `corte` é a cor do fundo da arte. */
+export function simboloNaArte(x: number, y: number, lado: number, etiqueta: string = CORES.vermelho, corte: string = CORES.preto): string {
+  return `<g transform="translate(${x} ${y}) scale(${lado / 200})">${tracos(etiqueta, corte)}</g>`;
+}
+
 /** Ícone da aba do navegador. */
 export const ICONE = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">${simboloNoQuadro()}</svg>`)}`;
 
