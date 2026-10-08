@@ -10,6 +10,9 @@ import { conteudoSocialRecente } from './social.ts';
 /** Quanto tempo uma mensagem de WhatsApp continua valendo (preço velho não deve ser postado). */
 export const HORAS_DO_WHATSAPP = 12;
 
+/** Quantas ofertas postadas o painel guarda para filtrar (os últimos dias; o arquivo continua leve). */
+export const MAXIMO_DE_POSTS_NO_PAINEL = 300;
+
 export interface DadosDaRodada {
   coleta?: ResumoDaColeta;
   postados: number;
@@ -35,7 +38,7 @@ export interface StatusPublico {
   rodada: { postados: number; parou?: string };
   blog?: { guias: number; postsNoAr: number; postsDeHoje: number; textosDeIA: number; modelo?: string; avisos: string[] };
   ajustes: Record<string, string | number>;
-  ultimosPosts: Array<{ loja: string; titulo: string; preco: number; postadoEm: number }>;
+  ultimosPosts: Array<{ loja: string; titulo: string; categoria: string; preco: number; postadoEm: number }>;
 }
 
 /** Só números e rótulos: nada aqui é segredo, porque o arquivo fica público no site. */
@@ -77,7 +80,7 @@ export function montarStatus(banco: Banco, config: Config, dados: DadosDaRodada,
       'Páginas do Mercado Livre': config.ml.paginas,
       'IA do blog': config.blog.ia === 'gemini' ? `gemini (${config.blog.geminiModelo})` : config.blog.ia,
     },
-    ultimosPosts: banco.ultimosPosts(15).map((p) => ({ loja: p.loja, titulo: p.titulo, preco: p.preco, postadoEm: p.postadoEm })),
+    ultimosPosts: banco.ultimosPosts(MAXIMO_DE_POSTS_NO_PAINEL).map((p) => ({ loja: p.loja, titulo: p.titulo.slice(0, 120), categoria: p.categoria, preco: p.preco, postadoEm: p.postadoEm })),
   };
 }
 
@@ -136,11 +139,18 @@ tr:last-child td{border-bottom:0}
 .sc{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px}
 .sc img{width:100%;border-radius:8px;display:block;margin-bottom:10px;background:var(--bd)}
 .sc .btns{flex-direction:column}.sc .b{text-align:center}
+.personalizar{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px 14px;margin:0 0 14px}.personalizar label{display:inline-flex;gap:6px;align-items:center;margin:4px 14px 4px 0;font-size:14px}.personalizar .linha{margin:8px 0}.personalizar h3{font-size:14px;margin:0 0 6px}
+.filtros{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px}.filtros input,.filtros select{font:inherit;font-size:14px;padding:8px 10px;border-radius:8px;border:1px solid var(--bd);background:var(--card);color:var(--tx)}.filtros input{flex:1 1 220px;min-width:160px}
 </style>
 </head>
 <body>
 <main>
-<header><div><h1>Painel do robô</h1><div class="sub" id="atualizado">Carregando…</div></div><span id="saude" class="pill of">…</span></header>
+<header><div><h1>Painel do robô</h1><div class="sub" id="atualizado">Carregando…</div></div><span class="btns"><button class="b s" id="p-abrir" type="button">⚙ Personalizar</button><span id="saude" class="pill of">…</span></span></header>
+<div class="personalizar" id="p-painel" hidden>
+<h3>Seções que aparecem</h3><div class="linha" id="p-secoes"></div>
+<div class="linha"><label>Ofertas por tela <select id="p-linhas"><option>25</option><option selected>50</option><option>100</option></select></label><label><input type="checkbox" id="p-lembrar" checked> Lembrar meus filtros</label><label>Filtro inicial de período <select id="p-per0"><option value="">Tudo que está guardado</option><option value="hoje">Hoje</option><option value="24">Últimas 24 horas</option><option value="168">Últimos 7 dias</option></select></label></div>
+<div class="linha btns"><button class="b s" id="p-padrao" type="button">Voltar ao padrão</button><span class="sub">As escolhas ficam salvas neste navegador.</span></div>
+</div>
 <div id="avisos"></div>
 <div class="grid" id="numeros"></div>
 
@@ -157,7 +167,16 @@ tr:last-child td{border-bottom:0}
 <h2>Ajustes atuais</h2>
 <table id="ajustes"></table>
 
-<h2>Últimas ofertas postadas</h2>
+<h2>Ofertas postadas</h2>
+<div class="filtros">
+<input id="f-q" type="search" placeholder="Buscar produto (sem acento)…" autocomplete="off">
+<select id="f-loja"><option value="">Todas as lojas</option></select>
+<select id="f-cat"><option value="">Todas as categorias</option></select>
+<select id="f-per"><option value="hoje">Hoje</option><option value="24">Últimas 24 horas</option><option value="168">Últimos 7 dias</option><option value="" selected>Tudo que está guardado</option></select>
+<select id="f-ord"><option value="data">Mais recentes</option><option value="menor">Menor preço</option><option value="maior">Maior preço</option></select>
+<button class="b s" id="f-limpar" type="button">Limpar filtros</button>
+</div>
+<div class="nota" id="f-cont"></div>
 <table id="posts"></table>
 
 <h2>Stories e Reels: conteúdo pronto</h2>
@@ -211,11 +230,47 @@ const t=new Date(s.atualizadoEm).getTime();
   if(s.telegramLink){const a=el('a','b s','Abrir o canal do Telegram');a.href=s.telegramLink;a.target='_blank';c.append(a)}
   const aj=document.getElementById('ajustes');
   Object.entries(s.ajustes).forEach(([k,v])=>{const r=el('tr');r.append(el('td','',k),el('td','',String(v)));aj.append(r)});
+  const PADRAO={ocultas:[],linhas:50,lembrar:true,per0:'',filtros:{}};
+  const lerPrefs=()=>{try{return Object.assign({},PADRAO,JSON.parse(localStorage.getItem('painel-prefs')||'{}'))}catch(e){return Object.assign({},PADRAO)}};
+  const gravarPrefs=()=>{try{localStorage.setItem('painel-prefs',JSON.stringify(prefs))}catch(e){}};
+  const prefs=lerPrefs();
   const po=document.getElementById('posts');
-  const th=el('tr');['Quando','Loja','Produto','Preço'].forEach(x=>th.append(el('th','',x)));po.append(th);
-  s.ultimosPosts.forEach(p=>{const r=el('tr');r.append(el('td','',quando(p.postadoEm)),el('td','',p.loja),el('td','',p.titulo.slice(0,90)),el('td','',reais(p.preco)));po.append(r)});
-  if(!s.ultimosPosts.length){const r=el('tr');r.append(el('td','','Nenhum post ainda.'));po.append(r)}
-  const dz=document.getElementById('destinos');
+  const NOMES={tech:'Tecnologia',casa:'Casa e Cozinha',games:'Games',beleza:'Beleza',moda:'Moda',esporte:'Esporte e Fitness',pet:'Pet',bebe:'Bebê e Infantil',ferramentas:'Ferramentas',geral:'Variedades'};
+  const LOJAS={mercadolivre:'Mercado Livre',shopee:'Shopee',amazon:'Amazon'};
+  const semAcento=x=>String(x).normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase();
+  const diaBR=ms=>new Date(ms).toLocaleDateString('en-CA',{timeZone:'America/Sao_Paulo'});
+  const fq=document.getElementById('f-q'),fl=document.getElementById('f-loja'),fc=document.getElementById('f-cat'),fp=document.getElementById('f-per'),fo=document.getElementById('f-ord');
+  [...new Set(s.ultimosPosts.map(p=>p.loja))].sort().forEach(l=>{const o=el('option','',LOJAS[l]||l);o.value=l;fl.append(o)});
+  [...new Set(s.ultimosPosts.map(p=>p.categoria).filter(Boolean))].sort((a,b)=>(NOMES[a]||a).localeCompare(NOMES[b]||b,'pt-BR')).forEach(c=>{const o=el('option','',NOMES[c]||c);o.value=c;fc.append(o)});
+  function desenharPosts(){
+    const termos=semAcento(fq.value).split(/\\s+/).filter(Boolean),agora=Date.now(),hoje=diaBR(agora),per=fp.value;
+    let lista=s.ultimosPosts.filter(p=>(!fl.value||p.loja===fl.value)&&(!fc.value||p.categoria===fc.value)&&termos.every(t=>semAcento(p.titulo).includes(t))&&(per===''||(per==='hoje'?diaBR(p.postadoEm)===hoje:agora-p.postadoEm<=Number(per)*3600000)));
+    if(fo.value==='menor')lista=lista.slice().sort((a,b)=>a.preco-b.preco);
+    else if(fo.value==='maior')lista=lista.slice().sort((a,b)=>b.preco-a.preco);
+    po.replaceChildren();
+    const th=el('tr');['Quando','Loja','Categoria','Produto','Preço'].forEach(h=>th.append(el('th','',h)));po.append(th);
+    lista.slice(0,prefs.linhas).forEach(p=>{const r=el('tr');r.append(el('td','',quando(p.postadoEm)),el('td','',LOJAS[p.loja]||p.loja),el('td','',NOMES[p.categoria]||p.categoria||'-'),el('td','',p.titulo.slice(0,90)),el('td','',reais(p.preco)));po.append(r)});
+    if(!lista.length){const r=el('tr');r.append(el('td','',s.ultimosPosts.length?'Nenhuma oferta com esses filtros.':'Nenhum post ainda.'));po.append(r)}
+    if(prefs.lembrar){prefs.filtros={q:fq.value,loja:fl.value,cat:fc.value,per:fp.value,ord:fo.value};gravarPrefs()}
+    document.getElementById('f-cont').textContent=lista.length+' de '+s.ultimosPosts.length+' ofertas'+(lista.length>prefs.linhas?' (mostrando as '+prefs.linhas+' primeiras; mude em Personalizar)':'');
+  }
+  [fq,fl,fc,fp,fo].forEach(c=>c.addEventListener(c===fq?'input':'change',desenharPosts));
+  document.getElementById('f-limpar').onclick=()=>{fq.value='';fl.value='';fc.value='';fp.value=prefs.per0;fo.value='data';desenharPosts()};
+  const f0=prefs.lembrar?prefs.filtros:{};
+  fq.value=f0.q||'';if([...fl.options].some(o=>o.value===f0.loja))fl.value=f0.loja;if([...fc.options].some(o=>o.value===f0.cat))fc.value=f0.cat;fp.value=f0.per!==undefined?f0.per:prefs.per0;fo.value=f0.ord||'data';
+  desenharPosts();
+  /* Personalizar: seções (cada título h2 e o que vem até o próximo), linhas por tela e filtros lembrados. */
+  const blocos=[...document.querySelectorAll('main > h2')].map(h=>{const itens=[h];let n=h.nextElementSibling;while(n&&n.tagName!=='H2'){itens.push(n);n=n.nextElementSibling}return{titulo:h.textContent,itens}});
+  const aplicarSecoes=()=>blocos.forEach(b=>b.itens.forEach(i=>{i.hidden=prefs.ocultas.includes(b.titulo)}));
+  const secoes=document.getElementById('p-secoes'),pl=document.getElementById('p-linhas'),pr=document.getElementById('p-lembrar'),p0=document.getElementById('p-per0');
+  blocos.forEach(b=>{const lb=el('label');const ck=document.createElement('input');ck.type='checkbox';ck.checked=!prefs.ocultas.includes(b.titulo);ck.onchange=()=>{prefs.ocultas=ck.checked?prefs.ocultas.filter(t=>t!==b.titulo):[...prefs.ocultas,b.titulo];gravarPrefs();aplicarSecoes()};lb.append(ck,document.createTextNode(b.titulo));secoes.append(lb)});
+  pl.value=String(prefs.linhas);pr.checked=prefs.lembrar;p0.value=prefs.per0;
+  pl.onchange=()=>{prefs.linhas=Number(pl.value);gravarPrefs();desenharPosts()};
+  pr.onchange=()=>{prefs.lembrar=pr.checked;if(!pr.checked)prefs.filtros={};gravarPrefs();desenharPosts()};
+  p0.onchange=()=>{prefs.per0=p0.value;gravarPrefs()};
+  document.getElementById('p-padrao').onclick=()=>{try{localStorage.removeItem('painel-prefs')}catch(e){}location.reload()};
+  document.getElementById('p-abrir').onclick=()=>{const p=document.getElementById('p-painel');p.hidden=!p.hidden};
+  aplicarSecoes();  const dz=document.getElementById('destinos');
   (w.destinos||[]).forEach(d=>{const l=el('div','msg');const t=el('div','',(d.tipo==='canal'?'Canal':'Grupo')+': ');const a=el('a','',d.link);a.href=d.link;a.target='_blank';a.rel='noopener';t.append(a);l.append(t,el('div','sub',d.tipo==='canal'?'Recebe o texto da oferta com o link e a foto em miniatura (o canal não aceita imagem enviada).':'Recebe a arte da oferta como imagem, com a legenda e o link. O número do enviador precisa ser membro do grupo.'));dz.append(l)});
   if(!(w.destinos||[]).length)dz.append(el('div','sub','Nenhum destino configurado. Acrescente o link de um canal ou grupo em WHATSAPP_DESTINOS.'));
   if(s.repo){const ed=el('a','b','Editar canais e grupos (ajustes.env)');ed.href='https://github.com/'+s.repo+'/edit/main/ajustes.env';ed.target='_blank';ed.rel='noopener';document.getElementById('zapbotoes').append(ed)}

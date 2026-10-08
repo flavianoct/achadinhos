@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import { gerarBlog, graficoDePreco, limparTextoDeIA, modelosDoOllama, publicarComGit, tamanhoDoTop } from '../src/blog.ts';
 import { lerArquivoEnv, lerConfig, salvarNoEnv } from '../src/config.ts';
 import { Banco } from '../src/db.ts';
-import { publicarControle } from '../src/exportar.ts';
+import { PAGINA_DO_PAINEL, publicarControle } from '../src/exportar.ts';
 import { iniciarPainel } from '../src/painel.ts';
 import { Robo } from '../src/robo.ts';
 import type { Publicador } from '../src/telegram.ts';
@@ -542,4 +542,12 @@ test('painel: whatsapp.json publica os destinos (canal e grupo) e o painel tem a
   const desligado = lerConfig({ BLOG_PASTA: pasta(), WHATSAPP_ATIVO: '0', WHATSAPP_DESTINOS: canal });
   publicarControle(bancoCom([]), desligado, { postados: 0 }, AGORA, 'dono/repo');
   assert.deepEqual(JSON.parse(ler(desligado.blog.pasta, 'whatsapp.json')).destinos, [], 'WhatsApp desligado não publica destinos');
+});
+test('painel: o JavaScript da página é válido, mantém as barras dos regex e tem filtros e personalização', () => {
+  const js = /<script>([\s\S]*?)<\/script>/.exec(PAGINA_DO_PAINEL)![1]!;
+  assert.doesNotThrow(() => new Function(js), 'sintaxe do script do painel');
+  assert.ok(js.includes('split(/\\s+/)'), 'o regex de espaços não pode perder a barra dentro do texto do TypeScript');
+  assert.ok(js.includes('[\\u0300-\\u036f]'), 'busca sem acento');
+  for (const id of ['f-q', 'f-loja', 'f-cat', 'f-per', 'f-ord', 'f-limpar', 'p-abrir', 'p-painel', 'p-secoes', 'p-linhas', 'p-lembrar']) assert.ok(PAGINA_DO_PAINEL.includes(`id="${id}"`), `falta o elemento ${id}`);
+  assert.match(js, /localStorage/);
 });
