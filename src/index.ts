@@ -6,6 +6,7 @@ import { Robo } from './robo.ts';
 import { publicarControle, type DadosDaRodada } from './exportar.ts';
 import { gravarPngsDoCarrossel, prepararCarrossel } from './carrossel.ts';
 import { publicarNoInstagram } from './instagram.ts';
+import { type Alerta, chaveDoAviso } from './alertas.ts';
 import { gravarReel, prepararReel } from './reel.ts';
 import { gravarPngs, prepararSocial } from './social.ts';
 import { gravarBio } from './bio.ts';
@@ -67,11 +68,17 @@ async function modoNuvem(): Promise<void> {
     resumo.push(linha);
     console.log(linha.replace(/^- /, ''));
   };
+  // Avisos para o dono: vão só para o painel (status.json), nunca para Telegram, WhatsApp ou blog.
+  const avisos: Alerta[] = [];
+  const avisar = (chave: string, texto: string, nivel: Alerta['nivel'] = 'aviso') => void avisos.push({ chave, texto, nivel });
 
   const problemas = robo.problemas();
   if (problemas.length) {
     dizer('**O robô ainda não pode rodar.** Falta cadastrar em Settings → Secrets and variables → Actions:');
-    for (const p of problemas) dizer(`- ${p}`);
+    for (const p of problemas) {
+      dizer(`- ${p}`);
+      avisar(chaveDoAviso('config', p), p, 'erro');
+    }
     process.exitCode = 1;
   } else {
     const coleta = await robo.coletarAgora();
@@ -80,10 +87,14 @@ async function modoNuvem(): Promise<void> {
     for (const [fonte, erro] of Object.entries(coleta.errosPorFonte)) dizer(`- **Erro em ${fonte}:** ${erro}`);
     // Se nenhuma loja respondeu, a rodada termina em vermelho para chamar atenção, mas o blog e o banco seguem.
     const fontesComErro = Object.keys(coleta.errosPorFonte).length;
-    if (fontesComErro > 0 && coleta.coletadas === 0) process.exitCode = 1;
+    if (fontesComErro > 0 && coleta.coletadas === 0) {
+      process.exitCode = 1;
+      avisar('coleta:todas', `Nenhuma loja respondeu na coleta: ${Object.entries(coleta.errosPorFonte).map(([l, e]) => `${l} (${e})`).join('; ')}`, 'erro');
+    }
     // Uma loja quebrada em silêncio (as outras seguem postando) vira alerta depois de 3 coletas seguidas.
     for (const f of robo.banco.fontesComFalhas(FALHAS_PARA_ALERTAR)) {
       dizer(`- **ALERTA: ${f.fonte} falhou ${f.falhas} coletas seguidas.** Último erro: ${f.erro}`);
+      avisar(`coleta:${f.fonte}`, `A coleta de ${f.fonte} falhou ${f.falhas} vezes seguidas. Último erro: ${f.erro}`, 'erro');
       process.exitCode = 1;
     }
 
@@ -100,7 +111,12 @@ async function modoNuvem(): Promise<void> {
       postados++;
       for (const aviso of r.avisos) dizer(`- **Aviso de roteamento:** ${aviso}`);
     }
-    for (const aviso of [...robo.config.rotas.avisos, ...robo.config.whatsapp.avisos]) dizer(`- **Aviso nas rotas:** ${aviso}`);
+    for (const aviso of [...robo.config.rotas.avisos, ...robo.config.whatsapp.avisos]) {
+      dizer(`- **Aviso nas rotas:** ${aviso}`);
+      avisar(chaveDoAviso('rotas', aviso), aviso);
+    }
+    if (motivoDaParada === 'fila vazia') avisar('fila:vazia', 'A fila de ofertas está vazia: não há o que postar até a próxima coleta trazer ofertas aprovadas.');
+    else if (motivoDaParada.startsWith('erro')) avisar('telegram:erro', `Falha ao postar no Telegram (${motivoDaParada})`, 'erro');
     rodada.postados = postados;
     rodada.parou = motivoDaParada;
     dizer(`- Telegram: ${postados} ofertas postadas${motivoDaParada ? ` (parou por: ${motivoDaParada})` : ''}. Na fila: ${robo.banco.tamanhoDaFila()}.`);
@@ -108,7 +124,10 @@ async function modoNuvem(): Promise<void> {
     // Cupons do Mercado Livre e da Amazon, cadastrados em cupons.json (no máximo CUPONS_POR_DIA por dia).
     if (robo.config.cupons.ativo) {
       const cupom = await robo.postarCupomAgora();
-      for (const aviso of cupom.avisos) dizer(`- **Aviso nos cupons:** ${aviso}`);
+      for (const aviso of cupom.avisos) {
+        dizer(`- **Aviso nos cupons:** ${aviso}`);
+        avisar(chaveDoAviso('cupons', aviso), aviso);
+      }
       if (cupom.resultado.postou) dizer(`- Cupom postado: ${cupom.resultado.cupom.titulo}`);
       else if (cupom.resultado.motivo === 'erro') dizer(`- **Erro ao postar cupom:** ${cupom.resultado.detalhe}`);
     }
@@ -130,7 +149,10 @@ async function modoNuvem(): Promise<void> {
     const blog = await robo.gerarBlogAgora();
     rodada.blog = blog;
     dizer(`- Blog: ${blog.guias ?? 0} guias, ${blog.postsDeHoje} posts de hoje, ${blog.postsNoAr} no ar${blog.textosDeIA ? `, ${blog.textosDeIA} textos novos da IA (${blog.modeloDeIA})` : ''}.`);
-    for (const aviso of blog.avisos) dizer(`- Aviso do blog: ${aviso}`);
+    for (const aviso of blog.avisos) {
+      dizer(`- Aviso do blog: ${aviso}`);
+      avisar(chaveDoAviso('blog', aviso), aviso);
+    }
     if (robo.config.blog.url) dizer(`- Endereço: ${robo.config.blog.url}`);
   }
 
@@ -138,18 +160,28 @@ async function modoNuvem(): Promise<void> {
   try {
     const artes = await prepararSocial(robo.banco, robo.config, new Date());
     const pngs = await gravarPngs(robo.banco, robo.config, new Date());
-    if (pngs.semConversor) dizer('- Aviso: faltou instalar o conversor de imagens (@resvg/resvg-js); o Instagram não terá imagens.');
+    if (pngs.semConversor) {
+      dizer('- Aviso: faltou instalar o conversor de imagens (@resvg/resvg-js); o Instagram não terá imagens.');
+      avisar('instagram:sem-conversor', 'Faltou instalar o conversor de imagens (@resvg/resvg-js): o Instagram não terá imagens.', 'erro');
+    }
     // Carrossel do dia ("Top 5 até R$ X"): criado numa rodada, com as imagens no ar na seguinte, quando é publicado.
     if (await prepararCarrossel(robo.banco, robo.config, new Date())) dizer('- Instagram: carrossel do dia preparado; sai na próxima rodada, quando as imagens estiverem no ar.');
     await gravarPngsDoCarrossel(robo.banco, robo.config, new Date());
     // Reel do dia (vídeo com trilha): montado numa rodada, publicado na seguinte (e dentro das horas dos Reels).
     if (await prepararReel(robo.banco, robo.config, new Date())) dizer('- Instagram: Reel do dia preparado; sai quando o vídeo estiver no ar e na hora certa.');
     const avisoDoReel = await gravarReel(robo.banco, robo.config, new Date());
-    if (avisoDoReel) dizer(`- Aviso do Instagram: ${avisoDoReel}`);
+    if (avisoDoReel) {
+      dizer(`- Aviso do Instagram: ${avisoDoReel}`);
+      avisar(chaveDoAviso('reel', avisoDoReel), avisoDoReel);
+    }
     const ig = await publicarNoInstagram(robo.banco, robo.config, new Date());
     if (robo.config.instagram.ativo) dizer(`- Instagram: ${ig.feed} posts de feed, ${ig.stories} stories e ${ig.reels} reels publicados.`);
-    for (const a of ig.avisos) dizer(`- Aviso do Instagram: ${a}`);
+    for (const a of ig.avisos) {
+      dizer(`- Aviso do Instagram: ${a}`);
+      avisar(chaveDoAviso('instagram', a), a, /recusou|token|venceu|faltam os secrets/i.test(a) ? 'erro' : 'aviso');
+    }
     rodada.instagram = ig;
+    robo.banco.registrarAvisos(avisos, new Date());
     publicarControle(robo.banco, robo.config, rodada, new Date());
     const naBio = gravarBio(robo.banco, robo.config, new Date());
     if (robo.config.blog.url) dizer(`- Página do link da bio: ${robo.config.blog.url}/bio.html (${naBio} ofertas).`);

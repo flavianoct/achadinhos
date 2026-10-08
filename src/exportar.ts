@@ -46,6 +46,8 @@ export interface StatusPublico {
   /** Avisos de configuração das rotas (categoria ou canal inválido). */
   avisosDeRotas: string[];
   tambemNoGeral: boolean;
+  /** Avisos do robô para o dono (ativos e resolvidos recentes). Só aparecem no painel. */
+  avisosDoRobo: Array<{ texto: string; nivel: string; desde: number; vistoEm: number; vezes: number; ativo: boolean }>;
 }
 
 export interface Nicho {
@@ -141,6 +143,7 @@ export function montarStatus(banco: Banco, config: Config, dados: DadosDaRodada,
     nichos: montarNichos(banco, config, agora),
     avisosDeRotas: [...config.rotas.avisos, ...config.whatsapp.avisos],
     tambemNoGeral: config.rotas.tambemNoGeral,
+    avisosDoRobo: banco.avisosDoRobo(agora).map((a) => ({ texto: a.texto, nivel: a.nivel, desde: a.desde, vistoEm: a.vistoEm, vezes: a.vezes, ativo: a.ativo })),
   };
 }
 
@@ -227,6 +230,7 @@ tr:last-child td{border-bottom:0}
 .sc img{width:100%;border-radius:8px;display:block;margin-bottom:10px;background:var(--bd)}
 .sc .btns{flex-direction:column}.sc .b{text-align:center}
 .personalizar{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px 14px;margin:0 0 14px}.personalizar label{display:inline-flex;gap:6px;align-items:center;margin:4px 14px 4px 0;font-size:14px}.personalizar .linha{margin:8px 0}.personalizar h3{font-size:14px;margin:0 0 6px}
+.aviso-robo{display:flex;gap:10px;align-items:flex-start;border-radius:10px;padding:10px 12px;margin-bottom:8px;font-size:14px}.aviso-robo.erro{background:var(--erbg);color:var(--er)}.aviso-robo.aviso{background:var(--avbg);color:var(--av)}.aviso-robo.ok{background:var(--okbg);color:var(--ok)}.aviso-robo.velho{background:var(--card);color:var(--mut);border:1px solid var(--bd)}.aviso-robo b{display:block}.aviso-robo small{opacity:.85}
 .barra-filtros{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px}.barra-filtros input,.barra-filtros select{font:inherit;font-size:14px;padding:8px 10px;border-radius:8px;border:1px solid var(--bd);background:var(--card);color:var(--tx)}.barra-filtros input{flex:1 1 220px;min-width:160px}
 .duas{display:grid;grid-template-columns:minmax(220px,300px) 1fr;gap:12px;margin-top:12px}@media(max-width:700px){.duas{grid-template-columns:1fr}}
 .rosca-box{display:flex;flex-direction:column;align-items:center;gap:12px}
@@ -249,6 +253,9 @@ tr:last-child td{border-bottom:0}
 </div>
 <div id="avisos"></div>
 <div class="grid" id="numeros"></div>
+
+<h2>Avisos do robô</h2>
+<div id="avisos-robo"></div>
 
 <h2>Canais e lojas</h2>
 <div class="chips" id="chips"></div>
@@ -314,10 +321,25 @@ const t=new Date(s.atualizadoEm).getTime();
   if(erros.length||idade>120){saude.className='pill '+(idade>120?'er':'av');saude.textContent=idade>120?'Robô parado?':'Atenção'}
   else{saude.className='pill ok';saude.textContent='Funcionando'}
   const av=document.getElementById('avisos');
-  erros.forEach(([l,m])=>av.append(el('div','erro','Erro em '+l+': '+m)));
-  if(idade>120)av.append(el('div','erro','A última rodada foi '+quando(t)+'. O normal é a cada 30 minutos. Veja a aba Actions do GitHub.'));
-  ((s.blog&&s.blog.avisos)||[]).forEach(m=>av.append(el('div','aviso',m)));
-((s.instagram&&s.instagram.avisos)||[]).forEach(m=>av.append(el('div','aviso',m)));
+  const duracao=ms=>{const m=Math.max(1,Math.round(ms/60000));return m<60?m+' min':m<1440?Math.round(m/60)+' h':Math.round(m/1440)+' d'};
+  /* Avisos para o dono: só aqui no painel (nunca no Telegram, WhatsApp ou blog). */
+  const lista=Array.isArray(s.avisosDoRobo)?s.avisosDoRobo:null;
+  const avr=document.getElementById('avisos-robo');
+  const desenharAviso=(a)=>{const d=el('div','aviso-robo '+(a.ativo?(a.nivel==='erro'?'erro':'aviso'):'velho'));const c=el('div');c.append(el('b','',(a.ativo?(a.nivel==='erro'?'⛔ ':'⚠️ '):'✔ ')+a.texto),el('small','',a.ativo?'desde há '+duracao(Date.now()-a.desde)+(a.vezes>1?' · visto em '+a.vezes+' rodadas':''):'resolvido (visto pela última vez há '+duracao(Date.now()-a.vistoEm)+')'));d.append(c);return d};
+  if(lista){
+    if(idade>120)avr.append(desenharAviso({ativo:true,nivel:'erro',texto:'A última rodada foi '+quando(t)+'. O normal é a cada 30 minutos. Veja a aba Actions do GitHub.',desde:t,vezes:1}));
+    const ativos=lista.filter(a=>a.ativo),resolvidos=lista.filter(a=>!a.ativo);
+    if(ativos.some(a=>a.nivel==='erro')){saude.className='pill er';saude.textContent='Atenção: há erros'}
+    else if(ativos.length&&saude.textContent==='Funcionando'){saude.className='pill av';saude.textContent='Atenção'}
+    ativos.forEach(a=>avr.append(desenharAviso(a)));
+    if(!ativos.length&&idade<=120){const ok=el('div','aviso-robo ok');ok.append(el('b','','✔ Nenhum aviso agora. Tudo funcionando.'));avr.append(ok)}
+    if(resolvidos.length){const dt=el('details');dt.append(el('summary','sub','Resolvidos nos últimos 7 dias ('+resolvidos.length+')'));resolvidos.forEach(a=>dt.append(desenharAviso(a)));avr.append(dt)}
+  }else{
+    erros.forEach(([l,m])=>av.append(el('div','erro','Erro em '+l+': '+m)));
+    if(idade>120)av.append(el('div','erro','A última rodada foi '+quando(t)+'. O normal é a cada 30 minutos. Veja a aba Actions do GitHub.'));
+    ((s.blog&&s.blog.avisos)||[]).forEach(m=>av.append(el('div','aviso',m)));
+    ((s.instagram&&s.instagram.avisos)||[]).forEach(m=>av.append(el('div','aviso',m)));
+  }
   const nums=[[s.fila,'ofertas na fila'],[s.postsHoje+' / '+s.maxPostsPorDia,'posts hoje'],[s.coleta?s.coleta.aprovadas+' de '+s.coleta.vistas:'-','aprovadas na última coleta'],[s.blog?s.blog.guias:'-','guias no ar'],[s.blog?s.blog.textosDeIA:'-','textos de IA na rodada'],[s.whatsappPendentes,'mensagens de WhatsApp na fila']].concat(s.instagram?[[s.instagram.feedHoje+' + '+s.instagram.storiesHoje,'Instagram hoje (feed + stories)']]:[]);
   const g=document.getElementById('numeros');
   nums.forEach(([n,l])=>{const c=el('div','card');c.append(el('div','n',String(n)),el('div','l',l));g.append(c)});

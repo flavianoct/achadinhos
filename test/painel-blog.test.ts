@@ -551,3 +551,19 @@ test('painel: o JavaScript da página é válido, mantém as barras dos regex e 
   for (const id of ['f-q', 'f-loja', 'f-cat', 'f-per', 'f-ord', 'f-limpar', 'p-abrir', 'p-painel', 'p-secoes', 'p-linhas', 'p-lembrar']) assert.ok(PAGINA_DO_PAINEL.includes(`id="${id}"`), `falta o elemento ${id}`);
   assert.match(js, /localStorage/);
 });
+test('painel: os avisos do robô vão para o status.json e para a seção do painel, e nunca para os arquivos dos canais', async () => {
+  const dir = pasta();
+  const config = lerConfig({ BLOG_PASTA: dir, BLOG_URL: 'https://exemplo.github.io/achados/', TELEGRAM_CHAT_ID: '@canal' });
+  const banco = bancoCom([produto(1), produto(2), produto(3)]);
+  banco.registrarAvisos([{ chave: 'instagram:recusou', texto: 'Instagram recusou (400/24): segredo-de-teste-no-aviso', nivel: 'erro' }], AGORA);
+  publicarControle(banco, config, { postados: 0 }, AGORA, 'dono/repo');
+  const status = JSON.parse(ler(dir, 'status.json'));
+  assert.equal(status.avisosDoRobo.length, 1);
+  assert.deepEqual({ ativo: status.avisosDoRobo[0].ativo, nivel: status.avisosDoRobo[0].nivel }, { ativo: true, nivel: 'erro' });
+  assert.match(ler(dir, 'painel.html'), /id="avisos-robo"/);
+  assert.match(ler(dir, 'painel.html'), /Avisos do robô/);
+  // Os avisos são só do dono: não entram no WhatsApp, no blog nem na bio.
+  for (const arquivo of ['whatsapp.json', 'index.html', 'bio.html', 'social.json']) {
+    if (existsSync(join(dir, arquivo))) assert.ok(!ler(dir, arquivo).includes('segredo-de-teste-no-aviso'), `${arquivo} não pode conter avisos do robô`);
+  }
+});

@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import { categorizar } from '../src/categoria.ts';
 import { lerConfig, problemasDeConfig, type Config } from '../src/config.ts';
 import { Banco, diaDe, horaDe } from '../src/db.ts';
+import { chaveDoAviso } from '../src/alertas.ts';
 import { avaliar } from '../src/filtro.ts';
 import { formatarPreco, formatarVendas, montarMensagem } from '../src/mensagem.ts';
 import { coletar, postarProxima } from '../src/pipeline.ts';
@@ -322,4 +323,39 @@ test('fila: as lojas se alternam em vez de a de maior pontuação ocupar tudo', 
   const pub2: Publicador = { publicar: async (o) => void lista.push(o.idProduto) } as Publicador;
   for (let i = 0; i < 3; i++) await postarProxima(pub2, so, config, new Date(AGORA.getTime() + i * 60_000));
   assert.deepEqual(lista, ['X1', 'X2', 'X3']);
+});
+test('avisos do robô: guardam desde quando existem, contam repetições, resolvem sozinhos e reabrem do zero', () => {
+  const banco = new Banco(':memory:');
+  const H = 3_600_000;
+  const t0 = new Date('2026-10-08T12:00:00Z');
+  const aviso = { chave: 'coleta:shopee', texto: 'A coleta da Shopee falhou 3 vezes seguidas.', nivel: 'erro' };
+
+  banco.registrarAvisos([aviso], t0);
+  banco.registrarAvisos([aviso], new Date(t0.getTime() + 0.5 * H));
+  banco.registrarAvisos([{ ...aviso, texto: 'A coleta da Shopee falhou 4 vezes seguidas.' }], new Date(t0.getTime() + 1 * H));
+  let lista = banco.avisosDoRobo(new Date(t0.getTime() + 1 * H));
+  assert.equal(lista.length, 1);
+  assert.deepEqual({ ativo: lista[0]!.ativo, vezes: lista[0]!.vezes, desde: lista[0]!.desde, texto: lista[0]!.texto }, { ativo: true, vezes: 3, desde: t0.getTime(), texto: 'A coleta da Shopee falhou 4 vezes seguidas.' }, 'mantém o "desde" e o texto mais novo');
+
+  // Sem aparecer por mais de 3 horas, vira resolvido (mas continua no histórico).
+  lista = banco.avisosDoRobo(new Date(t0.getTime() + 5 * H));
+  assert.equal(lista[0]!.ativo, false);
+
+  // Voltou depois de resolvido: começa de novo.
+  const volta = new Date(t0.getTime() + 6 * H);
+  banco.registrarAvisos([aviso], volta);
+  lista = banco.avisosDoRobo(volta);
+  assert.deepEqual({ ativo: lista[0]!.ativo, vezes: lista[0]!.vezes, desde: lista[0]!.desde }, { ativo: true, vezes: 1, desde: volta.getTime() });
+
+  // Ativos primeiro, erros antes de avisos; o que é muito velho some.
+  banco.registrarAvisos([{ chave: 'blog:ia', texto: 'IA indisponível', nivel: 'aviso' }], volta);
+  assert.deepEqual(banco.avisosDoRobo(volta).map((a) => a.chave), ['coleta:shopee', 'blog:ia']);
+  banco.registrarAvisos([], new Date(volta.getTime() + 8 * 86_400_000));
+  assert.equal(banco.avisosDoRobo(new Date(volta.getTime() + 8 * 86_400_000)).length, 0, 'depois de 7 dias sem aparecer, apaga');
+});
+
+test('avisos do robô: a chave ignora números, para o mesmo problema não virar um aviso novo a cada rodada', () => {
+  assert.equal(chaveDoAviso('instagram', 'Instagram: 15 imagens ainda não estão no ar; saem na próxima rodada.'), chaveDoAviso('instagram', 'Instagram: 9 imagens ainda não estão no ar; saem na próxima rodada.'));
+  assert.notEqual(chaveDoAviso('instagram', 'O token venceu'), chaveDoAviso('instagram', 'Imagens não estão no ar'));
+  assert.ok(chaveDoAviso('blog', 'Texto muito '.repeat(40)).length <= 'blog:'.length + 48);
 });

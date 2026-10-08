@@ -191,6 +191,8 @@ O mesmo robô também roda no seu computador, com um painel no navegador. Precis
 
 ## Bio, Reel e WhatsApp na nuvem
 
+- **Avisos do robô (só para o dono):** o painel (`painel.html`) tem a seção **Avisos do robô**, no topo, com o que está errado agora (em vermelho ou amarelo, com há quanto tempo e em quantas rodadas), e os avisos resolvidos dos últimos 7 dias. Os avisos vêm da coleta que falhou 3 vezes seguidas, fila vazia, problemas de configuração, Instagram, Reel, blog e cupons. **Nunca vão para o Telegram, o WhatsApp nem o blog.** Um aviso que não aparece por 3 horas vira resolvido sozinho.
+
 - **Página do link da bio** (`bio.html`): as ofertas mais recentes primeiro (guarda até 60, mostra 12) e um **buscador** que filtra no aparelho, sem acento. O link do Instagram do blog vem de `BLOG_INSTAGRAM`.
 - **Reel do dia:** vídeo vertical de uns 17 segundos montado com ffmpeg a partir das artes de Story, com trilha sintetizada pelo próprio robô (sem direitos de terceiros). Horas em `INSTAGRAM_HORARIOS_REELS`; 0 em `INSTAGRAM_REELS_POR_DIA` desliga.
 - **WhatsApp:** o enviador (pasta `enviador/`) roda numa VM grátis da Oracle Cloud (Ubuntu, serviço `achadinhos-enviador`), instalada por `enviador/vm/instalar.sh`. Acompanhar: `journalctl -u achadinhos-enviador -f` na VM. O login do WhatsApp fica em `~/.achadinhos-enviador` na VM.

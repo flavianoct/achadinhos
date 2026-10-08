@@ -1,4 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
+import { DIAS_DE_HISTORICO_DOS_AVISOS, HORAS_PARA_RESOLVER } from './alertas.ts';
 import type { Loja, Oferta, OfertaAvaliada } from './types.ts';
 
 const FUSO = 'America/Sao_Paulo';
@@ -158,6 +159,14 @@ export class Banco {
         criado_em INTEGER NOT NULL,
         publicado_em INTEGER,
         tentativas INTEGER NOT NULL DEFAULT 0
+      );
+      CREATE TABLE IF NOT EXISTS avisos_do_robo (
+        chave TEXT PRIMARY KEY,
+        texto TEXT NOT NULL,
+        nivel TEXT NOT NULL,
+        desde INTEGER NOT NULL,
+        visto_em INTEGER NOT NULL,
+        vezes INTEGER NOT NULL DEFAULT 1
       );
       CREATE TABLE IF NOT EXISTS saude_fontes (
         fonte TEXT PRIMARY KEY,
@@ -454,6 +463,37 @@ export class Banco {
     const linhas = this.db.prepare(`SELECT publicado_em AS t FROM instagram_carrosseis WHERE publicado_em IS NOT NULL`).all() as Array<{ t: number }>;
     const hoje = diaDe(agora);
     return linhas.filter((l) => diaDe(new Date(l.t)) === hoje).length;
+  }
+
+  // ───────── Avisos do robô para o dono (só no painel) ─────────
+
+  /**
+   * Registra os avisos desta rodada. Um aviso que continua existindo mantém o "desde" original e conta mais uma vez;
+   * um aviso que já tinha sumido e volta começa de novo (desde = agora). Os que não aparecem mais ficam como resolvidos.
+   */
+  registrarAvisos(avisos: Array<{ chave: string; texto: string; nivel: string }>, agora: Date): void {
+    const t = agora.getTime();
+    const ativoDesde = t - HORAS_PARA_RESOLVER * 3_600_000;
+    const existente = this.db.prepare(`SELECT desde, visto_em, vezes FROM avisos_do_robo WHERE chave = ?`);
+    const grava = this.db.prepare(
+      `INSERT INTO avisos_do_robo (chave, texto, nivel, desde, visto_em, vezes) VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT (chave) DO UPDATE SET texto = excluded.texto, nivel = excluded.nivel, desde = excluded.desde, visto_em = excluded.visto_em, vezes = excluded.vezes`,
+    );
+    for (const a of avisos) {
+      const antes = existente.get(a.chave) as { desde: number; visto_em: number; vezes: number } | undefined;
+      const continua = antes !== undefined && antes.visto_em >= ativoDesde;
+      grava.run(a.chave, a.texto, a.nivel, continua ? antes.desde : t, t, continua ? antes.vezes + 1 : 1);
+    }
+    this.db.prepare(`DELETE FROM avisos_do_robo WHERE visto_em < ?`).run(t - DIAS_DE_HISTORICO_DOS_AVISOS * 86_400_000);
+  }
+
+  /** Avisos para mostrar no painel: os ativos (vistos nas últimas horas) e os resolvidos dos últimos dias. */
+  avisosDoRobo(agora: Date): Array<{ chave: string; texto: string; nivel: string; desde: number; vistoEm: number; vezes: number; ativo: boolean }> {
+    const limite = agora.getTime() - HORAS_PARA_RESOLVER * 3_600_000;
+    const linhas = this.db.prepare(`SELECT chave, texto, nivel, desde, visto_em, vezes FROM avisos_do_robo ORDER BY visto_em DESC LIMIT 60`).all() as Array<{ chave: string; texto: string; nivel: string; desde: number; visto_em: number; vezes: number }>;
+    return linhas
+      .map((l) => ({ chave: l.chave, texto: l.texto, nivel: l.nivel, desde: l.desde, vistoEm: l.visto_em, vezes: l.vezes, ativo: l.visto_em >= limite }))
+      .sort((a, b) => Number(b.ativo) - Number(a.ativo) || Number(b.nivel === 'erro') - Number(a.nivel === 'erro') || b.vistoEm - a.vistoEm);
   }
 
   // ───────── Reel do Instagram (vídeo "Top 3 achadinhos do dia") ─────────
