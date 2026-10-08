@@ -22,8 +22,13 @@ PRIMEIRO USO
 5. Dê dois cliques em iniciar-enviador.bat e deixe a janela aberta.
 
 ATUALIZAR O ENVIADOR (depois de mudancas no robo)
-O enviador roda com o codigo que esta no seu PC: mudancas no GitHub so valem
-depois de atualizar a pasta e reiniciar.
+Na VPS (servico achadinhos-enviador) ele se atualiza sozinho: uma vez por hora
+confere a main no GitHub e, se houver versao nova, baixa e reinicia. O log
+mostra "Atualizado para a versao ...". Para desligar: "atualizarSozinho": false
+no config.json. Isso vale a partir da primeira vez que esta versao entrar na
+VPS; antes dela, atualize uma vez na mao:
+  cd ~/achadinhos && git pull --ff-only && cd enviador && npm install --omit=dev && sudo systemctl restart achadinhos-enviador
+No PC (iniciar-enviador.bat) a atualizacao continua manual:
 1. Feche a janela do enviador (ou: sudo systemctl stop achadinhos-enviador).
 2. Atualize a pasta do projeto: "git pull" dentro dela, ou baixe o ZIP de novo
    no GitHub (Code -> Download ZIP) e copie por cima. O config.json e o login
