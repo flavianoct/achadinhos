@@ -106,6 +106,64 @@ Cadastre os secrets `ML_MATT_WORD` e `ML_MATT_TOOL` e mude `ML_ATIVO=1` em `ajus
 
 O robô pega os mais vendidos de cada categoria. Como essa listagem não traz "ofertas do dia", o Mercado Livre rende mais depois de alguns dias, quando o histórico de preços começa a detectar quedas.
 
+## Cupons (Mercado Livre e Shopee)
+
+O robô posta no Telegram os cupons que você cadastrar no arquivo `cupons.json` (na raiz do repositório). Ele não busca cupom sozinho: cupom vencido ou com código errado prejudica a confiança do canal, então o código e a validade vêm de você.
+
+Para cadastrar, abra `cupons.json` no GitHub (ícone do lápis), escreva a lista e salve. Vale na próxima execução:
+
+```json
+[
+  {
+    "loja": "mercadolivre",
+    "codigo": "ACHA30",
+    "titulo": "R$ 30 OFF em compras acima de R$ 200",
+    "detalhe": "Só no app. Uma vez por CPF.",
+    "link": "https://meli.la/SEU-LINK-DE-AFILIADO",
+    "validoAte": "2026-10-31"
+  },
+  {
+    "loja": "shopee",
+    "titulo": "R$ 10 OFF sem mínimo",
+    "link": "https://shp.ee/SEU-LINK-DE-AFILIADO"
+  }
+]
+```
+
+- `loja`: `mercadolivre` ou `shopee` (Amazon ainda não). `titulo` e `link` são obrigatórios; o link precisa ser do site da loja (inclusive os encurtadores meli.la e shp.ee) e começar com https.
+- `codigo`: deixe de fora quando o cupom é só "ativar na página".
+- `validoAte`: último dia, no formato AAAA-MM-DD. Depois dele o cupom some sozinho. Sem data, o cupom vale até você apagá-lo.
+- O robô posta primeiro os cupons que ainda não saíram e, depois, repete os que vencem antes. Limites em `ajustes.env`: `CUPONS_POR_DIA` (padrão 3), `CUPONS_REPETIR_DIAS` (padrão 3) e `CUPONS_ATIVO=0` para desligar.
+- Erros no arquivo (vírgula faltando, link de outra loja, data errada) aparecem no resumo da rodada, na aba Actions, e o cupom com problema é ignorado.
+
+## Nichos e canais por categoria
+
+Toda oferta que entra no robô é classificada sozinha em um nicho, pelas palavras do título: **Eletrônicos** (`tech`), **Games**, **Moda**, **Casa & Cozinha** (`casa`), **Esportes** (`esporte`), **Beleza**, **Bebê & Infantil** (`bebe`), **Pet**, **Ferramentas** e **Geral**. Cada nicho soma pontos pelas palavras que aparecem (palavra no começo do título vale o dobro) e vence o que tiver mais; título sem palavra conhecida fica em Geral. O nicho vai junto com a oferta na fila, no histórico e no blog. As palavras ficam em `src/categoria.ts`.
+
+**Um canal por nicho (opcional).** Em `ajustes.env`, preencha `ROTAS_TELEGRAM` com `nicho=canal` separados por vírgula:
+
+```
+ROTAS_TELEGRAM=tech=@meucanaltech,moda=@meucanalmoda
+```
+
+- O bot precisa ser administrador de cada canal (a opção "Testar chaves" do painel local confere todos).
+- Nicho sem rota vai para o canal geral (`TELEGRAM_CHAT_ID`). Assim o geral recebe tudo o que não tem canal próprio.
+- `ROTAS_TAMBEM_NO_GERAL=1` faz as ofertas de nichos com canal próprio saírem também no geral.
+- **Filtro do canal geral:** `GERAL_NICHOS=tech,casa` deixa entrar no geral só esses nichos (vazio = todos); `GERAL_SEM_NICHOS=bebe,pet` tira esses nichos do geral. Uma oferta de nicho sem canal próprio que o geral não aceita não é postada no Telegram (continua no blog). O filtro vale também para `ROTAS_TAMBEM_NO_GERAL` e para o desvio quando um canal de nicho recusa. Na tabela do painel, esses nichos aparecem como "não enviado".
+- Se um canal de nicho recusar o post (bot sem permissão, canal apagado), a oferta não se perde: vai para o canal geral e a rodada mostra um aviso.
+- Nome de nicho que não existe ou canal escrito errado é ignorado e aparece como aviso no resumo da rodada e no painel.
+
+**Mais ajustes por nicho** (todos em `ajustes.env`, ou pela página Configurar):
+- `NICHO_MAX_POR_DIA` e `NICHO_LIMITES=moda=8,tech=15`: teto de posts por dia de cada nicho. O que passar do teto fica na fila e outro nicho é postado.
+- `NICHO_PALAVRAS_MODA=cropped,biquini,-relogio`: acrescenta palavras ao classificador do nicho; com `-` na frente, tira. Vale para qualquer nicho (`NICHO_PALAVRAS_TECH`, `_CASA`, `_BELEZA`...).
+- `WHATSAPP_ROTAS=moda=https://chat.whatsapp.com/XXXX`: grupos e canais de WhatsApp de um nicho (um nicho pode ter vários). Os de `WHATSAPP_DESTINOS` são gerais e seguem o filtro do canal geral. Uma oferta de nicho sem canal no Telegram mas com grupo de WhatsApp vai só para o WhatsApp. O enviador do PC precisa estar atualizado para separar por nicho.
+
+**Página Configurar** (`configurar.html`, link no painel): seletores para lojas, filtro, horário, a tabela de nichos (canal do Telegram, "no geral", WhatsApp do nicho, limite e palavras), os canais e grupos gerais do WhatsApp e o editor de cupons. Ela lê os arquivos do repositório, mostra o que mudou e o botão copia o arquivo novo e abre o editor do GitHub: apague tudo, cole e salve. Nenhuma senha ou chave passa pela página. Funciona com o repositório público.
+
+**Shopee: campanhas e vendas.** `CAMPANHAS_POR_DIA=1` posta no canal geral uma campanha da própria Shopee por dia (as páginas tipo "10.10" ou "Frete Grátis", com o seu link), sem repetir por `CAMPANHAS_REPETIR_DIAS`. `VENDAS_ATIVO=1` lê o relatório de vendas de afiliado da Shopee a cada `VENDAS_HORAS` horas e o painel mostra vendas e comissão dos últimos 7 dias por nicho. O Mercado Livre não tem esses dados por API.
+
+**No painel online** (`painel.html`), a seção "Ofertas por nicho" mostra o nicho que mais disparou hoje, a maior fila, a distribuição dos posts dos últimos 7 dias (gráfico de rosca) e uma tabela com posts de hoje e da semana, ofertas na fila, aprovadas nas últimas 24 h e o canal de cada nicho. A lista de últimas ofertas tem filtro por nicho. O painel não mostra cliques: o link de afiliado vai direto para a loja, então os cliques só aparecem nos painéis de afiliado da Shopee e do Mercado Livre.
+
 ## Avisos
 
 - **Um lugar só:** não rode o robô no PC e na nuvem ao mesmo tempo com o mesmo canal, senão as ofertas saem repetidas.

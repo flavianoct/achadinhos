@@ -128,6 +128,28 @@ export class Banco {
         publicado_em INTEGER,
         tentativas INTEGER NOT NULL DEFAULT 0
       );
+      CREATE TABLE IF NOT EXISTS vendas (
+        chave TEXT PRIMARY KEY,
+        loja TEXT NOT NULL,
+        item_id TEXT NOT NULL,
+        nome TEXT NOT NULL,
+        categoria TEXT NOT NULL,
+        valor REAL NOT NULL,
+        comissao REAL NOT NULL,
+        status TEXT,
+        dia TEXT NOT NULL,
+        comprado_em INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS campanhas_postadas (
+        id TEXT NOT NULL,
+        dia TEXT NOT NULL,
+        postado_em INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS cupons_postados (
+        chave TEXT NOT NULL,
+        dia TEXT NOT NULL,
+        postado_em INTEGER NOT NULL
+      );
       CREATE TABLE IF NOT EXISTS instagram_reels (
         chave TEXT PRIMARY KEY,
         dia TEXT NOT NULL,
@@ -144,6 +166,11 @@ export class Banco {
         ultimo_ok_em INTEGER
       );
     `);
+    // Bancos antigos (guardados no ramo "dados") não têm a coluna do canal: acrescenta sem perder nada.
+    const colunas = this.db.prepare(`PRAGMA table_info(postados)`).all() as Array<{ name: string }>;
+    if (!colunas.some((c) => c.name === 'canal')) this.db.exec(`ALTER TABLE postados ADD COLUMN canal TEXT`);
+    const colunasZap = this.db.prepare(`PRAGMA table_info(whatsapp_saida)`).all() as Array<{ name: string }>;
+    if (!colunasZap.some((c) => c.name === 'categoria')) this.db.exec(`ALTER TABLE whatsapp_saida ADD COLUMN categoria TEXT`);
     // Bancos criados antes do Instagram não têm estas colunas.
     for (const coluna of ['imagem TEXT', 'ig_feed_em INTEGER', 'ig_story_em INTEGER']) {
       try {
@@ -185,14 +212,86 @@ export class Banco {
     return linha ? { preco: linha.preco, postadoEm: linha.postado_em } : undefined;
   }
 
-  registrarPost(o: OfertaAvaliada, agora: Date): void {
+  /** `canal` é o destino principal do post no Telegram (o canal do nicho ou o geral). */
+  registrarPost(o: OfertaAvaliada, agora: Date, canal?: string): void {
     this.db
-      .prepare(`INSERT INTO postados (loja, id_produto, titulo, categoria, preco, dia, postado_em) VALUES (?, ?, ?, ?, ?, ?, ?)`)
-      .run(o.loja, o.idProduto, o.titulo, o.categoria, o.preco, diaDe(agora), agora.getTime());
+      .prepare(`INSERT INTO postados (loja, id_produto, titulo, categoria, preco, dia, postado_em, canal) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(o.loja, o.idProduto, o.titulo, o.categoria, o.preco, diaDe(agora), agora.getTime(), canal ?? null);
+  }
+
+  /** Posts por categoria nos últimos `dias` dias (1 = só hoje), do maior para o menor. */
+  postsPorCategoria(dias: number, agora: Date): Array<{ categoria: string; posts: number }> {
+    return this.db
+      .prepare(`SELECT categoria, COUNT(*) AS posts FROM postados WHERE dia >= ? GROUP BY categoria ORDER BY posts DESC, categoria ASC`)
+      .all(diasAtras(agora, dias - 1))
+      .map((l) => ({ categoria: String(l.categoria), posts: Number(l.posts) }));
+  }
+
+  /** Ofertas esperando na fila, por categoria. */
+  filaPorCategoria(): Array<{ categoria: string; total: number }> {
+    return this.db
+      .prepare(`SELECT COALESCE(json_extract(dados, '$.categoria'), 'geral') AS categoria, COUNT(*) AS total FROM fila GROUP BY categoria ORDER BY total DESC, categoria ASC`)
+      .all()
+      .map((l) => ({ categoria: String(l.categoria), total: Number(l.total) }));
   }
 
   postsNoDia(agora: Date): number {
     const linha = this.db.prepare(`SELECT COUNT(*) AS n FROM postados WHERE dia = ?`).get(diaDe(agora)) as { n: number };
+    return linha.n;
+  }
+
+  /** Categoria que o robô deu ao produto quando o postou (a mais recente), se postou. */
+  categoriaPostada(loja: Loja, idProduto: string): string | undefined {
+    const l = this.db.prepare(`SELECT categoria FROM postados WHERE loja = ? AND id_produto = ? ORDER BY postado_em DESC LIMIT 1`).get(loja, idProduto) as { categoria: string } | undefined;
+    return l?.categoria;
+  }
+
+  /** Grava (ou atualiza o status de) um item vendido. */
+  guardarVenda(v: { chave: string; loja: Loja; itemId: string; nome: string; categoria: string; valor: number; comissao: number; status?: string; compradoEm: number }): void {
+    this.db
+      .prepare(
+        `INSERT INTO vendas (chave, loja, item_id, nome, categoria, valor, comissao, status, dia, comprado_em) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT (chave) DO UPDATE SET valor = excluded.valor, comissao = excluded.comissao, status = excluded.status`,
+      )
+      .run(v.chave, v.loja, v.itemId, v.nome, v.categoria, v.valor, v.comissao, v.status ?? null, diaDe(new Date(v.compradoEm)), v.compradoEm);
+  }
+
+  /** Vendas e comissão por categoria nos últimos `dias` dias (pedidos cancelados ficam de fora). */
+  vendasPorCategoria(dias: number, agora: Date): Array<{ categoria: string; vendas: number; valor: number; comissao: number }> {
+    return this.db
+      .prepare(
+        `SELECT categoria, COUNT(*) AS vendas, SUM(valor) AS valor, SUM(comissao) AS comissao FROM vendas
+         WHERE dia >= ? AND COALESCE(LOWER(status), '') NOT LIKE '%cancel%' GROUP BY categoria ORDER BY comissao DESC`,
+      )
+      .all(diasAtras(agora, dias - 1))
+      .map((l) => ({ categoria: String(l.categoria), vendas: Number(l.vendas), valor: Math.round(Number(l.valor) * 100) / 100, comissao: Math.round(Number(l.comissao) * 100) / 100 }));
+  }
+
+  ultimoPostDeCampanha(id: string): number | undefined {
+    const l = this.db.prepare(`SELECT MAX(postado_em) AS t FROM campanhas_postadas WHERE id = ?`).get(id) as { t: number | null };
+    return l.t ?? undefined;
+  }
+
+  registrarCampanha(id: string, agora: Date): void {
+    this.db.prepare(`INSERT INTO campanhas_postadas (id, dia, postado_em) VALUES (?, ?, ?)`).run(id, diaDe(agora), agora.getTime());
+  }
+
+  campanhasNoDia(agora: Date): number {
+    return (this.db.prepare(`SELECT COUNT(*) AS n FROM campanhas_postadas WHERE dia = ?`).get(diaDe(agora)) as { n: number }).n;
+  }
+
+  /** Quando o cupom foi postado pela última vez (ms), se já foi. */
+  ultimoPostDeCupom(chave: string): number | undefined {
+    const linha = this.db.prepare(`SELECT MAX(postado_em) AS t FROM cupons_postados WHERE chave = ?`).get(chave) as { t: number | null };
+    return linha.t ?? undefined;
+  }
+
+  registrarCupom(chave: string, agora: Date): void {
+    this.db.prepare(`INSERT INTO cupons_postados (chave, dia, postado_em) VALUES (?, ?, ?)`).run(chave, diaDe(agora), agora.getTime());
+  }
+
+  cuponsNoDia(agora: Date): number {
+    const linha = this.db.prepare(`SELECT COUNT(*) AS n FROM cupons_postados WHERE dia = ?`).get(diaDe(agora)) as { n: number };
     return linha.n;
   }
 
@@ -210,11 +309,13 @@ export class Banco {
    * Melhor oferta da fila (maior pontuação), sem removê-la. Com `evitar`, prefere a melhor de outra loja: assim as lojas se alternam
    * em vez de uma (a que dá mais pontos) ocupar tudo. Se só houver ofertas da loja a evitar, usa a melhor delas.
    */
-  melhorDaFila(evitar?: Loja): OfertaAvaliada | undefined {
+  melhorDaFila(evitar?: Loja, semCategorias: string[] = []): OfertaAvaliada | undefined {
     const pegar = (sql: string, ...args: string[]) => this.db.prepare(sql).get(...args) as { dados: string } | undefined;
-    const base = 'SELECT dados FROM fila';
+    // Nichos que já bateram o limite do dia ficam de fora (continuam na fila para amanhã).
+    const filtro = semCategorias.length ? `COALESCE(json_extract(dados, '$.categoria'), 'geral') NOT IN (${semCategorias.map(() => '?').join(', ')})` : '1 = 1';
+    const base = `SELECT dados FROM fila WHERE ${filtro}`;
     const ordem = 'ORDER BY pontos DESC, criado_em ASC LIMIT 1';
-    const linha = (evitar ? pegar(`${base} WHERE loja <> ? ${ordem}`, evitar) : undefined) ?? pegar(`${base} ${ordem}`);
+    const linha = (evitar ? pegar(`${base} AND loja <> ? ${ordem}`, ...semCategorias, evitar) : undefined) ?? pegar(`${base} ${ordem}`, ...semCategorias);
     return linha ? (JSON.parse(linha.dados) as OfertaAvaliada) : undefined;
   }
 
@@ -271,8 +372,8 @@ export class Banco {
   /** Guarda a mensagem de WhatsApp de uma oferta já postada. O enviador do PC lê isto pelo arquivo whatsapp.json. */
   guardarParaWhatsapp(o: OfertaAvaliada, texto: string, agora: Date): void {
     this.db
-      .prepare(`INSERT OR REPLACE INTO whatsapp_saida (chave, loja, texto, imagem, link, criado_em) VALUES (?, ?, ?, ?, ?, ?)`)
-      .run(`${o.loja}:${o.idProduto}:${agora.getTime()}`, o.loja, texto, o.imagem ?? null, o.link, agora.getTime());
+      .prepare(`INSERT OR REPLACE INTO whatsapp_saida (chave, loja, texto, imagem, link, criado_em, categoria) VALUES (?, ?, ?, ?, ?, ?, ?)`)
+      .run(`${o.loja}:${o.idProduto}:${agora.getTime()}`, o.loja, texto, o.imagem ?? null, o.link, agora.getTime(), o.categoria ?? null);
   }
 
   /** Guarda a oferta postada para virar conteúdo de Stories e Reels. A arte é feita depois (precisa baixar a foto). */
@@ -422,11 +523,11 @@ export class Banco {
   }
 
   /** Mensagens de WhatsApp criadas nas últimas `horas` horas, da mais antiga para a mais nova. */
-  mensagensDoWhatsapp(horas: number, agora: Date): Array<{ chave: string; loja: string; texto: string; imagem?: string; link: string; criadoEm: number }> {
+  mensagensDoWhatsapp(horas: number, agora: Date): Array<{ chave: string; loja: string; texto: string; imagem?: string; link: string; criadoEm: number; categoria: string }> {
     const linhas = this.db
-      .prepare(`SELECT chave, loja, texto, imagem, link, criado_em FROM whatsapp_saida WHERE criado_em >= ? ORDER BY criado_em ASC`)
-      .all(agora.getTime() - horas * 3_600_000) as Array<{ chave: string; loja: string; texto: string; imagem: string | null; link: string; criado_em: number }>;
-    return linhas.map((l) => ({ chave: l.chave, loja: l.loja, texto: l.texto, imagem: l.imagem ?? undefined, link: l.link, criadoEm: l.criado_em }));
+      .prepare(`SELECT chave, loja, texto, imagem, link, criado_em, categoria FROM whatsapp_saida WHERE criado_em >= ? ORDER BY criado_em ASC`)
+      .all(agora.getTime() - horas * 3_600_000) as Array<{ chave: string; loja: string; texto: string; imagem: string | null; link: string; criado_em: number; categoria: string | null }>;
+    return linhas.map((l) => ({ chave: l.chave, loja: l.loja, texto: l.texto, imagem: l.imagem ?? undefined, link: l.link, criadoEm: l.criado_em, categoria: l.categoria ?? 'geral' }));
   }
 
   /** Guarda a última versão de uma oferta boa. O blog lê daqui. */
@@ -546,6 +647,9 @@ export class Banco {
     const t = agora.getTime();
     this.db.prepare(`DELETE FROM precos WHERE dia < ?`).run(diasAtras(agora, 90));
     this.db.prepare(`DELETE FROM postados WHERE postado_em < ?`).run(t - 90 * 86_400_000);
+    this.db.prepare(`DELETE FROM cupons_postados WHERE postado_em < ?`).run(t - 90 * 86_400_000);
+    this.db.prepare(`DELETE FROM campanhas_postadas WHERE postado_em < ?`).run(t - 90 * 86_400_000);
+    this.db.prepare(`DELETE FROM vendas WHERE comprado_em < ?`).run(t - 120 * 86_400_000);
     this.db.prepare(`DELETE FROM whatsapp_saida WHERE criado_em < ?`).run(t - 2 * 86_400_000);
     this.db.prepare(`DELETE FROM social_saida WHERE criado_em < ?`).run(t - 2 * 86_400_000);
     // Publicado vira só um registro (leve) e fica 30 dias, para o robô saber que assunto já usou; o que não saiu perde a validade em 2 dias.

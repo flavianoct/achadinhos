@@ -1,0 +1,26 @@
+name: Descobrir API da Shopee
+
+# Roda só quando você clicar em "Run workflow". Pergunta à API de afiliados da Shopee o que ela oferece
+# e mostra, no resumo da execução, se existe algo de cupom, voucher ou promoção. Não posta nada e não grava nada.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  descobrir:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Consultar a API
+        env:
+          SHOPEE_APP_ID: ${{ secrets.SHOPEE_APP_ID }}
+          SHOPEE_SECRET: ${{ secrets.SHOPEE_SECRET }}
+        run: node --disable-warning=ExperimentalWarning src/index.ts --shopee-schema

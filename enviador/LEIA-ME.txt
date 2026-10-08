@@ -21,6 +21,21 @@ PRIMEIRO USO
    (o canal pode ser o link dele; a conta precisa ser dona do canal)
 5. Dê dois cliques em iniciar-enviador.bat e deixe a janela aberta.
 
+ATUALIZAR O ENVIADOR (depois de mudancas no robo)
+Na VPS (servico achadinhos-enviador) ele se atualiza sozinho: uma vez por hora
+confere a main no GitHub e, se houver versao nova, baixa e reinicia. O log
+mostra "Atualizado para a versao ...". Para desligar: "atualizarSozinho": false
+no config.json. Isso vale a partir da primeira vez que esta versao entrar na
+VPS; antes dela, atualize uma vez na mao:
+  cd ~/achadinhos && git pull --ff-only && cd enviador && npm install --omit=dev && sudo systemctl restart achadinhos-enviador
+No PC (iniciar-enviador.bat) a atualizacao continua manual:
+1. Feche a janela do enviador (ou: sudo systemctl stop achadinhos-enviador).
+2. Atualize a pasta do projeto: "git pull" dentro dela, ou baixe o ZIP de novo
+   no GitHub (Code -> Download ZIP) e copie por cima. O config.json e o login
+   ficam como estao.
+3. Abra de novo o iniciar-enviador.bat (ou: sudo systemctl start achadinhos-enviador).
+4. Confira no "config.json" que nao ha "imagemDoGrupo": "arte" (sem ele, vai a foto do produto).
+
 COMO ELE SE COMPORTA
 - No máximo 6 mensagens por hora, entre 8h e 22h, com intervalo aleatório de
   1,5 a 4 minutos entre uma e outra (ajustável no config.json).
@@ -31,5 +46,6 @@ COMO ELE SE COMPORTA
 
 CANAL DO WHATSAPP: IMAGEM E PREVIA
 - Em canal, a mensagem com imagem e rejeitada pelo servidor do WhatsApp (erro 479) com a biblioteca atual. Por isso as ofertas vao como TEXTO COM PREVIA: o enviador monta a previa do link (titulo, preco e miniatura da foto) e a envia junto. Para desligar a previa: "usarPrevia": false no config.json.
+- Nos GRUPOS a imagem enviada e a mesma foto do produto que vai no Telegram. Se a foto nao baixar, vai o texto com a previa do link (a arte do Instagram NAO entra no lugar). A janela mostra "foto do produto com legenda" a cada envio. Para mandar a arte do Instagram: "imagemDoGrupo": "arte" no config.json.
 - Para testar sem esperar uma oferta: node enviador.mjs testar (texto), testar previa ou testar imagem (com o servico parado: sudo systemctl stop achadinhos-enviador).
 - Se a conexao cair, o enviador reconecta e tenta de novo sem descartar a mensagem. Logs: journalctl -u achadinhos-enviador -f. LOG_NIVEL=debug mostra o detalhe da biblioteca.

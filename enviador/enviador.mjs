@@ -2,6 +2,7 @@
 // Lê https://SEU-SITE/whatsapp.json (a fila que o robô publica) e posta nos seus grupos e canal.
 // Uso: node enviador.mjs            (fica rodando e enviando)
 //      node enviador.mjs listar     (mostra seus grupos e os códigos deles)
+import { execFile } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -9,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import makeWASocket, { Browsers, DisconnectReason, fetchLatestBaileysVersion, useMultiFileAuthState } from '@whiskeysockets/baileys';
 import pino from 'pino';
 import qrcode from 'qrcode-terminal';
-import { esperaAleatoria, podarEstado, podeEnviarAgora, selecionarPendentes, tipoDeDestino } from './logica.mjs';
+import { destinoAceita, enderecosDaFoto, esperaAleatoria, podarEstado, podeEnviarAgora, selecionarPendentes, tipoDeDestino } from './logica.mjs';
 
 const aqui = dirname(fileURLToPath(import.meta.url));
 const CAMINHO_CONFIG = join(aqui, 'config.json');
@@ -20,6 +21,38 @@ const CAMINHO_ESTADO = join(PASTA_DE_DADOS, 'estado.json');
 const PASTA_LOGIN = join(PASTA_DE_DADOS, 'login-whatsapp');
 const pausa = (ms) => new Promise((r) => setTimeout(r, ms));
 const log = (m) => console.log(`[${new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' })}] ${m}`);
+
+/** Roda um comando e devolve a saída (sem shell: os argumentos vão separados). */
+function executar(cmd, args, cwd) {
+  return new Promise((resolve, reject) => {
+    execFile(cmd, args, { cwd, timeout: 180_000 }, (erro, saida, falha) => (erro ? reject(new Error((falha || erro.message).trim())) : resolve(String(saida).trim())));
+  });
+}
+
+/**
+ * Atualização automática (só na VPS, quando roda como serviço do systemd): busca a main no GitHub e, se houver versão
+ * nova, avança a pasta (só avanço simples, nunca apaga mudanças locais), reinstala as dependências se o package.json
+ * mudou e encerra; o systemd religa em 30 segundos já com o código novo. Desliga com "atualizarSozinho": false.
+ */
+async function procurarAtualizacao() {
+  const raiz = join(aqui, '..');
+  if (!process.env.INVOCATION_ID || !existsSync(join(raiz, '.git'))) return;
+  try {
+    await executar('git', ['fetch', '--depth=1', 'origin', 'main'], raiz);
+    const atual = await executar('git', ['rev-parse', 'HEAD'], raiz);
+    const nova = await executar('git', ['rev-parse', 'FETCH_HEAD'], raiz);
+    if (atual === nova) return;
+    const pacoteMudou = (await executar('git', ['diff', '--name-only', atual, nova], raiz)).split('\n').includes('enviador/package.json');
+    // O clone da VPS é raso (--depth=1): não dá para "avançar" com merge. reset --keep troca para a versão nova e recusa
+    // (sem mexer em nada) se algum arquivo mudado no GitHub também tiver mudança local.
+    await executar('git', ['reset', '--keep', 'FETCH_HEAD'], raiz);
+    if (pacoteMudou) await executar('npm', ['install', '--omit=dev', '--no-audit', '--no-fund'], aqui);
+    log(`Atualizado para a versão ${nova.slice(0, 7)} do GitHub. Reiniciando para usar o código novo…`);
+    process.exit(0);
+  } catch (e) {
+    log(`Não consegui atualizar sozinho (${e.message.split('\n')[0]}). Sigo com a versão atual; tento de novo mais tarde.`);
+  }
+}
 
 function lerConfig() {
   if (!existsSync(CAMINHO_CONFIG)) {
@@ -117,16 +150,27 @@ async function listar() {
   process.exit(0);
 }
 
-/** Resolve os destinos do config.json em códigos (JID). Links de canal viram o código do canal. */
+/**
+ * Resolve os destinos em códigos (JID), guardando os nichos de cada um: { jid, nichos }. Links de canal viram o código do canal.
+ * Destino sem nichos é geral (recebe o que o filtro do geral aceita).
+ */
 async function resolverDestinos(sock, config) {
   const prontos = [];
   for (const d of config.destinos ?? []) {
+    const nichos = typeof d === 'string' ? undefined : d.nichos;
+    const add = (jid) => {
+      const ja = prontos.find((p) => p.jid === jid);
+      // O mesmo grupo listado como geral e como de nicho fica geral (recebe mais, não menos).
+      if (!ja) prontos.push({ jid, nichos });
+      else if (!nichos || !ja.nichos) ja.nichos = undefined;
+      else ja.nichos = [...new Set([...ja.nichos, ...nichos])];
+    };
     const t = tipoDeDestino(typeof d === 'string' ? d : d.jid ?? d.link);
-    if (t.tipo === 'grupo' || t.tipo === 'canal') prontos.push(t.jid);
+    if (t.tipo === 'grupo' || t.tipo === 'canal') add(t.jid);
     else if (t.tipo === 'canal-por-link') {
       try {
         const meta = await sock.newsletterMetadata('invite', t.codigo);
-        prontos.push(meta.id);
+        add(meta.id);
         // A consulta pelo link não traz o papel da conta; pelo código do canal ela traz.
         let completo = meta;
         try {
@@ -152,7 +196,7 @@ async function resolverDestinos(sock, config) {
           membro = false;
         }
         log(`Grupo encontrado: ${info.subject ?? info.id} (${info.size ?? '?'} membros; este número ${membro ? 'é membro' : 'NÃO é membro'}).`);
-        if (membro) prontos.push(info.id);
+        if (membro) add(info.id);
         else log('  ATENÇÃO: o número do enviador não está nesse grupo. Entre no grupo com ele (abra o link de convite no WhatsApp desse número) ou peça a um administrador para adicioná-lo. Enquanto isso, o grupo é pulado.');
       } catch (e) {
         log(`Não consegui abrir o grupo pelo link (${e.message}). Confira se o convite ainda vale.`);
@@ -162,17 +206,28 @@ async function resolverDestinos(sock, config) {
   return prontos;
 }
 
-/** Destinos publicados pelo robô em whatsapp.json (vêm de WHATSAPP_DESTINOS no ajustes.env) + os do config.json local, sem repetir. */
+/** Filtro do canal geral publicado pelo robô (GERAL_NICHOS e GERAL_SEM_NICHOS). */
+let filtroGeral = {};
+
+/**
+ * Destinos publicados pelo robô em whatsapp.json (WHATSAPP_DESTINOS e WHATSAPP_ROTAS do ajustes.env) + os do config.json
+ * local (gerais). Cada um: { link, nichos? }.
+ */
 async function destinosCompletos(config) {
   let remotos = [];
   try {
     const url = `${config.urlDoSite.replace(/\/+$/, '')}/whatsapp.json?t=${Date.now()}`;
     const r = await fetch(url, { signal: AbortSignal.timeout(20_000), cache: 'no-store' });
-    if (r.ok) remotos = ((await r.json()).destinos ?? []).map((d) => d.link).filter(Boolean);
+    if (r.ok) {
+      const dados = await r.json();
+      remotos = (dados.destinos ?? []).filter((d) => d.link).map((d) => ({ link: d.link, nichos: d.nichos }));
+      filtroGeral = dados.geral ?? {};
+    }
   } catch {
     // sem o site agora: segue só com os destinos locais
   }
-  return [...new Set([...(config.destinos ?? []).map((d) => (typeof d === 'string' ? d : d.jid ?? d.link)), ...remotos])];
+  const locais = (config.destinos ?? []).map((d) => (typeof d === 'string' ? d : d.jid ?? d.link)).filter(Boolean).map((link) => ({ link }));
+  return [...locais, ...remotos];
 }
 
 /** Mostra o recibo que o WhatsApp devolveu (id e id do servidor): é a prova de que a mensagem foi aceita. */
@@ -184,6 +239,8 @@ function recibo(r, tipo) {
 // Por padrão vai só texto (o link já leva à oferta). Para tentar imagem de novo, ponha "enviarImagem": true no config.json.
 let enviarImagem = false;
 let usarPrevia = true;
+// Imagem enviada nos grupos: "foto" (a mesma foto do produto que vai no Telegram) ou "arte" (a arte do Instagram).
+let imagemDoGrupo = 'foto';
 
 let urlDoSiteAtual = '';
 
@@ -207,6 +264,38 @@ async function baixarArte(id) {
   } catch {
     return undefined;
   }
+}
+
+/** A foto do produto, a mesma que o robô manda no Telegram, em JPEG ou PNG (o que o WhatsApp aceita em grupo). */
+async function baixarFoto(url) {
+  for (const endereco of enderecosDaFoto(url)) {
+    try {
+      const r = await fetch(endereco, { signal: AbortSignal.timeout(30_000) });
+      if (!r.ok) continue;
+      const bruto = Buffer.from(await r.arrayBuffer());
+      const tipo = (r.headers.get('content-type') ?? '').split(';')[0];
+      if (tipo === 'image/jpeg' || tipo === 'image/png') return { buffer: bruto, mimetype: tipo };
+      // Outro formato (WebP): converte com o sharp, se estiver instalado.
+      try {
+        const { default: sharp } = await import('sharp');
+        return { buffer: await sharp(bruto).jpeg({ quality: 88 }).toBuffer(), mimetype: 'image/jpeg' };
+      } catch {
+        // sem o sharp: tenta o próximo endereço
+      }
+    } catch {
+      // tenta o próximo endereço
+    }
+  }
+  return undefined;
+}
+
+/**
+ * A imagem do grupo: a foto do produto, igual ao Telegram. A arte do Instagram só entra com "imagemDoGrupo": "arte"
+ * no config.json. Se a foto não baixar, a mensagem vai como texto com a prévia do link (nunca a arte no lugar da foto).
+ */
+async function imagemParaGrupo(m) {
+  if (imagemDoGrupo === 'arte') return (await baixarArte(m.id)) ?? (await baixarFoto(m.imagem));
+  return baixarFoto(m.imagem);
 }
 
 /**
@@ -236,17 +325,17 @@ async function montarPrevia(m) {
 }
 
 async function enviarUma(sock, jid, m) {
-  // Grupo aceita imagem normalmente (a arte da oferta com a legenda); canal só aceita texto.
+  // Grupo aceita imagem normalmente (a foto do produto, como no Telegram, com a legenda); canal só aceita texto.
   if (enviarImagem || jid.endsWith('@g.us')) {
-    const arte = await baixarArte(m.id);
+    const arte = await imagemParaGrupo(m);
     if (arte) {
       try {
-        recibo(await sock.sendMessage(jid, { image: arte.buffer, mimetype: arte.mimetype, caption: m.texto }), 'imagem com legenda');
+        recibo(await sock.sendMessage(jid, { image: arte.buffer, mimetype: arte.mimetype, caption: m.texto }), imagemDoGrupo === 'arte' ? 'arte com legenda' : 'foto do produto com legenda');
         return;
       } catch (e) {
         log(`  imagem falhou (${e.message}); enviando só o texto.`);
       }
-    } else log('  sem arte no blog para esta oferta; enviando só o texto.');
+    } else log(`  a foto do produto não baixou (${m.imagem ?? 'oferta sem foto'}); enviando o texto com a prévia do link.`);
   }
   const linkPreview = usarPrevia ? await montarPrevia(m) : undefined;
   recibo(await sock.sendMessage(jid, linkPreview ? { text: m.texto, linkPreview } : { text: m.texto }), linkPreview ? 'texto com prévia' : 'texto');
@@ -264,6 +353,7 @@ async function rodar() {
   const config = lerConfig();
   enviarImagem = config.enviarImagem === true;
   usarPrevia = config.usarPrevia !== false;
+  imagemDoGrupo = config.imagemDoGrupo === 'arte' ? 'arte' : 'foto';
   urlDoSiteAtual = config.urlDoSite;
   const sock = await conectar();
   // Os destinos vêm de WHATSAPP_DESTINOS (ajustes.env, publicado em whatsapp.json) e do config.json; a lista é recarregada a cada 10 minutos,
@@ -287,9 +377,15 @@ async function rodar() {
     const ws = sockAtual.sock?.ws;
     if (sockAtual.aberto && ws && (ws.isOpen === false || ws.isClosed === true || ws.isClosing === true)) reiniciarConexao('conexão morta detectada pelo vigia');
   }, 120_000).unref?.();
+  // Uma olhada por hora se há versão nova do enviador no GitHub (veja procurarAtualizacao).
+  let atualizacaoEm = 0;
   for (;;) {
     try {
       const agora = Date.now();
+      if (config.atualizarSozinho !== false && agora - atualizacaoEm > 60 * 60_000) {
+        atualizacaoEm = agora;
+        await procurarAtualizacao();
+      }
       if (sockAtual.aberto && agora - destinosEm > 10 * 60_000) await recarregarDestinos();
       estado = { ...estado, ...podarEstado(estado, agora) };
       const fila = await buscarFila(config);
@@ -308,16 +404,24 @@ async function rodar() {
       }
       if (pendentes.length && regra.pode) {
         const m = pendentes[0];
-        log(`Enviando: ${m.texto.split('\n')[0].slice(0, 70)}`);
+        // Só os destinos do nicho da oferta (e os gerais, se o filtro do geral aceitar o nicho).
+        const alvos = destinos.filter((d) => destinoAceita(d, m.categoria, filtroGeral));
+        log(`Enviando${m.categoria ? ` [${m.categoria}]` : ''} para ${alvos.length} destino(s): ${m.texto.split('\n')[0].slice(0, 70)}`);
+        if (!alvos.length) {
+          // Nenhum grupo ou canal recebe este nicho: marca como resolvida para não travar a fila.
+          estado.enviados[m.id] = Date.now();
+          salvarEstado(estado);
+          continue;
+        }
         let algumOk = false;
         let queda = false;
-        for (let i = 0; i < destinos.length; i++) {
+        for (let i = 0; i < alvos.length; i++) {
           if (i > 0) await pausa(esperaAleatoria(8000, 20_000));
           try {
-            await enviarUma(sockAtual.sock, destinos[i], m);
+            await enviarUma(sockAtual.sock, alvos[i].jid, m);
             algumOk = true;
           } catch (e) {
-            log(`  falhou em ${destinos[i]}: ${e.message}`);
+            log(`  falhou em ${alvos[i].jid}: ${e.message}`);
             if (ehQuedaDeConexao(e)) queda = true;
           }
         }
@@ -358,7 +462,7 @@ async function testar() {
   const sock = await conectar();
   let destinos = await resolverDestinos(sock, { destinos: await destinosCompletos(config) });
   // "testar imagem grupo": só nos grupos (o canal não mostra imagem enviada).
-  if (process.argv[4] === 'grupo') destinos = destinos.filter((d) => d.endsWith('@g.us'));
+  if (process.argv[4] === 'grupo') destinos = destinos.filter((d) => d.jid.endsWith('@g.us'));
   const hora = new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' });
   // "testar imagem": manda a arte da oferta mais recente como imagem, para ver se o canal publica.
   const fila = process.argv[3] === 'imagem' || process.argv[3] === 'previa' ? await buscarFila(config) : [];
@@ -370,7 +474,7 @@ async function testar() {
       break;
     }
   }
-  for (const jid of destinos) {
+  for (const { jid } of destinos) {
     if (process.argv[3] === 'previa') {
       // Usa a oferta mais recente da fila, com a prévia montada por nós (título, preço e miniatura da foto).
       const m = fila.length ? { ...[...fila].reverse()[0] } : undefined;

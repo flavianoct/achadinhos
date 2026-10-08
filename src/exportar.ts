@@ -1,7 +1,9 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ResultadoDoBlog } from './blog.ts';
+import { CATEGORIAS, NICHOS, nomeDoNicho } from './categoria.ts';
 import type { Config } from './config.ts';
+import { geralAceita } from './rotas.ts';
 import type { Banco } from './db.ts';
 import type { ResumoDaColeta } from './pipeline.ts';
 import type { ResumoDoInstagram } from './instagram.ts';
@@ -39,6 +41,61 @@ export interface StatusPublico {
   blog?: { guias: number; postsNoAr: number; postsDeHoje: number; textosDeIA: number; modelo?: string; avisos: string[] };
   ajustes: Record<string, string | number>;
   ultimosPosts: Array<{ loja: string; titulo: string; categoria: string; preco: number; postadoEm: number }>;
+  /** Visão por nicho: posts, fila, ofertas aprovadas e roteamento de cada categoria. */
+  nichos: Nicho[];
+  /** Avisos de configuração das rotas (categoria ou canal inválido). */
+  avisosDeRotas: string[];
+  tambemNoGeral: boolean;
+}
+
+export interface Nicho {
+  chave: string;
+  nome: string;
+  emoji: string;
+  postsHoje: number;
+  posts7dias: number;
+  naFila: number;
+  /** Ofertas aprovadas nas últimas 24 horas. */
+  aprovadas24h: number;
+  /** Vendas da Shopee nos últimos 7 dias (itens) e comissão em reais. */
+  vendas7d: number;
+  comissao7d: number;
+  /** Tem canal próprio no Telegram? */
+  temRota: boolean;
+  /** O filtro do canal geral aceita este nicho? */
+  noGeral: boolean;
+  /** Só mostra o canal quando é público (@nome); ID numérico não aparece no arquivo público. */
+  canal?: string;
+}
+
+/** Junta, por categoria, o que o painel mostra. Categorias sem nenhum número ficam de fora, menos as que têm rota. */
+export function montarNichos(banco: Banco, config: Config, agora: Date): Nicho[] {
+  const hoje = new Map(banco.postsPorCategoria(1, agora).map((c) => [c.categoria, c.posts]));
+  const semana = new Map(banco.postsPorCategoria(7, agora).map((c) => [c.categoria, c.posts]));
+  const fila = new Map(banco.filaPorCategoria().map((c) => [c.categoria, c.total]));
+  const aprovadas = new Map(banco.categoriasRecentes(24, agora).map((c) => [c.categoria, c.total]));
+  const vendas = new Map(banco.vendasPorCategoria(7, agora).map((c) => [c.categoria, c]));
+  const conhecidas = new Set<string>([...CATEGORIAS, ...hoje.keys(), ...semana.keys(), ...fila.keys(), ...aprovadas.keys(), ...vendas.keys()]);
+  return [...conhecidas]
+    .map((chave): Nicho => {
+      const rota = config.rotas.porCategoria[chave];
+      return {
+        chave,
+        nome: nomeDoNicho(chave),
+        emoji: NICHOS[chave]?.emoji ?? '🛍️',
+        postsHoje: hoje.get(chave) ?? 0,
+        posts7dias: semana.get(chave) ?? 0,
+        naFila: fila.get(chave) ?? 0,
+        aprovadas24h: aprovadas.get(chave) ?? 0,
+        vendas7d: vendas.get(chave)?.vendas ?? 0,
+        comissao7d: vendas.get(chave)?.comissao ?? 0,
+        temRota: Boolean(rota),
+        noGeral: geralAceita(chave, config),
+        canal: rota?.startsWith('@') ? rota : undefined,
+      };
+    })
+    .filter((n) => n.postsHoje || n.posts7dias || n.naFila || n.aprovadas24h || n.vendas7d || n.temRota)
+    .sort((a, b) => b.posts7dias - a.posts7dias || b.aprovadas24h - a.aprovadas24h || a.nome.localeCompare(b.nome));
 }
 
 /** Só números e rótulos: nada aqui é segredo, porque o arquivo fica público no site. */
@@ -81,7 +138,28 @@ export function montarStatus(banco: Banco, config: Config, dados: DadosDaRodada,
       'IA do blog': config.blog.ia === 'gemini' ? `gemini (${config.blog.geminiModelo})` : config.blog.ia,
     },
     ultimosPosts: banco.ultimosPosts(MAXIMO_DE_POSTS_NO_PAINEL).map((p) => ({ loja: p.loja, titulo: p.titulo.slice(0, 120), categoria: p.categoria, preco: p.preco, postadoEm: p.postadoEm })),
+    nichos: montarNichos(banco, config, agora),
+    avisosDeRotas: [...config.rotas.avisos, ...config.whatsapp.avisos],
+    tambemNoGeral: config.rotas.tambemNoGeral,
   };
+}
+
+/**
+ * O que o enviador do WhatsApp lê: destinos gerais (sem `nichos`, seguem o filtro do geral em `geral`),
+ * destinos de nicho (com `nichos`) e as mensagens com a categoria de cada uma.
+ */
+export function montarWhatsapp(config: Config, mensagens: unknown[], agora: Date) {
+  const tipo = (link: string) => (link.includes('/channel/') ? 'canal' : 'grupo');
+  const destinos: Array<{ tipo: string; link: string; nichos?: string[] }> = [];
+  if (config.whatsapp.ativo) {
+    for (const link of config.whatsapp.destinos) destinos.push({ tipo: tipo(link), link });
+    for (const r of config.whatsapp.rotas) {
+      const ja = destinos.find((d) => d.link === r.link && d.nichos);
+      if (ja) ja.nichos!.push(r.nicho);
+      else destinos.push({ tipo: tipo(r.link), link: r.link, nichos: [r.nicho] });
+    }
+  }
+  return { atualizadoEm: agora.toISOString(), geral: { nichos: config.rotas.geralNichos, sem: config.rotas.geralSem }, destinos, mensagens };
 }
 
 /**
@@ -93,12 +171,21 @@ export function publicarControle(banco: Banco, config: Config, dados: DadosDaRod
   mkdirSync(pasta, { recursive: true });
   const status = montarStatus(banco, config, dados, agora, repo);
   const mensagens = config.whatsapp.ativo
-    ? banco.mensagensDoWhatsapp(HORAS_DO_WHATSAPP, agora).map((m) => ({ id: m.chave, criadoEm: m.criadoEm, loja: m.loja, texto: m.texto, imagem: m.imagem, link: m.link }))
+    ? banco.mensagensDoWhatsapp(HORAS_DO_WHATSAPP, agora).map((m) => ({ id: m.chave, criadoEm: m.criadoEm, loja: m.loja, categoria: m.categoria, texto: m.texto, imagem: m.imagem, link: m.link }))
     : [];
   writeFileSync(join(pasta, 'status.json'), JSON.stringify(status, null, 2), 'utf8');
-  writeFileSync(join(pasta, 'whatsapp.json'), JSON.stringify({ atualizadoEm: agora.toISOString(), destinos: config.whatsapp.ativo ? config.whatsapp.destinos.map((link) => ({ tipo: link.includes('/channel/') ? 'canal' : 'grupo', link })) : [], mensagens }, null, 2), 'utf8');
+  writeFileSync(join(pasta, 'whatsapp.json'), JSON.stringify(montarWhatsapp(config, mensagens, agora), null, 2), 'utf8');
   writeFileSync(join(pasta, 'social.json'), JSON.stringify({ atualizadoEm: agora.toISOString(), itens: conteudoSocialRecente(banco, config, agora) }), 'utf8');
   writeFileSync(join(pasta, 'painel.html'), PAGINA_DO_PAINEL, 'utf8');
+  writeFileSync(join(pasta, 'configurar.html'), paginaDeConfigurar(), 'utf8');
+}
+
+/** Página de configuração com seletores (src/configurar.html), com a lista de nichos embutida. */
+export function paginaDeConfigurar(): string {
+  const nichos = CATEGORIAS.map((chave) => ({ chave, nome: NICHOS[chave]!.nome, emoji: NICHOS[chave]!.emoji }));
+  // JSON dentro de <script>: "<" escapado para nenhum texto fechar a tag.
+  const json = JSON.stringify(nichos).replace(/</g, '\\u003c');
+  return readFileSync(new URL('./configurar.html', import.meta.url), 'utf8').replace('/*NICHOS*/[]', json);
 }
 
 export const PAGINA_DO_PAINEL = `<!doctype html>
@@ -140,7 +227,16 @@ tr:last-child td{border-bottom:0}
 .sc img{width:100%;border-radius:8px;display:block;margin-bottom:10px;background:var(--bd)}
 .sc .btns{flex-direction:column}.sc .b{text-align:center}
 .personalizar{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px 14px;margin:0 0 14px}.personalizar label{display:inline-flex;gap:6px;align-items:center;margin:4px 14px 4px 0;font-size:14px}.personalizar .linha{margin:8px 0}.personalizar h3{font-size:14px;margin:0 0 6px}
-.filtros{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px}.filtros input,.filtros select{font:inherit;font-size:14px;padding:8px 10px;border-radius:8px;border:1px solid var(--bd);background:var(--card);color:var(--tx)}.filtros input{flex:1 1 220px;min-width:160px}
+.barra-filtros{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px}.barra-filtros input,.barra-filtros select{font:inherit;font-size:14px;padding:8px 10px;border-radius:8px;border:1px solid var(--bd);background:var(--card);color:var(--tx)}.barra-filtros input{flex:1 1 220px;min-width:160px}
+.duas{display:grid;grid-template-columns:minmax(220px,300px) 1fr;gap:12px;margin-top:12px}@media(max-width:700px){.duas{grid-template-columns:1fr}}
+.rosca-box{display:flex;flex-direction:column;align-items:center;gap:12px}
+.rosca{position:relative;width:150px;height:150px;border-radius:50%;background:var(--bd)}
+.rosca::after{content:'';position:absolute;inset:30px;background:var(--card);border-radius:50%}
+.leg{width:100%;font-size:13px}.leg div{display:flex;align-items:center;gap:6px;padding:1px 0}.leg i{width:10px;height:10px;border-radius:3px;flex:none}.leg span{margin-left:auto;color:var(--mut)}
+.filtros{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}.filtros button{background:var(--card);color:var(--tx);border:1px solid var(--bd);border-radius:99px;padding:4px 12px;font:inherit;font-size:13px;cursor:pointer}.filtros button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+#nicho-destaques .n{font-size:20px;overflow-wrap:anywhere}
+@media(max-width:600px){table{display:block;overflow-x:auto}}
+.mini{display:flex;height:8px;border-radius:4px;overflow:hidden;background:var(--bd);min-width:60px}.mini i{display:block;height:100%}
 </style>
 </head>
 <body>
@@ -160,6 +256,15 @@ tr:last-child td{border-bottom:0}
 <h2>Postagens nos últimos 7 dias</h2>
 <div class="card"><div class="bars" id="barras"></div></div>
 
+<h2>Ofertas por nicho</h2>
+<div class="grid" id="nicho-destaques"></div>
+<div class="duas">
+<div class="card"><div class="rosca-box"><div class="rosca" id="rosca" role="img" aria-label="Distribuição dos posts dos últimos 7 dias por nicho"></div><div class="leg" id="legenda"></div></div></div>
+<div class="card" style="overflow-x:auto"><table id="nichos"></table></div>
+</div>
+<div id="avisos-rotas"></div>
+<p class="nota">Posts = ofertas disparadas no Telegram. Vendas e comissão vêm do relatório de afiliados da Shopee (lido a cada poucas horas, pedidos cancelados ficam de fora); o Mercado Livre não tem esse relatório por API, então as vendas dele aparecem só no painel de afiliados do próprio Mercado Livre.</p>
+
 <h2>Controles</h2>
 <div class="btns" id="controles"></div>
 <p class="nota">Estes botões abrem o GitHub, onde o robô de fato roda. Só você (logado) consegue alterar algo. Esta página mostra apenas números e textos já públicos, nunca senhas.</p>
@@ -168,10 +273,10 @@ tr:last-child td{border-bottom:0}
 <table id="ajustes"></table>
 
 <h2>Ofertas postadas</h2>
-<div class="filtros">
+<div class="barra-filtros">
 <input id="f-q" type="search" placeholder="Buscar produto (sem acento)…" autocomplete="off">
 <select id="f-loja"><option value="">Todas as lojas</option></select>
-<select id="f-cat"><option value="">Todas as categorias</option></select>
+<select id="f-cat"><option value="">Todos os nichos</option></select>
 <select id="f-per"><option value="hoje">Hoje</option><option value="24">Últimas 24 horas</option><option value="168">Últimos 7 dias</option><option value="" selected>Tudo que está guardado</option></select>
 <select id="f-ord"><option value="data">Mais recentes</option><option value="menor">Menor preço</option><option value="maior">Maior preço</option></select>
 <button class="b s" id="f-limpar" type="button">Limpar filtros</button>
@@ -221,10 +326,34 @@ const t=new Date(s.atualizadoEm).getTime();
   const max=Math.max(1,...s.postsPorDia.map(d=>d.posts));
   const b=document.getElementById('barras');
   s.postsPorDia.forEach(d=>{const x=el('div','bar');const i=el('i');i.style.height=Math.round(d.posts/max*80)+'px';x.append(i,el('div','',d.posts+''),el('div','',d.dia.slice(8)+'/'+d.dia.slice(5,7)));b.append(x)});
+
+  const nichos=s.nichos||[];
+  const CORES=['#2457d6','#12805c','#d97706','#c026d3','#0891b2','#dc2626','#65a30d','#7c3aed','#db2777','#64748b'];
+  const cor=chave=>CORES[Math.max(0,nichos.findIndex(n=>n.chave===chave))%CORES.length];
+  const tot7=nichos.reduce((a,n)=>a+n.posts7dias,0);
+  const dest=document.getElementById('nicho-destaques');
+  const topHoje=nichos.slice().sort((a,b)=>b.postsHoje-a.postsHoje)[0];
+  const topFila=nichos.slice().sort((a,b)=>b.naFila-a.naFila)[0];
+  [[topHoje&&topHoje.postsHoje?topHoje.emoji+' '+topHoje.nome:'-','nicho que mais disparou hoje'+(topHoje&&topHoje.postsHoje?' ('+topHoje.postsHoje+' posts)':'')],
+   [topFila&&topFila.naFila?topFila.emoji+' '+topFila.nome:'-','maior fila de espera'+(topFila&&topFila.naFila?' ('+topFila.naFila+' ofertas)':'')],
+   (()=>{const v=nichos.slice().sort((a,b)=>b.comissao7d-a.comissao7d)[0];return [v&&v.comissao7d?v.emoji+' '+v.nome:'-',v&&v.comissao7d?'nicho que mais rendeu em 7 dias ('+reais(v.comissao7d)+' de comissão na Shopee)':'nicho que mais rendeu (ainda sem vendas lidas da Shopee)']})(),
+   [nichos.filter(n=>n.temRota).length+' de '+nichos.length,'nichos com canal próprio']].forEach(([n,l])=>{const c=el('div','card');c.append(el('div','n',n),el('div','l',l));dest.append(c)});
+  let ang=0;const fatias=[];
+  nichos.filter(n=>n.posts7dias>0).forEach(n=>{const f=n.posts7dias/tot7*100;fatias.push(cor(n.chave)+' '+ang+'% '+(ang+f)+'%');ang+=f});
+  if(fatias.length)document.getElementById('rosca').style.background='conic-gradient('+fatias.join(',')+')';
+  const lg=document.getElementById('legenda');
+  nichos.filter(n=>n.posts7dias>0).forEach(n=>{const d=el('div');const q=el('i');q.style.background=cor(n.chave);d.append(q,el('b','',n.emoji+' '+n.nome),el('span','',n.posts7dias+' ('+Math.round(n.posts7dias/tot7*100)+'%)'));lg.append(d)});
+  if(!tot7)lg.append(el('div','sub','Ainda sem posts nos últimos 7 dias.'));
+  const tn=document.getElementById('nichos');
+  const hn=el('tr');['Nicho','Hoje','7 dias','Na fila','Aprovadas 24h','Vendas 7d','Comissão 7d','Canal'].forEach(x=>hn.append(el('th','',x)));tn.append(hn);
+  nichos.forEach(n=>{const r=el('tr');r.append(el('td','',n.emoji+' '+n.nome),el('td','',String(n.postsHoje)),el('td','',String(n.posts7dias)),el('td','',String(n.naFila)),el('td','',String(n.aprovadas24h)),el('td','',String(n.vendas7d)),el('td','',n.comissao7d?reais(n.comissao7d):'-'),el('td','',(n.temRota?(n.canal||'canal próprio'):'')+(n.noGeral&&(!n.temRota||s.tambemNoGeral)?(n.temRota?' + geral':'canal geral'):(n.temRota?'':'não enviado'))));tn.append(r)});
+  if(!nichos.length){const r=el('tr');r.append(el('td','','Ainda sem ofertas por nicho: aparece depois da próxima rodada.'));tn.append(r)}
+  const ar=document.getElementById('avisos-rotas');
+  (s.avisosDeRotas||[]).forEach(m=>ar.append(el('div','aviso',m)));
   const c=document.getElementById('controles');
   if(s.repo){
     const base='https://github.com/'+s.repo;
-    [['Rodar agora',base+'/actions/workflows/robo.yml',''],['Editar ajustes',base+'/edit/main/ajustes.env','s'],['Ver rodadas',base+'/actions','s'],['Chaves (Secrets)',base+'/settings/secrets/actions','s']].forEach(([n,u,k])=>{const a=el('a','b '+k,n);a.href=u;a.target='_blank';a.rel='noopener';c.append(a)});
+    [['Configurar (seletores)','configurar.html',''],['Rodar agora',base+'/actions/workflows/robo.yml','s'],['Editar ajustes',base+'/edit/main/ajustes.env','s'],['Ver rodadas',base+'/actions','s'],['Chaves (Secrets)',base+'/settings/secrets/actions','s']].forEach(([n,u,k])=>{const a=el('a','b '+k,n);a.href=u;a.target='_blank';a.rel='noopener';c.append(a)});
   }
   if(s.blogUrl){const a=el('a','b s','Abrir o blog');a.href=s.blogUrl;a.target='_blank';c.append(a)}
   if(s.telegramLink){const a=el('a','b s','Abrir o canal do Telegram');a.href=s.telegramLink;a.target='_blank';c.append(a)}
@@ -237,19 +366,20 @@ const t=new Date(s.atualizadoEm).getTime();
   const po=document.getElementById('posts');
   const NOMES={tech:'Tecnologia',casa:'Casa e Cozinha',games:'Games',beleza:'Beleza',moda:'Moda',esporte:'Esporte e Fitness',pet:'Pet',bebe:'Bebê e Infantil',ferramentas:'Ferramentas',geral:'Variedades'};
   const LOJAS={mercadolivre:'Mercado Livre',shopee:'Shopee',amazon:'Amazon'};
+  const nomeDe=ch=>{const n=nichos.find(x=>x.chave===ch);return n?n.emoji+' '+n.nome:(NOMES[ch]||ch)};
   const semAcento=x=>String(x).normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase();
   const diaBR=ms=>new Date(ms).toLocaleDateString('en-CA',{timeZone:'America/Sao_Paulo'});
   const fq=document.getElementById('f-q'),fl=document.getElementById('f-loja'),fc=document.getElementById('f-cat'),fp=document.getElementById('f-per'),fo=document.getElementById('f-ord');
   [...new Set(s.ultimosPosts.map(p=>p.loja))].sort().forEach(l=>{const o=el('option','',LOJAS[l]||l);o.value=l;fl.append(o)});
-  [...new Set(s.ultimosPosts.map(p=>p.categoria).filter(Boolean))].sort((a,b)=>(NOMES[a]||a).localeCompare(NOMES[b]||b,'pt-BR')).forEach(c=>{const o=el('option','',NOMES[c]||c);o.value=c;fc.append(o)});
+  [...new Set(s.ultimosPosts.map(p=>p.categoria).filter(Boolean))].sort((a,b)=>nomeDe(a).localeCompare(nomeDe(b),'pt-BR')).forEach(c=>{const o=el('option','',nomeDe(c));o.value=c;fc.append(o)});
   function desenharPosts(){
     const termos=semAcento(fq.value).split(/\\s+/).filter(Boolean),agora=Date.now(),hoje=diaBR(agora),per=fp.value;
     let lista=s.ultimosPosts.filter(p=>(!fl.value||p.loja===fl.value)&&(!fc.value||p.categoria===fc.value)&&termos.every(t=>semAcento(p.titulo).includes(t))&&(per===''||(per==='hoje'?diaBR(p.postadoEm)===hoje:agora-p.postadoEm<=Number(per)*3600000)));
     if(fo.value==='menor')lista=lista.slice().sort((a,b)=>a.preco-b.preco);
     else if(fo.value==='maior')lista=lista.slice().sort((a,b)=>b.preco-a.preco);
     po.replaceChildren();
-    const th=el('tr');['Quando','Loja','Categoria','Produto','Preço'].forEach(h=>th.append(el('th','',h)));po.append(th);
-    lista.slice(0,prefs.linhas).forEach(p=>{const r=el('tr');r.append(el('td','',quando(p.postadoEm)),el('td','',LOJAS[p.loja]||p.loja),el('td','',NOMES[p.categoria]||p.categoria||'-'),el('td','',p.titulo.slice(0,90)),el('td','',reais(p.preco)));po.append(r)});
+    const th=el('tr');['Quando','Loja','Nicho','Produto','Preço'].forEach(h=>th.append(el('th','',h)));po.append(th);
+    lista.slice(0,prefs.linhas).forEach(p=>{const r=el('tr');r.append(el('td','',quando(p.postadoEm)),el('td','',LOJAS[p.loja]||p.loja),el('td','',nomeDe(p.categoria)||'-'),el('td','',p.titulo.slice(0,90)),el('td','',reais(p.preco)));po.append(r)});
     if(!lista.length){const r=el('tr');r.append(el('td','',s.ultimosPosts.length?'Nenhuma oferta com esses filtros.':'Nenhum post ainda.'));po.append(r)}
     if(prefs.lembrar){prefs.filtros={q:fq.value,loja:fl.value,cat:fc.value,per:fp.value,ord:fo.value};gravarPrefs()}
     document.getElementById('f-cont').textContent=lista.length+' de '+s.ultimosPosts.length+' ofertas'+(lista.length>prefs.linhas?' (mostrando as '+prefs.linhas+' primeiras; mude em Personalizar)':'');
@@ -270,8 +400,9 @@ const t=new Date(s.atualizadoEm).getTime();
   p0.onchange=()=>{prefs.per0=p0.value;gravarPrefs()};
   document.getElementById('p-padrao').onclick=()=>{try{localStorage.removeItem('painel-prefs')}catch(e){}location.reload()};
   document.getElementById('p-abrir').onclick=()=>{const p=document.getElementById('p-painel');p.hidden=!p.hidden};
-  aplicarSecoes();  const dz=document.getElementById('destinos');
-  (w.destinos||[]).forEach(d=>{const l=el('div','msg');const t=el('div','',(d.tipo==='canal'?'Canal':'Grupo')+': ');const a=el('a','',d.link);a.href=d.link;a.target='_blank';a.rel='noopener';t.append(a);l.append(t,el('div','sub',d.tipo==='canal'?'Recebe o texto da oferta com o link e a foto em miniatura (o canal não aceita imagem enviada).':'Recebe a arte da oferta como imagem, com a legenda e o link. O número do enviador precisa ser membro do grupo.'));dz.append(l)});
+  aplicarSecoes();
+  const dz=document.getElementById('destinos');
+  (w.destinos||[]).forEach(d=>{const l=el('div','msg');const t=el('div','',(d.tipo==='canal'?'Canal':'Grupo')+(d.nichos&&d.nichos.length?' de '+d.nichos.map(nomeDe).join(', '):' geral')+': ');const a=el('a','',d.link);a.href=d.link;a.target='_blank';a.rel='noopener';t.append(a);l.append(t,el('div','sub',d.tipo==='canal'?'Recebe o texto da oferta com o link e a foto em miniatura (o canal não aceita imagem enviada).':'Recebe a arte da oferta como imagem, com a legenda e o link. O número do enviador precisa ser membro do grupo.'));dz.append(l)});
   if(!(w.destinos||[]).length)dz.append(el('div','sub','Nenhum destino configurado. Acrescente o link de um canal ou grupo em WHATSAPP_DESTINOS.'));
   if(s.repo){const ed=el('a','b','Editar canais e grupos (ajustes.env)');ed.href='https://github.com/'+s.repo+'/edit/main/ajustes.env';ed.target='_blank';ed.rel='noopener';document.getElementById('zapbotoes').append(ed)}
   document.getElementById('zapnota').textContent=s.canais.whatsapp?'O enviador do seu PC busca estas mensagens sozinho. Aqui você também pode copiar uma e mandar na mão, se preferir.':'WhatsApp desligado (WHATSAPP_ATIVO=0).';

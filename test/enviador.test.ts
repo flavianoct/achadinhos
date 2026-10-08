@@ -54,3 +54,22 @@ test('enviador: link de convite de grupo vira destino "grupo-por-link", com ou s
   assert.equal(tipoDeDestino('https://whatsapp.com/channel/0029VbDtCLD2UPBAGBZ4UO1W').tipo, 'canal-por-link');
   assert.equal(tipoDeDestino('https://exemplo.com/x').tipo, 'invalido');
 });
+test('enviador: destino de nicho recebe só o nicho dele; destino geral segue o filtro do geral', async () => {
+  const { destinoAceita } = await import('../enviador/logica.mjs');
+  const moda = { jid: 'a@g.us', nichos: ['moda'] };
+  const geral = { jid: 'b@g.us' };
+  assert.equal(destinoAceita(moda, 'moda'), true);
+  assert.equal(destinoAceita(moda, 'tech'), false);
+  assert.equal(destinoAceita(geral, 'tech'), true);
+  assert.equal(destinoAceita(geral, undefined), true, 'mensagem antiga sem categoria vai ao geral');
+  assert.equal(destinoAceita(geral, 'pet', { sem: ['pet'] }), false);
+  assert.equal(destinoAceita(geral, 'casa', { nichos: ['tech'] }), false);
+  assert.equal(destinoAceita(geral, 'tech', { nichos: ['tech'] }), true);
+});
+
+test('enviador: foto do Mercado Livre é pedida primeiro em JPEG (sem precisar do conversor); outras ficam como estão', async () => {
+  const { enderecosDaFoto } = await import('../enviador/logica.mjs');
+  assert.deepEqual(enderecosDaFoto('https://http2.mlstatic.com/D_Q_NP_2X_123-AB.webp'), ['https://http2.mlstatic.com/D_Q_NP_2X_123-AB.jpg', 'https://http2.mlstatic.com/D_Q_NP_2X_123-AB.webp']);
+  assert.deepEqual(enderecosDaFoto('https://down-br.img.susercontent.com/file/abc'), ['https://down-br.img.susercontent.com/file/abc']);
+  assert.deepEqual(enderecosDaFoto(undefined), []);
+});
