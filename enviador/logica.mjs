@@ -64,3 +64,13 @@ export function destinoAceita(destino, categoria, geral = {}) {
   if ((geral.sem ?? []).includes(c)) return false;
   return !(geral.nichos ?? []).length || geral.nichos.includes(c);
 }
+
+/**
+ * Endereços para tentar a foto do produto, o melhor primeiro. A foto do Mercado Livre vem em WebP; o mesmo servidor
+ * entrega a versão JPEG trocando a extensão, o que dispensa o conversor (sharp).
+ */
+export function enderecosDaFoto(url) {
+  if (!url) return [];
+  const jpg = /mlstatic\.com\/.+\.webp(\?|$)/i.test(url) ? url.replace(/\.webp(\?|$)/i, '.jpg$1') : undefined;
+  return jpg ? [jpg, url] : [url];
+}
