@@ -153,6 +153,15 @@ ROTAS_TELEGRAM=tech=@meucanaltech,moda=@meucanalmoda
 - Se um canal de nicho recusar o post (bot sem permissão, canal apagado), a oferta não se perde: vai para o canal geral e a rodada mostra um aviso.
 - Nome de nicho que não existe ou canal escrito errado é ignorado e aparece como aviso no resumo da rodada e no painel.
 
+**Mais ajustes por nicho** (todos em `ajustes.env`, ou pela página Configurar):
+- `NICHO_MAX_POR_DIA` e `NICHO_LIMITES=moda=8,tech=15`: teto de posts por dia de cada nicho. O que passar do teto fica na fila e outro nicho é postado.
+- `NICHO_PALAVRAS_MODA=cropped,biquini,-relogio`: acrescenta palavras ao classificador do nicho; com `-` na frente, tira. Vale para qualquer nicho (`NICHO_PALAVRAS_TECH`, `_CASA`, `_BELEZA`...).
+- `WHATSAPP_ROTAS=moda=https://chat.whatsapp.com/XXXX`: grupos e canais de WhatsApp de um nicho (um nicho pode ter vários). Os de `WHATSAPP_DESTINOS` são gerais e seguem o filtro do canal geral. Uma oferta de nicho sem canal no Telegram mas com grupo de WhatsApp vai só para o WhatsApp. O enviador do PC precisa estar atualizado para separar por nicho.
+
+**Página Configurar** (`configurar.html`, link no painel): seletores para lojas, filtro, horário, a tabela de nichos (canal do Telegram, "no geral", WhatsApp do nicho, limite e palavras), os canais e grupos gerais do WhatsApp e o editor de cupons. Ela lê os arquivos do repositório, mostra o que mudou e o botão copia o arquivo novo e abre o editor do GitHub: apague tudo, cole e salve. Nenhuma senha ou chave passa pela página. Funciona com o repositório público.
+
+**Shopee: campanhas e vendas.** `CAMPANHAS_POR_DIA=1` posta no canal geral uma campanha da própria Shopee por dia (as páginas tipo "10.10" ou "Frete Grátis", com o seu link), sem repetir por `CAMPANHAS_REPETIR_DIAS`. `VENDAS_ATIVO=1` lê o relatório de vendas de afiliado da Shopee a cada `VENDAS_HORAS` horas e o painel mostra vendas e comissão dos últimos 7 dias por nicho. O Mercado Livre não tem esses dados por API.
+
 **No painel online** (`painel.html`), a seção "Ofertas por nicho" mostra o nicho que mais disparou hoje, a maior fila, a distribuição dos posts dos últimos 7 dias (gráfico de rosca) e uma tabela com posts de hoje e da semana, ofertas na fila, aprovadas nas últimas 24 h e o canal de cada nicho. A lista de últimas ofertas tem filtro por nicho. O painel não mostra cliques: o link de afiliado vai direto para a loja, então os cliques só aparecem nos painéis de afiliado da Shopee e do Mercado Livre.
 
 ## Avisos

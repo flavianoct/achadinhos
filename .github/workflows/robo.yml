@@ -31,9 +31,9 @@ jobs:
       name: github-pages
       url: ${{ steps.publicar.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 24
 
@@ -115,7 +115,7 @@ jobs:
       - name: Publicar o blog
         id: publicar
         if: always() && steps.pages.outcome == 'success' && hashFiles('blog/index.html') != ''
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
 
       - name: Aviso sobre o Pages
         if: always() && steps.pages.outcome != 'success'
@@ -130,7 +130,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Esperar e chamar a próxima rodada
         env:

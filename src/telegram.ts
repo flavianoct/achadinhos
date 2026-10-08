@@ -17,6 +17,8 @@ export interface Publicador {
   /** `destino` troca o canal só nesta chamada (roteamento por nicho); sem ele vale o canal geral. */
   publicar(o: OfertaAvaliada, destino?: string): Promise<void>;
   publicarCupom?(c: Cupom): Promise<void>;
+  /** Post livre (campanhas): texto HTML, um botão e, se houver, uma foto. */
+  publicarAviso?(a: { texto: string; botao: string; url: string; imagem?: string }, destino?: string): Promise<void>;
 }
 
 const pausa = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -89,6 +91,19 @@ export class Telegram implements Publicador {
     });
   }
 
+  async publicarAviso(a: { texto: string; botao: string; url: string; imagem?: string }, destino: string = this.chatId): Promise<void> {
+    const reply_markup = { inline_keyboard: [[{ text: a.botao, url: a.url }]] };
+    if (a.imagem) {
+      try {
+        await this.chamar('sendPhoto', { chat_id: destino, photo: a.imagem, caption: a.texto, parse_mode: 'HTML', reply_markup });
+        return;
+      } catch (e) {
+        if (!(e instanceof ErroTelegram) || !e.permanente) throw e;
+      }
+    }
+    await this.chamar('sendMessage', { chat_id: destino, text: a.texto, parse_mode: 'HTML', reply_markup });
+  }
+
   /** Confere o token e se o bot enxerga o canal. Devolve um resumo legível. */
   async checar(destino: string = this.chatId): Promise<string> {
     const eu = await this.chamar('getMe', {});
@@ -104,6 +119,12 @@ export class Telegram implements Publicador {
 
 /** Publicador do modo de teste: só mostra o post na tela. */
 export class PublicadorDeTeste implements Publicador {
+  async publicarAviso(a: { texto: string; botao: string; url: string }): Promise<void> {
+    console.log('\n──────── AVISO (simulado) ────────');
+    console.log(a.texto.replace(/<[^>]+>/g, ''));
+    console.log(`[botão] ${a.botao} → ${a.url}`);
+  }
+
   async checar(destino?: string): Promise<string> {
     return `modo de teste${destino ? ` (${destino})` : ''}`;
   }

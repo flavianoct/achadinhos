@@ -1,0 +1,455 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Configurar o robô</title>
+<style>
+:root{--bg:#f5f6f8;--card:#fff;--tx:#1b1f27;--mut:#667085;--bd:#e4e7ec;--ok:#12805c;--okbg:#e3f5ee;--av:#a15c07;--avbg:#fdf0d9;--er:#b42318;--erbg:#fde7e4;--ac:#2457d6;--acbg:#e8eefc}
+@media(prefers-color-scheme:dark){:root{--bg:#0f1218;--card:#181c25;--tx:#eceff4;--mut:#98a2b3;--bd:#2a3040;--ok:#4cc79a;--okbg:#12362b;--av:#f0b44c;--avbg:#3a2c0e;--er:#ff8a7e;--erbg:#3d1714;--ac:#7da2ff;--acbg:#1c2744}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+main{max-width:1000px;margin:0 auto;padding:20px 16px 120px}
+h1{font-size:22px;margin:0 0 4px}h2{font-size:16px;margin:28px 0 10px}
+.sub,.nota{color:var(--mut);font-size:13px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px 16px;margin-bottom:12px}
+.campos{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+label{display:block;font-size:13px;font-weight:600;margin-bottom:4px}
+input[type=text],input[type=number],input[type=url],input[type=date],select{width:100%;padding:8px 10px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);font:inherit;font-size:14px}
+input[type=range]{width:100%}
+input.erro{border-color:var(--er);background:var(--erbg)}
+.chave{display:flex;align-items:center;gap:10px;font-weight:600;font-size:14px;cursor:pointer}
+.chave input{width:18px;height:18px}
+.ajuda{color:var(--mut);font-size:12px;margin-top:3px}
+.tabela{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:14px;min-width:760px}
+th,td{text-align:left;padding:8px;border-bottom:1px solid var(--bd);vertical-align:top}th{color:var(--mut);font-size:12px;font-weight:600}
+tr:last-child td{border-bottom:0}
+td input[type=text]{min-width:130px}
+.lista .item{display:flex;gap:8px;margin-bottom:8px}.lista .item input{flex:1}
+button{font:inherit;font-size:14px;border-radius:8px;padding:8px 14px;cursor:pointer;border:1px solid var(--bd);background:var(--card);color:var(--tx)}
+button.p{background:var(--ac);color:#fff;border-color:var(--ac)}
+button.x{padding:6px 10px;color:var(--er)}
+.barra{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--bd);padding:12px 16px}
+.barra .in{max-width:1000px;margin:0 auto;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.barra .msg{flex:1;min-width:200px;font-size:13px}
+.aviso{background:var(--avbg);color:var(--av);border-radius:8px;padding:8px 12px;margin:8px 0;font-size:14px}
+.erro-box{background:var(--erbg);color:var(--er);border-radius:8px;padding:8px 12px;margin:8px 0;font-size:14px}
+.ok-box{background:var(--okbg);color:var(--ok);border-radius:8px;padding:8px 12px;margin:8px 0;font-size:14px}
+.cupom{border:1px solid var(--bd);border-radius:10px;padding:12px;margin-bottom:10px}
+.cupom .campos{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+pre{white-space:pre-wrap;word-break:break-word;background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:10px;font-size:12px;max-height:260px;overflow:auto}
+a{color:var(--ac)}
+</style>
+</head>
+<body>
+<main>
+<h1>Configurar o robô</h1>
+<div class="sub">Mude com seletores e salve no GitHub. Esta página não guarda senha nem chave e não altera nada sozinha: o botão copia o arquivo novo e abre o editor do GitHub, onde só você (logado) consegue salvar. <a href="painel.html">Voltar ao painel</a></div>
+<div id="estado" class="aviso">Carregando os ajustes atuais do GitHub…</div>
+
+<div id="tudo" hidden>
+<h2>Lojas</h2>
+<div class="card campos" id="g-lojas"></div>
+
+<h2>Filtro de ofertas</h2>
+<div class="card campos" id="g-filtro"></div>
+
+<h2>Ritmo e horário</h2>
+<div class="card campos" id="g-ritmo"></div>
+
+<h2>Nichos, canais e grupos</h2>
+<div class="card">
+<div class="nota">Cada oferta é classificada sozinha em um nicho. Aqui você escolhe para onde vai cada nicho. Canal do Telegram: <code>@nomedocanal</code> ou o ID numérico (o bot precisa ser administrador). Grupos e canais de WhatsApp: links de convite, separados por vírgula. Nicho sem canal próprio vai para o canal geral, se a caixa "No geral" estiver marcada.</div>
+<div class="tabela"><table id="nichos"></table></div>
+</div>
+<div class="card campos" id="g-geral"></div>
+
+<h2>WhatsApp: canais e grupos gerais</h2>
+<div class="card">
+<div class="nota">Recebem as ofertas de todos os nichos marcados como "No geral". Cole o link do canal (https://whatsapp.com/channel/…) ou o convite do grupo (https://chat.whatsapp.com/…). O número do enviador precisa ser membro do grupo.</div>
+<div class="lista" id="zap"></div>
+<button id="zap-add">+ Adicionar canal ou grupo</button>
+</div>
+
+<h2>Cupons, campanhas e vendas</h2>
+<div class="card campos" id="g-cupons"></div>
+
+<h2>Cupons cadastrados (cupons.json)</h2>
+<div class="card">
+<div class="nota">O robô posta só cupons dentro da validade, até o limite por dia. O link precisa ser do Mercado Livre (mercadolivre.com.br, meli.la) ou da Shopee (shopee.com.br, shp.ee).</div>
+<div id="cupons"></div>
+<button id="cupom-add">+ Adicionar cupom</button>
+</div>
+
+<h2>Mudanças</h2>
+<div class="card"><div id="mudancas" class="nota">Nada mudou ainda.</div></div>
+</div>
+</main>
+
+<div class="barra"><div class="in">
+<div class="msg" id="barra-msg">Mude o que quiser acima.</div>
+<button id="salvar-aj" class="p" disabled>Salvar ajustes no GitHub</button>
+<button id="salvar-cp" disabled>Salvar cupons no GitHub</button>
+</div></div>
+
+<script>
+const NICHOS = /*NICHOS*/[];
+const $ = (id) => document.getElementById(id);
+const el = (t, c, x) => { const e = document.createElement(t); if (c) e.className = c; if (x !== undefined) e.textContent = x; return e; };
+let repo = '';
+let original = '';
+let cuponsOriginal = '[]';
+let valores = {};
+let cupons = [];
+const erros = new Set();
+
+const lista = (v) => String(v || '').split(',').map((x) => x.trim()).filter(Boolean);
+const RE_CANAL_TG = /^(@[A-Za-z][A-Za-z0-9_]{4,}|-?\d{5,})$/;
+const RE_ZAP = /^https:\/\/(whatsapp\.com\/channel\/|chat\.whatsapp\.com\/)[A-Za-z0-9_-]{8,}\/?$/i;
+const limparZap = (v) => v.trim().replace(/[?#].*$/, '');
+
+/** Lê "CHAVE=valor" do ajustes.env (comentários e linhas em branco ficam como estão ao salvar). */
+function lerEnv(texto) {
+  const v = {};
+  for (const linha of texto.split(/\r?\n/)) {
+    const m = /^([A-Z][A-Z0-9_]*)=(.*)$/.exec(linha);
+    if (m) v[m[1]] = m[2].trim();
+  }
+  return v;
+}
+
+/** Escreve os valores no texto original: troca a linha da chave; chave nova vai para o fim. */
+function escreverEnv(texto, v) {
+  const vistas = new Set();
+  const linhas = texto.split(/\r?\n/).map((linha) => {
+    const m = /^([A-Z][A-Z0-9_]*)=/.exec(linha);
+    if (!m || !(m[1] in v)) return linha;
+    vistas.add(m[1]);
+    return m[1] + '=' + v[m[1]];
+  });
+  const novas = Object.keys(v).filter((k) => !vistas.has(k) && v[k] !== '');
+  if (novas.length) {
+    if (linhas[linhas.length - 1] === '') linhas.pop();
+    linhas.push('', '# ---------- Ajustes salvos pela página Configurar ----------', ...novas.map((k) => k + '=' + v[k]), '');
+  }
+  return linhas.join('\n');
+}
+
+function marcarErro(input, chave, mensagem) {
+  input.classList.toggle('erro', Boolean(mensagem));
+  input.title = mensagem || '';
+  if (mensagem) erros.add(chave); else erros.delete(chave);
+}
+
+// ───────── campos simples ─────────
+
+function campoSimNao(grupo, chave, rotulo, ajuda, padrao = '0') {
+  const d = el('div');
+  const l = el('label', 'chave');
+  const i = el('input'); i.type = 'checkbox';
+  i.checked = ['1', 'true', 'sim', 's', 'on'].includes(String(valores[chave] ?? padrao).toLowerCase());
+  i.onchange = () => { valores[chave] = i.checked ? '1' : '0'; atualizar(); };
+  l.append(i, el('span', '', rotulo));
+  d.append(l);
+  if (ajuda) d.append(el('div', 'ajuda', ajuda));
+  $(grupo).append(d);
+}
+
+function campoNumero(grupo, chave, rotulo, { min = 0, max, passo = 1, deslizar = false, ajuda, padrao = '' } = {}) {
+  const d = el('div');
+  const rot = el('label', '', rotulo);
+  d.append(rot);
+  const i = el('input'); i.type = deslizar ? 'range' : 'number'; i.min = min; if (max !== undefined) i.max = max; i.step = passo;
+  i.value = valores[chave] ?? padrao;
+  const mostra = el('span', 'sub');
+  const pintar = () => { if (deslizar) mostra.textContent = ' ' + i.value; };
+  i.oninput = () => {
+    pintar();
+    const n = Number(i.value);
+    marcarErro(i, chave, i.value === '' || !Number.isFinite(n) || n < min || (max !== undefined && n > max) ? 'Número entre ' + min + (max !== undefined ? ' e ' + max : ' ou mais') : '');
+    valores[chave] = i.value;
+    atualizar();
+  };
+  pintar();
+  rot.append(mostra);
+  d.append(i);
+  if (ajuda) d.append(el('div', 'ajuda', ajuda));
+  $(grupo).append(d);
+}
+
+function campoHora(grupo, chave, rotulo, padrao) {
+  const d = el('div');
+  d.append(el('label', '', rotulo));
+  const s = el('select');
+  for (let h = 0; h <= 24; h++) { const o = el('option', '', h + 'h'); o.value = String(h); s.append(o); }
+  s.value = String(valores[chave] ?? padrao);
+  s.onchange = () => { valores[chave] = s.value; atualizar(); };
+  d.append(s);
+  $(grupo).append(d);
+}
+
+function campoTexto(grupo, chave, rotulo, ajuda) {
+  const d = el('div');
+  d.append(el('label', '', rotulo));
+  const i = el('input'); i.type = 'text'; i.value = valores[chave] ?? '';
+  i.oninput = () => { valores[chave] = i.value.trim(); atualizar(); };
+  d.append(i);
+  if (ajuda) d.append(el('div', 'ajuda', ajuda));
+  $(grupo).append(d);
+}
+
+// ───────── nichos ─────────
+
+function lerPares(texto) {
+  const m = {};
+  for (const item of lista(texto)) {
+    const i = item.indexOf('=');
+    if (i < 1) continue;
+    const k = item.slice(0, i).trim().toLowerCase();
+    (m[k] = m[k] || []).push(item.slice(i + 1).trim());
+  }
+  return m;
+}
+
+function montarNichos() {
+  const tg = lerPares(valores.ROTAS_TELEGRAM);
+  const zap = lerPares(valores.WHATSAPP_ROTAS);
+  const lim = lerPares(valores.NICHO_LIMITES);
+  // "No geral": o que GERAL_NICHOS aceita (vazio = todos) menos GERAL_SEM_NICHOS.
+  const so = lista(valores.GERAL_NICHOS).map((x) => x.toLowerCase());
+  const sem = lista(valores.GERAL_SEM_NICHOS).map((x) => x.toLowerCase());
+  const t = $('nichos');
+  const cab = el('tr');
+  ['Nicho', 'Canal do Telegram', 'No geral', 'WhatsApp do nicho', 'Limite/dia', 'Palavras extras'].forEach((x) => cab.append(el('th', '', x)));
+  t.append(cab);
+  for (const n of NICHOS) {
+    const r = el('tr'); r.dataset.nicho = n.chave;
+    r.append(el('td', '', n.emoji + ' ' + n.nome));
+    const c1 = el('td'); const iTg = el('input'); iTg.type = 'text'; iTg.placeholder = '@canal'; iTg.dataset.k = 'tg';
+    iTg.value = (tg[n.chave] || [])[0] || '';
+    iTg.oninput = () => { marcarErro(iTg, 'tg:' + n.chave, iTg.value.trim() && !RE_CANAL_TG.test(iTg.value.trim()) ? 'Use @nomedocanal ou o ID numérico' : ''); juntarNichos(); };
+    c1.append(iTg);
+    const c2 = el('td'); const iG = el('input'); iG.type = 'checkbox'; iG.dataset.k = 'geral';
+    iG.checked = !sem.includes(n.chave) && (!so.length || so.includes(n.chave));
+    iG.onchange = juntarNichos; c2.append(iG);
+    const c3 = el('td'); const iZ = el('input'); iZ.type = 'text'; iZ.placeholder = 'https://chat.whatsapp.com/…'; iZ.dataset.k = 'zap';
+    iZ.value = (zap[n.chave] || []).join(', ');
+    iZ.oninput = () => { const ruins = lista(iZ.value).filter((x) => !RE_ZAP.test(limparZap(x))); marcarErro(iZ, 'zap:' + n.chave, ruins.length ? 'Link inválido: ' + ruins[0] : ''); juntarNichos(); };
+    c3.append(iZ);
+    const c4 = el('td'); const iL = el('input'); iL.type = 'number'; iL.min = 0; iL.placeholder = 'padrão'; iL.style.width = '90px'; iL.dataset.k = 'lim';
+    iL.value = (lim[n.chave] || [])[0] || '';
+    iL.oninput = () => { marcarErro(iL, 'lim:' + n.chave, iL.value !== '' && !(Number.isInteger(Number(iL.value)) && Number(iL.value) >= 0) ? 'Número inteiro' : ''); juntarNichos(); };
+    c4.append(iL);
+    const c5 = el('td');
+    if (n.chave !== 'geral') {
+      const chaveP = 'NICHO_PALAVRAS_' + n.chave.toUpperCase();
+      const iP = el('input'); iP.type = 'text'; iP.placeholder = 'cropped, -relogio'; iP.value = valores[chaveP] || '';
+      iP.oninput = () => { valores[chaveP] = lista(iP.value).join(','); atualizar(); };
+      c5.append(iP);
+    }
+    r.append(c1, c2, c3, c4, c5);
+    t.append(r);
+  }
+}
+
+/** Junta a tabela de nichos de volta nos ajustes ROTAS_TELEGRAM, GERAL_*, WHATSAPP_ROTAS e NICHO_LIMITES. */
+function juntarNichos() {
+  const tg = [], zap = [], lim = [], fora = [];
+  document.querySelectorAll('#nichos tr[data-nicho]').forEach((r) => {
+    const n = r.dataset.nicho;
+    const q = (k) => r.querySelector('[data-k="' + k + '"]');
+    if (q('tg').value.trim()) tg.push(n + '=' + q('tg').value.trim());
+    if (!q('geral').checked) fora.push(n);
+    for (const link of lista(q('zap').value)) zap.push(n + '=' + limparZap(link));
+    if (q('lim').value !== '') lim.push(n + '=' + q('lim').value);
+  });
+  valores.ROTAS_TELEGRAM = tg.join(',');
+  valores.WHATSAPP_ROTAS = zap.join(',');
+  valores.NICHO_LIMITES = lim.join(',');
+  valores.GERAL_NICHOS = '';
+  valores.GERAL_SEM_NICHOS = fora.join(',');
+  atualizar();
+}
+
+// ───────── WhatsApp geral ─────────
+
+let zapLinks = [];
+
+/** Um campo por canal ou grupo geral; o botão "Adicionar" acrescenta um campo vazio. */
+function montarZap() {
+  const caixa = $('zap');
+  caixa.textContent = '';
+  for (const k of [...erros]) if (k.startsWith('zapg:')) erros.delete(k);
+  zapLinks.forEach((link, i) => {
+    const d = el('div', 'item');
+    const inp = el('input'); inp.type = 'url'; inp.value = link; inp.placeholder = 'https://chat.whatsapp.com/…';
+    const validar = () => marcarErro(inp, 'zapg:' + i, inp.value.trim() && !RE_ZAP.test(limparZap(inp.value)) ? 'Link de canal ou grupo do WhatsApp' : '');
+    inp.oninput = () => { validar(); zapLinks[i] = limparZap(inp.value); valores.WHATSAPP_DESTINOS = zapLinks.filter(Boolean).join(','); atualizar(); };
+    const x = el('button', 'x', 'Remover');
+    x.onclick = () => { zapLinks.splice(i, 1); valores.WHATSAPP_DESTINOS = zapLinks.filter(Boolean).join(','); montarZap(); atualizar(); };
+    d.append(inp, x);
+    caixa.append(d);
+    validar();
+  });
+  if (!zapLinks.length) caixa.append(el('div', 'nota', 'Nenhum canal ou grupo geral.'));
+}
+
+// ───────── cupons ─────────
+
+const SITES = { mercadolivre: /(^|\.)(mercadolivre\.com\.br|mercadolibre\.com|meli\.la)$/i, shopee: /(^|\.)(shopee\.com\.br|shp\.ee)$/i };
+
+function montarCupons() {
+  const caixa = $('cupons');
+  caixa.textContent = '';
+  cupons.forEach((c, i) => {
+    const d = el('div', 'cupom');
+    const g = el('div', 'campos');
+    const campo = (rot, criar) => { const w = el('div'); w.append(el('label', '', rot), criar()); g.append(w); };
+    const validar = () => {
+      let msg = '';
+      if (!c.titulo) msg = 'Falta o título';
+      else { try { const u = new URL(c.link); if (u.protocol !== 'https:' || !SITES[c.loja].test(u.hostname)) msg = 'O link precisa ser https e da loja escolhida'; } catch { msg = 'Link inválido'; } }
+      aviso.textContent = msg; aviso.hidden = !msg;
+      if (msg) erros.add('cupom:' + i); else erros.delete('cupom:' + i);
+    };
+    const aviso = el('div', 'erro-box'); aviso.hidden = true;
+    campo('Loja', () => { const s = el('select'); [['mercadolivre', 'Mercado Livre'], ['shopee', 'Shopee']].forEach(([v, t]) => { const o = el('option', '', t); o.value = v; s.append(o); }); s.value = c.loja; s.onchange = () => { c.loja = s.value; validar(); atualizar(); }; return s; });
+    campo('Título', () => { const x = el('input'); x.type = 'text'; x.placeholder = 'R$ 30 OFF acima de R$ 200'; x.value = c.titulo || ''; x.oninput = () => { c.titulo = x.value.trim(); validar(); atualizar(); }; return x; });
+    campo('Código (vazio = ativar na página)', () => { const x = el('input'); x.type = 'text'; x.value = c.codigo || ''; x.oninput = () => { c.codigo = x.value.trim(); atualizar(); }; return x; });
+    campo('Regras', () => { const x = el('input'); x.type = 'text'; x.placeholder = 'Só no app'; x.value = c.detalhe || ''; x.oninput = () => { c.detalhe = x.value.trim(); atualizar(); }; return x; });
+    campo('Link de afiliado', () => { const x = el('input'); x.type = 'url'; x.value = c.link || ''; x.oninput = () => { c.link = x.value.trim(); validar(); atualizar(); }; return x; });
+    campo('Válido até', () => { const x = el('input'); x.type = 'date'; x.value = c.validoAte || ''; x.oninput = () => { c.validoAte = x.value; atualizar(); }; return x; });
+    const rm = el('button', 'x', 'Remover cupom');
+    rm.onclick = () => { cupons.splice(i, 1); erros.delete('cupom:' + i); montarCupons(); atualizar(); };
+    d.append(g, aviso, rm);
+    caixa.append(d);
+    validar();
+  });
+  if (!cupons.length) caixa.append(el('div', 'nota', 'Nenhum cupom cadastrado.'));
+}
+
+function textoDosCupons() {
+  const limpos = cupons.map((c) => {
+    const o = { loja: c.loja };
+    if (c.codigo) o.codigo = c.codigo;
+    o.titulo = c.titulo || '';
+    if (c.detalhe) o.detalhe = c.detalhe;
+    o.link = c.link || '';
+    if (c.validoAte) o.validoAte = c.validoAte;
+    return o;
+  });
+  return JSON.stringify(limpos, null, 2) + '\n';
+}
+
+// ───────── salvar ─────────
+
+function atualizar() {
+  const novo = escreverEnv(original, valores);
+  const antes = lerEnv(original), depois = lerEnv(novo);
+  const mudadas = Object.keys(depois).filter((k) => (antes[k] ?? '') !== depois[k]);
+  const cuponsMudaram = textoDosCupons().trim() !== cuponsOriginal.trim();
+  const m = $('mudancas');
+  m.textContent = '';
+  if (!mudadas.length && !cuponsMudaram) m.textContent = 'Nada mudou ainda.';
+  if (mudadas.length) {
+    const pre = el('pre');
+    pre.textContent = mudadas.map((k) => k + ': ' + (antes[k] || '(vazio)') + '  →  ' + (depois[k] || '(vazio)')).join('\n');
+    m.append(el('div', '', 'ajustes.env:'), pre);
+  }
+  if (cuponsMudaram) m.append(el('div', '', 'cupons.json: lista de cupons alterada.'));
+  $('salvar-aj').disabled = !mudadas.length || erros.size > 0;
+  $('salvar-cp').disabled = !cuponsMudaram || [...erros].some((e) => e.startsWith('cupom:'));
+  $('barra-msg').textContent = erros.size ? 'Corrija os campos em vermelho antes de salvar.' : mudadas.length || cuponsMudaram ? (mudadas.length ? mudadas.length + ' ajuste(s) mudado(s). ' : '') + (cuponsMudaram ? 'Cupons mudados.' : '') : 'Mude o que quiser acima.';
+}
+
+async function copiarEAbrir(texto, arquivo, botao) {
+  const url = 'https://github.com/' + repo + '/edit/main/' + arquivo;
+  try {
+    await navigator.clipboard.writeText(texto);
+    $('barra-msg').textContent = 'Copiado! No GitHub: apague todo o texto (Ctrl+A), cole (Ctrl+V) e clique em "Commit changes". Vale na próxima rodada.';
+  } catch {
+    // Sem permissão de copiar: mostra o texto para copiar à mão.
+    const pre = el('pre'); pre.textContent = texto;
+    $('mudancas').append(el('div', 'aviso', 'Não consegui copiar sozinho. Copie o texto abaixo e cole no GitHub:'), pre);
+  }
+  window.open(url, '_blank', 'noopener');
+  botao.textContent = 'Abrir de novo';
+}
+
+async function carregar(caminho) {
+  // A API do GitHub devolve a versão mais nova (o endereço "raw" pode demorar minutos para atualizar).
+  try {
+    const r = await fetch('https://api.github.com/repos/' + repo + '/contents/' + caminho + '?ref=main', { headers: { accept: 'application/vnd.github.raw' }, cache: 'no-store' });
+    if (r.ok) return await r.text();
+    if (r.status === 404) return '';
+  } catch {}
+  const r = await fetch('https://raw.githubusercontent.com/' + repo + '/main/' + caminho + '?t=' + Date.now(), { cache: 'no-store' });
+  if (r.status === 404) return '';
+  if (!r.ok) throw new Error(caminho + ': ' + r.status);
+  return await r.text();
+}
+
+async function iniciar() {
+  try {
+    const s = await fetch('status.json?t=' + Date.now(), { cache: 'no-store' }).then((r) => r.json());
+    repo = s.repo;
+    if (!repo) throw new Error('o painel ainda não sabe qual é o repositório');
+    original = await carregar('ajustes.env');
+    if (!original) throw new Error('ajustes.env não encontrado no repositório');
+    cuponsOriginal = (await carregar('cupons.json')) || '[]';
+  } catch (e) {
+    $('estado').className = 'erro-box';
+    $('estado').textContent = 'Não consegui ler os ajustes: ' + e.message + '. Se o repositório for privado, esta página não tem acesso; edite o ajustes.env direto no GitHub.';
+    return;
+  }
+  valores = lerEnv(original);
+  try { cupons = JSON.parse(cuponsOriginal); if (!Array.isArray(cupons)) cupons = []; } catch { cupons = []; }
+  cupons = cupons.map((c) => ({ loja: c.loja === 'shopee' ? 'shopee' : 'mercadolivre', codigo: c.codigo || '', titulo: c.titulo || '', detalhe: c.detalhe || '', link: c.link || '', validoAte: c.validoAte || '' }));
+
+  campoSimNao('g-lojas', 'SHOPEE_ATIVO', 'Shopee', 'Ofertas pela API de afiliados.', '1');
+  campoSimNao('g-lojas', 'ML_ATIVO', 'Mercado Livre', 'Ofertas pela página de ofertas.');
+  campoNumero('g-lojas', 'ML_PAGINAS', 'Páginas do Mercado Livre por rodada', { min: 1, max: 20, ajuda: 'Cerca de 48 produtos por página.', padrao: '5' });
+
+  campoNumero('g-filtro', 'DESCONTO_MINIMO', 'Desconto mínimo (%)', { min: 0, max: 90, deslizar: true, padrao: '25' });
+  campoNumero('g-filtro', 'NOTA_MINIMA', 'Nota mínima', { min: 0, max: 5, passo: 0.1, deslizar: true, padrao: '4.5' });
+  campoNumero('g-filtro', 'VENDAS_MINIMAS', 'Vendas mínimas', { min: 0, padrao: '50' });
+  campoNumero('g-filtro', 'PRECO_MINIMO', 'Preço mínimo (R$)', { min: 0, padrao: '15' });
+  campoNumero('g-filtro', 'PRECO_MAXIMO', 'Preço máximo (R$)', { min: 1, padrao: '5000' });
+  campoNumero('g-filtro', 'DIAS_SEM_REPETIR', 'Dias sem repetir o produto', { min: 0, padrao: '7' });
+  campoTexto('g-filtro', 'PALAVRAS_BLOQUEADAS', 'Palavras bloqueadas', 'Separadas por vírgula. Oferta com uma delas no título nunca é postada.');
+
+  campoHora('g-ritmo', 'HORA_INICIO', 'Começa a postar às', '8');
+  campoHora('g-ritmo', 'HORA_FIM', 'Para de postar às', '23');
+  campoNumero('g-ritmo', 'POSTS_POR_RODADA', 'Posts por rodada (a cada ~30 min)', { min: 0, max: 10, padrao: '2' });
+  campoNumero('g-ritmo', 'MAX_POSTS_POR_DIA', 'Máximo de posts por dia', { min: 0, padrao: '60' });
+
+  montarNichos();
+  campoSimNao('g-geral', 'ROTAS_TAMBEM_NO_GERAL', 'Nicho com canal próprio também sai no geral', 'Respeita a caixa "No geral" do nicho.');
+  campoNumero('g-geral', 'NICHO_MAX_POR_DIA', 'Limite por dia de cada nicho (0 = sem limite)', { min: 0, ajuda: 'Vale para os nichos sem limite próprio na tabela.', padrao: '0' });
+
+  zapLinks = lista(valores.WHATSAPP_DESTINOS);
+  montarZap();
+  $('zap-add').onclick = () => { zapLinks.push(''); montarZap(); };
+
+  campoSimNao('g-cupons', 'CUPONS_ATIVO', 'Postar cupons', 'Os da lista abaixo.', '1');
+  campoNumero('g-cupons', 'CUPONS_POR_DIA', 'Cupons por dia', { min: 0, padrao: '3' });
+  campoNumero('g-cupons', 'CUPONS_REPETIR_DIAS', 'Repetir cupom depois de (dias)', { min: 1, padrao: '3' });
+  campoNumero('g-cupons', 'CAMPANHAS_POR_DIA', 'Campanhas da Shopee por dia (0 desliga)', { min: 0, max: 5, padrao: '0' });
+  campoSimNao('g-cupons', 'VENDAS_ATIVO', 'Ler vendas e comissão da Shopee', 'Aparecem por nicho no painel.', '1');
+
+  montarCupons();
+  $('cupom-add').onclick = () => { cupons.push({ loja: 'mercadolivre', codigo: '', titulo: '', detalhe: '', link: '', validoAte: '' }); montarCupons(); atualizar(); };
+  $('salvar-aj').onclick = (e) => copiarEAbrir(escreverEnv(original, valores), 'ajustes.env', e.target);
+  $('salvar-cp').onclick = (e) => copiarEAbrir(textoDosCupons(), 'cupons.json', e.target);
+
+  $('estado').className = 'ok-box';
+  $('estado').textContent = 'Ajustes carregados do repositório ' + repo + '. As mudanças valem na próxima rodada do robô depois de salvar.';
+  $('tudo').hidden = false;
+  atualizar();
+}
+
+iniciar();
+</script>
+</body>
+</html>

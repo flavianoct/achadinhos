@@ -53,3 +53,14 @@ export function tipoDeDestino(destino) {
   if (convite) return { tipo: 'grupo-por-link', codigo: convite };
   return { tipo: 'invalido' };
 }
+
+/**
+ * O destino recebe esta mensagem? Destino de nicho (com `nichos`) recebe só os nichos dele. Destino geral recebe o que o
+ * filtro do geral aceita (`geral.nichos` vazio = todos, menos `geral.sem`). Mensagem sem categoria conta como "geral".
+ */
+export function destinoAceita(destino, categoria, geral = {}) {
+  const c = categoria || 'geral';
+  if (Array.isArray(destino?.nichos) && destino.nichos.length) return destino.nichos.includes(c);
+  if ((geral.sem ?? []).includes(c)) return false;
+  return !(geral.nichos ?? []).length || geral.nichos.includes(c);
+}

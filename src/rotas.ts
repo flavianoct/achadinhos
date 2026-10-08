@@ -20,3 +20,21 @@ export function destinosDaOferta(categoria: string, config: Config): string[] {
   if (!rota || rota === geral) return noGeral ? [geral] : [];
   return config.rotas.tambemNoGeral && noGeral ? [rota, geral] : [rota];
 }
+
+/** Limite do dia para o nicho: o próprio (NICHO_LIMITES) ou o de todos (NICHO_MAX_POR_DIA). 0 = sem limite. */
+export function limiteDoNicho(categoria: string, config: Config): number {
+  return config.rotas.limites[categoria] ?? config.rotas.limitePorDia;
+}
+
+/** Nichos que já postaram o limite de hoje. */
+export function nichosNoLimite(postsHoje: Array<{ categoria: string; posts: number }>, config: Config): string[] {
+  return postsHoje.filter((c) => {
+    const limite = limiteDoNicho(c.categoria, config);
+    return limite > 0 && c.posts >= limite;
+  }).map((c) => c.categoria);
+}
+
+/** Algum grupo ou canal de WhatsApp é só deste nicho (WHATSAPP_ROTAS)? */
+export function temWhatsappDoNicho(categoria: string, config: Config): boolean {
+  return config.whatsapp.ativo && config.whatsapp.rotas.some((r) => r.nicho === categoria);
+}

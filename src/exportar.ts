@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ResultadoDoBlog } from './blog.ts';
 import { CATEGORIAS, NICHOS, nomeDoNicho } from './categoria.ts';
@@ -54,6 +54,9 @@ export interface Nicho {
   naFila: number;
   /** Ofertas aprovadas nas últimas 24 horas. */
   aprovadas24h: number;
+  /** Vendas da Shopee nos últimos 7 dias (itens) e comissão em reais. */
+  vendas7d: number;
+  comissao7d: number;
   /** Tem canal próprio no Telegram? */
   temRota: boolean;
   /** O filtro do canal geral aceita este nicho? */
@@ -68,7 +71,8 @@ export function montarNichos(banco: Banco, config: Config, agora: Date): Nicho[]
   const semana = new Map(banco.postsPorCategoria(7, agora).map((c) => [c.categoria, c.posts]));
   const fila = new Map(banco.filaPorCategoria().map((c) => [c.categoria, c.total]));
   const aprovadas = new Map(banco.categoriasRecentes(24, agora).map((c) => [c.categoria, c.total]));
-  const conhecidas = new Set<string>([...CATEGORIAS, ...hoje.keys(), ...semana.keys(), ...fila.keys(), ...aprovadas.keys()]);
+  const vendas = new Map(banco.vendasPorCategoria(7, agora).map((c) => [c.categoria, c]));
+  const conhecidas = new Set<string>([...CATEGORIAS, ...hoje.keys(), ...semana.keys(), ...fila.keys(), ...aprovadas.keys(), ...vendas.keys()]);
   return [...conhecidas]
     .map((chave): Nicho => {
       const rota = config.rotas.porCategoria[chave];
@@ -80,12 +84,14 @@ export function montarNichos(banco: Banco, config: Config, agora: Date): Nicho[]
         posts7dias: semana.get(chave) ?? 0,
         naFila: fila.get(chave) ?? 0,
         aprovadas24h: aprovadas.get(chave) ?? 0,
+        vendas7d: vendas.get(chave)?.vendas ?? 0,
+        comissao7d: vendas.get(chave)?.comissao ?? 0,
         temRota: Boolean(rota),
         noGeral: geralAceita(chave, config),
         canal: rota?.startsWith('@') ? rota : undefined,
       };
     })
-    .filter((n) => n.postsHoje || n.posts7dias || n.naFila || n.aprovadas24h || n.temRota)
+    .filter((n) => n.postsHoje || n.posts7dias || n.naFila || n.aprovadas24h || n.vendas7d || n.temRota)
     .sort((a, b) => b.posts7dias - a.posts7dias || b.aprovadas24h - a.aprovadas24h || a.nome.localeCompare(b.nome));
 }
 
@@ -130,9 +136,27 @@ export function montarStatus(banco: Banco, config: Config, dados: DadosDaRodada,
     },
     ultimosPosts: banco.ultimosPosts(40).map((p) => ({ loja: p.loja, titulo: p.titulo, categoria: p.categoria, preco: p.preco, postadoEm: p.postadoEm })),
     nichos: montarNichos(banco, config, agora),
-    avisosDeRotas: config.rotas.avisos,
+    avisosDeRotas: [...config.rotas.avisos, ...config.whatsapp.avisos],
     tambemNoGeral: config.rotas.tambemNoGeral,
   };
+}
+
+/**
+ * O que o enviador do WhatsApp lê: destinos gerais (sem `nichos`, seguem o filtro do geral em `geral`),
+ * destinos de nicho (com `nichos`) e as mensagens com a categoria de cada uma.
+ */
+export function montarWhatsapp(config: Config, mensagens: unknown[], agora: Date) {
+  const tipo = (link: string) => (link.includes('/channel/') ? 'canal' : 'grupo');
+  const destinos: Array<{ tipo: string; link: string; nichos?: string[] }> = [];
+  if (config.whatsapp.ativo) {
+    for (const link of config.whatsapp.destinos) destinos.push({ tipo: tipo(link), link });
+    for (const r of config.whatsapp.rotas) {
+      const ja = destinos.find((d) => d.link === r.link && d.nichos);
+      if (ja) ja.nichos!.push(r.nicho);
+      else destinos.push({ tipo: tipo(r.link), link: r.link, nichos: [r.nicho] });
+    }
+  }
+  return { atualizadoEm: agora.toISOString(), geral: { nichos: config.rotas.geralNichos, sem: config.rotas.geralSem }, destinos, mensagens };
 }
 
 /**
@@ -144,12 +168,21 @@ export function publicarControle(banco: Banco, config: Config, dados: DadosDaRod
   mkdirSync(pasta, { recursive: true });
   const status = montarStatus(banco, config, dados, agora, repo);
   const mensagens = config.whatsapp.ativo
-    ? banco.mensagensDoWhatsapp(HORAS_DO_WHATSAPP, agora).map((m) => ({ id: m.chave, criadoEm: m.criadoEm, loja: m.loja, texto: m.texto, imagem: m.imagem, link: m.link }))
+    ? banco.mensagensDoWhatsapp(HORAS_DO_WHATSAPP, agora).map((m) => ({ id: m.chave, criadoEm: m.criadoEm, loja: m.loja, categoria: m.categoria, texto: m.texto, imagem: m.imagem, link: m.link }))
     : [];
   writeFileSync(join(pasta, 'status.json'), JSON.stringify(status, null, 2), 'utf8');
-  writeFileSync(join(pasta, 'whatsapp.json'), JSON.stringify({ atualizadoEm: agora.toISOString(), destinos: config.whatsapp.ativo ? config.whatsapp.destinos.map((link) => ({ tipo: link.includes('/channel/') ? 'canal' : 'grupo', link })) : [], mensagens }, null, 2), 'utf8');
+  writeFileSync(join(pasta, 'whatsapp.json'), JSON.stringify(montarWhatsapp(config, mensagens, agora), null, 2), 'utf8');
   writeFileSync(join(pasta, 'social.json'), JSON.stringify({ atualizadoEm: agora.toISOString(), itens: conteudoSocialRecente(banco, config, agora) }), 'utf8');
   writeFileSync(join(pasta, 'painel.html'), PAGINA_DO_PAINEL, 'utf8');
+  writeFileSync(join(pasta, 'configurar.html'), paginaDeConfigurar(), 'utf8');
+}
+
+/** Página de configuração com seletores (src/configurar.html), com a lista de nichos embutida. */
+export function paginaDeConfigurar(): string {
+  const nichos = CATEGORIAS.map((chave) => ({ chave, nome: NICHOS[chave]!.nome, emoji: NICHOS[chave]!.emoji }));
+  // JSON dentro de <script>: "<" escapado para nenhum texto fechar a tag.
+  const json = JSON.stringify(nichos).replace(/</g, '\\u003c');
+  return readFileSync(new URL('./configurar.html', import.meta.url), 'utf8').replace('/*NICHOS*/[]', json);
 }
 
 export const PAGINA_DO_PAINEL = `<!doctype html>
@@ -196,6 +229,8 @@ tr:last-child td{border-bottom:0}
 .rosca::after{content:'';position:absolute;inset:30px;background:var(--card);border-radius:50%}
 .leg{width:100%;font-size:13px}.leg div{display:flex;align-items:center;gap:6px;padding:1px 0}.leg i{width:10px;height:10px;border-radius:3px;flex:none}.leg span{margin-left:auto;color:var(--mut)}
 .filtros{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}.filtros button{background:var(--card);color:var(--tx);border:1px solid var(--bd);border-radius:99px;padding:4px 12px;font:inherit;font-size:13px;cursor:pointer}.filtros button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+#nicho-destaques .n{font-size:20px;overflow-wrap:anywhere}
+@media(max-width:600px){table{display:block;overflow-x:auto}}
 .mini{display:flex;height:8px;border-radius:4px;overflow:hidden;background:var(--bd);min-width:60px}.mini i{display:block;height:100%}
 </style>
 </head>
@@ -218,7 +253,7 @@ tr:last-child td{border-bottom:0}
 <div class="card" style="overflow-x:auto"><table id="nichos"></table></div>
 </div>
 <div id="avisos-rotas"></div>
-<p class="nota">Posts = ofertas disparadas no Telegram. Cliques não aparecem aqui: o link de afiliado leva direto à loja, então só a Shopee e o Mercado Livre sabem quantos cliques ou vendas vieram (veja no painel de afiliados de cada um).</p>
+<p class="nota">Posts = ofertas disparadas no Telegram. Vendas e comissão vêm do relatório de afiliados da Shopee (lido a cada poucas horas, pedidos cancelados ficam de fora); o Mercado Livre não tem esse relatório por API, então as vendas dele aparecem só no painel de afiliados do próprio Mercado Livre.</p>
 
 <h2>Controles</h2>
 <div class="btns" id="controles"></div>
@@ -283,6 +318,7 @@ const t=new Date(s.atualizadoEm).getTime();
   const topFila=nichos.slice().sort((a,b)=>b.naFila-a.naFila)[0];
   [[topHoje&&topHoje.postsHoje?topHoje.emoji+' '+topHoje.nome:'-','nicho que mais disparou hoje'+(topHoje&&topHoje.postsHoje?' ('+topHoje.postsHoje+' posts)':'')],
    [topFila&&topFila.naFila?topFila.emoji+' '+topFila.nome:'-','maior fila de espera'+(topFila&&topFila.naFila?' ('+topFila.naFila+' ofertas)':'')],
+   (()=>{const v=nichos.slice().sort((a,b)=>b.comissao7d-a.comissao7d)[0];return [v&&v.comissao7d?v.emoji+' '+v.nome:'-',v&&v.comissao7d?'nicho que mais rendeu em 7 dias ('+reais(v.comissao7d)+' de comissão na Shopee)':'nicho que mais rendeu (ainda sem vendas lidas da Shopee)']})(),
    [nichos.filter(n=>n.temRota).length+' de '+nichos.length,'nichos com canal próprio']].forEach(([n,l])=>{const c=el('div','card');c.append(el('div','n',n),el('div','l',l));dest.append(c)});
   let ang=0;const fatias=[];
   nichos.filter(n=>n.posts7dias>0).forEach(n=>{const f=n.posts7dias/tot7*100;fatias.push(cor(n.chave)+' '+ang+'% '+(ang+f)+'%');ang+=f});
@@ -291,15 +327,15 @@ const t=new Date(s.atualizadoEm).getTime();
   nichos.filter(n=>n.posts7dias>0).forEach(n=>{const d=el('div');const q=el('i');q.style.background=cor(n.chave);d.append(q,el('b','',n.emoji+' '+n.nome),el('span','',n.posts7dias+' ('+Math.round(n.posts7dias/tot7*100)+'%)'));lg.append(d)});
   if(!tot7)lg.append(el('div','sub','Ainda sem posts nos últimos 7 dias.'));
   const tn=document.getElementById('nichos');
-  const hn=el('tr');['Nicho','Hoje','7 dias','Na fila','Aprovadas 24h','Canal'].forEach(x=>hn.append(el('th','',x)));tn.append(hn);
-  nichos.forEach(n=>{const r=el('tr');r.append(el('td','',n.emoji+' '+n.nome),el('td','',String(n.postsHoje)),el('td','',String(n.posts7dias)),el('td','',String(n.naFila)),el('td','',String(n.aprovadas24h)),el('td','',(n.temRota?(n.canal||'canal próprio'):'')+(n.noGeral&&(!n.temRota||s.tambemNoGeral)?(n.temRota?' + geral':'canal geral'):(n.temRota?'':'não enviado'))));tn.append(r)});
+  const hn=el('tr');['Nicho','Hoje','7 dias','Na fila','Aprovadas 24h','Vendas 7d','Comissão 7d','Canal'].forEach(x=>hn.append(el('th','',x)));tn.append(hn);
+  nichos.forEach(n=>{const r=el('tr');r.append(el('td','',n.emoji+' '+n.nome),el('td','',String(n.postsHoje)),el('td','',String(n.posts7dias)),el('td','',String(n.naFila)),el('td','',String(n.aprovadas24h)),el('td','',String(n.vendas7d)),el('td','',n.comissao7d?reais(n.comissao7d):'-'),el('td','',(n.temRota?(n.canal||'canal próprio'):'')+(n.noGeral&&(!n.temRota||s.tambemNoGeral)?(n.temRota?' + geral':'canal geral'):(n.temRota?'':'não enviado'))));tn.append(r)});
   if(!nichos.length){const r=el('tr');r.append(el('td','','Ainda sem ofertas por nicho: aparece depois da próxima rodada.'));tn.append(r)}
   const ar=document.getElementById('avisos-rotas');
   (s.avisosDeRotas||[]).forEach(m=>ar.append(el('div','aviso',m)));
   const c=document.getElementById('controles');
   if(s.repo){
     const base='https://github.com/'+s.repo;
-    [['Rodar agora',base+'/actions/workflows/robo.yml',''],['Editar ajustes',base+'/edit/main/ajustes.env','s'],['Ver rodadas',base+'/actions','s'],['Chaves (Secrets)',base+'/settings/secrets/actions','s']].forEach(([n,u,k])=>{const a=el('a','b '+k,n);a.href=u;a.target='_blank';a.rel='noopener';c.append(a)});
+    [['Configurar (seletores)','configurar.html',''],['Rodar agora',base+'/actions/workflows/robo.yml','s'],['Editar ajustes',base+'/edit/main/ajustes.env','s'],['Ver rodadas',base+'/actions','s'],['Chaves (Secrets)',base+'/settings/secrets/actions','s']].forEach(([n,u,k])=>{const a=el('a','b '+k,n);a.href=u;a.target='_blank';a.rel='noopener';c.append(a)});
   }
   if(s.blogUrl){const a=el('a','b s','Abrir o blog');a.href=s.blogUrl;a.target='_blank';c.append(a)}
   if(s.telegramLink){const a=el('a','b s','Abrir o canal do Telegram');a.href=s.telegramLink;a.target='_blank';c.append(a)}
@@ -319,7 +355,7 @@ const t=new Date(s.atualizadoEm).getTime();
   [['', 'Todos']].concat(nichos.filter(n=>s.ultimosPosts.some(p=>p.categoria===n.chave)).map(n=>[n.chave,n.emoji+' '+n.nome])).forEach(([k,t])=>{const b=el('button','',t);b.dataset.f=k;b.onclick=()=>desenhar(k);fl.append(b)});
   desenhar('');
   const dz=document.getElementById('destinos');
-  (w.destinos||[]).forEach(d=>{const l=el('div','msg');const t=el('div','',(d.tipo==='canal'?'Canal':'Grupo')+': ');const a=el('a','',d.link);a.href=d.link;a.target='_blank';a.rel='noopener';t.append(a);l.append(t,el('div','sub',d.tipo==='canal'?'Recebe o texto da oferta com o link e a foto em miniatura (o canal não aceita imagem enviada).':'Recebe a arte da oferta como imagem, com a legenda e o link. O número do enviador precisa ser membro do grupo.'));dz.append(l)});
+  (w.destinos||[]).forEach(d=>{const l=el('div','msg');const t=el('div','',(d.tipo==='canal'?'Canal':'Grupo')+(d.nichos&&d.nichos.length?' de '+d.nichos.map(nomeDe).join(', '):' geral')+': ');const a=el('a','',d.link);a.href=d.link;a.target='_blank';a.rel='noopener';t.append(a);l.append(t,el('div','sub',d.tipo==='canal'?'Recebe o texto da oferta com o link e a foto em miniatura (o canal não aceita imagem enviada).':'Recebe a arte da oferta como imagem, com a legenda e o link. O número do enviador precisa ser membro do grupo.'));dz.append(l)});
   if(!(w.destinos||[]).length)dz.append(el('div','sub','Nenhum destino configurado. Acrescente o link de um canal ou grupo em WHATSAPP_DESTINOS.'));
   if(s.repo){const ed=el('a','b','Editar canais e grupos (ajustes.env)');ed.href='https://github.com/'+s.repo+'/edit/main/ajustes.env';ed.target='_blank';ed.rel='noopener';document.getElementById('zapbotoes').append(ed)}
   document.getElementById('zapnota').textContent=s.canais.whatsapp?'O enviador do seu PC busca estas mensagens sozinho. Aqui você também pode copiar uma e mandar na mão, se preferir.':'WhatsApp desligado (WHATSAPP_ATIVO=0).';

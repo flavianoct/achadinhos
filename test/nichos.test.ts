@@ -38,7 +38,7 @@ test('rotas: lê categoria=canal, ignora o que é inválido e avisa', () => {
   assert.equal(r.avisos.length, 3);
   assert.match(r.avisos.join('\n'), /categoria "x" não existe/);
   assert.match(r.avisos.join('\n'), /canal "abc" de "casa"/);
-  assert.deepEqual(lerRotas('', false), { porCategoria: {}, tambemNoGeral: false, geralNichos: [], geralSem: [], avisos: [] });
+  assert.deepEqual(lerRotas('', false), { porCategoria: {}, tambemNoGeral: false, geralNichos: [], geralSem: [], limitePorDia: 0, limites: {}, avisos: [] });
 });
 
 test('rotas: nicho com canal vai só para ele; sem rota vai ao geral; "também no geral" manda aos dois', () => {
@@ -151,4 +151,67 @@ test('banco antigo sem a coluna "canal" é atualizado sem perder os posts', asyn
   banco.registrarPost(oferta('Air Fryer', 'N'), AGORA, '@c');
   assert.equal(banco.postsNoDia(AGORA), 2);
   banco.fechar();
+});
+
+test('palavras dos nichos: NICHO_PALAVRAS_<NICHO> acrescenta palavras e "-palavra" tira', () => {
+  assert.equal(categorizar('Cropped Feminino Canelado'), 'geral');
+  assert.equal(categorizar('Relógio Masculino Aço'), 'moda');
+  lerConfig({ NICHO_PALAVRAS_MODA: 'cropped, -relogio', NICHO_PALAVRAS_TECH: 'Relógio' });
+  try {
+    assert.equal(categorizar('Cropped Feminino Canelado'), 'moda');
+    assert.equal(categorizar('Relógio Masculino Aço'), 'tech', 'relógio saiu de moda e entrou em tech, com acento ou sem');
+  } finally {
+    lerConfig({});
+  }
+  assert.equal(categorizar('Cropped Feminino Canelado'), 'geral', 'sem o ajuste volta ao padrão');
+});
+
+test('limite por nicho: nicho no teto do dia fica na fila e a próxima de outro nicho sai', async () => {
+  const banco = new Banco(':memory:');
+  const c = lerConfig({ ...base, NICHO_MAX_POR_DIA: '5', NICHO_LIMITES: 'tech=1, moda=x, inventado=2' });
+  assert.equal(c.rotas.avisos.length, 2);
+  const pub = new Falso();
+  banco.enfileirar({ ...oferta('Smartphone Xiaomi', 'T1'), pontos: 90 }, AGORA);
+  banco.enfileirar({ ...oferta('Fone Bluetooth', 'T2'), pontos: 80 }, AGORA);
+  banco.enfileirar({ ...oferta('Air Fryer 4L', 'C1'), pontos: 10 }, AGORA);
+  await postarProxima(pub, banco, c, AGORA);
+  await postarProxima(pub, banco, c, AGORA);
+  assert.deepEqual(pub.enviados.map((e) => e.id), ['T1', 'C1'], 'tech só 1 por dia');
+  assert.deepEqual(await postarProxima(pub, banco, c, AGORA), { postou: false, motivo: 'nichos no limite' });
+  assert.equal(banco.tamanhoDaFila(), 1, 'T2 continua na fila');
+  const amanha = new Date(AGORA.getTime() + 86_400_000);
+  banco.enfileirar(oferta('Smartphone Samsung', 'T3'), amanha);
+  assert.ok((await postarProxima(pub, banco, c, amanha)).postou, 'no dia seguinte sai');
+});
+
+test('whatsapp por nicho: rotas viram destinos com nichos, o filtro do geral vai junto e a mensagem leva a categoria', async () => {
+  const { montarWhatsapp } = await import('../src/exportar.ts');
+  const c = lerConfig({ ...base, GERAL_SEM_NICHOS: 'pet', WHATSAPP_DESTINOS: 'https://chat.whatsapp.com/GERAL12345', WHATSAPP_ROTAS: 'moda=https://chat.whatsapp.com/MODA123456?s=x, bebe=https://chat.whatsapp.com/MODA123456, tech=http://ruim, xx=https://chat.whatsapp.com/ABCDEFGHIJ' });
+  assert.equal(c.whatsapp.avisos.length, 2);
+  const w = montarWhatsapp(c, [], AGORA);
+  assert.deepEqual(w.geral, { nichos: [], sem: ['pet'] });
+  assert.deepEqual(w.destinos, [
+    { tipo: 'grupo', link: 'https://chat.whatsapp.com/GERAL12345' },
+    { tipo: 'grupo', link: 'https://chat.whatsapp.com/MODA123456', nichos: ['moda', 'bebe'] },
+  ]);
+
+  // Pet sem canal no Telegram (o geral recusa), mas com grupo de WhatsApp: vai só para o WhatsApp.
+  const banco = new Banco(':memory:');
+  const soZap = lerConfig({ ...base, GERAL_SEM_NICHOS: 'pet', WHATSAPP_ROTAS: 'pet=https://chat.whatsapp.com/PETPET1234' });
+  const pub = new Falso();
+  banco.enfileirar(oferta('Ração para Cães 15kg', 'PET'), AGORA);
+  const r = await postarProxima(pub, banco, soZap, AGORA);
+  assert.ok(r.postou);
+  assert.deepEqual(pub.enviados, [], 'nada no Telegram');
+  const msgs = banco.mensagensDoWhatsapp(12, AGORA);
+  assert.equal(msgs.length, 1);
+  assert.equal(msgs[0].categoria, 'pet');
+});
+
+test('configurar: a página sai com a lista de nichos embutida e o painel tem o link para ela', async () => {
+  const { paginaDeConfigurar, PAGINA_DO_PAINEL } = await import('../src/exportar.ts');
+  const html = paginaDeConfigurar();
+  assert.ok(!html.includes('/*NICHOS*/'));
+  assert.match(html, /const NICHOS = \[\{"chave":"tech","nome":"Eletrônicos"/);
+  assert.match(PAGINA_DO_PAINEL, /configurar\.html/);
 });
