@@ -12,7 +12,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@1,800;1,900&family=Barlow:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 .mp{--red:#E10600;--red-d:#A80400;--yel:#FFD60A;--blk:#0E0E10;--ink:#17171B;--line:#2A2A31;--mut:#A9A9B3;--wa:#25D366;--tg:#2AABEE;
-  font-family:'Barlow',Arial,sans-serif;background:var(--blk);color:#fff;line-height:1.5;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+  font-family:'Barlow',Arial,sans-serif;background:var(--blk);color:#fff;line-height:1.5;overflow-x:hidden;-webkit-font-smoothing:antialiased;text-align:left;width:100vw;max-width:100vw;margin-left:calc(50% - 50vw)}
+html,body{background:#0E0E10!important;overflow-x:hidden}
 .mp *{box-sizing:border-box;margin:0;padding:0}
 .mp a{color:inherit;text-decoration:none}
 .mp .wrap{max-width:1120px;margin:0 auto;padding:0 20px}
@@ -240,7 +241,8 @@
     whatsappCanal: 'https://whatsapp.com/channel/0029VbDtCLD2UPBAGBZ4UO1W'
   };
   var root = document.querySelector('.mp');
-  root.querySelectorAll('[data-link]').forEach(function(a){ a.href = LINKS[a.dataset.link]; });
+  /* link ainda não preenchido (começa com #): o botão some em vez de ficar quebrado */
+  root.querySelectorAll('[data-link]').forEach(function(a){ var l = LINKS[a.dataset.link]; if (!l || l.charAt(0) === '#') { (a.parentNode.className === 'alt' ? a.parentNode : a).style.display = 'none'; return; } a.href = l; });
 
   /* faixa amarela */
   var t = ['Ofertas todo dia','Cupons','Grátis','Sem enrolação','Preço morreu, corre'].map(function(x){return '<span>'+x+'</span><span>⚡</span>';}).join('');
