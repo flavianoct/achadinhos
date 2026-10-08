@@ -172,6 +172,8 @@ export function converterCampanhas(nodes: any[]): Campanha[] {
     const palavras = nome.split(' ').filter((p) => /\p{L}{2,}/u.test(p));
     const letras = (nome.match(/\p{L}/gu) ?? []).length;
     if (!/^https:\/\//.test(link) || palavras.length < 2 || letras < 8) continue;
+    // offerType 2 = página de categoria (nome em inglês, ex. "- - Health"), não é campanha: fica de fora.
+    if (Number(n?.offerType) === 2 || /-cat\.\d+/.test(String(n?.originalLink ?? ''))) continue;
     lista.push({
       id: String(n.collectionId ?? n.originalLink ?? link),
       nome,

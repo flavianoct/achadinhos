@@ -76,6 +76,8 @@ test('shopee: campanhas em vigor, maior comissão primeiro, sem repetir; nó sem
   // Nomes quebrados (rótulos internos) não viram post.
   const nomes = converterCampanhas(['- - Health', 'Health', '---', 'Moda - - ', 'Semana do Consumidor', '— Super Ofertas de Beleza —'].map((offerName, i) => ({ offerName, offerLink: 'https://s/' + i }))).map((c) => c.nome);
   assert.deepEqual(nomes, ['Semana do Consumidor', 'Super Ofertas de Beleza']);
+  // O que a Shopee devolve hoje: páginas de categoria (offerType 2), não campanhas.
+  assert.deepEqual(converterCampanhas([{ offerName: '- - Home Appliances', offerLink: 'https://s.shopee.com.br/x', originalLink: 'https://shopee.com.br/Home-Appliances-cat.11059984', offerType: 2 }]), []);
   assert.equal(escolherCampanha([c2, c1], (id) => (id === '1' ? AGORA.getTime() : undefined), 7, AGORA)?.id, '2');
 });
 
