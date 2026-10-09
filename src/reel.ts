@@ -6,7 +6,7 @@ import { promisify } from 'node:util';
 import { escolherParaCarrossel } from './carrossel.ts';
 import type { Config } from './config.ts';
 import { diaDe, horaDe, type Banco } from './db.ts';
-import { sintetizarMusica } from './musica.ts';
+import { estiloDaMusica, sintetizarMusica } from './musica.ts';
 import { fundo, marca, MARCA } from './moldes.ts';
 import { baixarImagemComoDataUri, montarSvgDoStory, renderizarPng, temWhatsapp, type Fetch } from './social.ts';
 import type { OfertaAvaliada } from './types.ts';
@@ -172,7 +172,7 @@ export async function gravarReel(banco: Banco, config: Config, agora: Date): Pro
     filtro = filtro.replace(/;$/, '');
 
     const musica = join(tmp, 'musica.wav');
-    writeFileSync(musica, sintetizarMusica(acumulado + 0.5));
+    writeFileSync(musica, sintetizarMusica(acumulado + 0.5, estiloDaMusica(pendente.chave)));
     const final = join(pasta, nomeDoArquivo(pendente.chave));
     await rodar(ffmpeg, [
       ...segmentos.flatMap((s) => ['-i', s]),

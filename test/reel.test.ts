@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import { lerConfig } from '../src/config.ts';
 import { Banco } from '../src/db.ts';
 import { Instagram, publicarNoInstagram } from '../src/instagram.ts';
-import { sintetizarMusica } from '../src/musica.ts';
+import { ESTILOS_DE_MUSICA, estiloDaMusica, sintetizarMusica } from '../src/musica.ts';
 import { arquivoDoReel, gravarReel, legendaDoReel, prepararReel, type DadosDoReel } from '../src/reel.ts';
 import type { OfertaAvaliada } from '../src/types.ts';
 
@@ -149,4 +149,24 @@ test('reel: dois por dia, cada um na sua janela, depois que o anterior saiu e co
   assert.match(dados.titulo, /Mais 3 achados/);
   banco.marcarReelPublicado(segundo.chave, noite);
   assert.equal(await prepararReel(banco, config, noite, foto), false, 'dois por dia e pronto');
+});
+
+test('música: cada estilo é válido e soa diferente; Reels seguidos (e os dois do mesmo dia) nunca repetem o estilo, e o mesmo Reel mantém o som', () => {
+  const wavs = Array.from({ length: ESTILOS_DE_MUSICA }, (_, e) => sintetizarMusica(3, e));
+  assert.ok(ESTILOS_DE_MUSICA >= 4, 'há variedade');
+  assert.equal(new Set(wavs.map((w) => w.toString('base64'))).size, ESTILOS_DE_MUSICA, 'todos soam diferentes');
+  assert.deepEqual(sintetizarMusica(3), wavs[0], 'o estilo 0 é a trilha original');
+  for (const wav of wavs) {
+    let pico = 0;
+    for (let i = 44; i < wav.length; i += 2) pico = Math.max(pico, Math.abs(wav.readInt16LE(i)));
+    assert.ok(pico > 4000 && pico < 32767, `volume ok (${pico})`);
+  }
+  const chaves: string[] = [];
+  for (let d = 1; d <= 31; d++) {
+    const dia = `2026-10-${String(d).padStart(2, '0')}`;
+    chaves.push(`reel-${dia}`, `reel-${dia}-2`);
+  }
+  for (let i = 1; i < chaves.length; i++) assert.notEqual(estiloDaMusica(chaves[i]!), estiloDaMusica(chaves[i - 1]!), `${chaves[i - 1]} e ${chaves[i]}`);
+  assert.equal(estiloDaMusica('reel-2026-10-09'), estiloDaMusica('reel-2026-10-09'));
+  assert.ok(estiloDaMusica('qualquer-coisa') >= 0 && estiloDaMusica('qualquer-coisa') < ESTILOS_DE_MUSICA);
 });
