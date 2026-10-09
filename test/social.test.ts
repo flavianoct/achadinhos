@@ -14,7 +14,7 @@ const oferta: OfertaAvaliada = {
 test('social: legenda leva o desconto em %, manda o preço para o grupo (sem valor em reais), canal, aviso de publi e hashtags', () => {
   const l = montarLegenda(oferta, config);
   assert.doesNotMatch(l, /R\$/, 'nenhum valor em reais na legenda');
-  assert.match(l, /O preço de agora está no grupo/);
+  assert.match(l, /O preço de agora está no link da bio/, "sem grupo configurado, manda para a bio");
   assert.match(l, /57% abaixo do preço informado pela loja/);
   assert.match(l, /link na bio/);
   assert.match(l, /@topfera_achadinhos/); // sem blog publicado, cai no canal
@@ -60,7 +60,7 @@ test('social: título completo na legenda, sem reticências; o desconto some qua
   assert.ok(l.includes(longo) && !l.includes('…'));
   const inflado = montarLegenda({ ...oferta, precoDe: 'inflado' }, config);
   assert.ok(!inflado.includes('57%') && !inflado.includes('preço informado pela loja'));
-  assert.match(inflado, /O preço de agora está no grupo/);
+  assert.match(inflado, /O preço de agora está no link da bio/);
 });
 
 test('social: título da arte é curto, sem reticências e sem terminar em palavra de ligação', () => {

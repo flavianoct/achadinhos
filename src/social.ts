@@ -4,7 +4,7 @@ import type { Config } from './config.ts';
 import type { Banco } from './db.ts';
 import { formatarVendas } from './mensagem.ts';
 import { normalizar } from './categoria.ts';
-import { svgDaCapaDaDica, svgDoCriterio, svgDoFechamentoDaDica, svgDoFeed, svgDoStory, type DadosDaArte, type TipoDeGancho } from './moldes.ts';
+import { MARCA, svgDaCapaDaDica, svgDoCriterio, svgDoFechamentoDaDica, svgDoFeed, svgDoStory, svgsDaApresentacao, type DadosDaApresentacao, type DadosDaArte, type TipoDeGancho } from './moldes.ts';
 import { semListaDeModelos } from './fontes/mercadolivre-api.ts';
 import type { OfertaAvaliada } from './types.ts';
 
@@ -199,13 +199,14 @@ export function montarLegenda(o: OfertaAvaliada, config: Config): string {
   linhas.push('');
   // O preço em reais não vai na imagem nem na legenda: quem quer saber entra no grupo.
   const desconto = descontoParaArte(o);
-  linhas.push('💰 O preço de agora está no grupo (link na bio)');
+  // Sem grupo de WhatsApp configurado, não promete grupo: manda para o link da bio (blog).
+  linhas.push(temWhatsapp(config) ? '💰 O preço de agora está no grupo (link na bio)' : '💰 O preço de agora está no link da bio');
   if (desconto >= 5) linhas.push(`🏷️ ${desconto}% abaixo do preço informado pela loja`);
   if (o.freteGratis) linhas.push('🚚 Frete grátis');
   if (o.nota && o.nota > 0) linhas.push(`⭐ ${o.nota.toFixed(1).replace('.', ',')}${o.vendas ? ` · ${formatarVendas(o.vendas)} vendidos` : ''}`);
   linhas.push('');
   linhas.push(`👉 Todas as ofertas no blog, link na bio: ${enderecoDoBlog(config)}`);
-  if (temWhatsapp(config)) linhas.push('💬 Receba as ofertas também no WhatsApp (canal e grupo): link na bio');
+  if (temWhatsapp(config)) linhas.push(`📲 No grupo ${nomeDaMarca()} chegam achados assim todo dia, com o preço de agora e o histórico conferido. Entrar é grátis: link na bio.`);
   linhas.push('');
   linhas.push('Publi: link de afiliado. O preço pode mudar a qualquer momento.');
   linhas.push('');
@@ -288,11 +289,23 @@ export interface DadosDaDica {
   itens: Array<{ oferta: OfertaAvaliada; imagem?: string }>;
 }
 
-/** O carrossel do perfil é só a dica "Antes de comprar" (o "Top até R$" saiu: ele mostrava preço). */
-export type DadosDoCarrossel = DadosDaDica;
+/** Carrossel "Por que entrar no grupo": o que o grupo entrega, com os números do robô (sem preço). */
+export interface DadosDoGrupo extends DadosDaApresentacao {
+  formato: 'grupo';
+  titulo: string;
+}
+
+/** Os carrosséis do perfil: a dica "Antes de comprar" e a apresentação do grupo (o "Top até R$" saiu: ele mostrava preço). */
+export type DadosDoCarrossel = DadosDaDica | DadosDoGrupo;
+
+/** As imagens do carrossel, na ordem (a primeira é a capa). */
+export function montarSvgsDoCarrossel(d: DadosDoCarrossel): string[] {
+  return d.formato === 'grupo' ? svgsDaApresentacao(d) : montarSvgsDaDica(d);
+}
 
 /** Quantas imagens o carrossel tem. O Instagram aceita no máximo 10. */
 export function totalDeImagens(d: DadosDoCarrossel): number {
+  if (d.formato === 'grupo') return svgsDaApresentacao(d).length;
   return 1 + d.criterios.length + (d.itens.length >= 2 ? 1 : 0);
 }
 
@@ -359,9 +372,27 @@ export function legendaDaDica(d: DadosDaDica, config: Config): string {
   return linhas.join('\n');
 }
 
-/** Legenda do carrossel (só existe a dica "Antes de comprar"). */
+/** O nome da marca em texto ("Mata Preço"). */
+export const nomeDaMarca = () => MARCA.nome.map((p) => p.charAt(0) + p.slice(1).toLowerCase()).join(' ');
+
+/** Legenda da apresentação do grupo: o que ele entrega, em tópicos, e a chamada para entrar. Sem preço. */
+export function legendaDoGrupo(d: DadosDoGrupo): string {
+  const linhas = [
+    `📲 Por que entrar no grupo ${nomeDaMarca()}? #publi`,
+    '',
+    `✅ ${d.achadosNaSemana} achados separados nos últimos 7 dias, direto no seu WhatsApp`,
+    `📉 ${d.diasDeHistorico} dias de histórico de preço: a gente avisa quando é o menor preço do mês, e o que já esteve mais barato fica de fora`,
+    `🔎 Só entra oferta com ${d.descontoMinimo}% de desconto ou mais (ou ${d.quedaMinima}% abaixo do próprio histórico), com nota e vendas conferidas`,
+  ];
+  if (d.bloqueadas.length) linhas.push(`🚫 Nada de ${d.bloqueadas.slice(0, 3).join(', ')}`);
+  if (d.assuntos.length) linhas.push(`🗂️ Separado por assunto: ${d.assuntos.join(', ')}`);
+  linhas.push('', '👉 Entrar é grátis: link na bio. Sair é um toque, quando quiser.', '', '🔖 Salve este post e mande para quem vive caçando promoção.', '', 'Publi: os achados do grupo levam link de afiliado.', '', hashtagsDaCategoria('geral').join(' '));
+  return linhas.join('\n');
+}
+
+/** Legenda do carrossel, pelo formato. */
 export function legendaDoCarrossel(d: DadosDoCarrossel, config: Config): string {
-  return legendaDaDica(d, config);
+  return d.formato === 'grupo' ? legendaDoGrupo(d) : legendaDaDica(d, config);
 }
 
 /** Transforma o SVG em PNG. Devolve undefined se o conversor (@resvg/resvg-js) não estiver instalado. */

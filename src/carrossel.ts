@@ -5,7 +5,8 @@ import { diaDe, horaDe, type Banco } from './db.ts';
 import { EXPLICACOES_DOS_CRITERIOS } from './dicas.ts';
 import { TIPOS_DE_GUIA, tipoDeGuia } from './guias.ts';
 import { passaNoFiltroDoInstagram } from './instagram.ts';
-import { arquivosDoCarrossel, baixarImagemComoDataUri, montarSvgsDaDica, renderizarPng, type DadosDaDica, type DadosDoCarrossel, type Fetch } from './social.ts';
+import { arquivosDoCarrossel, baixarImagemComoDataUri, montarSvgsDoCarrossel, nomeDaMarca, renderizarPng, type DadosDaDica, type DadosDoCarrossel, type DadosDoGrupo, type Fetch } from './social.ts';
+import { dadosDaApresentacao } from './vitrine.ts';
 import type { OfertaAvaliada } from './types.ts';
 
 const DIA_MS = 86_400_000;
@@ -51,8 +52,25 @@ export async function prepararCarrossel(banco: Banco, config: Config, agora: Dat
   if (banco.carrosselCriadoNoDia(agora)) return false;
   const hora = horaDe(agora);
   if (hora < config.ritmo.horaInicio || hora >= config.ritmo.horaFim) return false;
+  // Uma vez por semana, nos dias escolhidos, o carrossel apresenta o grupo ("Por que entrar no grupo").
+  if (ig.grupoDias.includes(diaDaSemana(agora)) && prepararApresentacao(banco, config, agora)) return true;
   if (!ig.dicasDias.includes(diaDaSemana(agora))) return false;
   return prepararDica(banco, config, agora, fetchFn);
+}
+
+/** A apresentação do grupo não volta antes disso, mesmo que mais de um dia da semana esteja marcado. */
+const DIAS_SEM_REPETIR_APRESENTACAO = 6;
+/** Com menos achados que isso na semana, a apresentação não convence: espera. */
+const MINIMO_DE_ACHADOS_NA_SEMANA = 10;
+
+/** Cria o carrossel "Por que entrar no grupo" com os números da última semana. Devolve true se criou. */
+export function prepararApresentacao(banco: Banco, config: Config, agora: Date): boolean {
+  if (banco.carrosseisPublicadosRecentes(DIAS_SEM_REPETIR_APRESENTACAO, agora).some((c) => c.startsWith('grupo-'))) return false;
+  const numeros = dadosDaApresentacao(banco, config, agora);
+  if (numeros.achadosNaSemana < MINIMO_DE_ACHADOS_NA_SEMANA) return false;
+  const dados: DadosDoGrupo = { formato: 'grupo', titulo: `Por que entrar no grupo ${nomeDaMarca()}`, ...numeros };
+  banco.salvarCarrossel(`grupo-${diaDe(agora)}`, dados.titulo, JSON.stringify(dados), agora);
+  return true;
 }
 
 /**
@@ -67,8 +85,8 @@ export async function gravarPngsDoCarrossel(banco: Banco, config: Config, agora:
   const pasta = join(config.blog.pasta, 'social');
   mkdirSync(pasta, { recursive: true });
   // Carrossel de outro formato (o "Top" antigo, que mostrava preço) não é mais gravado.
-  if (dados.formato !== 'dica') return 0;
-  const svgs = montarSvgsDaDica(dados);
+  if (dados.formato !== 'dica' && dados.formato !== 'grupo') return 0;
+  const svgs = montarSvgsDoCarrossel(dados);
   const nomes = arquivosDoCarrossel(pendente.chave, svgs.length);
   let gravados = 0;
   for (let i = 0; i < svgs.length; i++) {

@@ -11,6 +11,7 @@ import { gravarReel, prepararReel } from './reel.ts';
 import { gravarPngs, prepararSocial } from './social.ts';
 import { gravarBio } from './bio.ts';
 import { PublicadorDeTeste } from './telegram.ts';
+import { gravarResumoDoDia } from './vitrine.ts';
 
 const pausa = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -177,6 +178,8 @@ async function modoNuvem(): Promise<void> {
       dizer(`- Aviso do Instagram: ${avisoDoReel}`);
       avisar(chaveDoAviso('reel', avisoDoReel), avisoDoReel);
     }
+    // Story "Hoje no grupo" (a vitrine do grupo): gravado a partir de uma hora antes da hora do resumo.
+    await gravarResumoDoDia(robo.banco, robo.config, new Date());
     const ig = await publicarNoInstagram(robo.banco, robo.config, new Date());
     if (robo.config.instagram.ativo) dizer(`- Instagram: ${ig.feed} posts de feed, ${ig.stories} stories e ${ig.reels} reels publicados.`);
     for (const a of ig.avisos) {

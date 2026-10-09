@@ -25,7 +25,7 @@ export const MARCA = {
   suave: '#cbd5e1',
   /** Texto da faixa do grupo. */
   faixa: 'O PREÇO ESTÁ NO GRUPO',
-  faixaCurta: 'LINK NA BIO',
+  faixaCurta: 'ENTRE PELO LINK NA BIO',
   aviso: 'Publi · link de afiliado · preço pode mudar',
 };
 
@@ -285,4 +285,124 @@ ${d.assunto.map((l, i) => texto(540, 262 + i * 50, 44, MARCA.amarelo, l)).join('
 ${linhas.join('\n')}
 ${faixaDoGrupo(1100, 170, 52)}
 ${aviso(1334, 24)}`);
+}
+
+// ───────────────────────── Vitrine do grupo: o que ele entrega ─────────────────────────
+
+/** Fotos em grade (até 4), cada uma num quadro branco. `x0`/`y0` é o canto da grade. */
+function gradeDeFotos(fotos: Array<string | undefined>, x0: number, y0: number, lado: number, folga: number, colunas: number): string {
+  return fotos
+    .slice(0, colunas * 2)
+    .map((f, i) => {
+      const x = x0 + (i % colunas) * (lado + folga);
+      const y = y0 + Math.floor(i / colunas) * (lado + folga);
+      return `<rect x="${x}" y="${y}" width="${lado}" height="${lado}" rx="28" fill="${MARCA.branco}"/>${f ? `<image href="${f}" x="${x + 12}" y="${y + 12}" width="${lado - 24}" height="${lado - 24}" preserveAspectRatio="xMidYMid meet"/>` : ''}`;
+    })
+    .join('\n');
+}
+
+/** Faixa de chamada para entrar no grupo (sem preço). */
+function faixaEntre(y: number, altura: number, tamanho: number): string {
+  return `<rect x="60" y="${y}" width="960" height="${altura}" rx="${Math.round(altura / 4)}" fill="${MARCA.vermelho}"/>
+${texto(540, y + altura * 0.48, tamanho, MARCA.branco, 'ENTRE NO GRUPO')}
+${texto(540, y + altura * 0.84, Math.round(tamanho * 0.62), MARCA.amarelo, 'É GRÁTIS · LINK NA BIO')}`;
+}
+
+/** Uma linha de destaque: número ou palavra grande em amarelo e o texto ao lado. */
+function linhaDeDestaque(y: number, destaque: string, resto: string): string {
+  return `<rect x="60" y="${y}" width="960" height="120" rx="30" fill="${MARCA.branco}" fill-opacity="0.08"/>
+${textoEsq(100, y + 80, 58, MARCA.amarelo, destaque)}
+${textoEsq(100 + Math.round(destaque.length * 58 * 0.66) + 24, y + 78, 40, MARCA.branco, resto)}`;
+}
+
+export interface DadosDoResumo {
+  /** Quantos achados o grupo recebeu hoje. */
+  achados: number;
+  /** Maior desconto confiável do dia, em % (0 = não mostra). */
+  maiorDesconto: number;
+  /** Quantos estavam no menor preço do histórico (até 30 dias). */
+  noMenorPreco: number;
+  /** Nomes dos assuntos do dia (até 3). */
+  assuntos: string[];
+  fotos: Array<string | undefined>;
+}
+
+/** Story "Hoje no grupo" (1080x1920): o resumo do que o grupo entregou hoje, para dar vontade de entrar. Sem preço. */
+export function svgDoResumoDoDia(d: DadosDoResumo): string {
+  const linhas: Array<[string, string]> = [];
+  if (d.maiorDesconto > 0) linhas.push([`${d.maiorDesconto}%`, 'foi o maior desconto']);
+  if (d.noMenorPreco > 0) linhas.push([String(d.noMenorPreco), d.noMenorPreco === 1 ? 'no menor preço do mês' : 'no menor preço do mês']);
+  const assuntos = d.assuntos.slice(0, 3).join(' · ');
+  const yLinhas = 760;
+  const corpo = `${fundo(1080, 1920)}
+${marca(540, 150, 62, 'centro')}
+${texto(540, 300, 96, MARCA.amarelo, 'HOJE NO GRUPO')}
+${texto(540, 560, 260, MARCA.branco, String(d.achados))}
+${texto(540, 650, 56, MARCA.branco, d.achados === 1 ? 'achado separado' : 'achados separados')}
+${linhas.map(([a, b], i) => linhaDeDestaque(yLinhas + i * 140, a, b)).join('\n')}
+${assuntos ? texto(540, yLinhas + linhas.length * 140 + 70, 40, MARCA.suave, assuntos) : ''}
+${d.fotos.length ? texto(540, 1215, 38, MARCA.suave, 'Alguns achados de hoje') : ''}
+${gradeDeFotos(d.fotos.slice(0, 4), (1080 - (Math.min(d.fotos.length, 4) * 220 + (Math.min(d.fotos.length, 4) - 1) * 20)) / 2, 1250, 220, 20, 4)}
+${faixaEntre(1660, 190, 66)}
+${aviso(1892, 28)}`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920" font-family="${FONTE}">\n${corpo}\n</svg>`;
+}
+
+export interface DadosDaApresentacao {
+  /** Achados separados nos últimos 7 dias. */
+  achadosNaSemana: number;
+  /** Assuntos (nichos) da semana, em ordem de volume. */
+  assuntos: string[];
+  /** Regras de verdade do filtro do robô. */
+  descontoMinimo: number;
+  quedaMinima: number;
+  diasDeHistorico: number;
+  bloqueadas: string[];
+  fotos: Array<string | undefined>;
+}
+
+/** Carrossel "Por que entrar no grupo" (1080x1350): capa, o que o grupo entrega (com números reais do robô) e a chamada. */
+export function svgsDaApresentacao(d: DadosDaApresentacao): string[] {
+  const cabeca = marca(60, 92, 44, 'esquerda');
+  const titulo = (linhas: string[], y0: number, tamanho = 84) => linhas.map((l, i) => texto(540, y0 + i * Math.round(tamanho * 1.1), tamanho, MARCA.amarelo, l)).join('\n');
+  const corpo = (linhas: string[], y0: number) => linhas.map((l, i) => textoLeve(540, y0 + i * 58, 44, MARCA.branco, l)).join('\n');
+  const rodape = (n: number) => texto(540, 1290, 34, MARCA.suave, `${n} de 5 · arraste para o lado`);
+  const capa = envolver(`${cabeca}
+${texto(540, 330, 64, MARCA.branco, 'POR QUE ENTRAR NO')}
+${texto(540, 470, 120, MARCA.amarelo, 'GRUPO')}
+<text x="540" y="640" font-size="130" font-weight="900" fill="${MARCA.branco}" text-anchor="middle" letter-spacing="10">${esc(MARCA.nome[0]!)} <tspan fill="${MARCA.amarelo}">${esc(MARCA.nome[1]!)}</tspan></text>
+<rect x="290" y="672" width="500" height="14" rx="7" fill="${MARCA.vermelho}"/>
+${gradeDeFotos(d.fotos, 160, 760, 170, 20, 4)}
+${texto(500, 1060, 48, MARCA.branco, 'Arraste para o lado')}
+<polygon points="790,1026 842,1044 790,1062" fill="${MARCA.branco}"/>
+${marcador(150, 1150, 56)}${textoEsq(240, 1195, 42, MARCA.branco, 'Salve para ver depois')}`);
+  const todoDia = envolver(`${cabeca}
+${titulo(['ACHADOS', 'TODO DIA'], 280)}
+${texto(540, 650, 220, MARCA.branco, String(d.achadosNaSemana))}
+${corpo(['achados separados nos últimos 7 dias,', 'direto no seu WhatsApp'], 760)}
+${gradeDeFotos(d.fotos, 160, 920, 170, 20, 4)}
+${rodape(2)}`);
+  const historico = envolver(`${cabeca}
+${titulo(['A GENTE CONFERE', 'O PREÇO'], 300)}
+${texto(540, 640, 200, MARCA.branco, `${d.diasDeHistorico}`)}
+${texto(540, 730, 60, MARCA.amarelo, 'dias de histórico')}
+${corpo(['O robô anota o preço de cada produto todo dia', 'e avisa quando é o menor preço do mês.', 'Se já esteve mais barato no último mês,', 'fica de fora.'], 850)}
+${rodape(3)}`);
+  const filtro = envolver(`${cabeca}
+${titulo(['SÓ ENTRA O QUE', 'PASSA NO FILTRO'], 300)}
+${linhaDeDestaque(460, `${d.descontoMinimo}%`, 'de desconto ou mais')}
+${texto(540, 630, 40, MARCA.suave, 'ou')}
+${linhaDeDestaque(660, `${d.quedaMinima}%`, 'abaixo do próprio histórico')}
+${linhaDeDestaque(810, 'Nota', 'e vendas conferidas')}
+${d.bloqueadas.length ? corpo([`Nada de ${d.bloqueadas.slice(0, 3).join(', ')}.`], 1030) : ''}
+${rodape(4)}`);
+  const assuntos = d.assuntos.slice(0, 6);
+  const chamada = envolver(`${cabeca}
+${titulo(['TUDO SEPARADO', 'POR ASSUNTO'], 260, 76)}
+${assuntos.map((a, i) => pilula(i % 2 ? 760 : 320, 400 + Math.floor(i / 2) * 110, 84, 400, MARCA.branco, 38, a, 0.14)).join('\n')}
+${texto(540, 830, 54, MARCA.branco, 'Os achados chegam no seu WhatsApp.')}
+${texto(540, 905, 44, MARCA.suave, 'E sair é um toque, quando quiser.')}
+${faixaEntre(990, 190, 66)}
+${aviso(1300, 26)}`);
+  return [capa, todoDia, historico, filtro, chamada];
 }

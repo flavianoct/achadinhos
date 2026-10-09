@@ -78,10 +78,11 @@ export function svgDaAberturaDoReel(n: number): string {
 export function svgDoFechamentoDoReel(): string {
   return moldura(
     nome(260) +
-      texto(800, 'O PREÇO', 150, MARCA.amarelo, 900) +
-      texto(950, 'ESTÁ NO GRUPO', 120, MARCA.amarelo, 900) +
-      `<rect x="140" y="1070" width="800" height="150" rx="75" fill="${MARCA.vermelho}"/><text x="540" y="1166" text-anchor="middle" ${fonte} font-size="62" font-weight="800" fill="#fff">LINK NA BIO</text>` +
-      texto(1360, 'Publi: links de afiliado', 36, MARCA.suave, 500),
+      texto(760, 'O PREÇO', 150, MARCA.amarelo, 900) +
+      texto(900, 'ESTÁ NO GRUPO', 108, MARCA.amarelo, 900) +
+      texto(1030, 'Achados assim todo dia, de graça', 50, MARCA.branco, 700) +
+      `<rect x="140" y="1110" width="800" height="150" rx="75" fill="${MARCA.vermelho}"/><text x="540" y="1206" text-anchor="middle" ${fonte} font-size="56" font-weight="800" fill="#fff">ENTRE PELO LINK NA BIO</text>` +
+      texto(1400, 'Publi: links de afiliado', 36, MARCA.suave, 500),
   );
 }
 

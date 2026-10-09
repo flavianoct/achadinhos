@@ -1,6 +1,11 @@
 # Instagram automático: passo a passo
 
 > **Formato Mata Preço (atual).** As artes não mostram **nenhum preço em reais**: a pergunta grande ("CAIU MESMO?", ou "QUANTO CUSTA AGORA?" quando não há motivo para afirmar queda) chama a atenção, o produto aparece com nota e vendas, e a faixa vermelha "O PREÇO ESTÁ NO GRUPO · LINK NA BIO" leva quem quer o preço para o grupo. Um só visual para todos os assuntos (as cores da marca ficam em `MARCA`, no começo de `src/moldes.ts`). O Instagram está **desligado** (`INSTAGRAM_ATIVO=0`) até as artes serem conferidas e o perfil novo ser configurado.
+>
+> **O Instagram é a vitrine do grupo.** Além dos posts de produto (amostras do que chega no grupo), há dois formatos que vendem o próprio grupo, sempre com números de verdade tirados do robô:
+> - **Story "Hoje no grupo"** (todo dia, a partir de `INSTAGRAM_RESUMO_HORA`, padrão 21h): quantos achados o grupo recebeu hoje, o maior desconto em %, quantos estavam no menor preço do mês, os assuntos do dia e fotos de alguns achados, com "ENTRE NO GRUPO · é grátis · link na bio". Com menos de 3 achados no dia, não sai.
+> - **Carrossel "Por que entrar no grupo"** (uma vez por semana, nos dias de `INSTAGRAM_GRUPO_DIAS`, padrão segunda): achados da semana, os 30 dias de histórico de preço (o que já esteve mais barato no último mês fica de fora), as regras do filtro (desconto mínimo, queda no histórico, nota e vendas, nada de réplica ou usado) e os assuntos. Bom para **fixar no perfil** (isso é manual, no app). Com menos de 10 achados na semana, espera.
+> - As legendas e o fechamento do Reel convidam para o grupo. Sem grupo de WhatsApp configurado, nada promete grupo.
 
 O robô publica no Instagram uma foto de feed (com legenda) e um Story (sem legenda) das melhores ofertas, sempre sem o preço em reais (ele fica no grupo). Ele usa a API oficial, então a conta precisa ser **profissional**. Isso é grátis e dá para desfazer.
 

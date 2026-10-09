@@ -92,8 +92,11 @@ test('instagram e bio avisam do WhatsApp: legenda com a linha, bio com os botõe
   const canal = 'https://whatsapp.com/channel/0029VbDtCLD2UPBAGBZ4UO1W';
   const grupo = 'https://chat.whatsapp.com/KRJ3OtHhmZ10XfReNMTIaw';
   const completo = lerConfig({ BLOG_URL: 'https://flavianoct.github.io/achadinhos', BLOG_TELEGRAM: 'https://t.me/topfera_achadinhos', BLOG_WHATSAPP: canal, WHATSAPP_DESTINOS: `${canal},${grupo}` });
-  assert.match(montarLegenda(oferta, completo), /💬 Receba as ofertas também no WhatsApp \(canal e grupo\): link na bio/);
-  assert.ok(!montarLegenda(oferta, config).includes('WhatsApp'), 'sem WhatsApp configurado, a legenda não promete');
+  assert.match(montarLegenda(oferta, completo), /📲 No grupo Mata Preço chegam achados assim todo dia.*Entrar é grátis: link na bio/);
+  assert.match(montarLegenda(oferta, completo), /O preço de agora está no grupo/);
+  const semZap = montarLegenda(oferta, config);
+  assert.ok(!/WhatsApp|grupo/i.test(semZap), 'sem WhatsApp configurado, a legenda não promete grupo');
+  assert.match(semZap, /O preço de agora está no link da bio/);
   const h = paginaDaBio([oferta], completo, new Date());
   assert.match(h, new RegExp(`href="${canal}"[^>]*>Receber no WhatsApp \\(canal\\)`));
   assert.match(h, new RegExp(`href="${grupo}"[^>]*>Entrar no grupo do WhatsApp`));
