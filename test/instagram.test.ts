@@ -58,6 +58,22 @@ test('instagram: cria o container, espera ficar pronto e publica; Story vai sem 
   assert.equal(story.corpo.get('caption'), null);
 });
 
+test('instagram: publicação recusada por contêiner ainda não liberado é tentada de novo; o aviso traz o subcódigo', async () => {
+  const { f, chamadas } = apiFalsa();
+  let recusas = 1;
+  const g = (async (url: string, init: any = {}) => {
+    if (String(url).includes('/media_publish') && recusas-- > 0) {
+      chamadas.push({ metodo: 'POST', url: String(url), corpo: new URLSearchParams() });
+      return new Response(JSON.stringify({ error: { code: 24, error_subcode: 2207006, message: 'The requested resource does not exist' } }), { status: 400 });
+    }
+    return f(url, init);
+  }) as unknown as typeof fetch;
+  assert.equal(await new Instagram('tok', '1789', g, 0).publicarFoto('https://x/a.png', 'x'), 'post-1');
+  assert.equal(chamadas.filter((c) => c.url.endsWith('/media_publish')).length, 2);
+  recusas = 5;
+  await assert.rejects(new Instagram('tok', '1789', g, 0).publicarStory('https://x/b.png'), (e: any) => e instanceof ErroInstagram && !e.fatal && /400\/24\/2207006/.test(e.message));
+});
+
 test('instagram: token vencido vira erro fatal com a mensagem da Meta', async () => {
   const { f } = apiFalsa({ erroNaPublicacao: { code: 190, message: 'Invalid OAuth access token' } });
   await assert.rejects(new Instagram('velho', '1789', f, 0).publicarFoto('https://x/a.png', 'x'), (e: any) => e instanceof ErroInstagram && e.fatal && /190/.test(e.message) && /Invalid OAuth/.test(e.message));
@@ -180,7 +196,7 @@ test('instagram: avisa de falta de Secrets, desligado não faz nada, erro da API
   assert.match(semToken.avisos.join(' '), /INSTAGRAM_TOKEN/);
   const ruim = apiFalsa({ erroNaPublicacao: { code: 190, message: 'token vencido' } });
   const r = await publicarNoInstagram(banco, lerConfig(base), AGORA, ruim.f, new Instagram('t', '1789', ruim.f, 0));
-  assert.match(r.avisos.join(' '), /token vencido/);
+  assert.match(r.avisos.join(' '), /Instagram, post do feed: .*token vencido/);
   assert.equal(banco.instagramNoDia('feed', AGORA), 0, 'o que falhou não é marcado como publicado');
 });
 

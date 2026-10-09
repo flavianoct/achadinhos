@@ -51,7 +51,9 @@ export class Instagram {
     const erro = dados.error ?? {};
     // 190 = token inválido ou vencido; 10 e 200 = falta de permissão.
     const fatal = erro.code === 190 || erro.code === 10 || erro.code === 200 || r.status === 401 || r.status === 403;
-    throw new ErroInstagram(`Instagram recusou (${r.status}${erro.code ? `/${erro.code}` : ''}): ${erro.message ?? 'erro desconhecido'}`, fatal);
+    const codigo = `${r.status}${erro.code ? `/${erro.code}` : ''}${erro.error_subcode ? `/${erro.error_subcode}` : ''}`;
+    const detalhe = erro.error_user_msg && erro.error_user_msg !== erro.message ? ` (${erro.error_user_msg})` : '';
+    throw new ErroInstagram(`Instagram recusou (${codigo}): ${erro.message ?? 'erro desconhecido'}${detalhe}`, fatal);
   }
 
   /** Confere o token e o ID da conta, sem postar nada. */
@@ -80,8 +82,17 @@ export class Instagram {
 
   private async publicar(params: Record<string, string>, verificacoes = 10): Promise<string> {
     const container = await this.criarContainer(params, verificacoes);
-    const feito = await this.chamar('POST', `${this.userId}/media_publish`, { creation_id: container });
-    return feito.id as string;
+    // Às vezes o Instagram ainda não liberou o contêiner e recusa a publicação ("The requested resource does not exist"):
+    // espera um pouco e tenta de novo com o mesmo contêiner (3 tentativas). Token vencido ou falta de permissão não se repete.
+    for (let tentativa = 1; ; tentativa++) {
+      try {
+        const feito = await this.chamar('POST', `${this.userId}/media_publish`, { creation_id: container });
+        return feito.id as string;
+      } catch (e) {
+        if (tentativa >= 3 || !(e instanceof ErroInstagram) || e.fatal) throw e;
+        await pausa(this.esperaMs * 2);
+      }
+    }
   }
 
   publicarFoto(urlDaImagem: string, legenda: string): Promise<string> {
@@ -137,6 +148,15 @@ export function passaNoFiltroDoInstagram(o: OfertaAvaliada, ig: Config['instagra
   if (o.vendas ? o.vendas < ig.vendasMinimas : !o.maisVendido) return false;
   const titulo = normalizar(o.titulo);
   return !ig.palavrasBloqueadas.some((p) => contemPalavra(titulo, p));
+}
+
+/** Diz no aviso qual publicação falhou (feed, Story...), mantendo se o erro é fatal. */
+async function etapa<T>(nome: string, fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (e) {
+    throw e instanceof ErroInstagram ? new ErroInstagram(`Instagram, ${nome}: ${e.message}`, e.fatal) : e;
+  }
 }
 
 /** Só publica se o PNG já estiver no ar (o site é publicado no fim de cada rodada, então vale a partir da seguinte). */
@@ -252,7 +272,7 @@ export async function publicarNoInstagram(banco: Banco, config: Config, agora: D
     if (ig.resumoHora > 0 && hora >= ig.resumoHora && !banco.textoSalvo(chaveDoResumoPublicado(agora), 1, agora)) {
       const arte = `${config.blog.url}/social/${arquivoDoResumo(agora)}`;
       if (await noAr(arte)) {
-        await api.publicarStory(arte);
+        await etapa('Story "Hoje no grupo"', () => api.publicarStory(arte));
         banco.salvarTexto(chaveDoResumoPublicado(agora), arte, agora);
         resumo.stories++;
         await pausa(2000);
@@ -260,13 +280,13 @@ export async function publicarNoInstagram(banco: Banco, config: Config, agora: D
     }
     for (const c of candidatos) {
       if (!c.igFeedEm && podePublicar('feed') && (await noAr(url(c.chave, 'feed')))) {
-        await api.publicarFoto(url(c.chave, 'feed'), montarLegenda(c.oferta, config));
+        await etapa('post do feed', () => api.publicarFoto(url(c.chave, 'feed'), montarLegenda(c.oferta, config)));
         banco.marcarInstagram(c.chave, 'feed', agora);
         resumo.feed++;
         await pausa(2000);
       }
       if (!c.igStoryEm && podePublicar('story') && (await noAr(url(c.chave, 'story')))) {
-        await api.publicarStory(url(c.chave, 'story'));
+        await etapa('Story', () => api.publicarStory(url(c.chave, 'story')));
         banco.marcarInstagram(c.chave, 'story', agora);
         resumo.stories++;
         await pausa(2000);
