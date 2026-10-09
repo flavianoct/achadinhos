@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { lerConfig } from '../src/config.ts';
-import { baixarImagemComoDataUri, descontoConfiavel, ganchoDaOferta, hashtagsDaCategoria, montarGancho, montarLegenda, montarRoteiro, montarSvgDoFeed, montarSvgDoStory, nomeDoCanal, perguntaDaArte, quebrarTexto, tituloParaArte } from '../src/social.ts';
+import { GATILHOS_DE_EXCLUSIVIDADE, GATILHOS_DE_URGENCIA, baixarImagemComoDataUri, descontoConfiavel, ganchoDaOferta, hashtagsDaCategoria, montarGancho, montarLegenda, montarRoteiro, montarSvgDoFeed, montarSvgDoStory, nomeDoCanal, perguntaDaArte, quebrarTexto, tituloParaArte } from '../src/social.ts';
 import { linhasDaPergunta, MARCA } from '../src/moldes.ts';
 import type { OfertaAvaliada } from '../src/types.ts';
 
@@ -118,7 +118,8 @@ test('moldes: toda arte da marca é válida, sem preço em reais, com a pergunta
         assert.ok(svg.includes(MARCA.faixa) && svg.includes(MARCA.faixaCurta), 'a faixa que leva ao grupo');
         assert.ok(svg.includes('Publi · link de afiliado'), 'aviso de publi');
         assert.ok(/CAIU MESMO\?|QUANTO CUSTA|JÁ VIU|VAI DEIXAR/.test(svg), 'a pergunta');
-        assert.ok(/CORRE!|ANTES QUE ACABE|SÓ NO GRUPO|ACHADO DO DIA/.test(svg), 'a etiqueta com gatilho');
+        assert.ok(GATILHOS_DE_URGENCIA.some((g) => svg.includes(`>${g}<`)), 'a etiqueta vermelha de urgência');
+        assert.ok(GATILHOS_DE_EXCLUSIVIDADE.some((g) => svg.includes(`>${g}<`)), 'a etiqueta amarela de exclusividade');
         assert.ok(svg.includes('4,8') && svg.includes('5 mil vendidos') && svg.includes('<polygon'), 'nota, vendas e estrela no próprio card');
         assert.ok(!svg.includes('<INMA>') && svg.includes('&lt;INMA&gt;'), 'título escapado');
         assert.equal(svg.includes('MENOR PREÇO'), i % 2 === 1, 'selo só com histórico confirmado');

@@ -38,8 +38,10 @@ export interface DadosDaArte {
   titulo: string[];
   /** Não usado: a arte não mostra valor nenhum (nem em reais nem em %). */
   desconto: number;
-  /** Gatilho da etiqueta vermelha inclinada ("CORRE!", "SÓ NO GRUPO"...). */
+  /** Gatilho da etiqueta vermelha grande, inclinada (urgência: "CORRE!", "VAI SUMIR"...). */
   gatilho?: string;
+  /** Gatilho da etiqueta amarela pequena (exclusividade: "SÓ NO GRUPO", "QUEM ENTRA VÊ PRIMEIRO"...). */
+  gatilho2?: string;
   freteGratis: boolean;
   /** Data URI da foto, se houver. */
   foto?: string;
@@ -138,6 +140,15 @@ function circuloDesconto(d: DadosDaArte, cx: number, cy: number, r: number, tama
   return `<g transform="rotate(-6 ${cx} ${cy})"><rect x="${cx - l / 2}" y="${cy - h / 2 + 8}" width="${l}" height="${h}" rx="18" fill="#A80400"/><rect x="${cx - l / 2}" y="${cy - h / 2}" width="${l}" height="${h}" rx="18" fill="${MARCA.vermelho}"/>${texto(cx, cy + fonte * 0.34, fonte, MARCA.branco, d.gatilho, ' font-style="italic"')}</g>`;
 }
 
+/** Etiqueta amarela pequena com o gatilho de exclusividade, no canto de baixo da foto. `xEsq` é o canto esquerdo e `cy` o centro. */
+function etiquetaDeExclusividade(d: DadosDaArte, xEsq: number, cy: number, tamanho: number): string {
+  if (!d.gatilho2) return '';
+  const l = Math.round(d.gatilho2.length * tamanho * 0.62 + 44);
+  const h = Math.round(tamanho * 1.9);
+  const cx = xEsq + l / 2;
+  return `<g transform="rotate(-6 ${cx} ${cy})"><rect x="${xEsq}" y="${cy - h / 2}" width="${l}" height="${h}" rx="12" fill="${MARCA.amarelo}"/>${texto(cx, cy + tamanho * 0.34, tamanho, MARCA.f1, d.gatilho2, ' font-style="italic"')}</g>`;
+}
+
 function foto(d: DadosDaArte, x: number, y: number, w: number, h: number, tamanhoSemFoto: number): string {
   return d.foto
     ? `<image href="${d.foto}" x="${x}" y="${y}" width="${w}" height="${h}" preserveAspectRatio="xMidYMid meet"/>`
@@ -204,6 +215,7 @@ ${pergunta.svg}
 <rect x="${(1080 - lado) / 2}" y="${yFoto}" width="${lado}" height="${lado}" rx="52" fill="${MARCA.branco}"/>
 ${foto(d, (1080 - lado) / 2 + 28, yFoto + 28, lado - 56, lado - 56, 56)}
 ${circuloDesconto(d, (1080 + lado) / 2 - 20, yFoto + 40, 96, 62)}
+${etiquetaDeExclusividade(d, (1080 - lado) / 2 + 24, yFoto + lado - 56, 30)}
 ${linhasDoTitulo(d, 540, yTitulo, 60, 50, MARCA.branco)}
 ${apoio(d, 540, yTitulo + 60 * d.titulo.length + 16, 38)}
 ${aviso(Y_FAIXA_DO_STORY - 25, 28)}
@@ -230,6 +242,7 @@ ${pergunta.svg}
 <rect x="${(1080 - lado) / 2}" y="${yFoto}" width="${lado}" height="${lado}" rx="44" fill="${MARCA.branco}"/>
 ${foto(d, (1080 - lado) / 2 + 24, yFoto + 24, lado - 48, lado - 48, 52)}
 ${circuloDesconto(d, (1080 + lado) / 2 - 20, yFoto + 36, 80, 52)}
+${etiquetaDeExclusividade(d, (1080 - lado) / 2 + 22, yFoto + lado - 50, 26)}
 ${linhasDoTitulo(d, 540, yTitulo, 52, 44, MARCA.branco)}
 ${apoio(d, 540, yTitulo + 52 * d.titulo.length + 14, 34)}
 ${faixaDoGrupo(1130, 160, 52)}

@@ -138,10 +138,19 @@ export function perguntaDaArte(o: OfertaAvaliada): string {
   return ganchoDaOferta(o).tipo === 'historico' ? 'CAIU MESMO?' : PERGUNTAS[escolha(o.idProduto, PERGUNTAS.length)]!;
 }
 
-/** Gatilhos da etiqueta vermelha da arte (urgência, exclusividade, curiosidade). Nada que invente estoque ou prazo. */
-const GATILHOS = ['CORRE!', 'ANTES QUE ACABE', 'SÓ NO GRUPO', 'ACHADO DO DIA'];
+/**
+ * Gatilhos mentais da arte, em duas etiquetas: a vermelha grande (urgência e escassez) e a amarela pequena (exclusividade e curiosidade).
+ * Nada que invente estoque, prazo ou número: só a sensação de "corra e entre no grupo".
+ */
+export const GATILHOS_DE_URGENCIA = ['CORRE!', 'ANTES QUE ACABE', 'VAI SUMIR', 'OFERTA RELÂMPAGO', 'NÃO DEIXE PASSAR', 'ACHADO DO DIA'];
+export const GATILHOS_DE_EXCLUSIVIDADE = ['SÓ NO GRUPO', 'QUEM ENTRA VÊ PRIMEIRO', 'PREÇO SECRETO', 'LIBERADO NO GRUPO'];
+
 export function gatilhoDaArte(o: OfertaAvaliada): string {
-  return GATILHOS[escolha(`g${o.idProduto}`, GATILHOS.length)]!;
+  return GATILHOS_DE_URGENCIA[escolha(`g${o.idProduto}`, GATILHOS_DE_URGENCIA.length)]!;
+}
+
+export function gatilhoDeExclusividade(o: OfertaAvaliada): string {
+  return GATILHOS_DE_EXCLUSIVIDADE[escolha(`e${o.idProduto}`, GATILHOS_DE_EXCLUSIVIDADE.length)]!;
 }
 
 /** Número estável de 0 a n-1 para o mesmo produto: varia o gancho entre produtos sem sorteio (o mesmo produto repete a frase). */
@@ -252,6 +261,7 @@ function dadosDaArte(o: OfertaAvaliada, imagem: string | undefined, larguraDoTit
     titulo: tituloParaArte(o.titulo, larguraDoTitulo),
     desconto: 0,
     gatilho: gatilhoDaArte(o),
+    gatilho2: gatilhoDeExclusividade(o),
     freteGratis: Boolean(o.freteGratis),
     foto: imagem,
     gancho: g.gancho,
