@@ -5,14 +5,13 @@ import { diaDe, horaDe, type Banco } from './db.ts';
 import { EXPLICACOES_DOS_CRITERIOS } from './dicas.ts';
 import { TIPOS_DE_GUIA, tipoDeGuia } from './guias.ts';
 import { passaNoFiltroDoInstagram } from './instagram.ts';
-import { svgDaCapaDoCarrossel, temaDaCategoria } from './moldes.ts';
-import { arquivosDoCarrossel, baixarImagemComoDataUri, montarSvgDoSlide, montarSvgsDaDica, renderizarPng, type DadosDaDica, type DadosDoCarrossel, type DadosDoTop, type Fetch } from './social.ts';
+import { arquivosDoCarrossel, baixarImagemComoDataUri, montarSvgsDaDica, renderizarPng, type DadosDaDica, type DadosDoCarrossel, type Fetch } from './social.ts';
 import type { OfertaAvaliada } from './types.ts';
 
 const DIA_MS = 86_400_000;
 
 /**
- * Escolhe os produtos do carrossel "Top N até R$ X". O teto de preço gira entre os dias (50, 100, 200...),
+ * Escolhe os produtos do Reel (o carrossel "Top N até R$ X" saiu: ele mostrava preço). O teto de preço, só um filtro interno, gira entre os dias (50, 100, 200...),
  * e só entram produtos que passam no filtro de qualidade do Instagram, com foto. Evita encher o carrossel de um
  * tipo só (no máximo 2 por categoria, a menos que faltem produtos). Se o teto do dia não tem produtos
  * suficientes, tenta o seguinte. `produtos` já vem do melhor para o pior.
@@ -41,8 +40,10 @@ export function escolherParaCarrossel(produtos: OfertaAvaliada[], config: Config
 }
 
 /**
- * Cria o carrossel do dia (um só por dia), se o Instagram e o carrossel estiverem ligados e houver produtos bons.
- * As fotos ficam guardadas junto, para as imagens serem refeitas a cada rodada. Devolve true se criou um.
+ * Cria o carrossel do dia (um só por dia), se o Instagram e o carrossel estiverem ligados. Só nos dias da dica
+ * (INSTAGRAM_DICAS_DIAS) e só com assunto que não saiu nos últimos 14 dias: o carrossel é sempre educativo
+ * ("N coisas para olhar antes de comprar [produto]"), sem preço. Sem assunto novo, não cria nada.
+ * Devolve true se criou um.
  */
 export async function prepararCarrossel(banco: Banco, config: Config, agora: Date, fetchFn: Fetch = fetch): Promise<boolean> {
   const ig = config.instagram;
@@ -50,29 +51,12 @@ export async function prepararCarrossel(banco: Banco, config: Config, agora: Dat
   if (banco.carrosselCriadoNoDia(agora)) return false;
   const hora = horaDe(agora);
   if (hora < config.ritmo.horaInicio || hora >= config.ritmo.horaFim) return false;
-
-  // Nos dias da dica o carrossel é educativo ("Antes de comprar..."); se não houver assunto novo, cai para o Top.
-  if (ig.dicasDias.includes(diaDaSemana(agora)) && (await prepararDica(banco, config, agora, fetchFn))) return true;
-
-  const escolha = escolherParaCarrossel(banco.melhoresProdutos({ horas: 36, limite: 150 }, agora), config, agora);
-  if (!escolha) return false;
-  const itens: DadosDoTop['itens'] = [];
-  // No máximo 2n tentativas de foto: uma foto que não baixa só passa para o próximo produto.
-  for (const oferta of escolha.ordem.slice(0, ig.carrosselItens * 2)) {
-    if (itens.length >= ig.carrosselItens) break;
-    const imagem = await baixarImagemComoDataUri(oferta.imagem, fetchFn);
-    if (imagem) itens.push({ oferta, imagem });
-  }
-  if (itens.length < ig.carrosselItens) return false;
-
-  const titulo = `Top ${itens.length} até R$ ${escolha.teto}`;
-  const dados: DadosDoTop = { formato: 'top', titulo, teto: escolha.teto, itens };
-  banco.salvarCarrossel(`carrossel-${diaDe(agora)}-${escolha.teto}`, titulo, JSON.stringify(dados), agora);
-  return true;
+  if (!ig.dicasDias.includes(diaDaSemana(agora))) return false;
+  return prepararDica(banco, config, agora, fetchFn);
 }
 
 /**
- * Grava em blog/social/ os PNGs do carrossel que está esperando para ser publicado (capa e um por produto).
+ * Grava em blog/social/ os PNGs do carrossel que está esperando para ser publicado (capa, um critério por imagem e o fechamento).
  * Como o site é refeito inteiro a cada rodada, isso roda toda vez. Devolve quantos PNGs saíram.
  */
 export async function gravarPngsDoCarrossel(banco: Banco, config: Config, agora: Date): Promise<number> {
@@ -82,13 +66,9 @@ export async function gravarPngsDoCarrossel(banco: Banco, config: Config, agora:
   const dados = JSON.parse(pendente.dados) as DadosDoCarrossel;
   const pasta = join(config.blog.pasta, 'social');
   mkdirSync(pasta, { recursive: true });
-  const svgs =
-    dados.formato === 'dica'
-      ? montarSvgsDaDica(dados)
-      : [
-          svgDaCapaDoCarrossel({ total: dados.itens.length, teto: dados.teto, fotos: dados.itens.map((i) => i.imagem), tema: temaDaCategoria('geral') }),
-          ...dados.itens.map((it, i) => montarSvgDoSlide(it.oferta, it.imagem, i + 1, dados.itens.length)),
-        ];
+  // Carrossel de outro formato (o "Top" antigo, que mostrava preço) não é mais gravado.
+  if (dados.formato !== 'dica') return 0;
+  const svgs = montarSvgsDaDica(dados);
   const nomes = arquivosDoCarrossel(pendente.chave, svgs.length);
   let gravados = 0;
   for (let i = 0; i < svgs.length; i++) {

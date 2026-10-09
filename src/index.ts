@@ -167,7 +167,7 @@ async function modoNuvem(): Promise<void> {
       dizer('- Aviso: faltou instalar o conversor de imagens (@resvg/resvg-js); o Instagram não terá imagens.');
       avisar('instagram:sem-conversor', 'Faltou instalar o conversor de imagens (@resvg/resvg-js): o Instagram não terá imagens.', 'erro');
     }
-    // Carrossel do dia ("Top 5 até R$ X"): criado numa rodada, com as imagens no ar na seguinte, quando é publicado.
+    // Carrossel do dia (dica "Antes de comprar"): criado numa rodada, com as imagens no ar na seguinte, quando é publicado.
     if (await prepararCarrossel(robo.banco, robo.config, new Date())) dizer('- Instagram: carrossel do dia preparado; sai na próxima rodada, quando as imagens estiverem no ar.');
     await gravarPngsDoCarrossel(robo.banco, robo.config, new Date());
     // Reel do dia (vídeo com trilha): montado numa rodada, publicado na seguinte (e dentro das horas dos Reels).

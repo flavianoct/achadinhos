@@ -50,11 +50,12 @@ test('reel: cria um por dia com 3 produtos bons e a legenda não traz preço', a
   const dados = JSON.parse(pendente.dados) as DadosDoReel;
   assert.equal(dados.itens.length, 3);
   const legenda = legendaDoReel(dados, config);
-  assert.match(legenda, /Top 3 achadinhos do dia/);
+  assert.match(legenda, /Caiu mesmo\? 3 achados de hoje/);
+  assert.match(legenda, /O preço de agora está no grupo/);
   assert.match(legenda, /Publi:/);
-  assert.ok(!/R\$/.test(legenda), 'o preço muda: fica só no vídeo');
+  assert.ok(!/R\$/.test(legenda), 'o preço não vai na legenda: fica no grupo');
   assert.equal(await prepararReel(bancoComProdutos(), lerConfig({ ...base, INSTAGRAM_REELS_POR_DIA: '0' }), AGORA, foto), false, 'desligado');
-  // Com janela às 19h e 20h, o vídeo só é preparado a partir das 18h (o preço está gravado nele).
+  // Com janela às 19h e 20h, o vídeo só é preparado a partir das 18h (o desconto e o selo de menor preço são de agora).
   const janela = lerConfig({ ...base, INSTAGRAM_HORARIOS_REELS: '19,20' });
   assert.equal(await prepararReel(bancoComProdutos(), janela, AGORA, foto), false, '12h: cedo demais');
   assert.equal(await prepararReel(bancoComProdutos(), janela, new Date('2026-10-03T21:10:00Z'), foto), true, '18h10: pode preparar');
@@ -89,7 +90,7 @@ test('reel: publica como REELS com o vídeo do site, só quando o vídeo está n
   assert.equal(r.reels, 1);
   const criar = chamadas.find((c) => c.metodo === 'POST' && c.url.endsWith('/1789/media') && c.corpo.get('media_type') === 'REELS')!;
   assert.match(criar.corpo.get('video_url')!, /^https:\/\/fulano\.github\.io\/achadinhos\/social\/reel-2026-10-03\.mp4$/);
-  assert.match(criar.corpo.get('caption')!, /Top 3 achadinhos do dia/);
+  assert.match(criar.corpo.get('caption')!, /Caiu mesmo\? 3 achados de hoje/);
   assert.equal(banco.reelsPublicadosNoDia(AGORA), 1);
 
   r = await publicarNoInstagram(banco, lerConfig(base), AGORA, f, cliente);

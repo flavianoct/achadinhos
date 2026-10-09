@@ -361,11 +361,11 @@ export function lerConfig(env: Env = process.env): Config {
       // O Instagram só recebe produtos que passam confiança: bem avaliados, muito vendidos e sem cara de genérico.
       notaMinima: numero(env, 'INSTAGRAM_NOTA_MINIMA', 4.6),
       vendasMinimas: numero(env, 'INSTAGRAM_VENDAS_MINIMAS', 300),
-      // Carrossel "Top 5 até R$ X": no máximo um por dia (conta como post de feed), com o teto de preço girando entre os dias.
+      // Carrossel do dia (só a dica "Antes de comprar", sem preço): no máximo um por dia (conta como post de feed).
       carrosselPorDia: numero(env, 'INSTAGRAM_CARROSSEL_POR_DIA', 1),
       carrosselItens: Math.min(9, Math.max(3, numero(env, 'INSTAGRAM_CARROSSEL_ITENS', 5))),
       carrosselTetos: lista(env.INSTAGRAM_CARROSSEL_TETOS === undefined ? '50,100,200' : env.INSTAGRAM_CARROSSEL_TETOS).map(Number).filter((n) => Number.isFinite(n) && n > 0),
-      // Dias da semana (0 = domingo ... 6 = sábado) em que o carrossel do dia é a dica "Antes de comprar"; nos outros dias é o "Top 5 até R$ X".
+      // Dias da semana (0 = domingo ... 6 = sábado) em que o carrossel da dica sai; nos outros dias não há carrossel.
       dicasDias: lista(env.INSTAGRAM_DICAS_DIAS === undefined ? '2,4,6' : env.INSTAGRAM_DICAS_DIAS).map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6),
       // Horas (0 a 23, de Brasília) em que o robô pode publicar. Fora delas ele espera, para os posts caírem nos horários em que
       // mais gente está online em vez de saírem todos na primeira rodada do dia. Vazio = qualquer hora do horário de postagem.

@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { lerConfig } from '../src/config.ts';
-import { baixarImagemComoDataUri, descontoConfiavel, ganchoDaOferta, hashtagsDaCategoria, montarGancho, montarLegenda, montarRoteiro, montarSvgDoFeed, montarSvgDoStory, nomeDoCanal, quebrarTexto, tituloParaArte } from '../src/social.ts';
-import { layoutDoProduto, temaDaCategoria } from '../src/moldes.ts';
+import { baixarImagemComoDataUri, descontoConfiavel, descontoParaArte, ganchoDaOferta, hashtagsDaCategoria, montarGancho, montarLegenda, montarRoteiro, montarSvgDoFeed, montarSvgDoStory, nomeDoCanal, perguntaDaArte, quebrarTexto, tituloParaArte } from '../src/social.ts';
+import { linhasDaPergunta, MARCA } from '../src/moldes.ts';
 import type { OfertaAvaliada } from '../src/types.ts';
 
 const config = lerConfig({ BLOG_TELEGRAM: 'https://t.me/topfera_achadinhos' });
@@ -11,9 +11,11 @@ const oferta: OfertaAvaliada = {
   link: 'https://exemplo/x', nota: 4.8, vendas: 5000, freteGratis: true, categoria: 'casa', pontos: 10,
 };
 
-test('social: legenda leva preço, canal, aviso de publi e hashtags da categoria', () => {
+test('social: legenda leva o desconto em %, manda o preço para o grupo (sem valor em reais), canal, aviso de publi e hashtags', () => {
   const l = montarLegenda(oferta, config);
-  assert.match(l, /De R\$ 80,00 por R\$ 34,41 \(-57%\)/);
+  assert.doesNotMatch(l, /R\$/, 'nenhum valor em reais na legenda');
+  assert.match(l, /O preço de agora está no grupo/);
+  assert.match(l, /57% abaixo do preço informado pela loja/);
   assert.match(l, /link na bio/);
   assert.match(l, /@topfera_achadinhos/); // sem blog publicado, cai no canal
   const comBlog = { ...config, blog: { ...config.blog, url: 'https://flavianoct.github.io/achadinhos/' } };
@@ -21,7 +23,6 @@ test('social: legenda leva preço, canal, aviso de publi e hashtags da categoria
   assert.ok(!montarLegenda(oferta, comBlog).includes('https://'));
   assert.match(l, /Publi: link de afiliado/);
   assert.match(l.split('\n')[0], /#publi/, 'aviso de publicidade já na primeira linha, antes do "mais"');
-  assert.match(l, /Desconto sobre o preço informado pela loja/);
   assert.match(l, /#cozinha/);
   assert.ok(!l.includes('https://exemplo/x'), 'link não vai na legenda, só na bio');
   assert.equal(nomeDoCanal(config), '@topfera_achadinhos');
@@ -53,13 +54,13 @@ test('social: legenda abre com o gancho, tem no máximo 10 hashtags e mantém #p
   for (const cat of ['tech', 'casa', 'geral', 'pet']) assert.ok(hashtagsDaCategoria(cat).length <= 9 && !hashtagsDaCategoria(cat).includes('#publi'));
 });
 
-test('social: título completo na legenda, sem reticências; "De" some quando o histórico mostra preço inflado', () => {
+test('social: título completo na legenda, sem reticências; o desconto some quando o histórico mostra preço inflado', () => {
   const longo = 'Câmera de Segurança Wi-Fi iCSee/Yoosee A28B 4K Dupla Lente Giratória Visão Noturna Colorida Detecção de Movimento Áudio Bidirecional';
   const l = montarLegenda({ ...oferta, titulo: longo }, config);
   assert.ok(l.includes(longo) && !l.includes('…'));
   const inflado = montarLegenda({ ...oferta, precoDe: 'inflado' }, config);
-  assert.ok(!inflado.includes('De R$ 80,00') && !inflado.includes('(-57%)') && !inflado.includes('preço informado pela loja'));
-  assert.match(inflado, /Por R\$ 34,41/);
+  assert.ok(!inflado.includes('57%') && !inflado.includes('preço informado pela loja'));
+  assert.match(inflado, /O preço de agora está no grupo/);
 });
 
 test('social: título da arte é curto, sem reticências e sem terminar em palavra de ligação', () => {
@@ -80,55 +81,81 @@ test('social: título da arte é curto, sem reticências e sem terminar em palav
   assert.deepEqual(tituloParaArte('Chaleira Elétrica 1,8L', 34), ['Chaleira Elétrica 1,8L'], 'título curto fica como está');
 });
 
-test('social: o selo da arte dá um motivo (menor preço, economia) e, sem nada melhor, mostra a categoria; nunca "OFERTA"', () => {
+test('social: o selo da arte dá um motivo (menor preço, desconto em %) e, sem nada melhor, mostra a categoria; nunca "OFERTA" nem reais', () => {
   const com = { ...oferta, menorPrecoEmDias: 15 };
   assert.match(montarSvgDoStory(com, undefined, config), /MENOR PREÇO EM 15 DIAS/);
   assert.match(montarSvgDoFeed(com, undefined, config), /MENOR PREÇO/);
   assert.deepEqual(ganchoDaOferta(com), { gancho: 'MENOR PREÇO EM 15 DIAS', curto: 'MENOR PREÇO', tipo: 'historico' });
-  assert.deepEqual(ganchoDaOferta(oferta), { gancho: 'ECONOMIZE R$ 46', curto: 'ECONOMIZE R$ 46', tipo: 'economia' }, '80 - 34,41');
-  assert.equal(ganchoDaOferta({ ...oferta, precoOriginal: 1500, preco: 400 }).gancho, 'ECONOMIZE R$ 1.100');
-  // Preço "de" inflado ou economia pequena: cai para a categoria.
+  assert.deepEqual(ganchoDaOferta(oferta), { gancho: 'DESCONTO DE 57%', curto: 'DESCONTO DE 57%', tipo: 'desconto' });
+  assert.equal(ganchoDaOferta({ ...oferta, desconto: undefined }).gancho, 'DESCONTO DE 57%', 'sem o % da loja, calcula pelo preço "de"');
+  assert.equal(descontoParaArte({ ...oferta, desconto: undefined, precoOriginal: 1500, preco: 400 }), 73);
+  // Preço "de" inflado ou desconto pequeno: cai para a categoria.
   assert.equal(ganchoDaOferta({ ...oferta, precoDe: 'inflado' }).gancho, 'CASA E COZINHA');
-  assert.equal(ganchoDaOferta({ ...oferta, precoOriginal: 40 }).tipo, 'categoria');
+  assert.equal(ganchoDaOferta({ ...oferta, precoOriginal: undefined, desconto: 5 }).tipo, 'categoria');
   assert.equal(ganchoDaOferta({ ...oferta, precoOriginal: undefined, desconto: undefined, categoria: 'tech' }).gancho, 'TECNOLOGIA');
   for (const o of [oferta, com, { ...oferta, precoOriginal: undefined }]) {
-    for (const svg of [montarSvgDoStory(o, undefined, config), montarSvgDoFeed(o, undefined, config)]) assert.ok(!svg.includes('>OFERTA<'), 'sem o selo genérico');
+    for (const svg of [montarSvgDoStory(o, undefined, config), montarSvgDoFeed(o, undefined, config)]) {
+      assert.ok(!svg.includes('>OFERTA<'), 'sem o selo genérico');
+      assert.doesNotMatch(svg, /R\$/, 'nenhum valor em reais na arte');
+    }
   }
 });
 
-test('moldes: todo tema e todo layout geram arte válida, com preço, aviso de publi e título escapado', () => {
+test('social: a pergunta da arte é "CAIU MESMO?" quando há motivo e "QUANTO CUSTA AGORA?" quando não há', () => {
+  assert.equal(perguntaDaArte({ ...oferta, menorPrecoEmDias: 9 }), 'CAIU MESMO?');
+  assert.equal(perguntaDaArte(oferta), 'CAIU MESMO?', 'desconto confiável');
+  assert.equal(perguntaDaArte({ ...oferta, precoDe: 'inflado' }), 'QUANTO CUSTA AGORA?', 'sem motivo confiável não promete queda');
+  assert.deepEqual(linhasDaPergunta('CAIU MESMO?'), ['CAIU MESMO?']);
+  assert.deepEqual(linhasDaPergunta('QUANTO CUSTA AGORA?'), ['QUANTO CUSTA', 'AGORA?']);
+});
+
+test('moldes: toda arte da marca é válida, sem preço em reais, com a pergunta, a faixa do grupo, o aviso de publi e o título escapado', () => {
   const categorias = ['tech', 'casa', 'beleza', 'moda', 'esporte', 'games', 'bebe', 'ferramentas', 'pet', 'geral', 'inexistente'];
-  const layouts = new Set<number>();
   for (const categoria of categorias) {
-    for (let i = 0; i < 12; i++) {
-      const o = { ...oferta, categoria, idProduto: `P${i}`, menorPrecoEmDias: i % 2 ? 9 : undefined };
-      layouts.add(layoutDoProduto(o.idProduto));
+    for (let i = 0; i < 6; i++) {
+      const o = { ...oferta, categoria, idProduto: `P${i}`, menorPrecoEmDias: i % 2 ? 9 : undefined, precoDe: i === 4 ? ('inflado' as const) : undefined };
       for (const [svg, w, h] of [[montarSvgDoStory(o, 'data:image/png;base64,AAAA'), 1080, 1920], [montarSvgDoFeed(o, 'data:image/png;base64,AAAA'), 1080, 1350]] as const) {
         assert.match(svg, new RegExp(`^<svg[^>]+width="${w}" height="${h}"`));
-        assert.ok(svg.includes('R$ 34,41') && svg.includes('Publi · link de afiliado') && svg.includes('Link na bio') && svg.includes('ACHADINHOS DO DIA'));
-        assert.ok(!svg.includes('Ofertas no link da bio'), 'sem botão falso: a chamada é texto simples');
+        assert.doesNotMatch(svg, /R\$|34,41|80,00/, 'nenhum valor em reais na arte');
+        assert.ok(svg.includes('MATA') && svg.includes('PREÇO'), 'a marca');
+        assert.ok(svg.includes(MARCA.faixa) && svg.includes(MARCA.faixaCurta), 'a faixa que leva ao grupo');
+        assert.ok(svg.includes('Publi · link de afiliado'), 'aviso de publi');
+        assert.ok(/CAIU MESMO\?|QUANTO CUSTA|AGORA\?/.test(svg), 'a pergunta');
         assert.ok(svg.includes('4,8') && svg.includes('5 mil vendidos') && svg.includes('<polygon'), 'nota, vendas e estrela no próprio card');
         assert.ok(!svg.includes('<INMA>') && svg.includes('&lt;INMA&gt;'), 'título escapado');
         assert.equal(svg.includes('MENOR PREÇO'), i % 2 === 1, 'selo só com histórico confirmado');
+        assert.ok(!svg.includes('ACHADINHOS DO DIA'), 'a marca antiga saiu');
       }
     }
   }
-  assert.deepEqual([...layouts].sort(), [0, 1, 2], 'os três layouts são usados');
-  assert.equal(layoutDoProduto('MLB123'), layoutDoProduto('MLB123'), 'o mesmo produto sempre sai com o mesmo layout');
-  assert.notDeepEqual(temaDaCategoria('tech'), temaDaCategoria('casa'));
-  assert.deepEqual(temaDaCategoria('inexistente'), temaDaCategoria('geral'));
+  // O mesmo produto sai sempre igual (um só layout, sem sorteio).
+  assert.equal(montarSvgDoStory(oferta, undefined), montarSvgDoStory({ ...oferta }, undefined));
 });
 
-test('moldes: preço longo encolhe para caber, preço normal mantém o tamanho', () => {
-  const tamanho = (svg: string, preco: string) => Number(new RegExp(`font-size="(\\d+)"[^>]*>${preco.replace('$', '\\$')}<`).exec(svg)?.[1]);
-  const normal = tamanho(montarSvgDoStory({ ...oferta, preco: 129.9, idProduto: 'X' }), 'R$ 129,90');
-  const longo = tamanho(montarSvgDoStory({ ...oferta, preco: 4299.9, idProduto: 'X' }), 'R$ 4.299,90');
-  assert.ok(normal > 0 && longo > 0 && longo < normal, `normal ${normal}, longo ${longo}`);
+test('moldes: a pergunta comprida quebra em duas linhas e nada passa da largura da arte', () => {
+  const svg = montarSvgDoStory({ ...oferta, precoDe: 'inflado' }, undefined);
+  assert.ok(svg.includes('>QUANTO CUSTA<') && svg.includes('>AGORA?<'));
+  const tamanho = (texto: string) => Number(new RegExp(`font-size="(\\d+)"[^>]*>${texto}<`).exec(svg)?.[1]);
+  assert.ok(tamanho('QUANTO CUSTA') * 'QUANTO CUSTA'.length * 0.7 <= 960, 'a linha cabe nas margens');
 });
 
-test('social: roteiro tem os 4 blocos de tempo', () => {
+test('moldes: título e prova social ficam sempre acima da faixa do grupo, com a pergunta de uma ou de duas linhas e o título de uma ou de duas linhas', () => {
+  const casos = [oferta, { ...oferta, precoDe: 'inflado' as const }, { ...oferta, titulo: 'Fone', precoDe: 'inflado' as const }, { ...oferta, titulo: 'Fone Bluetooth Sem Fio Cancelamento de Ruído Ativo Bateria 30h Compatível', menorPrecoEmDias: 9 }];
+  for (const o of casos) {
+    for (const [svg, yFaixa] of [[montarSvgDoStory(o, undefined), 1660], [montarSvgDoFeed(o, undefined), 1130]] as const) {
+      const linhaDasVendas = /<text x="[\d.]+" y="([\d.]+)"[^>]*>[^<]*5 mil vendidos/.exec(svg);
+      assert.ok(linhaDasVendas, 'a prova social aparece');
+      assert.ok(Number(linhaDasVendas![1]) < yFaixa - 10, `a prova social (y ${linhaDasVendas![1]}) fica acima da faixa (y ${yFaixa})`);
+    }
+  }
+});
+
+test('social: roteiro tem os 4 blocos de tempo e não fala em valor em reais', () => {
   const r = montarRoteiro(oferta, config);
   for (const t of ['0 a 3 s', '3 a 8 s', '8 a 12 s', '12 a 15 s']) assert.ok(r.includes(t), t);
+  assert.match(r, /Caiu mesmo/);
+  assert.match(r, /está no grupo/);
+  assert.ok(!/R\$ ?\d/.test(r), 'sem valor em reais no roteiro');
 });
 
 test('social: arte do Story é um SVG válido de 1080x1920, com texto escapado e foto embutida', () => {
@@ -138,7 +165,7 @@ test('social: arte do Story é um SVG válido de 1080x1920, com texto escapado e
   assert.ok(!svg.includes('<INMA>'));
   assert.ok(svg.includes('data:image/png;base64,AAAA'));
   assert.match(svg, /-57%/);
-  assert.match(svg, /R\$ 34,41/);
+  assert.doesNotMatch(svg, /R\$|34,41/, 'o preço não vai na arte');
   assert.match(svg, /Frete grátis/);
   const semFoto =montarSvgDoStory({ ...oferta, precoOriginal: undefined, desconto: undefined, freteGratis: false }, undefined, config);
   assert.ok(!semFoto.includes('<image'));
@@ -168,7 +195,7 @@ test('social: foto WebP (Mercado Livre) vira JPEG para o conversor de PNG conseg
   assert.equal(await imagemParaPng('data:image/webp;base64,lixo'), undefined);
 });
 
-test('social: preço "de", economia e porcentagem aparecem normalmente; só somem quando o histórico prova que o "de" é inflado', () => {
+test('social: o desconto em % aparece normalmente; só some quando o histórico prova que o "de" é inflado', () => {
   assert.equal(descontoConfiavel(oferta), true);
   assert.equal(descontoConfiavel({ ...oferta, desconto: 65 }), true, 'desconto alto sem histórico continua valendo');
   assert.equal(descontoConfiavel({ ...oferta, maisVendido: true }), true, 'produto do ranking também');
@@ -177,11 +204,12 @@ test('social: preço "de", economia e porcentagem aparecem normalmente; só some
 
   const ranking = { ...oferta, maisVendido: true, desconto: 43, precoOriginal: 78.9, preco: 44.97 };
   const legenda = montarLegenda(ranking, config);
-  assert.match(legenda, /De R\$ 78,90 por R\$ 44,97 \(-43%\)/);
-  assert.match(legenda, /preço informado pela loja/);
+  assert.match(legenda, /43% abaixo do preço informado pela loja/);
+  assert.doesNotMatch(legenda, /R\$/);
   const arte = montarSvgDoStory(ranking, undefined);
-  assert.ok(arte.includes('-43%') && arte.includes('78,90') && arte.includes('44,97'));
-  assert.equal(ganchoDaOferta(ranking).tipo, 'economia');
+  assert.ok(arte.includes('-43%'));
+  assert.doesNotMatch(arte, /78,90|44,97|R\$/);
+  assert.equal(ganchoDaOferta(ranking).tipo, 'desconto');
 });
 test('social: lista de modelos do título (iPhone X 11 12 13 14...) sai da legenda sem cortar títulos normais', () => {
   const l = montarLegenda({ ...oferta, titulo: 'Fone Bluetooth Compatível Com Iphone X Xr 11 12 13 14 15 16 17 Pro Max Sem Fio' }, config);
