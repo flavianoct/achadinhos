@@ -139,10 +139,22 @@ test('moldes: a pergunta comprida quebra em duas linhas e nada passa da largura 
   assert.ok(tamanho('QUANTO CUSTA') * 'QUANTO CUSTA'.length * 0.7 <= 960, 'a linha cabe nas margens');
 });
 
+test('moldes: no Story, a pergunta, o selo e a faixa do grupo ficam na área segura (fora do que o Instagram cobre no topo e na base)', async () => {
+  const { STORY_TOPO_SEGURO, STORY_BASE_SEGURA, svgDoResumoDoDia } = await import('../src/moldes.ts');
+  const ys = (svg: string, texto: string) => [...svg.matchAll(new RegExp(`y="([\\d.]+)"[^>]*>${texto}<`, 'g'))].map((m) => Number(m[1]));
+  for (const svg of [montarSvgDoStory(oferta, undefined), montarSvgDoStory({ ...oferta, precoDe: 'inflado' }, undefined), montarSvgDoStory({ ...oferta, menorPrecoEmDias: 9 }, undefined)]) {
+    for (const t of ['CAIU MESMO\\?', 'QUANTO CUSTA', 'AGORA\\?', 'O PREÇO ESTÁ NO GRUPO', 'ENTRE PELO LINK NA BIO', 'MENOR PREÇO EM 9 DIAS', 'DESCONTO DE 57%', 'Publi · link de afiliado · preço pode mudar']) {
+      for (const y of ys(svg, t)) assert.ok(y > STORY_TOPO_SEGURO && y < STORY_BASE_SEGURA, `${t} em y ${y}`);
+    }
+  }
+  const resumo = svgDoResumoDoDia({ achados: 24, maiorDesconto: 62, noMenorPreco: 5, assuntos: ['Moda'], fotos: ['data:image/png;base64,AAAA'] });
+  for (const t of ['HOJE NO GRUPO', 'ENTRE NO GRUPO', 'É GRÁTIS · LINK NA BIO']) for (const y of ys(resumo, t)) assert.ok(y > STORY_TOPO_SEGURO && y < STORY_BASE_SEGURA, `${t} em y ${y}`);
+});
+
 test('moldes: título e prova social ficam sempre acima da faixa do grupo, com a pergunta de uma ou de duas linhas e o título de uma ou de duas linhas', () => {
   const casos = [oferta, { ...oferta, precoDe: 'inflado' as const }, { ...oferta, titulo: 'Fone', precoDe: 'inflado' as const }, { ...oferta, titulo: 'Fone Bluetooth Sem Fio Cancelamento de Ruído Ativo Bateria 30h Compatível', menorPrecoEmDias: 9 }];
   for (const o of casos) {
-    for (const [svg, yFaixa] of [[montarSvgDoStory(o, undefined), 1660], [montarSvgDoFeed(o, undefined), 1130]] as const) {
+    for (const [svg, yFaixa] of [[montarSvgDoStory(o, undefined), 1470], [montarSvgDoFeed(o, undefined), 1130]] as const) {
       const linhaDasVendas = /<text x="[\d.]+" y="([\d.]+)"[^>]*>[^<]*5 mil vendidos/.exec(svg);
       assert.ok(linhaDasVendas, 'a prova social aparece');
       assert.ok(Number(linhaDasVendas![1]) < yFaixa - 10, `a prova social (y ${linhaDasVendas![1]}) fica acima da faixa (y ${yFaixa})`);

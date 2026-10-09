@@ -157,25 +157,34 @@ const aviso = (y: number, tamanho: number) => `<text x="540" y="${y}" font-size=
 
 // ───────────────────────── Story 1080x1920 ─────────────────────────
 
+/**
+ * Área segura do Story: o Instagram cobre o topo (foto e nome do perfil, uns 250 px) e a base (caixa "Enviar mensagem",
+ * uns 270 px). Tudo o que importa (pergunta, produto, chamada e o aviso de publi) fica entre as duas. O nome da marca
+ * vai embaixo, na área que pode ficar coberta: no topo o próprio Instagram já mostra o perfil.
+ */
+export const STORY_TOPO_SEGURO = 250;
+export const STORY_BASE_SEGURA = 1650;
+const Y_FAIXA_DO_STORY = 1470;
+
 export function svgDoStory(d: DadosDaArte): string {
-  const tamanhoDoGancho = 44;
-  const gancho = pilula(540, 215, 84, larguraDaPilula(d.gancho, tamanhoDoGancho, 300, 900), corDoGancho(d), tamanhoDoGancho, d.gancho, d.ganchoTipo === 'categoria' ? 0.2 : 1);
-  const pergunta = perguntaGrande(d.pergunta, 340, 150);
-  const yFoto = 340 + pergunta.altura + 50;
-  // A foto encolhe se a pergunta ocupar duas linhas: título e prova social precisam caber acima da faixa do grupo (y 1660).
-  const lado = Math.min(760, 1630 - yFoto - (100 + 62 * d.titulo.length + 20 + 50));
-  const yTitulo = yFoto + lado + 100;
+  const tamanhoDoGancho = 42;
+  const gancho = pilula(540, 280, 80, larguraDaPilula(d.gancho, tamanhoDoGancho, 300, 900), corDoGancho(d), tamanhoDoGancho, d.gancho, d.ganchoTipo === 'categoria' ? 0.2 : 1);
+  const pergunta = perguntaGrande(d.pergunta, 390, 135);
+  const yFoto = 390 + pergunta.altura + 36;
+  // A foto se ajusta para título e prova social caberem acima do aviso e da faixa do grupo.
+  const lado = Math.min(700, Y_FAIXA_DO_STORY - 50 - yFoto - (90 + 60 * d.titulo.length + 16 + 44));
+  const yTitulo = yFoto + lado + 90;
   const corpo = `${fundo(1080, 1920)}
-${marca(540, 150, 62, 'centro')}
 ${gancho}
 ${pergunta.svg}
-<rect x="${(1080 - lado) / 2}" y="${yFoto}" width="${lado}" height="${lado}" rx="56" fill="${MARCA.branco}"/>
-${foto(d, (1080 - lado) / 2 + 30, yFoto + 30, lado - 60, lado - 60, 60)}
-${circuloDesconto(d, (1080 + lado) / 2 - 20, yFoto + 40, 100, 66)}
-${linhasDoTitulo(d, 540, yTitulo, 62, 52, MARCA.branco)}
-${apoio(d, 540, yTitulo + 62 * d.titulo.length + 20, 40)}
-${faixaDoGrupo(1660, 190, 62)}
-${aviso(1892, 28)}`;
+<rect x="${(1080 - lado) / 2}" y="${yFoto}" width="${lado}" height="${lado}" rx="52" fill="${MARCA.branco}"/>
+${foto(d, (1080 - lado) / 2 + 28, yFoto + 28, lado - 56, lado - 56, 56)}
+${circuloDesconto(d, (1080 + lado) / 2 - 20, yFoto + 40, 96, 62)}
+${linhasDoTitulo(d, 540, yTitulo, 60, 50, MARCA.branco)}
+${apoio(d, 540, yTitulo + 60 * d.titulo.length + 16, 38)}
+${aviso(Y_FAIXA_DO_STORY - 25, 28)}
+${faixaDoGrupo(Y_FAIXA_DO_STORY, STORY_BASE_SEGURA - Y_FAIXA_DO_STORY, 60)}
+${marca(540, 1760, 48, 'centro')}`;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920" font-family="${FONTE}">\n${corpo}\n</svg>`;
 }
 
@@ -327,24 +336,26 @@ export interface DadosDoResumo {
   fotos: Array<string | undefined>;
 }
 
-/** Story "Hoje no grupo" (1080x1920): o resumo do que o grupo entregou hoje, para dar vontade de entrar. Sem preço. */
+/** Story "Hoje no grupo" (1080x1920): o resumo do que o grupo entregou hoje, para dar vontade de entrar. Sem preço. Respeita a área segura do Story. */
 export function svgDoResumoDoDia(d: DadosDoResumo): string {
   const linhas: Array<[string, string]> = [];
   if (d.maiorDesconto > 0) linhas.push([`${d.maiorDesconto}%`, 'foi o maior desconto']);
-  if (d.noMenorPreco > 0) linhas.push([String(d.noMenorPreco), d.noMenorPreco === 1 ? 'no menor preço do mês' : 'no menor preço do mês']);
+  if (d.noMenorPreco > 0) linhas.push([String(d.noMenorPreco), 'no menor preço do mês']);
   const assuntos = d.assuntos.slice(0, 3).join(' · ');
-  const yLinhas = 760;
+  const yAssuntos = 730 + linhas.length * 130 + 60;
+  const fotos = d.fotos.slice(0, 4);
+  const lado = 200;
   const corpo = `${fundo(1080, 1920)}
-${marca(540, 150, 62, 'centro')}
-${texto(540, 300, 96, MARCA.amarelo, 'HOJE NO GRUPO')}
-${texto(540, 560, 260, MARCA.branco, String(d.achados))}
-${texto(540, 650, 56, MARCA.branco, d.achados === 1 ? 'achado separado' : 'achados separados')}
-${linhas.map(([a, b], i) => linhaDeDestaque(yLinhas + i * 140, a, b)).join('\n')}
-${assuntos ? texto(540, yLinhas + linhas.length * 140 + 70, 40, MARCA.suave, assuntos) : ''}
-${d.fotos.length ? texto(540, 1215, 38, MARCA.suave, 'Alguns achados de hoje') : ''}
-${gradeDeFotos(d.fotos.slice(0, 4), (1080 - (Math.min(d.fotos.length, 4) * 220 + (Math.min(d.fotos.length, 4) - 1) * 20)) / 2, 1250, 220, 20, 4)}
-${faixaEntre(1660, 190, 66)}
-${aviso(1892, 28)}`;
+${texto(540, 370, 92, MARCA.amarelo, 'HOJE NO GRUPO')}
+${texto(540, 600, 230, MARCA.branco, String(d.achados))}
+${texto(540, 680, 54, MARCA.branco, d.achados === 1 ? 'achado separado' : 'achados separados')}
+${linhas.map(([a, b], i) => linhaDeDestaque(730 + i * 130, a, b)).join('\n')}
+${assuntos ? texto(540, yAssuntos, 40, MARCA.suave, assuntos) : ''}
+${fotos.length ? texto(540, yAssuntos + 70, 36, MARCA.suave, 'Alguns achados de hoje') : ''}
+${gradeDeFotos(fotos, (1080 - (fotos.length * lado + Math.max(fotos.length - 1, 0) * 20)) / 2, yAssuntos + 95, lado, 20, 4)}
+${aviso(Y_FAIXA_DO_STORY - 25, 28)}
+${faixaEntre(Y_FAIXA_DO_STORY, STORY_BASE_SEGURA - Y_FAIXA_DO_STORY, 64)}
+${marca(540, 1760, 48, 'centro')}`;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920" font-family="${FONTE}">\n${corpo}\n</svg>`;
 }
 
