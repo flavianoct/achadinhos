@@ -122,16 +122,10 @@ export function descontoParaArte(o: OfertaAvaliada): number {
 
 /**
  * O selo do topo da arte: o motivo para parar o dedo. Prefere o que o histórico do robô prova (menor preço em N dias),
- * depois o desconto em % (só quando o preço "de" não parece inflado) e, sem nada melhor, o assunto do produto.
- * Nunca mostra valor em reais: o preço fica no grupo.
+ * e, sem nada melhor, o assunto do produto. Nunca mostra valor (nem em reais nem em %): o preço fica no grupo.
  */
 export function ganchoDaOferta(o: OfertaAvaliada): { gancho: string; curto: string; tipo: TipoDeGancho } {
   if (o.menorPrecoEmDias) return { gancho: `MENOR PREÇO EM ${o.menorPrecoEmDias} DIAS`, curto: 'MENOR PREÇO', tipo: 'historico' };
-  const desconto = descontoParaArte(o);
-  if (desconto >= 10) {
-    const texto = `DESCONTO DE ${desconto}%`;
-    return { gancho: texto, curto: texto, tipo: 'desconto' };
-  }
   const categoria = ROTULO_DA_CATEGORIA[o.categoria] ?? ROTULO_DA_CATEGORIA.geral!;
   return { gancho: categoria, curto: categoria, tipo: 'categoria' };
 }
@@ -139,9 +133,9 @@ export function ganchoDaOferta(o: OfertaAvaliada): { gancho: string; curto: stri
 /** Perguntas de curiosidade: o preço só aparece no grupo. */
 const PERGUNTAS = ['QUANTO CUSTA AGORA?', 'JÁ VIU ESSE ACHADO?', 'VAI DEIXAR PASSAR?'];
 
-/** A pergunta da arte: "CAIU MESMO?" quando há motivo (menor preço ou desconto confiável); senão, uma pergunta de curiosidade (a mesma para o mesmo produto). */
+/** A pergunta da arte: "CAIU MESMO?" quando o histórico prova a queda; senão, uma pergunta de curiosidade (a mesma para o mesmo produto). */
 export function perguntaDaArte(o: OfertaAvaliada): string {
-  return ganchoDaOferta(o).tipo === 'categoria' ? PERGUNTAS[escolha(o.idProduto, PERGUNTAS.length)]! : 'CAIU MESMO?';
+  return ganchoDaOferta(o).tipo === 'historico' ? 'CAIU MESMO?' : PERGUNTAS[escolha(o.idProduto, PERGUNTAS.length)]!;
 }
 
 /** Gatilhos da etiqueta vermelha da arte (urgência, exclusividade, curiosidade). Nada que invente estoque ou prazo. */
@@ -164,11 +158,9 @@ function escolha(id: string, n: number): number {
 export function montarGancho(o: OfertaAvaliada): string {
   const dias = o.menorPrecoEmDias;
   const queda = Math.round(o.quedaHistorica ?? 0);
-  const desc = descontoConfiavel(o) ? Math.round(o.desconto ?? 0) : 0;
   let opcoes: string[];
   if (dias && queda >= 5) opcoes = [`📉 ${queda}% mais barato que o menor preço dos últimos ${dias} dias`, `📉 Caiu ${queda}% abaixo do nosso menor registro de ${dias} dias`];
   else if (dias) opcoes = [`📉 Menor preço dos últimos ${dias} dias`, `📉 O preço mais baixo que registramos em ${dias} dias`];
-  else if (desc >= 50) opcoes = [`🔥 ${desc}% de desconto neste achado`, `🏷️ Metade do preço ou menos: -${desc}%`];
   else if (o.vendas && o.vendas >= 1000 && o.nota && o.nota >= 4.7) opcoes = [`⭐ Campeão de vendas: ${formatarVendas(o.vendas)} vendidos`, `⭐ Queridinho de quem compra: nota ${o.nota.toFixed(1).replace('.', ',')}`];
   else opcoes = ['🔥 Achado do dia', '🛒 Oferta separada para você'];
   return opcoes[escolha(o.idProduto, opcoes.length)];
@@ -206,10 +198,8 @@ export function montarLegenda(o: OfertaAvaliada, config: Config): string {
   linhas.push(tituloCompleto(o.titulo));
   linhas.push('');
   // O preço em reais não vai na imagem nem na legenda: quem quer saber entra no grupo.
-  const desconto = descontoParaArte(o);
   // Sem grupo de WhatsApp configurado, não promete grupo: manda para o link da bio (blog).
   linhas.push(temWhatsapp(config) ? '💰 O preço de agora está no grupo (link na bio)' : '💰 O preço de agora está no link da bio');
-  if (desconto >= 5) linhas.push(`🏷️ ${desconto}% abaixo do preço informado pela loja`);
   linhas.push(temWhatsapp(config) ? '⏳ Achado assim some rápido: quem está no grupo vê primeiro' : '⏳ Achado assim some rápido: corre ver na bio');
   if (o.freteGratis) linhas.push('🚚 Frete grátis');
   if (o.nota && o.nota > 0) linhas.push(`⭐ ${o.nota.toFixed(1).replace('.', ',')}${o.vendas ? ` · ${formatarVendas(o.vendas)} vendidos` : ''}`);
@@ -225,11 +215,10 @@ export function montarLegenda(o: OfertaAvaliada, config: Config): string {
 
 /** Roteiro de 15 segundos para o Reels/TikTok: gancho, produto, preço, chamada. */
 export function montarRoteiro(o: OfertaAvaliada, config: Config): string {
-  const desconto = descontoParaArte(o);
   return [
     `0 a 3 s (gancho, mostre o produto): "Caiu mesmo? ${titulosCurto(o.titulo, 45)}!"`,
     `3 a 8 s (mostre em uso ou de perto): "${o.nota ? `Nota ${o.nota.toFixed(1).replace('.', ',')}` : 'Bem avaliado'}${o.vendas ? ` e ${formatarVendas(o.vendas)} vendidos` : ''}${o.freteGratis ? ', com frete grátis' : ''}."`,
-    `8 a 12 s (texto grande na tela, sem valor em reais): "${desconto >= 10 ? `${desconto}% abaixo do preço da loja. O preço de agora está no grupo` : 'O preço de agora está no grupo. Quem entra primeiro, vê primeiro'}"`,
+    `8 a 12 s (texto grande na tela, sem valor em reais): "O preço de agora está no grupo. Quem entra primeiro, vê primeiro"`,
     `12 a 15 s (chamada): "O preço de agora está no grupo, link na minha bio." (texto na tela: ${enderecoDoBlog(config)})`,
     'Dica: escreva "publi" ou "link de afiliado" na legenda. Não fale nem mostre o preço em reais: ele fica no grupo.',
   ].join('\n');
@@ -261,7 +250,7 @@ function dadosDaArte(o: OfertaAvaliada, imagem: string | undefined, larguraDoTit
   const g = ganchoDaOferta(o);
   return {
     titulo: tituloParaArte(o.titulo, larguraDoTitulo),
-    desconto: descontoParaArte(o),
+    desconto: 0,
     gatilho: gatilhoDaArte(o),
     freteGratis: Boolean(o.freteGratis),
     foto: imagem,

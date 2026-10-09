@@ -36,7 +36,7 @@ export type TipoDeGancho = 'historico' | 'desconto' | 'categoria';
 export interface DadosDaArte {
   /** Linhas do título já quebradas (sem escapar). */
   titulo: string[];
-  /** Desconto em % (0 = sem). Nunca valor em reais. */
+  /** Não usado: a arte não mostra valor nenhum (nem em reais nem em %). */
   desconto: number;
   /** Gatilho da etiqueta vermelha inclinada ("CORRE!", "SÓ NO GRUPO"...). */
   gatilho?: string;
@@ -129,21 +129,13 @@ function perguntaGrande(pergunta: string, yTopo: number, base: number): { svg: s
   return { svg, altura: Math.round(tamanho * 0.95 + (linhas.length - 1) * passo) };
 }
 
-/** Etiqueta de desconto: vermelha, inclinada e com sombra, como no molde da marca. `cx`/`cy` é o centro e `r` o tamanho. */
+/** Etiqueta vermelha inclinada com um gatilho (urgência, exclusividade), como no molde da marca. `cx`/`cy` é o centro e `r` o tamanho. */
 function circuloDesconto(d: DadosDaArte, cx: number, cy: number, r: number, tamanho: number): string {
-  if (!d.desconto) return '';
-  const l = Math.round(r * 2.5);
-  const h = Math.round(r * 1.3);
-  return `<g transform="rotate(-6 ${cx} ${cy})"><rect x="${cx - l / 2}" y="${cy - h / 2 + 8}" width="${l}" height="${h}" rx="18" fill="#A80400"/><rect x="${cx - l / 2}" y="${cy - h / 2}" width="${l}" height="${h}" rx="18" fill="${MARCA.vermelho}"/>${texto(cx, cy + tamanho * 0.34, tamanho, MARCA.branco, `-${d.desconto}%`, ' font-style="italic"')}</g>`;
-}
-
-/** Gatilho (urgência, exclusividade): etiqueta amarela pequena no canto de cima da foto. `xEsq` é o canto esquerdo e `cy` o centro. */
-function etiquetaDeGatilho(d: DadosDaArte, xEsq: number, cy: number, tamanho: number): string {
   if (!d.gatilho) return '';
-  const l = Math.round(d.gatilho.length * tamanho * 0.62 + 44);
-  const h = Math.round(tamanho * 1.9);
-  const cx = xEsq + l / 2;
-  return `<g transform="rotate(-6 ${cx} ${cy})"><rect x="${xEsq}" y="${cy - h / 2}" width="${l}" height="${h}" rx="12" fill="${MARCA.amarelo}"/>${texto(cx, cy + tamanho * 0.34, tamanho, MARCA.f1, d.gatilho, ' font-style="italic"')}</g>`;
+  const fonte = Math.round(tamanho * (d.gatilho.length > 10 ? 0.62 : 0.85));
+  const l = Math.min(520, Math.max(Math.round(r * 2.4), Math.round(d.gatilho.length * fonte * 0.62 + 56)));
+  const h = Math.round(r * 1.1);
+  return `<g transform="rotate(-6 ${cx} ${cy})"><rect x="${cx - l / 2}" y="${cy - h / 2 + 8}" width="${l}" height="${h}" rx="18" fill="#A80400"/><rect x="${cx - l / 2}" y="${cy - h / 2}" width="${l}" height="${h}" rx="18" fill="${MARCA.vermelho}"/>${texto(cx, cy + fonte * 0.34, fonte, MARCA.branco, d.gatilho, ' font-style="italic"')}</g>`;
 }
 
 function foto(d: DadosDaArte, x: number, y: number, w: number, h: number, tamanhoSemFoto: number): string {
@@ -212,7 +204,6 @@ ${pergunta.svg}
 <rect x="${(1080 - lado) / 2}" y="${yFoto}" width="${lado}" height="${lado}" rx="52" fill="${MARCA.branco}"/>
 ${foto(d, (1080 - lado) / 2 + 28, yFoto + 28, lado - 56, lado - 56, 56)}
 ${circuloDesconto(d, (1080 + lado) / 2 - 20, yFoto + 40, 96, 62)}
-${etiquetaDeGatilho(d, (1080 - lado) / 2 + 24, yFoto + lado - 56, 30)}
 ${linhasDoTitulo(d, 540, yTitulo, 60, 50, MARCA.branco)}
 ${apoio(d, 540, yTitulo + 60 * d.titulo.length + 16, 38)}
 ${aviso(Y_FAIXA_DO_STORY - 25, 28)}
@@ -239,7 +230,6 @@ ${pergunta.svg}
 <rect x="${(1080 - lado) / 2}" y="${yFoto}" width="${lado}" height="${lado}" rx="44" fill="${MARCA.branco}"/>
 ${foto(d, (1080 - lado) / 2 + 24, yFoto + 24, lado - 48, lado - 48, 52)}
 ${circuloDesconto(d, (1080 + lado) / 2 - 20, yFoto + 36, 80, 52)}
-${etiquetaDeGatilho(d, (1080 - lado) / 2 + 22, yFoto + lado - 50, 26)}
 ${linhasDoTitulo(d, 540, yTitulo, 52, 44, MARCA.branco)}
 ${apoio(d, 540, yTitulo + 52 * d.titulo.length + 14, 34)}
 ${faixaDoGrupo(1130, 160, 52)}
