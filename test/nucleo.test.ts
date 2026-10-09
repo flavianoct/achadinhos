@@ -163,7 +163,7 @@ test('mensagem: formatação, escape de HTML e limite do Telegram', () => {
   assert.ok(m.includes('Menor preço em 12 dias'));
   assert.ok(m.includes('Frete grátis'));
   assert.ok(m.includes('https://x/?a=1&amp;b=2'));
-  assert.ok(m.includes('#tech'));
+  assert.ok(!m.includes('#'), 'sem hashtag no Telegram');
 
   const longa = montarMensagem({ ...o, titulo: 'x'.repeat(900), link: `https://x/${'y'.repeat(300)}` });
   assert.ok(longa.length <= 1024, `legenda com ${longa.length} caracteres`);

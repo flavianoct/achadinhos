@@ -54,7 +54,8 @@ export function montarMensagem(o: OfertaAvaliada): string {
   linhas.push('');
   linhas.push(`👉 ${escaparHtml(o.link)}`);
   linhas.push('');
-  linhas.push(`#${o.categoria} · <i>preço pode mudar a qualquer momento</i>`);
+  // Sem "#categoria": no Telegram vira hashtag clicável e abre uma busca de conteúdo aleatório.
+  linhas.push('<i>Preço pode mudar a qualquer momento</i>');
   return linhas.join('\n');
 }
 
