@@ -7,7 +7,8 @@ import { FonteMercadoLivre } from './fontes/mercadolivre.ts';
 import { FonteMercadoLivreApi } from './fontes/mercadolivre-api.ts';
 import { FonteShopee } from './fontes/shopee.ts';
 import { conviteDeHoje } from './convite.ts';
-import { lerCupons } from './cupons.ts';
+import { chaveDoCupom, lerCupons } from './cupons.ts';
+import { garimparCupons, type ResultadoDoGarimpo } from './garimpo-cupons.ts';
 import { buscarCampanhas, buscarVendas } from './shopee-extra.ts';
 import { atualizarVendas, coletar, postarCampanha, postarProxima, postarProximoCupom, type ResultadoDaCampanha, type ResultadoDoCupom, type ResultadoDoPost, type ResumoDaColeta } from './pipeline.ts';
 import { Telegram, type Publicador } from './telegram.ts';
@@ -29,6 +30,8 @@ export interface OpcoesDoRobo {
   criarFontes?: (config: Config) => Fonte[];
   criarPublicador?: (config: Config) => Publicador & { checar?: (destino?: string) => Promise<string> };
   silencioso?: boolean;
+  /** Troca o garimpo de cupons (os testes não vão à internet). */
+  garimparCupons?: (config: Config, agora: Date) => Promise<ResultadoDoGarimpo>;
 }
 
 function fontesReais(config: Config): Fonte[] {
@@ -202,10 +205,19 @@ export class Robo {
       if (!this.publicador) return { resultado: { postou: false, motivo: 'erro', detalhe: 'Telegram não configurado' } as ResultadoDoCupom, avisos: [] };
       const arquivo = this.config.cupons.arquivo;
       const lido = lerCupons(existsSync(arquivo) ? readFileSync(arquivo, 'utf8') : '');
-      const resultado = await postarProximoCupom(this.publicador, this.banco, lido.cupons, this.config, agora);
+      const avisos = [...lido.avisos];
+      let cupons = lido.cupons;
+      // Garimpo: busca cupons nas páginas públicas (só quando ainda cabe um cupom hoje) e junta aos seus. Os seus vêm primeiro.
+      if (this.config.cupons.garimpo && this.banco.cuponsNoDia(agora) < this.config.cupons.porDia) {
+        const garimpo = await (this.opcoes.garimparCupons ?? garimparCupons)(this.config, agora);
+        avisos.push(...garimpo.avisos);
+        const jaTem = new Set(cupons.map((c) => chaveDoCupom(c)));
+        cupons = [...cupons, ...garimpo.cupons.filter((c) => !jaTem.has(chaveDoCupom(c)))];
+      }
+      const resultado = await postarProximoCupom(this.publicador, this.banco, cupons, this.config, agora);
       if (resultado.postou) this.log(`cupom postado: [${resultado.cupom.loja}] ${resultado.cupom.titulo.slice(0, 60)}`);
       else if (resultado.motivo === 'erro') this.log(`ERRO ao postar cupom: ${resultado.detalhe}`);
-      return { resultado, avisos: lido.avisos };
+      return { resultado, avisos };
     });
   }
 

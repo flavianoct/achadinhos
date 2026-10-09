@@ -108,7 +108,19 @@ O robô pega os mais vendidos de cada categoria. Como essa listagem não traz "o
 
 ## Cupons (Mercado Livre e Shopee)
 
-O robô posta no Telegram os cupons que você cadastrar no arquivo `cupons.json` (na raiz do repositório). Ele não busca cupom sozinho: cupom vencido ou com código errado prejudica a confiança do canal, então o código e a validade vêm de você.
+O robô posta no Telegram cupons de duas origens: os que você cadastrar no arquivo `cupons.json` (na raiz do repositório) e os que ele **garimpa sozinho**.
+
+**Garimpo automático** (`CUPONS_GARIMPO=1`, ligado por padrão). Nem o Mercado Livre nem a Shopee têm API de cupom para afiliado, então o robô lê as páginas públicas de cupons do Promobit e só aproveita o que passa em travas rígidas, porque cupom inválido queima a confiança do canal:
+- cupom **com código**: só se o site marcou como verificado, o código parece de verdade (nada de "DESCONTO", "ECONOMIA", "RESGATENOLINK"...) e a validade não passou;
+- cupom de **ativar na página** (sem código): só com data de validade futura e um benefício concreto (R$ ou %) no título;
+- **cashback não é cupom** e fica de fora; entram no máximo 4 cupons por loja, os mais recentes, e o mesmo cupom não repete antes de `CUPONS_REPETIR_DIAS`;
+- o link do post é sempre o **seu** de afiliado: no Mercado Livre sai dos seus `ML_MATT_WORD`/`ML_MATT_TOOL` (leva à página de cupons da loja); na Shopee você informa o seu link da página de cupons em `CUPONS_LINK_SHOPEE` (sem ele, a Shopee fica de fora e o painel avisa);
+- `CUPONS_BLOQUEAR` descarta qualquer cupom que tenha uma dessas palavras no código ou no título (ex.: `primeira compra`);
+- problemas (site fora do ar, página que mudou de formato) aparecem só na seção **Avisos do robô** do painel, nunca no canal.
+
+Os cupons dos sites de terceiros não têm garantia: vale conferir de vez em quando o que o robô postou. Os seus, do `cupons.json`, sempre têm prioridade, e o limite por dia (`CUPONS_POR_DIA`) vale para os dois juntos.
+
+Para os **seus** cupons:
 
 Para cadastrar, abra `cupons.json` no GitHub (ícone do lápis), escreva a lista e salve. Vale na próxima execução:
 
