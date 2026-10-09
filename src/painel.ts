@@ -76,7 +76,7 @@ export const CAMPOS: Campo[] = [
   { grupo: 'Cupons e campanhas', chave: 'VENDAS_DIAS', rotulo: 'Vendas dos últimos (dias)', tipo: 'numero', padrao: '30' },
 
   { grupo: 'Blog', chave: 'BLOG_ATIVO', rotulo: 'Gerar o blog automaticamente', tipo: 'simnao', padrao: '0' },
-  { grupo: 'Blog', chave: 'BLOG_NOME', rotulo: 'Nome do blog', tipo: 'texto', padrao: 'Achadinhos do Dia' },
+  { grupo: 'Blog', chave: 'BLOG_NOME', rotulo: 'Nome do blog', tipo: 'texto', padrao: 'Mata Preço' },
   { grupo: 'Blog', chave: 'BLOG_URL', rotulo: 'Endereço público', tipo: 'texto', padrao: '', ajuda: 'Ex.: https://seuusuario.github.io/achadinhos. Preencha depois de publicar.' },
   { grupo: 'Blog', chave: 'BLOG_HORAS', rotulo: 'Refazer a cada (horas)', tipo: 'numero', padrao: '6' },
   { grupo: 'Blog', chave: 'BLOG_IA', rotulo: 'Quem escreve os posts', tipo: 'opcao', padrao: 'nenhuma', opcoes: [{ valor: 'nenhuma', rotulo: 'Texto padrão (sem IA)' }, { valor: 'ollama', rotulo: 'IA local e gratuita (Ollama)' }, { valor: 'github', rotulo: 'IA gratuita do GitHub (precisa de token)' }, { valor: 'gemini', rotulo: 'IA gratuita do Google Gemini (precisa de chave)' }], ajuda: 'Com a IA, ela escreve a abertura, um parágrafo por produto e o fechamento.' },

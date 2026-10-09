@@ -4,11 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<title>Configurar o robô</title>
+<title>Configurar o Mata Preço</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20200%20200%22%3E%3Cg%20transform%3D%22translate(0%200)%20scale(1)%22%3E%3Crect%20width%3D%22200%22%20height%3D%22200%22%20rx%3D%2244%22%20fill%3D%22%23E10600%22%2F%3E%3Cg%20transform%3D%22translate(22%2022)%20scale(.78)%22%3E%3Cg%20transform%3D%22rotate(-18%20100%20100)%22%3E%3Cpath%20d%3D%22M26%20100%20L74%2050%20H164%20Q176%2050%20176%2062%20V138%20Q176%20150%20164%20150%20H74%20Z%22%20fill%3D%22%23ffffff%22%20stroke%3D%22%23ffffff%22%20stroke-width%3D%2210%22%20stroke-linejoin%3D%22round%22%2F%3E%3Ccircle%20cx%3D%2270%22%20cy%3D%22100%22%20r%3D%2210%22%20fill%3D%22%23E10600%22%2F%3E%3C%2Fg%3E%3Cpath%20d%3D%22M128%2010%20L82%20106%20H112%20L90%20190%20L154%2084%20H122%20L146%2010%20Z%22%20fill%3D%22%23FFD60A%22%20stroke%3D%22%23E10600%22%20stroke-width%3D%2210%22%20stroke-linejoin%3D%22round%22%20paint-order%3D%22stroke%22%2F%3E%3C%2Fg%3E%3C%2Fg%3E%3C%2Fsvg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@1,800;1,900&family=Barlow:wght@400;500;600;700;800&display=swap">
 <style>
-:root{--bg:#f5f6f8;--card:#fff;--tx:#1b1f27;--mut:#667085;--bd:#e4e7ec;--ok:#12805c;--okbg:#e3f5ee;--av:#a15c07;--avbg:#fdf0d9;--er:#b42318;--erbg:#fde7e4;--ac:#2457d6;--acbg:#e8eefc}
-@media(prefers-color-scheme:dark){:root{--bg:#0f1218;--card:#181c25;--tx:#eceff4;--mut:#98a2b3;--bd:#2a3040;--ok:#4cc79a;--okbg:#12362b;--av:#f0b44c;--avbg:#3a2c0e;--er:#ff8a7e;--erbg:#3d1714;--ac:#7da2ff;--acbg:#1c2744}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+.mp-barra{display:flex;align-items:center;gap:6px;background:#0E0E10;color:#fff;border-radius:14px;padding:8px 16px;margin-bottom:16px;font-size:28px}.mp-barra small{margin-left:auto;font:700 11px/1 Barlow,system-ui,sans-serif;letter-spacing:.18em;text-transform:uppercase;background:#FFD60A;color:#0E0E10;padding:6px 9px 5px 11px;border-radius:6px}.marca-nome{font-family:"Barlow Condensed","Arial Narrow",Impact,sans-serif;font-style:italic;font-weight:900;text-transform:uppercase;letter-spacing:-.01em;line-height:1;white-space:nowrap}.risco{position:relative;display:inline-block;color:#FFD60A}.risco::after{content:"";position:absolute;left:-4%;right:-4%;top:46%;height:.09em;background:#E10600;border-radius:.05em;transform:rotate(-5deg);box-shadow:0 0 0 .03em #0E0E10}
+:root{--fundo:#0E0E10;--bg:#f5f6f8;--card:#fff;--tx:#1b1f27;--mut:#667085;--bd:#e4e7ec;--ok:#12805c;--okbg:#e3f5ee;--av:#a15c07;--avbg:#fdf0d9;--er:#b42318;--erbg:#fde7e4;--ac:#E10600;--acbg:#fde7e6}
+@media(prefers-color-scheme:dark){:root{--bg:#0E0E10;--card:#17171B;--tx:#fff;--mut:#A9A9B3;--bd:#2A2A31;--ok:#4cc79a;--okbg:#12362b;--av:#FFD60A;--avbg:#3a2c0e;--er:#ff8a7e;--erbg:#3d1714;--ac:#FF3B30;--acbg:#2A1110}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.5 Barlow,system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
 main{max-width:1000px;margin:0 auto;padding:20px 16px 120px}
 h1{font-size:22px;margin:0 0 4px}h2{font-size:16px;margin:28px 0 10px}
 .sub,.nota{color:var(--mut);font-size:13px}
@@ -44,6 +47,7 @@ a{color:var(--ac)}
 </head>
 <body>
 <main>
+<div class="mp-barra"><svg class="logo" viewBox="0 0 200 200" width="40" height="40" aria-hidden="true"><g transform="rotate(-18 100 100)"><path d="M26 100 L74 50 H164 Q176 50 176 62 V138 Q176 150 164 150 H74 Z" fill="#E10600" stroke="#E10600" stroke-width="10" stroke-linejoin="round"/><circle cx="70" cy="100" r="10" fill="#0E0E10"/></g><path d="M128 10 L82 106 H112 L90 190 L154 84 H122 L146 10 Z" fill="#FFD60A" stroke="#0E0E10" stroke-width="10" stroke-linejoin="round" paint-order="stroke"/></svg><span class="marca-nome">Mata <span class="risco">Preço</span></span><small>Configurar</small></div>
 <h1>Configurar o robô</h1>
 <div class="sub">Mude com seletores e salve no GitHub. Esta página não guarda senha nem chave e não altera nada sozinha: o botão copia o arquivo novo e abre o editor do GitHub, onde só você (logado) consegue salvar. <a href="painel.html">Voltar ao painel</a></div>
 <div id="estado" class="aviso">Carregando os ajustes atuais do GitHub…</div>

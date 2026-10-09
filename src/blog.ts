@@ -10,6 +10,7 @@ import { tituloParaArte } from './social.ts';
 import { chaveDoProduto, escolherParaGuia, perguntasDoGuia, TIPOS_DE_GUIA, type PerguntaFrequente, type ProdutoDoGuia, type TipoDeGuia } from './guias.ts';
 import { formatarPreco, formatarVendas } from './mensagem.ts';
 import type { OfertaAvaliada } from './types.ts';
+import { FONTES, ICONE, estiloDaMarca, nomeDaMarca, simbolo, simboloNoQuadro } from './marca.ts';
 
 type Fetch = typeof fetch;
 type Esperar = (ms: number) => Promise<void>;
@@ -220,8 +221,8 @@ interface Site {
   amazon: AchadoDaAmazon[];
 }
 
-const ICONE_DO_SITE = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23d6336c'/%3E%3Cpath d='M8 17l8-8h8v8l-8 8z' fill='%23fff'/%3E%3Ccircle cx='20.5' cy='11.5' r='2' fill='%23d6336c'/%3E%3C/svg%3E";
-const LOGO = '<svg class="logo" viewBox="0 0 32 32" width="30" height="30" aria-hidden="true"><rect width="32" height="32" rx="8" fill="currentColor"/><path d="M8 17l8-8h8v8l-8 8z" fill="#fff"/><circle cx="20.5" cy="11.5" r="2" fill="currentColor"/></svg>';
+const ICONE_DO_SITE = ICONE;
+const LOGO = simbolo(34);
 
 type Trilha = Array<[string, string?]>;
 
@@ -267,8 +268,8 @@ function moldura(site: Site, p: { arquivo: string; titulo: string; tituloSeo?: s
 <title>${esc(tituloCompleto)}</title>
 <meta name="description" content="${esc(descricao)}">
 <meta name="robots" content="${p.arquivo === '404.html' ? 'noindex' : 'index,follow,max-image-preview:large'}">
-<meta name="theme-color" content="#d6336c">
-<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#0E0E10">
+<meta name="color-scheme" content="dark">
 <link rel="icon" href="${ICONE_DO_SITE}">
 ${canonica ? `<link rel="canonical" href="${esc(canonica)}">` : ''}
 <meta property="og:site_name" content="${esc(b.nome)}">
@@ -284,6 +285,7 @@ ${imagem ? `<meta property="og:image" content="${esc(imagem)}">` : ''}
 ${imagem ? `<meta name="twitter:image" content="${esc(imagem)}">` : ''}
 ${b.url ? `<link rel="alternate" type="application/rss+xml" title="${esc(b.nome)}" href="${esc(`${b.url}/feed.xml`)}">` : ''}
 <link rel="preconnect" href="https://http2.mlstatic.com" crossorigin>
+${FONTES}
 <link rel="stylesheet" href="estilo.css?v=${VERSAO_DO_ESTILO}">
 ${ld ? `<script type="application/ld+json">${JSON.stringify(ld).replace(/</g, '\\u003c')}</script>` : ''}
 </head>
@@ -291,7 +293,7 @@ ${ld ? `<script type="application/ld+json">${JSON.stringify(ld).replace(/</g, '\
 <a class="pular" href="#conteudo">Pular para o conteúdo</a>
 <header class="topo">
   <div class="topo-miolo">
-    <a class="marca" href="index.html">${LOGO}<span>${esc(b.nome)}</span></a>
+    <a class="marca" href="index.html">${LOGO}${nomeDaMarca(esc(b.nome))}</a>
     <nav aria-label="Seções">${nav}</nav>
   </div>
 </header>
@@ -302,7 +304,7 @@ ${migalhas}${p.corpo}
 <footer class="rodape">
   <div class="rodape-miolo">
     <div class="rodape-marca">
-      <p class="rodape-nome">${LOGO}<span>${esc(b.nome)}</span></p>
+      <p class="rodape-nome">${LOGO}${nomeDaMarca(esc(b.nome))}</p>
       <p>Guias de compra e ofertas das lojas parceiras, com nota, vendas e histórico de preço, atualizados a cada 30 minutos.</p>
     </div>
     <div>
@@ -714,19 +716,19 @@ function paginaDoArquivo(site: Site): string {
   return moldura(site, { arquivo: 'arquivo.html', titulo: 'Arquivo de posts', descricao: `Arquivo de ofertas do ${site.config.blog.nome}: todos os posts por dia, com os preços do dia em que foram escritos e o histórico de preço.`, corpo, trilha: [['Arquivo']], largo: true });
 }
 
-const ESTILO = `:root{--fundo:#f6f7f9;--cartao:#fff;--texto:#111827;--suave:#5b6474;--borda:#e4e7ee;--borda-forte:#cfd5e1;--cor:#d6336c;--cor-forte:#b5214f;--cor-texto:#fff;--cor-suave:#fdecf2;--ok:#0b7a52;--ok-fundo:#e6f6ef;--aviso-fundo:#fff4d6;--aviso:#7a4a00;--estrela:#f08c00;--sombra:0 1px 2px rgba(16,24,40,.05),0 6px 18px rgba(16,24,40,.06);--sombra-forte:0 2px 4px rgba(16,24,40,.06),0 16px 36px rgba(16,24,40,.10);--raio:16px}
-@media (prefers-color-scheme:dark){:root{--fundo:#0b0d12;--cartao:#141821;--texto:#eef0f5;--suave:#9aa3b3;--borda:#232837;--borda-forte:#323a4f;--cor:#f06595;--cor-forte:#ff8fb3;--cor-texto:#13151b;--cor-suave:#2a1823;--ok:#4cd694;--ok-fundo:#10281e;--aviso-fundo:#3a2c0c;--aviso:#f2c261;--estrela:#ffd43b;--sombra:none;--sombra-forte:0 12px 32px rgba(0,0,0,.40)}}
+const ESTILO = `:root{color-scheme:dark;--fundo:#0E0E10;--cartao:#17171B;--texto:#fff;--suave:#A9A9B3;--borda:#2A2A31;--borda-forte:#3A3A42;--cor:#E10600;--cor-forte:#FFD60A;--cor-texto:#fff;--cor-suave:#2A1110;--ok:#4cd694;--ok-fundo:#10281e;--aviso-fundo:#3a2c0c;--aviso:#f2c261;--estrela:#FFD60A;--sombra:none;--sombra-forte:0 12px 32px rgba(0,0,0,.45);--raio:16px}
+${estiloDaMarca()}
 *{box-sizing:border-box}
 html{scroll-behavior:smooth;scroll-padding-top:76px}
-body{margin:0;background:var(--fundo);color:var(--texto);font:16px/1.65 system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+body{margin:0;background:var(--fundo);color:var(--texto);font:16px/1.65 Barlow,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 a{color:var(--cor-forte)}
 img{max-width:100%}
 .pular{position:absolute;left:-999px;top:8px;background:var(--texto);color:var(--fundo);padding:8px 12px;border-radius:8px;z-index:20}
 .pular:focus{left:8px}
 .topo{position:sticky;top:0;z-index:10;background:color-mix(in srgb,var(--cartao) 88%,transparent);backdrop-filter:saturate(1.4) blur(10px);border-bottom:1px solid var(--borda)}
 .topo-miolo{max-width:1120px;margin:0 auto;padding:12px 20px;display:flex;align-items:center;gap:8px 22px;flex-wrap:wrap}
-.marca{display:flex;align-items:center;gap:10px;font-weight:800;font-size:1.15rem;color:var(--texto);text-decoration:none;letter-spacing:-.015em}
-.logo{color:var(--cor);flex:none}
+.marca{display:flex;align-items:center;gap:6px;font-size:1.7rem;color:var(--texto);text-decoration:none}
+.logo{flex:none}
 nav[aria-label="Seções"]{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;flex:1;min-width:0}
 nav[aria-label="Seções"]::-webkit-scrollbar{display:none}
 nav[aria-label="Seções"] a{white-space:nowrap;padding:7px 14px;border-radius:999px;color:var(--suave);text-decoration:none;font-size:.9rem;font-weight:600;transition:background .12s,color .12s}
@@ -738,7 +740,7 @@ main.largo{max-width:1120px}
 .trilha a{color:var(--suave)}
 h1{font-size:clamp(1.7rem,4.4vw,2.4rem);line-height:1.12;letter-spacing:-.025em;margin:6px 0 10px}
 h2{line-height:1.25}
-.secao{display:flex;align-items:center;gap:12px;font-size:1.4rem;margin:44px 0 18px;letter-spacing:-.015em}
+.secao{display:flex;align-items:center;gap:12px;font:italic 900 2rem/1 "Barlow Condensed","Arial Narrow",Impact,sans-serif;text-transform:uppercase;margin:44px 0 18px}
 .secao::before{content:"";flex:none;width:5px;height:1.15em;border-radius:3px;background:var(--cor)}
 .data{color:var(--suave);margin:0 0 16px;font-size:.875rem}
 .data a{color:var(--suave)}
@@ -746,7 +748,7 @@ h2{line-height:1.25}
 .antigo{background:var(--aviso-fundo);color:var(--aviso);border-radius:12px;padding:12px 16px;margin:0 0 18px}
 .antigo a{color:inherit;font-weight:700}
 .hero{position:relative;overflow:hidden;display:grid;grid-template-columns:1.2fr .8fr;gap:28px 36px;align-items:center;background:radial-gradient(760px 280px at 92% -12%,color-mix(in srgb,var(--cor) 26%,transparent),transparent 62%),linear-gradient(140deg,var(--cor-suave),var(--cartao) 70%);border:1px solid var(--borda);border-radius:26px;padding:clamp(24px,5vw,52px);margin:4px 0 16px;box-shadow:var(--sombra-forte)}
-.hero-texto h1{font-size:clamp(1.9rem,4.8vw,3rem);max-width:17ch;margin:0 0 16px;line-height:1.06;letter-spacing:-.032em}
+.hero-texto h1{font:italic 900 clamp(2.6rem,6.4vw,4.2rem)/.92 "Barlow Condensed","Arial Narrow",Impact,sans-serif;text-transform:uppercase;max-width:15ch;margin:0 0 16px}
 .hero-texto p{margin:0 0 24px;max-width:50ch;color:var(--suave);font-size:1.08rem}
 .hero-acoes{display:flex;flex-wrap:wrap;gap:12px}
 .hero-painel{display:grid;gap:14px}
@@ -788,7 +790,7 @@ h2{line-height:1.25}
 .grafico svg{display:block}
 .grafico figcaption{color:var(--suave);font-size:.75rem}
 .botao{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:46px;padding:0 24px;background:var(--cor);color:var(--cor-texto);font-weight:700;text-decoration:none;border-radius:12px;box-shadow:0 1px 0 rgba(0,0,0,.10),0 8px 18px color-mix(in srgb,var(--cor) 26%,transparent);transition:transform .12s,background .12s,box-shadow .12s}
-.botao:hover{background:var(--cor-forte);transform:translateY(-1px)}
+.botao:hover{background:#A80400;transform:translateY(-1px)}
 .cartao .botao{align-self:flex-start;margin-top:4px}
 .cartao .botao::after{content:"\\2197";font-weight:700}
 .botao.claro{background:var(--cartao);color:var(--texto);border:1px solid var(--borda-forte);box-shadow:none}
@@ -869,7 +871,7 @@ h1+.intro,h1+.data{margin-top:14px}
 .rodape{margin-top:48px;border-top:1px solid var(--borda);background:var(--cartao);color:var(--suave);font-size:.86rem}
 .rodape-miolo{max-width:1120px;margin:0 auto;padding:36px 20px 40px;display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:28px 40px}
 .rodape p{margin:0 0 10px}
-.rodape-nome{display:flex;align-items:center;gap:9px;font-weight:800;color:var(--texto);font-size:1.05rem}
+.rodape-nome{display:flex;align-items:center;gap:6px;color:var(--texto);font-size:1.6rem}
 .rodape-titulo{font-weight:800;color:var(--texto);font-size:.8rem;text-transform:uppercase;letter-spacing:.06em;margin:0 0 12px}
 .rodape-links{display:flex;flex-direction:column;gap:8px}
 .rodape-aviso{grid-column:1/-1;border-top:1px solid var(--borda);padding-top:20px}
@@ -1212,12 +1214,11 @@ async function gravarImagemPadrao(pasta: string, nome: string): Promise<boolean>
     const { Resvg } = await import('@resvg/resvg-js');
     const marca = nome.replace(/[&<>"]/g, '');
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" font-family="Liberation Sans, DejaVu Sans, Arial, sans-serif">
-<defs><linearGradient id="f" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#d6336c"/><stop offset="1" stop-color="#6d1033"/></linearGradient></defs>
-<rect width="1200" height="630" fill="url(#f)"/>
-<rect x="90" y="90" width="110" height="110" rx="28" fill="#ffffff"/><path d="M118 152l32-32h32v32l-32 32z" fill="#d6336c"/><circle cx="170" cy="130" r="8" fill="#ffffff"/>
-<text x="90" y="330" font-size="92" font-weight="700" fill="#ffffff">${marca}</text>
-<text x="90" y="420" font-size="44" fill="#ffe3ec">Guias de compra e ofertas do dia,</text>
-<text x="90" y="480" font-size="44" fill="#ffe3ec">com nota, vendas e histórico de preço.</text>
+<rect width="1200" height="630" fill="#0E0E10"/><rect y="610" width="1200" height="20" fill="#FFD60A"/>
+${simboloNoQuadro(90, 80, 130)}
+<text x="90" y="340" font-size="104" font-weight="700" font-style="italic" fill="#ffffff">${marca.toUpperCase()}</text>
+<text x="90" y="430" font-size="44" fill="#A9A9B3">Guias de compra e ofertas do dia,</text>
+<text x="90" y="490" font-size="44" fill="#A9A9B3">com nota, vendas e histórico de preço.</text>
 </svg>`;
     writeFileSync(join(pasta, 'og-padrao.png'), Buffer.from(new Resvg(svg, { font: { loadSystemFonts: true, defaultFontFamily: 'Liberation Sans' }, fitTo: { mode: 'width', value: 1200 } }).render().asPng()));
     return true;

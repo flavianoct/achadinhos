@@ -1,0 +1,16 @@
+<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="brand.css">
+<style>
+  body { width: 1024px; height: 1024px; overflow: hidden; background: radial-gradient(circle at 50% 38%, #FF2A1F 0%, var(--red) 45%, var(--red-dark) 100%); display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  body.preto { background: radial-gradient(circle at 50% 38%, #26262C 0%, var(--black) 70%); }
+  .sym { width: 430px; height: 430px; margin-top: -30px; }
+  .wm { font-size: 150px; margin-top: -10px; --strike: var(--black); --strike-edge: transparent; }
+  body.preto .wm { --strike: var(--red); }
+</style>
+<body>
+  <div class="sym" id="s"></div>
+  <div class="wm"><span class="a">Mata</span><span class="b">Preço</span></div>
+<script>
+  if (location.hash === '#preto') { document.body.className = 'preto'; document.getElementById('s').dataset.cut = '#0E0E10'; document.getElementById('s').dataset.tag = '#E10600'; }
+</script>
+<script src="brand.js"></script>
+</body>
