@@ -1,6 +1,7 @@
 import type { Config } from './config.ts';
 import { diaDe } from './db.ts';
 import { linkAfiliadoML } from './fontes/mercadolivre.ts';
+import { FonteShopee } from './fontes/shopee.ts';
 import type { Cupom } from './cupons.ts';
 import { chaveDoCupom } from './cupons.ts';
 
@@ -172,6 +173,16 @@ export function opcoesDoGarimpo(config: Config): OpcoesDoGarimpo {
   };
 }
 
+/** Gera o seu link de afiliado da Shopee para uma página, pela API de afiliados (a mesma das ofertas). */
+export async function gerarLinkShopee(config: Config, fetchFn: typeof fetch): Promise<string> {
+  const fonte = new FonteShopee({ appId: config.shopee.appId, secret: config.shopee.secret }, fetchFn);
+  const url = JSON.stringify(config.cupons.paginaShopee);
+  const dados = await fonte.consultar(`mutation { generateShortLink(input: { originUrl: ${url}, subIds: ["cupons"] }) { shortLink } }`);
+  const link = String(dados?.generateShortLink?.shortLink ?? '');
+  if (!/^https:\/\//.test(link)) throw new Error('a Shopee não devolveu o link de afiliado');
+  return link;
+}
+
 export interface ResultadoDoGarimpo {
   cupons: Cupom[];
   /** Problemas para mostrar só no painel do dono. */
@@ -182,13 +193,21 @@ export interface ResultadoDoGarimpo {
 export async function garimparCupons(config: Config, agora: Date, fetchFn: typeof fetch = fetch): Promise<ResultadoDoGarimpo> {
   const resultado: ResultadoDoGarimpo = { cupons: [], avisos: [] };
   const opcoes = opcoesDoGarimpo(config);
+  // Sem CUPONS_LINK_SHOPEE, o robô gera o link de afiliado sozinho com as chaves da Shopee que ele já usa.
+  if (config.shopee.ativo && !opcoes.linkShopee && config.shopee.appId && config.shopee.secret) {
+    try {
+      opcoes.linkShopee = await gerarLinkShopee(config, fetchFn);
+    } catch (e) {
+      resultado.avisos.push(`Garimpo de cupons da Shopee parado: não consegui gerar o seu link de afiliado (${(e as Error).message}). Se quiser, coloque um link seu em CUPONS_LINK_SHOPEE.`);
+    }
+  }
   const lojas: Loja[] = [];
   if (config.ml.ativo) lojas.push('mercadolivre');
   if (config.shopee.ativo) lojas.push('shopee');
   for (const loja of lojas) {
     const link = loja === 'mercadolivre' ? opcoes.linkMercadoLivre : opcoes.linkShopee;
     if (!link) {
-      if (loja === 'shopee') resultado.avisos.push('Garimpo de cupons da Shopee parado: falta o seu link de afiliado da página de cupons em CUPONS_LINK_SHOPEE.');
+      if (loja === 'shopee') { if (!resultado.avisos.some((a) => a.includes('Shopee'))) resultado.avisos.push('Garimpo de cupons da Shopee parado: faltam as chaves da Shopee (SHOPEE_APP_ID e SHOPEE_SECRET) ou um link seu em CUPONS_LINK_SHOPEE.'); }
       else resultado.avisos.push('Garimpo de cupons do Mercado Livre parado: faltam ML_MATT_WORD e ML_MATT_TOOL.');
       continue;
     }

@@ -59,7 +59,7 @@ export interface Config {
     postsPorRodada: number;
   };
   /** Cupons do Mercado Livre e da Amazon, cadastrados por você em cupons.json. */
-  cupons: { ativo: boolean; arquivo: string; porDia: number; repetirDias: number; garimpo: boolean; bloquear: string[]; linkShopee: string };
+  cupons: { ativo: boolean; arquivo: string; porDia: number; repetirDias: number; garimpo: boolean; bloquear: string[]; linkShopee: string; paginaShopee: string };
   /** Convite discreto aos outros canais (WhatsApp, Telegram, Instagram): poucas vezes, sem encher o canal. */
   convite: { ativo: boolean; aCadaDias: number; hora: number };
   /** Vendas e comissão da Shopee (conversionReport), lidas de tempos em tempos para o painel. */
@@ -330,6 +330,7 @@ export function lerConfig(env: Env = process.env): Config {
       garimpo: ligado(env, 'CUPONS_GARIMPO', true),
       bloquear: lista(env.CUPONS_BLOQUEAR),
       linkShopee: (env.CUPONS_LINK_SHOPEE ?? '').trim(),
+      paginaShopee: (env.CUPONS_PAGINA_SHOPEE ?? '').trim() || 'https://shopee.com.br/m/cupons-de-desconto',
     },
     blog: {
       ativo: ligado(env, 'BLOG_ATIVO', false),

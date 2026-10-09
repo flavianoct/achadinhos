@@ -93,15 +93,24 @@ test('garimpo: busca as páginas das lojas ligadas, junta só o confiável e tra
   const config = lerConfig({ ML_ATIVO: '1', ML_MATT_WORD: 'eu', ML_MATT_TOOL: '123', SHOPEE_ATIVO: '1', SHOPEE_APP_ID: 'a', SHOPEE_SECRET: 'b' });
   assert.match(opcoesDoGarimpo(config).linkMercadoLivre!, /mercadolivre\.com\.br\/cupons.*matt_word=eu.*matt_tool=123|mercadolivre\.com\.br\/cupons.*matt_tool=123.*matt_word=eu/);
   const chamadas: string[] = [];
+  let gerarOk = false;
   const f = (async (url: string) => {
     chamadas.push(String(url));
+    if (String(url).includes('open-api.affiliate.shopee')) return new Response(JSON.stringify(gerarOk ? { data: { generateShortLink: { shortLink: 'https://s.shopee.com.br/abc123' } } } : { errors: [{ message: 'sem permissão', extensions: { code: 10020 } }] }));
     if (String(url).includes('mercado-livre')) return new Response(pagina([site({}), site({ couponCode: 'DESCONTO', couponVerified: true })]));
     return new Response('x', { status: 503 });
   }) as unknown as typeof fetch;
   const r = await garimparCupons(config, AGORA, f);
-  assert.equal(chamadas.length, 1, 'a Shopee sem link próprio nem é consultada');
+  assert.equal(chamadas.filter((c) => c.includes('promobit')).length, 1, 'sem link da Shopee, só o Mercado Livre é buscado');
   assert.equal(r.cupons.length, 1);
-  assert.match(r.avisos.join(' '), /CUPONS_LINK_SHOPEE/);
+  assert.match(r.avisos.join(' '), /não consegui gerar o seu link.*CUPONS_LINK_SHOPEE/);
+
+  // Com as chaves da Shopee, o robô gera o seu link de afiliado sozinho e a Shopee entra.
+  gerarOk = true;
+  const geradoSozinho = await garimparCupons(config, AGORA, f);
+  assert.ok(chamadas.some((c) => c.includes('open-api.affiliate.shopee')), 'chamou a API de afiliados');
+  assert.match(geradoSozinho.avisos.join(' '), /Shopee.*503/, 'o link saiu; o aviso agora é só da página de cupons caída');
+  gerarOk = false;
 
   const comShopee = lerConfig({ ML_ATIVO: '1', ML_MATT_WORD: 'eu', ML_MATT_TOOL: '123', SHOPEE_ATIVO: '1', SHOPEE_APP_ID: 'a', SHOPEE_SECRET: 'b', CUPONS_LINK_SHOPEE: 'https://shope.ee/abc' });
   const r2 = await garimparCupons(comShopee, AGORA, f);
