@@ -5,6 +5,8 @@
  * Para mudar o visual da marca, mexa só em MARCA, abaixo.
  */
 
+import { simboloNaArte } from './marca.ts';
+
 export function esc(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string);
 }
@@ -13,19 +15,19 @@ export function esc(s: string): string {
 export const MARCA = {
   nome: ['MATA', 'PREÇO'],
   /** Fundo, em gradiente de cima para baixo. */
-  f1: '#0b1220',
-  f2: '#1b1442',
+  f1: '#0E0E10',
+  f2: '#0E0E10',
   /** Destaque da pergunta e da segunda parte do nome. */
-  amarelo: '#ffd60a',
+  amarelo: '#FFD60A',
   /** Faixa do grupo e selos de desconto. */
-  vermelho: '#e11d48',
+  vermelho: '#E10600',
   /** Selo de "menor preço" (é o que o histórico do robô prova). */
   verde: '#16a34a',
   branco: '#ffffff',
-  suave: '#cbd5e1',
+  suave: '#A9A9B3',
   /** Texto da faixa do grupo. */
   faixa: 'O PREÇO ESTÁ NO GRUPO',
-  faixaCurta: 'ENTRE PELO LINK NA BIO',
+  faixaCurta: 'CORRE · ENTRE PELO LINK NA BIO',
   aviso: 'Publi · link de afiliado · preço pode mudar',
 };
 
@@ -34,8 +36,10 @@ export type TipoDeGancho = 'historico' | 'desconto' | 'categoria';
 export interface DadosDaArte {
   /** Linhas do título já quebradas (sem escapar). */
   titulo: string[];
-  /** Desconto em % (0 = sem). Nunca valor em reais. */
+  /** Não usado: a arte não mostra valor nenhum (nem em reais nem em %). */
   desconto: number;
+  /** Gatilho da etiqueta vermelha inclinada ("CORRE!", "SÓ NO GRUPO"...). */
+  gatilho?: string;
   freteGratis: boolean;
   /** Data URI da foto, se houver. */
   foto?: string;
@@ -63,23 +67,38 @@ const textoLeve = (x: number, y: number, tamanho: number, cor: string, conteudo:
   `<text x="${x}" y="${y}" font-size="${tamanho}" font-weight="400" fill="${cor}" text-anchor="middle">${esc(conteudo)}</text>`;
 
 function pilula(cx: number, y: number, h: number, largura: number, cor: string, tamanho: number, rotulo: string, opacidade = 1): string {
-  return `<rect x="${cx - largura / 2}" y="${y}" width="${largura}" height="${h}" rx="${h / 2}" fill="${cor}"${opacidade < 1 ? ` fill-opacity="${opacidade}"` : ''}/>\n${texto(cx, y + h * 0.7, tamanho, MARCA.branco, rotulo)}`;
+  return `<rect x="${cx - largura / 2}" y="${y}" width="${largura}" height="${h}" rx="${h / 2}" fill="${cor}"${opacidade < 1 ? ` fill-opacity="${opacidade}"` : ''}/>\n${texto(cx, y + h * 0.7, tamanho, cor === MARCA.amarelo ? MARCA.f1 : MARCA.branco, rotulo)}`;
 }
 
-const fundo = (largura: number, altura: number) =>
-  `<defs><linearGradient id="fundo" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${MARCA.f1}"/><stop offset="1" stop-color="${MARCA.f2}"/></linearGradient></defs>\n<rect width="${largura}" height="${altura}" fill="url(#fundo)"/>`;
+export const fundo = (largura: number, altura: number) =>
+  `<defs><radialGradient id="brilho" cx="0.85" cy="0" r="0.9"><stop offset="0" stop-color="${MARCA.vermelho}" stop-opacity="0.55"/><stop offset="1" stop-color="${MARCA.vermelho}" stop-opacity="0"/></radialGradient></defs>
+<rect width="${largura}" height="${altura}" fill="${MARCA.f1}"/>
+<rect width="${largura}" height="${Math.round(altura * 0.5)}" fill="url(#brilho)"/>`;
 
 /** Largura de uma pílula para o texto, com limites (estimativa: cada letra maiúscula em negrito ocupa cerca de 0,68 do tamanho da fonte). */
 const larguraDaPilula = (rotulo: string, tamanho: number, minimo: number, maximo: number) => Math.min(maximo, Math.max(minimo, Math.round(rotulo.length * tamanho * 0.68 + 72)));
 
-const corDoGancho = (d: DadosDaArte) => (d.ganchoTipo === 'historico' ? MARCA.verde : d.ganchoTipo === 'desconto' ? MARCA.vermelho : MARCA.branco);
+const corDoGancho = (d: DadosDaArte) => (d.ganchoTipo === 'historico' ? MARCA.amarelo : d.ganchoTipo === 'desconto' ? MARCA.vermelho : MARCA.branco);
 
-/** Nome da marca: "MATA" em branco e "PREÇO" em amarelo, com um traço vermelho embaixo. `x` é o centro (centro) ou o começo (esquerda). */
-function marca(x: number, y: number, tamanho: number, alinhamento: 'centro' | 'esquerda'): string {
-  const largura = Math.round(MARCA.nome.join(' ').length * tamanho * 0.7);
+/** Largura do logo para uma altura (símbolo + "MATA PREÇO"), para centralizar. */
+const larguraDoLogo = (altura: number) => altura * 1.02 + Math.round(altura * 0.74) * 0.62 * 5 + altura * 0.15 + Math.round(altura * 0.74) * 0.62 * 5 + altura * 0.26;
+
+/** Logo da marca: símbolo da etiqueta com raio, "MATA" em branco e "PREÇO" em amarelo riscado de vermelho. `x` é o centro (centro) ou o começo (esquerda); `y` é a linha de base do texto. */
+export function marca(x: number, y: number, tamanho: number, alinhamento: 'centro' | 'esquerda'): string {
+  const altura = Math.round(tamanho * 1.7);
+  const t = Math.round(altura * 0.74);
+  const largura = larguraDoLogo(altura);
   const x0 = alinhamento === 'centro' ? x - largura / 2 : x;
-  return `<text x="${x0}" y="${y}" font-size="${tamanho}" font-weight="900" fill="${MARCA.branco}" text-anchor="start" letter-spacing="${Math.round(tamanho * 0.08)}">${esc(MARCA.nome[0]!)} <tspan fill="${MARCA.amarelo}">${esc(MARCA.nome[1]!)}</tspan></text>
-<rect x="${x0}" y="${y + tamanho * 0.18}" width="${Math.round(largura * 0.62)}" height="${Math.max(6, Math.round(tamanho * 0.1))}" rx="${Math.max(3, Math.round(tamanho * 0.05))}" fill="${MARCA.vermelho}"/>`;
+  const topo = y - altura * 0.76;
+  const xMata = x0 + altura * 1.02;
+  const xPreco = xMata + t * 0.62 * 5 + t * 0.2;
+  const larguraPreco = t * 0.62 * 5 + t * 0.35;
+  const meio = topo + altura * 0.5;
+  const italico = (px: number, cor: string, s: string) => `<text x="${px}" y="${y}" font-size="${t}" font-weight="700" font-style="italic" fill="${cor}" text-anchor="start">${esc(s)}</text>`;
+  return `${simboloNaArte(x0, topo, altura)}
+${italico(xMata, MARCA.branco, MARCA.nome[0]!)}
+${italico(xPreco, MARCA.amarelo, MARCA.nome[1]!)}
+<rect x="${xPreco - 8}" y="${meio - t * 0.06}" width="${larguraPreco + 16}" height="${Math.max(6, Math.round(t * 0.11))}" rx="4" fill="${MARCA.vermelho}" transform="rotate(-4 ${xPreco + larguraPreco / 2} ${meio})"/>`;
 }
 
 /** Quebra a pergunta em até duas linhas, no meio, sem cortar palavra. */
@@ -106,12 +125,17 @@ function perguntaGrande(pergunta: string, yTopo: number, base: number): { svg: s
   const maior = Math.max(...linhas.map((l) => l.length));
   const tamanho = Math.min(base, Math.floor(960 / (maior * 0.7)));
   const passo = Math.round(tamanho * 1.08);
-  const svg = linhas.map((l, i) => texto(540, yTopo + tamanho * 0.85 + i * passo, tamanho, MARCA.amarelo, l)).join('\n');
+  const svg = linhas.map((l, i) => texto(540, yTopo + tamanho * 0.85 + i * passo, tamanho, MARCA.amarelo, l, ' font-style="italic"')).join('\n');
   return { svg, altura: Math.round(tamanho * 0.95 + (linhas.length - 1) * passo) };
 }
 
+/** Etiqueta vermelha inclinada com um gatilho (urgência, exclusividade), como no molde da marca. `cx`/`cy` é o centro e `r` o tamanho. */
 function circuloDesconto(d: DadosDaArte, cx: number, cy: number, r: number, tamanho: number): string {
-  return d.desconto ? `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${MARCA.vermelho}"/>${texto(cx, cy + r * 0.21, tamanho, MARCA.branco, `-${d.desconto}%`)}` : '';
+  if (!d.gatilho) return '';
+  const fonte = Math.round(tamanho * (d.gatilho.length > 10 ? 0.62 : 0.85));
+  const l = Math.min(520, Math.max(Math.round(r * 2.4), Math.round(d.gatilho.length * fonte * 0.62 + 56)));
+  const h = Math.round(r * 1.1);
+  return `<g transform="rotate(-6 ${cx} ${cy})"><rect x="${cx - l / 2}" y="${cy - h / 2 + 8}" width="${l}" height="${h}" rx="18" fill="#A80400"/><rect x="${cx - l / 2}" y="${cy - h / 2}" width="${l}" height="${h}" rx="18" fill="${MARCA.vermelho}"/>${texto(cx, cy + fonte * 0.34, fonte, MARCA.branco, d.gatilho, ' font-style="italic"')}</g>`;
 }
 
 function foto(d: DadosDaArte, x: number, y: number, w: number, h: number, tamanhoSemFoto: number): string {
@@ -148,9 +172,9 @@ const linhasDoTitulo = (d: DadosDaArte, x: number, y0: number, passo: number, ta
 
 /** Faixa que leva ao grupo, onde está o preço. É texto, não botão: um botão desenhado parece clicável e frustra quem toca nele. */
 function faixaDoGrupo(y: number, altura: number, tamanho: number): string {
-  return `<rect x="60" y="${y}" width="960" height="${altura}" rx="${Math.round(altura / 4)}" fill="${MARCA.vermelho}"/>
-${texto(540, y + altura * 0.48, tamanho, MARCA.branco, MARCA.faixa)}
-${texto(540, y + altura * 0.84, Math.round(tamanho * 0.78), MARCA.amarelo, MARCA.faixaCurta)}`;
+  return `<rect x="60" y="${y}" width="960" height="${altura}" rx="${Math.round(altura / 4)}" fill="${MARCA.amarelo}"/>
+${texto(540, y + altura * 0.48, tamanho, MARCA.f1, MARCA.faixa, ' font-style="italic"')}
+${texto(540, y + altura * 0.84, Math.round(tamanho * 0.7), MARCA.vermelho, MARCA.faixaCurta, ' font-style="italic"')}`;
 }
 
 const aviso = (y: number, tamanho: number) => `<text x="540" y="${y}" font-size="${tamanho}" font-weight="700" fill="${MARCA.suave}" text-anchor="middle">${MARCA.aviso}</text>`;
@@ -312,9 +336,9 @@ function gradeDeFotos(fotos: Array<string | undefined>, x0: number, y0: number, 
 
 /** Faixa de chamada para entrar no grupo (sem preço). */
 function faixaEntre(y: number, altura: number, tamanho: number): string {
-  return `<rect x="60" y="${y}" width="960" height="${altura}" rx="${Math.round(altura / 4)}" fill="${MARCA.vermelho}"/>
-${texto(540, y + altura * 0.48, tamanho, MARCA.branco, 'ENTRE NO GRUPO')}
-${texto(540, y + altura * 0.84, Math.round(tamanho * 0.62), MARCA.amarelo, 'É GRÁTIS · LINK NA BIO')}`;
+  return `<rect x="60" y="${y}" width="960" height="${altura}" rx="${Math.round(altura / 4)}" fill="${MARCA.amarelo}"/>
+${texto(540, y + altura * 0.48, tamanho, MARCA.f1, 'ENTRE NO GRUPO', ' font-style="italic"')}
+${texto(540, y + altura * 0.84, Math.round(tamanho * 0.62), MARCA.vermelho, 'É GRÁTIS · LINK NA BIO', ' font-style="italic"')}`;
 }
 
 /** Uma linha de destaque: número ou palavra grande em amarelo e o texto ao lado. */

@@ -522,6 +522,11 @@ export class Banco {
       .run(chave, diaDe(agora), titulo, dados, agora.getTime());
   }
 
+  /** Quantos Reels já foram criados hoje (publicados ou não). */
+  reelsCriadosNoDia(agora: Date): number {
+    return (this.db.prepare(`SELECT COUNT(*) AS n FROM instagram_reels WHERE dia = ?`).get(diaDe(agora)) as { n: number }).n;
+  }
+
   reelCriadoNoDia(agora: Date): boolean {
     return Boolean(this.db.prepare(`SELECT 1 FROM instagram_reels WHERE dia = ?`).get(diaDe(agora)));
   }

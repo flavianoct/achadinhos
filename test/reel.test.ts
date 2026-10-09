@@ -130,3 +130,23 @@ test('reel: monta o mp4 vertical com o ffmpeg', { skip: !temFfmpeg && 'ffmpeg n�
   assert.match(sonda.stderr, /1080x1920/);
   assert.match(sonda.stderr, /Audio: aac/);
 });
+
+test('reel: dois por dia, cada um na sua janela, depois que o anterior saiu e com produtos diferentes', async () => {
+  const banco = bancoComProdutos();
+  const config = lerConfig({ ...base, INSTAGRAM_REELS_POR_DIA: '2', INSTAGRAM_HORARIOS_REELS: '12,19' });
+  assert.equal(await prepararReel(banco, config, AGORA, foto), true, '12h: o primeiro');
+  assert.equal(await prepararReel(banco, config, AGORA, foto), false, 'o primeiro ainda não saiu');
+  const primeiro = banco.reelPendente(AGORA)!;
+  const idsDoPrimeiro = (JSON.parse(primeiro.dados) as DadosDoReel).itens.map((i) => i.oferta.idProduto);
+  banco.marcarReelPublicado(primeiro.chave, AGORA);
+  assert.equal(await prepararReel(banco, config, AGORA, foto), false, '12h: o segundo só nasce perto das 19h');
+  const noite = new Date('2026-10-03T21:10:00Z');
+  assert.equal(await prepararReel(banco, config, noite, foto), true, '18h10: o segundo');
+  const segundo = banco.reelPendente(noite)!;
+  assert.notEqual(segundo.chave, primeiro.chave);
+  const dados = JSON.parse(segundo.dados) as DadosDoReel;
+  assert.ok(dados.itens.every((i) => !idsDoPrimeiro.includes(i.oferta.idProduto)), 'produtos diferentes do primeiro');
+  assert.match(dados.titulo, /Mais 3 achados/);
+  banco.marcarReelPublicado(segundo.chave, noite);
+  assert.equal(await prepararReel(banco, config, noite, foto), false, 'dois por dia e pronto');
+});

@@ -7,7 +7,7 @@ import { escolherParaCarrossel } from './carrossel.ts';
 import type { Config } from './config.ts';
 import { diaDe, horaDe, type Banco } from './db.ts';
 import { sintetizarMusica } from './musica.ts';
-import { MARCA } from './moldes.ts';
+import { fundo, marca, MARCA } from './moldes.ts';
 import { baixarImagemComoDataUri, montarSvgDoStory, renderizarPng, temWhatsapp, type Fetch } from './social.ts';
 import type { OfertaAvaliada } from './types.ts';
 
@@ -33,56 +33,68 @@ export function arquivoDoReel(chave: string): string {
   return nomeDoArquivo(chave);
 }
 
-/** Cria o Reel do dia (um só por dia), com os melhores produtos que passam no filtro de qualidade do Instagram. */
+/**
+ * Cria o próximo Reel do dia (até `INSTAGRAM_REELS_POR_DIA`), com os melhores produtos que passam no filtro de qualidade do Instagram.
+ * Cada Reel só nasce perto da sua hora de publicar e depois que o anterior já saiu; os produtos de um não se repetem no outro.
+ */
 export async function prepararReel(banco: Banco, config: Config, agora: Date, fetchFn: Fetch = fetch): Promise<boolean> {
   const ig = config.instagram;
   if (!config.social.ativo || !ig.ativo || ig.reelsPorDia <= 0) return false;
-  if (banco.reelCriadoNoDia(agora)) return false;
+  const jaCriados = banco.reelsCriadosNoDia(agora);
+  if (jaCriados >= ig.reelsPorDia || banco.reelPendente(agora)) return false;
   const hora = horaDe(agora);
   if (hora < config.ritmo.horaInicio || hora >= config.ritmo.horaFim) return false;
-  // Só prepara perto da hora de publicar (1 hora antes da primeira janela), para o desconto e o selo de menor preço serem de agora.
-  if (ig.horariosReels.length > 0 && hora < Math.min(...ig.horariosReels) - 1) return false;
+  // Só prepara perto da hora de publicar (1 hora antes da janela deste Reel), para o desconto e o selo de menor preço serem de agora.
+  const janelas = [...ig.horariosReels].sort((a, b) => a - b);
+  if (janelas.length > 0 && hora < (janelas[Math.min(jaCriados, janelas.length - 1)] as number) - 1) return false;
 
   // Usa a mesma escolha do carrossel (qualidade, foto e variedade de categorias), com o teto de preço do dia.
   const config3 = { ...config, instagram: { ...ig, carrosselItens: ITENS_DO_REEL } };
   const escolha = escolherParaCarrossel(banco.melhoresProdutos({ horas: 36, limite: 150 }, agora), config3, agora);
   if (!escolha) return false;
   const itens: DadosDoReel['itens'] = [];
-  for (const oferta of escolha.ordem.slice(0, ITENS_DO_REEL * 2)) {
+  // O segundo Reel do dia pula os produtos que o primeiro já usou.
+  for (const oferta of escolha.ordem.slice(jaCriados * ITENS_DO_REEL, jaCriados * ITENS_DO_REEL + ITENS_DO_REEL * 2)) {
     if (itens.length >= ITENS_DO_REEL) break;
     const imagem = await baixarImagemComoDataUri(oferta.imagem, fetchFn);
     if (imagem) itens.push({ oferta, imagem });
   }
   if (itens.length < ITENS_DO_REEL) return false;
-  const titulo = `Caiu mesmo? ${itens.length} achados de hoje`;
+  const titulo = jaCriados === 0 ? `Caiu mesmo? ${itens.length} achados de hoje` : `Caiu mesmo? Mais ${itens.length} achados de hoje`;
   const dados: DadosDoReel = { formato: 'reel', titulo, itens };
-  banco.salvarReel(`reel-${diaDe(agora)}`, titulo, JSON.stringify(dados), agora);
+  banco.salvarReel(jaCriados === 0 ? `reel-${diaDe(agora)}` : `reel-${diaDe(agora)}-${jaCriados + 1}`, titulo, JSON.stringify(dados), agora);
   return true;
 }
 
 const fonte = 'font-family="Liberation Sans,DejaVu Sans,Arial,Helvetica,sans-serif"';
 const moldura = (corpo: string) => `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920">
-<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${MARCA.f1}"/><stop offset="1" stop-color="${MARCA.f2}"/></linearGradient></defs>
-<rect width="1080" height="1920" fill="url(#g)"/>${corpo}</svg>`;
+${fundo(1080, 1920)}${corpo}</svg>`;
 const texto = (y: number, s: string, tam: number, cor: string = MARCA.branco, peso = 800) =>
-  `<text x="540" y="${y}" text-anchor="middle" ${fonte} font-size="${tam}" font-weight="${peso}" fill="${cor}">${s}</text>`;
-const nome = (y: number) =>
-  `<text x="540" y="${y}" text-anchor="middle" ${fonte} font-size="70" font-weight="900" fill="${MARCA.branco}" letter-spacing="6">${MARCA.nome[0]} <tspan fill="${MARCA.amarelo}">${MARCA.nome[1]}</tspan></text><rect x="300" y="${y + 14}" width="480" height="10" rx="5" fill="${MARCA.vermelho}"/>`;
+  `<text x="540" y="${y}" text-anchor="middle" ${fonte} font-size="${tam}" font-weight="${peso}" font-style="italic" fill="${cor}">${s}</text>`;
+const logo = (y: number) => marca(540, y, 64, 'centro');
 
 /** Abertura do Reel: a pergunta que prende a atenção, sem preço. */
 export function svgDaAberturaDoReel(n: number): string {
-  return moldura(nome(260) + texto(850, 'CAIU', 200, MARCA.amarelo, 900) + texto(1050, 'MESMO?', 200, MARCA.amarelo, 900) + texto(1300, `${n} achados de hoje`, 66, MARCA.branco, 700));
+  return moldura(
+    logo(300) +
+      texto(850, 'CAIU', 200, MARCA.amarelo, 900) +
+      texto(1050, 'MESMO?', 200, MARCA.amarelo, 900) +
+      `<rect x="270" y="1130" width="540" height="12" rx="6" fill="${MARCA.vermelho}" transform="rotate(-3 540 1136)"/>` +
+      texto(1330, `${n} achados de hoje`, 70, MARCA.branco, 700) +
+      texto(1420, 'Veja até o final', 44, MARCA.suave, 500),
+  );
 }
 
 /** Fechamento do Reel: leva ao grupo, onde está o preço. */
 export function svgDoFechamentoDoReel(): string {
   return moldura(
-    nome(260) +
-      texto(760, 'O PREÇO', 150, MARCA.amarelo, 900) +
-      texto(900, 'ESTÁ NO GRUPO', 108, MARCA.amarelo, 900) +
-      texto(1030, 'Achados assim todo dia, de graça', 50, MARCA.branco, 700) +
-      `<rect x="140" y="1110" width="800" height="150" rx="75" fill="${MARCA.vermelho}"/><text x="540" y="1206" text-anchor="middle" ${fonte} font-size="56" font-weight="800" fill="#fff">ENTRE PELO LINK NA BIO</text>` +
-      texto(1400, 'Publi: links de afiliado', 36, MARCA.suave, 500),
+    logo(300) +
+      texto(760, 'O PREÇO', 160, MARCA.branco, 900) +
+      texto(910, 'ESTÁ NO GRUPO', 112, MARCA.amarelo, 900) +
+      texto(1040, 'Achados assim todo dia, de graça', 50, MARCA.branco, 700) +
+      `<rect x="140" y="1120" width="800" height="150" rx="40" fill="${MARCA.amarelo}"/>` +
+      texto(1214, 'ENTRE PELO LINK NA BIO', 46, MARCA.f1, 900) +
+      texto(1420, 'Publi: links de afiliado', 36, MARCA.suave, 500),
   );
 }
 
