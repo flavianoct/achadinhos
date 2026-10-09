@@ -13,7 +13,7 @@ O robô publica no Instagram uma foto de feed (com legenda) e um Story (sem lege
 
 1. **Converter a conta para profissional.** No app do Instagram: Configurações → Tipo de conta e ferramentas → Mudar para conta profissional → Criador (ou Empresa).
 2. **Criar o app na Meta.** Entre em developers.facebook.com com o seu Facebook, clique em *Meus apps* → *Criar app*. Escolha o caso de uso de **Instagram / "Gerenciar mensagens e conteúdo no Instagram"** (o nome muda; o que importa é ter o produto *API do Instagram com login do Instagram*).
-3. **Adicionar a sua conta.** No painel do app, em *Instagram → Configuração da API com login do Instagram*, adicione a conta `mulher_empreededoraoficial` (função de testador/desenvolvedor) e **aceite o convite** no Instagram: Configurações → Apps e sites → Convites de testadores.
+3. **Adicionar a sua conta.** No painel do app, em *Instagram → Configuração da API com login do Instagram*, adicione a conta `mataprecooficial` (função de testador/desenvolvedor) e **aceite o convite** no Instagram: Configurações → Apps e sites → Convites de testadores.
 4. **Gerar o token.** Na mesma tela do painel, clique em *Gerar token* ao lado da conta e autorize, marcando a permissão `instagram_business_content_publish`. Copie o token (é longo) e o **ID da conta Instagram** que aparece ao lado.
 5. **Cadastrar nos Secrets do GitHub** (você mesmo, eu não digito chaves): Settings → Secrets and variables → Actions → *New repository secret*:
    - `INSTAGRAM_TOKEN` = o token

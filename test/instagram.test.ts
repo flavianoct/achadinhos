@@ -28,7 +28,7 @@ function apiFalsa(opcoes: { pngNoAr?: boolean; erroNaPublicacao?: { code: number
     if (u.includes('/media_publish')) return new Response(JSON.stringify({ id: 'post-1' }));
     if (u.includes('/media')) return new Response(JSON.stringify({ id: 'cont-1' }));
     if (u.includes('cont-1')) return new Response(JSON.stringify({ status_code: 'FINISHED' }));
-    return new Response(JSON.stringify({ username: 'mulher_empreededoraoficial' }));
+    return new Response(JSON.stringify({ username: 'mataprecooficial' }));
   }) as unknown as typeof fetch;
   return { f, chamadas };
 }
