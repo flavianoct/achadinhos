@@ -75,6 +75,17 @@ export function rodapeDoWhatsapp(config: Config): string {
   return linhas.length ? `Quer seguir também?\n${linhas.join('\n')}` : '';
 }
 
+/**
+ * Troca o rodapé de uma mensagem já guardada pelo rodapé atual (a mensagem guarda os links do dia em que foi criada).
+ * Assim, se o @ do Instagram ou o canal do Telegram mudar, o que ainda está na fila do WhatsApp sai com o link novo.
+ */
+export function atualizarRodape(texto: string, config: Config): string {
+  const i = texto.indexOf('\n\nQuer seguir também?\n');
+  if (i < 0) return texto;
+  const rodape = rodapeDoWhatsapp(config);
+  return rodape ? `${texto.slice(0, i)}\n\n${rodape}` : texto.slice(0, i);
+}
+
 /** `rodape` é o texto extra no fim (veja rodapeDoWhatsapp); vazio = a mensagem não muda. */
 export function montarMensagemWhatsapp(o: OfertaAvaliada, rodape = ''): string {
   const linhas: string[] = [];

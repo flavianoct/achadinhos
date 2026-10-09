@@ -7,7 +7,7 @@ import { conviteDeHoje, linksDoConvite, textoDoConvite } from '../src/convite.ts
 import { lerConfig } from '../src/config.ts';
 import { Banco } from '../src/db.ts';
 import { publicarControle } from '../src/exportar.ts';
-import { montarMensagemWhatsapp, rodapeDoWhatsapp } from '../src/mensagem.ts';
+import { atualizarRodape, montarMensagemWhatsapp, rodapeDoWhatsapp } from '../src/mensagem.ts';
 import { Robo } from '../src/robo.ts';
 import { Telegram } from '../src/telegram.ts';
 import type { OfertaAvaliada } from '../src/types.ts';
@@ -59,6 +59,17 @@ test('rodapé: cada oferta do WhatsApp termina com duas linhas curtas (Telegram 
   assert.equal(rodapeDoWhatsapp(lerConfig({ HORA_INICIO: '8' })), '', 'sem Telegram nem Instagram configurados não acrescenta nada');
   assert.equal(rodapeDoWhatsapp(lerConfig({ BLOG_TELEGRAM: 'https://t.me/canal' })), 'Quer seguir também?\n✈️ Telegram: t.me/canal', 'só o que existe');
 });
+test('rodapé: mensagem que já estava na fila sai com o link novo do Instagram (a conta mudou de @)', () => {
+  const o: OfertaAvaliada = { loja: 'shopee', idProduto: '1', titulo: 'Produto', preco: 10, link: 'https://s.shopee.com.br/x', categoria: 'casa', pontos: 1 };
+  const antiga = montarMensagemWhatsapp(o, rodapeDoWhatsapp(lerConfig({ ...base, BLOG_INSTAGRAM: 'nome_antigo' })));
+  const nova = lerConfig({ ...base, BLOG_INSTAGRAM: 'mataprecooficial' });
+  const atualizada = atualizarRodape(antiga, nova);
+  assert.equal(atualizada, montarMensagemWhatsapp(o, rodapeDoWhatsapp(nova)));
+  assert.ok(atualizada.includes('instagram.com/mataprecooficial/') && !atualizada.includes('nome_antigo'));
+  assert.equal(atualizarRodape(antiga, lerConfig({ ...base, WHATSAPP_RODAPE: '0' })), montarMensagemWhatsapp(o), 'rodapé desligado: sai sem rodapé');
+  assert.equal(atualizarRodape(montarMensagemWhatsapp(o), nova), montarMensagemWhatsapp(o), 'mensagem sem rodapé não muda');
+});
+
 test('convite: entra no whatsapp.json só na janela do dia e só com o WhatsApp ligado', () => {
   const ler = (dir: string) => JSON.parse(readFileSync(join(dir, 'whatsapp.json'), 'utf8')) as { mensagens: Array<{ id: string; texto: string; imagem?: string }> };
   const gerar = (extra: Record<string, string>, quando: Date) => {
