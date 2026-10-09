@@ -42,8 +42,7 @@ export function dadosDoResumo(banco: Banco, agora: Date): DadosDoResumo | undefi
   const hoje = postadasHoje(banco, agora);
   return {
     achados,
-    // Nenhum valor nas artes (nem em %): a vitrine mostra quantidade de achados e menor preço do mês, não o tamanho do desconto.
-    maiorDesconto: 0,
+    maiorDesconto: Math.max(0, ...hoje.map((h) => descontoParaArte(h.oferta))),
     noMenorPreco: hoje.filter((h) => h.oferta.menorPrecoEmDias).length,
     assuntos: assuntosDoPeriodo(banco, 1, agora, 3),
     fotos: hoje

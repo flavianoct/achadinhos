@@ -38,7 +38,7 @@ function bancoComPostsDoDia(n: number, quando = AGORA): Banco {
 test('vitrine: o resumo do dia conta os achados de hoje, o maior desconto, os de menor preço e os assuntos; com poucos achados não sai', () => {
   const d = dadosDoResumo(bancoComPostsDoDia(5), AGORA)!;
   assert.equal(d.achados, 5);
-  assert.equal(d.maiorDesconto, 0, 'a vitrine não mostra o tamanho do desconto (nenhum valor)');
+  assert.equal(d.maiorDesconto, 45, 'o maior desconto (em %) entre os postados hoje');
   assert.equal(d.noMenorPreco, 1);
   assert.deepEqual(new Set(d.assuntos), new Set(['Eletrônicos', 'Casa & Cozinha', 'Moda']));
   assert.equal(d.fotos.length, 4, 'no máximo 4 fotos');
