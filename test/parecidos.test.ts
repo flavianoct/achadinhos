@@ -59,3 +59,15 @@ test('pipeline: três anúncios de policarbonato na fila saem como UM só; o res
   await postarProxima({ async publicar(o: OfertaAvaliada) { p3.push(o.titulo); } } as any, b3, config, depois);
   assert.equal(p3.length, 2);
 });
+
+test('pipeline: entre anúncios repetidos, o melhor vendedor (maior nota) ganha, mesmo com pontuação menor', async () => {
+  const banco = new Banco(':memory:');
+  banco.enfileirar({ ...oferta(1, 'Telha Policarbonato Alveolar 6mm', 90), nota: 4.2, vendas: 9000 }, AGORA);
+  banco.enfileirar({ ...oferta(2, 'Chapa Policarbonato Alveolar Cristal', 70), nota: 4.9, vendas: 300 }, AGORA);
+  banco.enfileirar({ ...oferta(3, 'Telhas Policarbonato Alveolar Transparente', 80), nota: 4.6, vendas: 5000 }, AGORA);
+  const publicados: string[] = [];
+  const config = lerConfig({ TELEGRAM_BOT_TOKEN: 't', TELEGRAM_CHAT_ID: '1', HORA_INICIO: '8', HORA_FIM: '23' });
+  for (let i = 0; i < 3; i++) await postarProxima({ async publicar(o: OfertaAvaliada) { publicados.push(o.idProduto); } } as any, banco, config, AGORA);
+  assert.deepEqual(publicados, ['MLB2'], 'só o de nota 4,9 sai; os outros foram apagados da fila');
+  assert.equal(banco.tamanhoDaFila(), 0);
+});

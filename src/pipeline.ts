@@ -5,7 +5,7 @@ import { escolherCampanha, type Campanha, type ItemVendido } from './shopee-extr
 import { chaveDoCupom, escolherCupom, type Cupom } from './cupons.ts';
 import { categorizar, contemPalavra, normalizar } from './categoria.ts';
 import { avaliar } from './filtro.ts';
-import { parecidoComAlgum } from './parecidos.ts';
+import { melhorVendedor, mesmoTipoDeProduto, parecidoComAlgum } from './parecidos.ts';
 import { elegivelParaGuia, tipoDeGuia } from './guias.ts';
 import { destinosDaOferta, geralAceita, nichosNoLimite, temWhatsappDoNicho } from './rotas.ts';
 import { ErroTelegram, type Publicador } from './telegram.ts';
@@ -89,6 +89,21 @@ export async function postarProxima(publicador: Publicador, banco: Banco, config
       banco.removerDaFila(oferta.loja, oferta.idProduto);
       oferta = undefined;
       continue;
+    }
+    // Vários anúncios do mesmo tipo de produto na fila: fica só o do melhor vendedor (maior nota, depois mais vendas); os outros saem.
+    if (config.ritmo.parecidosHoras > 0) {
+      const base = oferta;
+      const grupo = banco.itensDaFila(1000).filter((o) => o.loja === base.loja && o.idProduto === base.idProduto || mesmoTipoDeProduto(o.titulo, base.titulo));
+      if (grupo.length > 1) {
+        const melhor = melhorVendedor(grupo);
+        for (const o of grupo) if (o !== melhor && !(o.loja === melhor.loja && o.idProduto === melhor.idProduto)) banco.removerDaFila(o.loja, o.idProduto);
+        if (melhor.idProduto !== base.idProduto || melhor.loja !== base.loja) {
+          // O melhor pode ser parecido com algo já postado (a semelhança não é transitiva): confere de novo.
+          oferta = parecidoComAlgum(melhor.titulo, recentes) ? undefined : melhor;
+          if (!oferta) banco.removerDaFila(melhor.loja, melhor.idProduto);
+          if (!oferta) continue;
+        }
+      }
     }
     destinos = destinosDaOferta(oferta.categoria, config);
     // Sem canal no Telegram, mas com grupo ou canal de WhatsApp do nicho: vai só para o WhatsApp.

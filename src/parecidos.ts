@@ -44,6 +44,11 @@ export function mesmoTipoDeProduto(a: string, b: string): boolean {
   return comuns >= Math.min(2, menor) && comuns / menor >= 0.5;
 }
 
+/** Melhor vendedor: a maior nota ganha; empate pela quantidade de vendas e, depois, pela pontuação. */
+export function melhorVendedor<T extends { nota?: number; vendas?: number; pontos: number }>(ofertas: T[]): T {
+  return [...ofertas].sort((a, b) => (b.nota ?? 0) - (a.nota ?? 0) || (b.vendas ?? 0) - (a.vendas ?? 0) || b.pontos - a.pontos)[0]!;
+}
+
 /** O título é do mesmo tipo de algum dos recentes? Devolve o primeiro que bate. */
 export function parecidoComAlgum(titulo: string, recentes: string[]): string | undefined {
   return recentes.find((r) => mesmoTipoDeProduto(titulo, r));
