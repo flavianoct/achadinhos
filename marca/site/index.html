@@ -110,6 +110,10 @@ html,body{background:#0E0E10!important;overflow-x:hidden}
 .mp .final .cta{margin:0 auto}
 .mp .final .wa{box-shadow:0 6px 0 #128C7E}.mp .final .tg{box-shadow:0 6px 0 #1B7FB5}
 .mp .final .alt{color:#FFD9D7}
+.mp .chan{background:transparent;border:2px solid var(--wa);color:#fff;box-shadow:none}.mp .chan small{opacity:.85}.mp .chan:hover{background:rgba(37,211,102,.12)}
+.mp .nogrp{display:grid;grid-template-columns:1.1fr .9fr;gap:28px;align-items:center;background:var(--ink);border:1px solid var(--line);border-radius:28px;padding:40px}
+.mp .pts{list-style:none;display:grid;gap:12px}.mp .pts li{display:flex;gap:12px;font-size:17px;color:#D9D9E0}.mp .pts li::before{content:'✓';color:var(--wa);font-weight:800}
+@media(max-width:860px){.mp .nogrp{grid-template-columns:1fr;padding:26px}}
 .mp footer{padding:34px 0 110px;text-align:center;color:#6E6E78;font-size:13px}
 .mp footer .logo{justify-content:center;margin-bottom:12px;color:#fff}
 
@@ -160,7 +164,7 @@ html,body{background:#0E0E10!important;overflow-x:hidden}
           <div class="cta">
             <a class="btn wa" data-link="whatsappGrupo" target="_blank" rel="noopener"><svg><use href="#mp-wa"/></svg><span>Entrar no grupo do WhatsApp<small>Grupo geral · só ofertas</small></span><span class="arr">→</span></a>
             <a class="btn tg" data-link="telegramCanal" target="_blank" rel="noopener"><svg><use href="#mp-tg"/></svg><span>Entrar no canal do Telegram<small>Sem limite de vagas</small></span><span class="arr">→</span></a>
-            <p class="alt">Prefere o canal do WhatsApp? <a data-link="whatsappCanal" target="_blank" rel="noopener">Seguir o canal</a></p>
+            <a class="btn chan" data-link="whatsappCanal" target="_blank" rel="noopener"><svg><use href="#mp-wa"/></svg><span>Não curte grupo? Siga o canal do WhatsApp<small>Só as ofertas · ninguém vê seu número</small></span><span class="arr">→</span></a>
           </div>
           <div class="trust"><span>100% grátis</span><span>Sem conversa paralela</span><span>Saia quando quiser</span></div>
         </div>
@@ -198,12 +202,25 @@ html,body{background:#0E0E10!important;overflow-x:hidden}
   </div></section>
 
   <section style="padding-top:0"><div class="wrap">
-    <h2 class="disp rv">Perguntas <span class="yel">rápidas</span></h2>
+    <div class="nogrp rv">
+<div>
+<h2 class="disp">Não curte <span class="yel">grupo?</span></h2>
+<p class="lead" style="margin-bottom:0">Tem gente que prefere não entrar em grupo, e tudo bem. Siga o canal do WhatsApp e receba as mesmas ofertas, do seu jeito.</p>
+</div>
+<div>
+<ul class="pts"><li>Ninguém vê o seu número</li><li>Sem conversa, sem figurinha e sem mensagem de desconhecidos</li><li>Só as ofertas, e você silencia ou sai quando quiser</li></ul>
+<a class="btn wa" data-link="whatsappCanal" target="_blank" rel="noopener" style="margin-top:22px"><svg><use href="#mp-wa"/></svg><span>Seguir o canal do WhatsApp<small>Só ofertas · sem grupo</small></span><span class="arr">→</span></a>
+</div>
+</div>
+</div></section>
+<section style="padding-top:0"><div class="wrap">
+<h2 class="disp rv">Perguntas <span class="yel">rápidas</span></h2>
     <div class="faq rv" style="margin-top:20px">
       <details><summary>É grátis mesmo?</summary><p>Sim. Entrar e receber as ofertas não custa nada.</p></details>
       <details><summary>Vou receber um monte de mensagem de desconhecidos?</summary><p>Não. Só os administradores publicam, então chegam apenas as ofertas.</p></details>
       <details><summary>WhatsApp ou Telegram: qual escolher?</summary><p>As ofertas são as mesmas. Escolha o aplicativo que você mais usa, ou entre nos dois para não perder nada.</p></details>
-      <details><summary>Posso sair depois?</summary><p>Pode, a qualquer momento, em dois toques.</p></details>
+      <details><summary>Não gosto de grupo. Tem outro jeito?</summary><p>Tem: o canal do WhatsApp. Você só recebe as ofertas, ninguém vê o seu número e não existe conversa. O canal do Telegram funciona do mesmo jeito.</p></details>
+<details><summary>Posso sair depois?</summary><p>Pode, a qualquer momento, em dois toques.</p></details>
       <details><summary>Onde eu compro o produto?</summary><p>Direto no site ou aplicativo da loja. O Mata Preço só avisa da oferta e manda o link.</p></details>
     </div>
   </div></section>
@@ -215,7 +232,7 @@ html,body{background:#0E0E10!important;overflow-x:hidden}
       <div class="cta">
         <a class="btn wa" data-link="whatsappGrupo" target="_blank" rel="noopener"><svg><use href="#mp-wa"/></svg><span>Entrar no grupo do WhatsApp</span><span class="arr">→</span></a>
         <a class="btn tg" data-link="telegramCanal" target="_blank" rel="noopener"><svg><use href="#mp-tg"/></svg><span>Entrar no canal do Telegram</span><span class="arr">→</span></a>
-        <p class="alt">Ou <a data-link="whatsappCanal" target="_blank" rel="noopener">siga o canal do WhatsApp</a></p>
+        <p class="alt">Não gosta de grupo? <a data-link="whatsappCanal" target="_blank" rel="noopener">Siga o canal do WhatsApp</a></p>
       </div>
     </div>
   </div></section>
