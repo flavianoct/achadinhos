@@ -5,6 +5,7 @@ import { escolherCampanha, type Campanha, type ItemVendido } from './shopee-extr
 import { chaveDoCupom, escolherCupom, type Cupom } from './cupons.ts';
 import { categorizar, contemPalavra, normalizar } from './categoria.ts';
 import { avaliar } from './filtro.ts';
+import { parecidoComAlgum } from './parecidos.ts';
 import { elegivelParaGuia, tipoDeGuia } from './guias.ts';
 import { destinosDaOferta, geralAceita, nichosNoLimite, temWhatsappDoNicho } from './rotas.ts';
 import { ErroTelegram, type Publicador } from './telegram.ts';
@@ -79,9 +80,16 @@ export async function postarProxima(publicador: Publicador, banco: Banco, config
   let oferta: OfertaAvaliada | undefined;
   let destinos: string[] = [];
   const cheios = nichosNoLimite(banco.postsPorCategoria(1, agora), config);
+  const recentes = config.ritmo.parecidosHoras > 0 ? banco.titulosPostados(config.ritmo.parecidosHoras, agora) : [];
   for (let tentativa = 0; tentativa < 200; tentativa++) {
     oferta = banco.melhorDaFila(banco.ultimaLojaPostada(), cheios);
     if (!oferta) break;
+    // Outro anúncio do mesmo tipo de produto já saiu há pouco (ex.: 3 chapas de policarbonato de vendedores diferentes): sai da fila.
+    if (parecidoComAlgum(oferta.titulo, recentes)) {
+      banco.removerDaFila(oferta.loja, oferta.idProduto);
+      oferta = undefined;
+      continue;
+    }
     destinos = destinosDaOferta(oferta.categoria, config);
     // Sem canal no Telegram, mas com grupo ou canal de WhatsApp do nicho: vai só para o WhatsApp.
     if (destinos.length || temWhatsappDoNicho(oferta.categoria, config)) break;

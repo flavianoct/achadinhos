@@ -234,6 +234,14 @@ export class Banco {
       .run(o.loja, o.idProduto, o.titulo, o.categoria, o.preco, diaDe(agora), agora.getTime(), canal ?? null);
   }
 
+  /** Títulos postados nas últimas `horas` horas, para não repetir o mesmo tipo de produto. */
+  titulosPostados(horas: number, agora: Date): string[] {
+    return this.db
+      .prepare(`SELECT titulo FROM postados WHERE postado_em >= ? ORDER BY postado_em DESC`)
+      .all(agora.getTime() - horas * 3_600_000)
+      .map((l) => String(l.titulo));
+  }
+
   /** Posts por categoria nos últimos `dias` dias (1 = só hoje), do maior para o menor. */
   postsPorCategoria(dias: number, agora: Date): Array<{ categoria: string; posts: number }> {
     return this.db

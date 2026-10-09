@@ -10,7 +10,8 @@ import { coletar, postarProxima } from '../src/pipeline.ts';
 import { ErroTelegram, Telegram, type Publicador } from '../src/telegram.ts';
 import type { Fonte, Oferta, OfertaAvaliada } from '../src/types.ts';
 
-const config: Config = lerConfig({});
+// Os testes de fila usam o mesmo título em ofertas diferentes; a trava de produto parecido tem teste próprio (parecidos.test.ts).
+const config: Config = lerConfig({ PARECIDOS_HORAS: '0' });
 // 3 de outubro de 2026, 15h em Brasília.
 const AGORA = new Date('2026-10-03T18:00:00Z');
 const dias = (n: number) => new Date(AGORA.getTime() - n * 86_400_000);

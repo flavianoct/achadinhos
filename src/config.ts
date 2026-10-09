@@ -53,6 +53,8 @@ export interface Config {
     horaInicio: number;
     horaFim: number;
     maxPostsPorDia: number;
+    /** Não posta outro anúncio do mesmo tipo de produto (ex.: 3 chapas de policarbonato) por esta quantidade de horas. 0 desliga. */
+    parecidosHoras: number;
     /** Modo nuvem: quantas ofertas postar no Telegram a cada execução. */
     postsPorRodada: number;
   };
@@ -315,6 +317,7 @@ export function lerConfig(env: Env = process.env): Config {
       horaInicio: numero(env, 'HORA_INICIO', 8),
       horaFim: numero(env, 'HORA_FIM', 23),
       maxPostsPorDia: numero(env, 'MAX_POSTS_POR_DIA', 60),
+      parecidosHoras: numero(env, 'PARECIDOS_HORAS', 48),
       postsPorRodada: numero(env, 'POSTS_POR_RODADA', 2),
     },
     vendas: { ativo: ligado(env, 'VENDAS_ATIVO', true), horasEntreLeituras: numero(env, 'VENDAS_HORAS', 3), dias: numero(env, 'VENDAS_DIAS', 30) },
