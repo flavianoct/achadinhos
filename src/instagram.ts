@@ -5,6 +5,7 @@ import { horaDe } from './db.ts';
 import { HORAS_DO_SOCIAL, arquivoDaArte, arquivosDoCarrossel, legendaDoCarrossel, montarLegenda, totalDeImagens, type DadosDoCarrossel, type Fetch } from './social.ts';
 import { arquivoDoReel, legendaDoReel, type DadosDoReel } from './reel.ts';
 import type { OfertaAvaliada } from './types.ts';
+import { arquivoDoResumo, chaveDoResumoPublicado } from './vitrine.ts';
 
 const BASE = 'https://graph.instagram.com/v23.0';
 const pausa = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -244,6 +245,17 @@ export async function publicarNoInstagram(banco: Banco, config: Config, agora: D
           resumo.avisos.push(`Instagram: o Reel não saiu (tentativa ${reel.tentativas + 1} de 3): ${(e as Error).message}`);
           if (e instanceof ErroInstagram && e.fatal) throw e;
         }
+      }
+    }
+    // Story "Hoje no grupo": uma vez por dia, a partir da hora do resumo. É o post que vende o grupo, por isso vem antes
+    // dos Stories de produto (e ocupa a vaga de Story da rodada, para não sair dois Stories juntos).
+    if (ig.resumoHora > 0 && hora >= ig.resumoHora && !banco.textoSalvo(chaveDoResumoPublicado(agora), 1, agora)) {
+      const arte = `${config.blog.url}/social/${arquivoDoResumo(agora)}`;
+      if (await noAr(arte)) {
+        await api.publicarStory(arte);
+        banco.salvarTexto(chaveDoResumoPublicado(agora), arte, agora);
+        resumo.stories++;
+        await pausa(2000);
       }
     }
     for (const c of candidatos) {

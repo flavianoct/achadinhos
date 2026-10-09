@@ -111,7 +111,7 @@ export interface Config {
   /** Arte de Story, legenda e roteiro de vídeo das ofertas postadas (aparecem no painel). */
   social: { ativo: boolean };
   /** Publicação automática no Instagram (conta profissional). Token e ID ficam nos Secrets. */
-  instagram: { ativo: boolean; token: string; userId: string; feedPorDia: number; storiesPorDia: number; intervaloFeedMin: number; intervaloStoryMin: number; notaMinima: number; vendasMinimas: number; palavrasBloqueadas: string[]; carrosselPorDia: number; carrosselItens: number; carrosselTetos: number[]; dicasDias: number[]; horariosFeed: number[]; horariosStories: number[]; reelsPorDia: number; horariosReels: number[]; tokenData: string };
+  instagram: { ativo: boolean; token: string; userId: string; feedPorDia: number; storiesPorDia: number; intervaloFeedMin: number; intervaloStoryMin: number; notaMinima: number; vendasMinimas: number; palavrasBloqueadas: string[]; carrosselPorDia: number; carrosselItens: number; carrosselTetos: number[]; dicasDias: number[]; horariosFeed: number[]; horariosStories: number[]; reelsPorDia: number; horariosReels: number[]; resumoHora: number; grupoDias: number[]; tokenData: string };
   painel: { porta: number };
 }
 
@@ -361,11 +361,11 @@ export function lerConfig(env: Env = process.env): Config {
       // O Instagram só recebe produtos que passam confiança: bem avaliados, muito vendidos e sem cara de genérico.
       notaMinima: numero(env, 'INSTAGRAM_NOTA_MINIMA', 4.6),
       vendasMinimas: numero(env, 'INSTAGRAM_VENDAS_MINIMAS', 300),
-      // Carrossel "Top 5 até R$ X": no máximo um por dia (conta como post de feed), com o teto de preço girando entre os dias.
+      // Carrossel do dia (só a dica "Antes de comprar", sem preço): no máximo um por dia (conta como post de feed).
       carrosselPorDia: numero(env, 'INSTAGRAM_CARROSSEL_POR_DIA', 1),
       carrosselItens: Math.min(9, Math.max(3, numero(env, 'INSTAGRAM_CARROSSEL_ITENS', 5))),
       carrosselTetos: lista(env.INSTAGRAM_CARROSSEL_TETOS === undefined ? '50,100,200' : env.INSTAGRAM_CARROSSEL_TETOS).map(Number).filter((n) => Number.isFinite(n) && n > 0),
-      // Dias da semana (0 = domingo ... 6 = sábado) em que o carrossel do dia é a dica "Antes de comprar"; nos outros dias é o "Top 5 até R$ X".
+      // Dias da semana (0 = domingo ... 6 = sábado) em que o carrossel da dica sai; nos outros dias não há carrossel.
       dicasDias: lista(env.INSTAGRAM_DICAS_DIAS === undefined ? '2,4,6' : env.INSTAGRAM_DICAS_DIAS).map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6),
       // Horas (0 a 23, de Brasília) em que o robô pode publicar. Fora delas ele espera, para os posts caírem nos horários em que
       // mais gente está online em vez de saírem todos na primeira rodada do dia. Vazio = qualquer hora do horário de postagem.
@@ -373,6 +373,10 @@ export function lerConfig(env: Env = process.env): Config {
       horariosStories: horas(env.INSTAGRAM_HORARIOS_STORIES, [8, 10, 12, 15, 18, 20, 21]),
       reelsPorDia: numero(env, 'INSTAGRAM_REELS_POR_DIA', 1),
       horariosReels: horas(env.INSTAGRAM_HORARIOS_REELS, [19, 20]),
+      // Story "Hoje no grupo" (o resumo do que o grupo entregou no dia), uma vez por dia a partir desta hora. 0 desliga.
+      resumoHora: numero(env, 'INSTAGRAM_RESUMO_HORA', 21),
+      // Dias da semana do carrossel "Por que entrar no grupo" (no máximo um por semana). Vazio = nunca. Padrão: segunda.
+      grupoDias: lista(env.INSTAGRAM_GRUPO_DIAS === undefined ? '1' : env.INSTAGRAM_GRUPO_DIAS).map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6),
       palavrasBloqueadas: env.INSTAGRAM_PALAVRAS_BLOQUEADAS === undefined ? ['generico', 'paralelo', 'similar', 'replica', 'imitacao', 'sem marca', 'inspirado', 'primeira linha'] : lista(env.INSTAGRAM_PALAVRAS_BLOQUEADAS),
       tokenData: (env.INSTAGRAM_TOKEN_DATA ?? '').trim(),
     },

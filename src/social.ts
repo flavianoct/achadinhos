@@ -2,9 +2,9 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Config } from './config.ts';
 import type { Banco } from './db.ts';
-import { formatarPreco, formatarVendas } from './mensagem.ts';
+import { formatarVendas } from './mensagem.ts';
 import { normalizar } from './categoria.ts';
-import { layoutDoProduto, svgDaCapaDaDica, svgDoCriterio, svgDoFechamentoDaDica, svgDoFeed, svgDoStory, temaDaCategoria, type DadosDaArte, type TipoDeGancho } from './moldes.ts';
+import { MARCA, svgDaCapaDaDica, svgDoCriterio, svgDoFechamentoDaDica, svgDoFeed, svgDoStory, svgsDaApresentacao, type DadosDaApresentacao, type DadosDaArte, type TipoDeGancho } from './moldes.ts';
 import { semListaDeModelos } from './fontes/mercadolivre-api.ts';
 import type { OfertaAvaliada } from './types.ts';
 
@@ -106,26 +106,40 @@ function tituloCompleto(titulo: string, max = 150): string {
 }
 
 /**
- * O selo do topo da arte: o motivo para parar o dedo. Prefere o que o histórico do robô prova (menor preço em N dias),
- * depois a economia em reais (só quando o preço "de" não parece inflado) e, sem nada melhor, a categoria do produto.
- */
-/**
- * O desconto pode ir na arte e na legenda (preço "de" riscado, economia e porcentagem)? Sim, como em qualquer loja, a menos que o histórico
- * do robô prove que o preço "de" é inflado (o produto nunca custou perto dele).
+ * O desconto pode ir na arte e na legenda (em %, nunca em reais)? Sim, a menos que o histórico do robô prove que o preço "de"
+ * é inflado (o produto nunca custou perto dele).
  */
 export function descontoConfiavel(o: OfertaAvaliada): boolean {
   return o.precoDe !== 'inflado';
 }
 
+/** Desconto em % para a arte: o da loja ou, sem ele, o calculado pelo preço "de". 0 se não há ou se o "de" parece inflado. */
+export function descontoParaArte(o: OfertaAvaliada): number {
+  if (!descontoConfiavel(o)) return 0;
+  if (o.desconto && o.desconto > 0) return Math.round(o.desconto);
+  return o.precoOriginal && o.precoOriginal > o.preco ? Math.round((1 - o.preco / o.precoOriginal) * 100) : 0;
+}
+
+/**
+ * O selo do topo da arte: o motivo para parar o dedo. Prefere o que o histórico do robô prova (menor preço em N dias),
+ * depois o desconto em % (só quando o preço "de" não parece inflado) e, sem nada melhor, a categoria do produto.
+ * Nunca mostra valor em reais: o preço fica no grupo.
+ */
 export function ganchoDaOferta(o: OfertaAvaliada): { gancho: string; curto: string; tipo: TipoDeGancho } {
   if (o.menorPrecoEmDias) return { gancho: `MENOR PREÇO EM ${o.menorPrecoEmDias} DIAS`, curto: 'MENOR PREÇO', tipo: 'historico' };
-  const economia = o.precoOriginal && o.precoOriginal > o.preco && descontoConfiavel(o) ? Math.round(o.precoOriginal - o.preco) : 0;
-  if (economia >= 10) {
-    const texto = `ECONOMIZE R$ ${economia.toLocaleString('pt-BR')}`;
-    return { gancho: texto, curto: texto, tipo: 'economia' };
+  const desconto = descontoParaArte(o);
+  if (desconto >= 10) {
+    const texto = `DESCONTO DE ${desconto}%`;
+    return { gancho: texto, curto: texto, tipo: 'desconto' };
   }
   const categoria = ROTULO_DA_CATEGORIA[o.categoria] ?? ROTULO_DA_CATEGORIA.geral!;
   return { gancho: categoria, curto: categoria, tipo: 'categoria' };
+}
+
+/** A pergunta da arte: "CAIU MESMO?" quando há motivo (menor preço ou desconto confiável); senão, "QUANTO CUSTA AGORA?". */
+export function perguntaDaArte(o: OfertaAvaliada): string {
+  const g = ganchoDaOferta(o);
+  return g.tipo === 'categoria' ? 'QUANTO CUSTA AGORA?' : 'CAIU MESMO?';
 }
 
 /** Número estável de 0 a n-1 para o mesmo produto: varia o gancho entre produtos sem sorteio (o mesmo produto repete a frase). */
@@ -183,16 +197,16 @@ export function montarLegenda(o: OfertaAvaliada, config: Config): string {
   linhas.push(`${montarGancho(o)} #publi`);
   linhas.push(tituloCompleto(o.titulo));
   linhas.push('');
-  const mostraDe = Boolean(o.precoOriginal && o.precoOriginal > o.preco && descontoConfiavel(o));
-  const de = mostraDe ? `De ${formatarPreco(o.precoOriginal as number)} por ` : 'Por ';
-  const desc = o.desconto && o.desconto > 0 && descontoConfiavel(o) ? ` (-${Math.round(o.desconto)}%)` : '';
-  linhas.push(`💰 ${de}${formatarPreco(o.preco)}${desc}`);
-  if (mostraDe) linhas.push('📌 Desconto sobre o preço informado pela loja');
+  // O preço em reais não vai na imagem nem na legenda: quem quer saber entra no grupo.
+  const desconto = descontoParaArte(o);
+  // Sem grupo de WhatsApp configurado, não promete grupo: manda para o link da bio (blog).
+  linhas.push(temWhatsapp(config) ? '💰 O preço de agora está no grupo (link na bio)' : '💰 O preço de agora está no link da bio');
+  if (desconto >= 5) linhas.push(`🏷️ ${desconto}% abaixo do preço informado pela loja`);
   if (o.freteGratis) linhas.push('🚚 Frete grátis');
   if (o.nota && o.nota > 0) linhas.push(`⭐ ${o.nota.toFixed(1).replace('.', ',')}${o.vendas ? ` · ${formatarVendas(o.vendas)} vendidos` : ''}`);
   linhas.push('');
   linhas.push(`👉 Todas as ofertas no blog, link na bio: ${enderecoDoBlog(config)}`);
-  if (temWhatsapp(config)) linhas.push('💬 Receba as ofertas também no WhatsApp (canal e grupo): link na bio');
+  if (temWhatsapp(config)) linhas.push(`📲 No grupo ${nomeDaMarca()} chegam achados assim todo dia, com o preço de agora e o histórico conferido. Entrar é grátis: link na bio.`);
   linhas.push('');
   linhas.push('Publi: link de afiliado. O preço pode mudar a qualquer momento.');
   linhas.push('');
@@ -202,14 +216,13 @@ export function montarLegenda(o: OfertaAvaliada, config: Config): string {
 
 /** Roteiro de 15 segundos para o Reels/TikTok: gancho, produto, preço, chamada. */
 export function montarRoteiro(o: OfertaAvaliada, config: Config): string {
-  const preco = formatarPreco(o.preco);
-  const desc = o.desconto && o.desconto > 0 && descontoConfiavel(o) ? `${Math.round(o.desconto)}% de desconto` : 'preço baixo';
+  const desconto = descontoParaArte(o);
   return [
-    `0 a 3 s (gancho, mostre o produto): "Olha esse achado: ${titulosCurto(o.titulo, 45)}!"`,
+    `0 a 3 s (gancho, mostre o produto): "Caiu mesmo? ${titulosCurto(o.titulo, 45)}!"`,
     `3 a 8 s (mostre em uso ou de perto): "${o.nota ? `Nota ${o.nota.toFixed(1).replace('.', ',')}` : 'Bem avaliado'}${o.vendas ? ` e ${formatarVendas(o.vendas)} vendidos` : ''}${o.freteGratis ? ', com frete grátis' : ''}."`,
-    `8 a 12 s (texto grande na tela): "${preco}, ${desc}"`,
-    `12 a 15 s (chamada): "Todas as ofertas no blog, link na minha bio. Corre que o preço muda!" (texto na tela: ${enderecoDoBlog(config)})`,
-    'Dica: escreva "publi" ou "link de afiliado" na legenda.',
+    `8 a 12 s (texto grande na tela, sem valor em reais): "${desconto >= 10 ? `${desconto}% abaixo do preço da loja` : 'O preço de agora está no grupo'}"`,
+    `12 a 15 s (chamada): "O preço de agora está no grupo, link na minha bio." (texto na tela: ${enderecoDoBlog(config)})`,
+    'Dica: escreva "publi" ou "link de afiliado" na legenda. Não fale nem mostre o preço em reais: ele fica no grupo.',
   ].join('\n');
 }
 
@@ -234,26 +247,20 @@ export function quebrarTexto(texto: string, largura: number, maxLinhas: number):
   return cortadas;
 }
 
-/** Dados da arte que os moldes (moldes.ts) usam: o tema vem da categoria e o layout vem do produto. */
+/** Dados da arte que os moldes (moldes.ts) usam. Nada aqui é valor em reais. */
 function dadosDaArte(o: OfertaAvaliada, imagem: string | undefined, larguraDoTitulo: number): DadosDaArte {
-  // Quando o histórico mostra que o produto nunca custou perto do preço "de", ele não vai riscado nem vira porcentagem na arte.
-  const inflado = !descontoConfiavel(o);
-  const temDe = Boolean(o.precoOriginal && o.precoOriginal > o.preco) && !inflado;
   const g = ganchoDaOferta(o);
   return {
     titulo: tituloParaArte(o.titulo, larguraDoTitulo),
-    precoTexto: formatarPreco(o.preco),
-    deTexto: temDe ? formatarPreco(o.precoOriginal as number) : undefined,
-    desconto: !inflado && o.desconto && o.desconto > 0 ? Math.round(o.desconto) : 0,
+    desconto: descontoParaArte(o),
     freteGratis: Boolean(o.freteGratis),
     foto: imagem,
     gancho: g.gancho,
     ganchoCurto: g.curto,
     ganchoTipo: g.tipo,
+    pergunta: perguntaDaArte(o),
     nota: o.nota && o.nota > 0 ? o.nota.toFixed(1).replace('.', ',') : undefined,
     vendas: o.vendas && o.vendas > 0 ? formatarVendas(o.vendas) : undefined,
-    tema: temaDaCategoria(o.categoria),
-    layout: layoutDoProduto(o.idProduto),
   };
 }
 
@@ -267,20 +274,6 @@ export function montarSvgDoFeed(o: OfertaAvaliada, imagem: string | undefined, _
   return svgDoFeed(dadosDaArte(o, imagem, 33));
 }
 
-
-/** Slide de produto do carrossel: o mesmo card do feed (sempre no mesmo layout, para o carrossel parecer um conjunto), com a posição no lugar do selo. */
-export function montarSvgDoSlide(o: OfertaAvaliada, imagem: string | undefined, posicao: number, total: number): string {
-  const rotulo = `#${posicao} DE ${total}`;
-  return svgDoFeed({ ...dadosDaArte(o, imagem, 33), layout: 0, gancho: rotulo, ganchoCurto: rotulo, ganchoTipo: 'economia' });
-}
-
-/** Carrossel "Top N até R$ X": as ofertas escolhidas e as fotos (para refazer as imagens a cada rodada). */
-export interface DadosDoTop {
-  formato?: 'top';
-  titulo: string;
-  teto: number;
-  itens: Array<{ oferta: OfertaAvaliada; imagem?: string }>;
-}
 
 /** Carrossel educativo "Antes de comprar [produto]": os critérios fixos do guia e os primeiros produtos dele. */
 export interface DadosDaDica {
@@ -296,11 +289,24 @@ export interface DadosDaDica {
   itens: Array<{ oferta: OfertaAvaliada; imagem?: string }>;
 }
 
-export type DadosDoCarrossel = DadosDoTop | DadosDaDica;
+/** Carrossel "Por que entrar no grupo": o que o grupo entrega, com os números do robô (sem preço). */
+export interface DadosDoGrupo extends DadosDaApresentacao {
+  formato: 'grupo';
+  titulo: string;
+}
+
+/** Os carrosséis do perfil: a dica "Antes de comprar" e a apresentação do grupo (o "Top até R$" saiu: ele mostrava preço). */
+export type DadosDoCarrossel = DadosDaDica | DadosDoGrupo;
+
+/** As imagens do carrossel, na ordem (a primeira é a capa). */
+export function montarSvgsDoCarrossel(d: DadosDoCarrossel): string[] {
+  return d.formato === 'grupo' ? svgsDaApresentacao(d) : montarSvgsDaDica(d);
+}
 
 /** Quantas imagens o carrossel tem. O Instagram aceita no máximo 10. */
 export function totalDeImagens(d: DadosDoCarrossel): number {
-  return d.formato === 'dica' ? 1 + d.criterios.length + (d.itens.length >= 2 ? 1 : 0) : d.itens.length + 1;
+  if (d.formato === 'grupo') return svgsDaApresentacao(d).length;
+  return 1 + d.criterios.length + (d.itens.length >= 2 ? 1 : 0);
 }
 
 /** Nomes dos PNGs do carrossel, na ordem (a primeira é a capa). Estáveis entre rodadas (o Instagram precisa de um endereço público). */
@@ -311,8 +317,7 @@ export function arquivosDoCarrossel(chave: string, imagens: number): string[] {
 
 /** As imagens do carrossel "Antes de comprar": capa, um critério por imagem e, no fim, os 3 primeiros do guia. */
 export function montarSvgsDaDica(d: DadosDaDica): string[] {
-  const tema = temaDaCategoria(d.categoria);
-  const slides = [svgDaCapaDaDica({ numero: d.criterios.length, assunto: quebrarSemCorte(d.assunto, 22).slice(0, 3), tema })];
+  const slides = [svgDaCapaDaDica({ numero: d.criterios.length, assunto: quebrarSemCorte(d.assunto, 22).slice(0, 3) })];
   d.criterios.forEach((c, i) => {
     // O critério em destaque (grande) e a explicação logo abaixo (menor); o título encolhe se for comprido.
     let titulo = quebrarSemCorte(c, 22);
@@ -322,7 +327,7 @@ export function montarSvgsDaDica(d: DadosDaDica): string[] {
       tamanhoDoTitulo = 56;
     }
     const explicacao = quebrarSemCorte(d.explicacoes?.[i] ?? '', 36).slice(0, 6);
-    slides.push(svgDoCriterio({ posicao: i + 1, total: d.criterios.length, titulo, tamanhoDoTitulo, explicacao, assunto: d.assunto, tema }));
+    slides.push(svgDoCriterio({ posicao: i + 1, total: d.criterios.length, titulo, tamanhoDoTitulo, explicacao, assunto: d.assunto }));
   });
   if (d.itens.length >= 2) {
     slides.push(
@@ -331,11 +336,9 @@ export function montarSvgsDaDica(d: DadosDaDica): string[] {
         itens: d.itens.slice(0, 3).map(({ oferta: o, imagem }) => ({
           foto: imagem,
           linhas: tituloParaArte(o.titulo, 24),
-          precoTexto: formatarPreco(o.preco),
           nota: o.nota && o.nota > 0 ? o.nota.toFixed(1).replace('.', ',') : undefined,
           vendas: o.vendas && o.vendas > 0 ? formatarVendas(o.vendas) : undefined,
         })),
-        tema,
       }),
     );
   }
@@ -360,7 +363,7 @@ export function legendaDaDica(d: DadosDaDica, config: Config): string {
     '',
     `💬 ${perguntaDaDica(d)}`,
     '',
-    `👉 Os 3 primeiros do nosso guia de ${d.assunto}, com preço e nota, e o guia completo: link na bio (${enderecoDoBlog(config)})`,
+    `👉 Os 3 primeiros do nosso guia de ${d.assunto}, com nota e vendas, e o guia completo: link na bio (${enderecoDoBlog(config)}). O preço de agora está no grupo.`,
     '',
     'Publi: link de afiliado nos produtos do guia. Os preços podem mudar a qualquer momento.',
     '',
@@ -369,17 +372,27 @@ export function legendaDaDica(d: DadosDaDica, config: Config): string {
   return linhas.join('\n');
 }
 
-/** Legenda do carrossel "Top N": gancho e #publi na primeira linha, a lista com preço e prova social, e o aviso de afiliado. */
-export function legendaDoCarrossel(d: DadosDoCarrossel, config: Config): string {
-  if (d.formato === 'dica') return legendaDaDica(d, config);
-  const linhas = [`🛒 ${d.titulo} #publi`, 'Bem avaliados e muito vendidos, separados hoje para você.', ''];
-  d.itens.forEach((it, i) => {
-    const o = it.oferta;
-    const prova = o.nota && o.nota > 0 ? ` · ⭐ ${o.nota.toFixed(1).replace('.', ',')}${o.vendas ? ` (${formatarVendas(o.vendas)} vendidos)` : ''}` : '';
-    linhas.push(`${i + 1}) ${tituloParaArte(o.titulo, 30).join(' ')} — ${formatarPreco(o.preco)}${prova}`);
-  });
-  linhas.push('', `👉 Todas as ofertas no blog, link na bio: ${enderecoDoBlog(config)}`, '', 'Publi: link de afiliado. Os preços podem mudar a qualquer momento.', '', hashtagsDaCategoria('geral').join(' '));
+/** O nome da marca em texto ("Mata Preço"). */
+export const nomeDaMarca = () => MARCA.nome.map((p) => p.charAt(0) + p.slice(1).toLowerCase()).join(' ');
+
+/** Legenda da apresentação do grupo: o que ele entrega, em tópicos, e a chamada para entrar. Sem preço. */
+export function legendaDoGrupo(d: DadosDoGrupo): string {
+  const linhas = [
+    `📲 Por que entrar no grupo ${nomeDaMarca()}? #publi`,
+    '',
+    `✅ ${d.achadosNaSemana} achados separados nos últimos 7 dias, direto no seu WhatsApp`,
+    `📉 ${d.diasDeHistorico} dias de histórico de preço: a gente avisa quando é o menor preço do mês, e o que já esteve mais barato fica de fora`,
+    `🔎 Só entra oferta com ${d.descontoMinimo}% de desconto ou mais (ou ${d.quedaMinima}% abaixo do próprio histórico), com nota e vendas conferidas`,
+  ];
+  if (d.bloqueadas.length) linhas.push(`🚫 Nada de ${d.bloqueadas.slice(0, 3).join(', ')}`);
+  if (d.assuntos.length) linhas.push(`🗂️ Separado por assunto: ${d.assuntos.join(', ')}`);
+  linhas.push('', '👉 Entrar é grátis: link na bio. Sair é um toque, quando quiser.', '', '🔖 Salve este post e mande para quem vive caçando promoção.', '', 'Publi: os achados do grupo levam link de afiliado.', '', hashtagsDaCategoria('geral').join(' '));
   return linhas.join('\n');
+}
+
+/** Legenda do carrossel, pelo formato. */
+export function legendaDoCarrossel(d: DadosDoCarrossel, config: Config): string {
+  return d.formato === 'grupo' ? legendaDoGrupo(d) : legendaDaDica(d, config);
 }
 
 /** Transforma o SVG em PNG. Devolve undefined se o conversor (@resvg/resvg-js) não estiver instalado. */

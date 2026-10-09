@@ -7,12 +7,13 @@ import { escolherParaCarrossel } from './carrossel.ts';
 import type { Config } from './config.ts';
 import { diaDe, horaDe, type Banco } from './db.ts';
 import { sintetizarMusica } from './musica.ts';
+import { MARCA } from './moldes.ts';
 import { baixarImagemComoDataUri, montarSvgDoStory, renderizarPng, temWhatsapp, type Fetch } from './social.ts';
 import type { OfertaAvaliada } from './types.ts';
 
 const executar = promisify(execFile);
 
-/** Reel "Top 3 achadinhos do dia": as ofertas e as fotos, para refazer o vídeo a cada rodada até ele ser publicado. */
+/** Reel "Caiu mesmo? 3 achados de hoje": as ofertas e as fotos, para refazer o vídeo a cada rodada até ele ser publicado. */
 export interface DadosDoReel {
   formato: 'reel';
   titulo: string;
@@ -39,7 +40,7 @@ export async function prepararReel(banco: Banco, config: Config, agora: Date, fe
   if (banco.reelCriadoNoDia(agora)) return false;
   const hora = horaDe(agora);
   if (hora < config.ritmo.horaInicio || hora >= config.ritmo.horaFim) return false;
-  // O preço fica gravado no vídeo: só prepara perto da hora de publicar (1 hora antes da primeira janela), para não sair preço velho.
+  // Só prepara perto da hora de publicar (1 hora antes da primeira janela), para o desconto e o selo de menor preço serem de agora.
   if (ig.horariosReels.length > 0 && hora < Math.min(...ig.horariosReels) - 1) return false;
 
   // Usa a mesma escolha do carrossel (qualidade, foto e variedade de categorias), com o teto de preço do dia.
@@ -53,33 +54,39 @@ export async function prepararReel(banco: Banco, config: Config, agora: Date, fe
     if (imagem) itens.push({ oferta, imagem });
   }
   if (itens.length < ITENS_DO_REEL) return false;
-  const titulo = `Top ${itens.length} achadinhos do dia`;
+  const titulo = `Caiu mesmo? ${itens.length} achados de hoje`;
   const dados: DadosDoReel = { formato: 'reel', titulo, itens };
   banco.salvarReel(`reel-${diaDe(agora)}`, titulo, JSON.stringify(dados), agora);
   return true;
 }
 
-const fonte = 'font-family="Arial,Helvetica,sans-serif"';
+const fonte = 'font-family="Liberation Sans,DejaVu Sans,Arial,Helvetica,sans-serif"';
 const moldura = (corpo: string) => `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920">
-<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#d6336c"/><stop offset="1" stop-color="#8f1d4a"/></linearGradient></defs>
+<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${MARCA.f1}"/><stop offset="1" stop-color="${MARCA.f2}"/></linearGradient></defs>
 <rect width="1080" height="1920" fill="url(#g)"/>${corpo}</svg>`;
-const texto = (y: number, s: string, tam: number, peso = 800, op = 1) =>
-  `<text x="540" y="${y}" text-anchor="middle" ${fonte} font-size="${tam}" font-weight="${peso}" fill="#fff" opacity="${op}">${s}</text>`;
+const texto = (y: number, s: string, tam: number, cor: string = MARCA.branco, peso = 800) =>
+  `<text x="540" y="${y}" text-anchor="middle" ${fonte} font-size="${tam}" font-weight="${peso}" fill="${cor}">${s}</text>`;
+const nome = (y: number) =>
+  `<text x="540" y="${y}" text-anchor="middle" ${fonte} font-size="70" font-weight="900" fill="${MARCA.branco}" letter-spacing="6">${MARCA.nome[0]} <tspan fill="${MARCA.amarelo}">${MARCA.nome[1]}</tspan></text><rect x="300" y="${y + 14}" width="480" height="10" rx="5" fill="${MARCA.vermelho}"/>`;
 
+/** Abertura do Reel: a pergunta que prende a atenção, sem preço. */
 export function svgDaAberturaDoReel(n: number): string {
-  return moldura(texto(800, `TOP ${n}`, 200) + texto(930, 'ACHADINHOS', 110) + texto(1050, 'DO DIA', 110) + texto(1250, 'Preços conferidos hoje', 46, 500, 0.9));
+  return moldura(nome(260) + texto(850, 'CAIU', 200, MARCA.amarelo, 900) + texto(1050, 'MESMO?', 200, MARCA.amarelo, 900) + texto(1300, `${n} achados de hoje`, 66, MARCA.branco, 700));
 }
 
+/** Fechamento do Reel: leva ao grupo, onde está o preço. */
 export function svgDoFechamentoDoReel(): string {
   return moldura(
-    texto(820, 'Quer receber', 90) +
-      texto(930, 'na hora?', 90) +
-      `<rect x="140" y="1020" width="800" height="130" rx="65" fill="#fff"/><text x="540" y="1105" text-anchor="middle" ${fonte} font-size="52" font-weight="800" fill="#b5214f">Link na bio · Telegram</text>` +
-      texto(1300, 'Publi: links de afiliado', 36, 500, 0.85),
+    nome(260) +
+      texto(760, 'O PREÇO', 150, MARCA.amarelo, 900) +
+      texto(900, 'ESTÁ NO GRUPO', 108, MARCA.amarelo, 900) +
+      texto(1030, 'Achados assim todo dia, de graça', 50, MARCA.branco, 700) +
+      `<rect x="140" y="1110" width="800" height="150" rx="75" fill="${MARCA.vermelho}"/><text x="540" y="1206" text-anchor="middle" ${fonte} font-size="56" font-weight="800" fill="#fff">ENTRE PELO LINK NA BIO</text>` +
+      texto(1400, 'Publi: links de afiliado', 36, MARCA.suave, 500),
   );
 }
 
-/** Legenda do Reel: nomes curtos dos produtos (o preço está no vídeo e muda), pedido para salvar e o aviso de publi. */
+/** Legenda do Reel: nomes curtos dos produtos, o aviso de que o preço está no grupo, pedido para salvar e o aviso de publi. */
 export function legendaDoReel(dados: DadosDoReel, config: Config): string {
   const curto = (t: string) => t.split(/\s+/).slice(0, 7).join(' ').replace(/[,;:-]+$/, '');
   const linhas = dados.itens.map((it, i) => `${i + 1}. ${curto(it.oferta.titulo)}`);
@@ -89,7 +96,7 @@ export function legendaDoReel(dados: DadosDoReel, config: Config): string {
     '',
     ...linhas,
     '',
-    `Salva para não perder e manda para quem vai gostar 💾${telegram}${temWhatsapp(config) ? '\n💬 Também no WhatsApp: canal e grupo, link na bio' : ''}`,
+    `💰 O preço de agora está no grupo: link na bio.\nSalva para não perder e manda para quem vai gostar 💾${telegram}${temWhatsapp(config) ? '\n💬 Também no WhatsApp: canal e grupo, link na bio' : ''}`,
     '',
     'Publi: links de afiliado. Preços e estoque podem mudar a qualquer momento.',
     '',

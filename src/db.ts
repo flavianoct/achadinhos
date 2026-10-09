@@ -428,7 +428,7 @@ export class Banco {
     return linhas.filter((l) => diaDe(new Date(l.t)) === hoje).length + (tipo === 'feed' ? this.carrosseisPublicadosNoDia(agora) : 0);
   }
 
-  // ───────── Carrossel do Instagram ("Top 5 até R$ 100") ─────────
+  // ───────── Carrossel do Instagram (dica "Antes de comprar") ─────────
 
   /** Guarda o carrossel pronto para publicar (os dados trazem as ofertas e as fotos, para refazer as imagens a cada rodada). */
   salvarCarrossel(chave: string, titulo: string, dados: string, agora: Date): void {
@@ -513,7 +513,7 @@ export class Banco {
       .sort((a, b) => Number(b.ativo) - Number(a.ativo) || Number(b.nivel === 'erro') - Number(a.nivel === 'erro') || b.vistoEm - a.vistoEm);
   }
 
-  // ───────── Reel do Instagram (vídeo "Top 3 achadinhos do dia") ─────────
+  // ───────── Reel do Instagram (vídeo "Caiu mesmo? 3 achados de hoje") ─────────
 
   /** Guarda o Reel do dia (as ofertas e as fotos, para refazer o vídeo a cada rodada até ele ser publicado). */
   salvarReel(chave: string, titulo: string, dados: string, agora: Date): void {
