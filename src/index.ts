@@ -126,7 +126,7 @@ async function modoNuvem(): Promise<void> {
       avisar(chaveDoAviso('rotas', aviso), aviso);
     }
     const convite = await robo.postarConviteAgora();
-    if (convite.postou) dizer('- Convite para o canal do WhatsApp postado no Telegram.');
+    if (convite.postou) dizer('- Convite para os canais postado no Telegram.');
     else if (convite.motivo && !/fora do dia|já postado|Telegram não configurado/.test(convite.motivo)) avisar('convite:erro', `Não consegui postar o convite aos outros canais: ${convite.motivo}`);
     if (motivoDaParada === 'fila vazia') avisar('fila:vazia', 'A fila de ofertas está vazia: não há o que postar até a próxima coleta trazer ofertas aprovadas.');
     else if (motivoDaParada.startsWith('erro')) avisar('telegram:erro', `Falha ao postar no Telegram (${motivoDaParada})`, 'erro');

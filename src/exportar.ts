@@ -175,12 +175,12 @@ export function publicarControle(banco: Banco, config: Config, dados: DadosDaRod
   const pasta = config.blog.pasta;
   mkdirSync(pasta, { recursive: true });
   const status = montarStatus(banco, config, dados, agora, repo);
-  const convites = config.whatsapp.ativo ? convitesDeHoje(config, agora).filter((c) => c.textoWhatsapp) : [];
+  const convites = config.whatsapp.ativo ? convitesDeHoje(config, agora) : [];
   const mensagens = config.whatsapp.ativo
     ? [
         ...banco.mensagensDoWhatsapp(HORAS_DO_WHATSAPP, agora).map((m) => ({ id: m.chave, criadoEm: m.criadoEm, loja: m.loja, categoria: m.categoria, texto: atualizarRodape(m.texto, config), imagem: m.imagem, link: m.link })),
-        // Os convites para o canal do Telegram (horários sorteados do dia): o enviador manda só texto, uma única vez cada (o id é fixo por convite).
-        ...convites.map((c) => ({ id: c.id, criadoEm: c.criadoEm, loja: 'convite', categoria: undefined, texto: c.textoWhatsapp, imagem: undefined, link: '' })),
+        // Os convites para os canais (horários sorteados do dia): o enviador manda só texto, uma única vez cada (o id é fixo por convite).
+        ...convites.map((c) => ({ id: c.id, criadoEm: c.criadoEm, loja: 'convite', categoria: undefined, texto: c.texto, imagem: undefined, link: '' })),
       ]
     : [];
   writeFileSync(join(pasta, 'status.json'), JSON.stringify(status, null, 2), 'utf8');
