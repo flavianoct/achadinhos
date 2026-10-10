@@ -78,7 +78,7 @@ function roboDeTeste(env: Record<string, string>, ofertas: Oferta[] = []) {
   return { robo, pub, dir, coletas: () => coletas };
 }
 
-const CHAVES = { TELEGRAM_BOT_TOKEN: 't', TELEGRAM_CHAT_ID: '@c', SHOPEE_APP_ID: 'a', SHOPEE_SECRET: 's', PARECIDOS_HORAS: '0' };
+const CHAVES = { DATAS_ATIVO: '0', TELEGRAM_BOT_TOKEN: 't', TELEGRAM_CHAT_ID: '@c', SHOPEE_APP_ID: 'a', SHOPEE_SECRET: 's', PARECIDOS_HORAS: '0' };
 const oferta = (id: string, desconto: number): Oferta => ({ loja: 'shopee', idProduto: id, titulo: `Fone ${id}`, preco: 100, desconto, link: `https://s/${id}`, nota: 4.8, vendas: 500 });
 
 test('robô: sem chaves não coleta nem posta; pausado também não', async () => {

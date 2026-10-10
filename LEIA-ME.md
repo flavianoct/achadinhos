@@ -106,6 +106,26 @@ Cadastre os secrets `ML_MATT_WORD` e `ML_MATT_TOOL` e mude `ML_ATIVO=1` em `ajus
 
 O robô pega os mais vendidos de cada categoria. Como essa listagem não traz "ofertas do dia", o Mercado Livre rende mais depois de alguns dias, quando o histórico de preços começa a detectar quedas.
 
+## Datas especiais (10.10, 11.11, Black Friday, Dia das Mães...)
+
+O robô conhece sozinho as datas do varejo: as datas duplas (1.1 a 12.12), Dia da Mulher, Dia do Consumidor, Páscoa, Dia das Mães, Dia dos Namorados, Dia dos Pais, Dia do Cliente, Dia das Crianças, Black Friday com Cyber Monday e Natal. As que mudam de dia a cada ano (Páscoa, Mães, Pais, Black Friday) ele calcula.
+
+Em cada data ele faz três coisas:
+- **Lembrete para você, só no painel** (Avisos do robô): `DATAS_AVISO_DIAS` dias antes (padrão 3), para você colar o link da campanha e os cupons. Nunca vai para o canal.
+- **Aviso no Telegram**: na véspera às 18h ("Amanhã é 10.10!"), na abertura a partir das 9h e nas últimas horas, a partir das 20h do último dia. Cada um sai uma vez só, sem preço e sem número inventado. O WhatsApp e o Instagram não mudam.
+- **Links**: o do Mercado Livre é a página de ofertas com o seu código de afiliado. A Shopee só entra se você colocar o link dela em `datas.json`: um link gerado às cegas já mostrou "oferta expirada".
+
+Para colocar o link oficial de uma campanha, ou acrescentar uma data sua, edite `datas.json` (na raiz, pelo lápis do GitHub). Uma data com o mesmo `inicio` de uma data do calendário só ajusta os links; uma com `inicio` novo é acrescentada:
+
+```json
+[
+  { "inicio": "2026-11-11", "mercadolivre": "https://www.mercadolivre.com.br/...", "shopee": "https://s.shopee.com.br/..." },
+  { "nome": "Aniversário da loja", "emoji": "🎂", "inicio": "2026-11-20", "fim": "2026-11-22" }
+]
+```
+
+`DATAS_ATIVO=0` desliga tudo. Erros no arquivo (data errada, link de outra loja) aparecem nos Avisos do robô e a data com problema é ignorada.
+
 ## Cupons (Mercado Livre e Shopee)
 
 O robô posta no Telegram cupons de duas origens: os que você cadastrar no arquivo `cupons.json` (na raiz do repositório) e os que ele **garimpa sozinho**.

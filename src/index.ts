@@ -128,6 +128,11 @@ async function modoNuvem(): Promise<void> {
     const convite = await robo.postarConviteAgora();
     if (convite.postou) dizer('- Convite para os canais postado no Telegram.');
     else if (convite.motivo && !/fora do dia|já postado|Telegram não configurado/.test(convite.motivo)) avisar('convite:erro', `Não consegui postar o convite aos outros canais: ${convite.motivo}`);
+    // Datas especiais (10.10, Black Friday...): aviso no Telegram e lembretes para o dono (só no painel).
+    const data = await robo.postarDataEspecialAgora();
+    if (data.postou) dizer('- Aviso de data especial postado no Telegram.');
+    else if (data.motivo && !/desligado|fora do horário|nenhuma data|Telegram não configurado/.test(data.motivo)) avisar('datas:erro', `Não consegui postar o aviso da data especial: ${data.motivo}`);
+    for (const a of data.avisos) avisar(a.chave, a.texto);
     if (motivoDaParada === 'fila vazia') avisar('fila:vazia', 'A fila de ofertas está vazia: não há o que postar até a próxima coleta trazer ofertas aprovadas.');
     else if (motivoDaParada.startsWith('erro')) avisar('telegram:erro', `Falha ao postar no Telegram (${motivoDaParada})`, 'erro');
     rodada.postados = postados;

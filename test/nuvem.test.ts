@@ -30,7 +30,7 @@ function chamadas(pasta: string): any[] {
   return existsSync(arq) ? readFileSync(arq, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l)) : [];
 }
 
-const SEGREDOS = { PARECIDOS_HORAS: '0', TELEGRAM_BOT_TOKEN: '123:abc', TELEGRAM_CHAT_ID: '@canal_teste', SHOPEE_APP_ID: 'app', SHOPEE_SECRET: 'segredo', GITHUB_TOKEN: 'token-do-workflow', BLOG_URL: 'https://fulano.github.io/achadinhos' };
+const SEGREDOS = { DATAS_ATIVO: '0', PARECIDOS_HORAS: '0', TELEGRAM_BOT_TOKEN: '123:abc', TELEGRAM_CHAT_ID: '@canal_teste', SHOPEE_APP_ID: 'app', SHOPEE_SECRET: 'segredo', GITHUB_TOKEN: 'token-do-workflow', BLOG_URL: 'https://fulano.github.io/achadinhos' };
 
 test('nuvem: rodadas seguidas coletam, postam sem repetir, escrevem o blog com IA e guardam o estado em dados.db', async () => {
   const pasta = mkdtempSync(join(tmpdir(), 'nuvem-'));
