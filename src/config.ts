@@ -26,7 +26,7 @@ export interface Config {
     ativo: boolean;
     mattWord: string;
     mattTool: string;
-    /** App do DevCenter do Mercado Livre (API oficial, usada como reserva da leitura da página). */
+    /** App do DevCenter do Mercado Livre (API oficial, o caminho principal da coleta). */
     clientId: string;
     clientSecret: string;
     /** Quantas páginas de ofertas ler a cada rodada, no total (cerca de 48 produtos por página). */
@@ -35,6 +35,8 @@ export interface Config {
     categorias: string[];
     /** Quantas das páginas da rodada vão para as categorias; o resto vai para a vitrine geral. */
     paginasDeCategoria: number;
+    /** Quantas categorias (ou subcategorias) a API lê por rodada, em rodízio. Cada uma traz até 20 produtos mais vendidos. */
+    apiCategoriasPorRodada: number;
   };
   amazon: { ativo: boolean; tag: string };
   filtro: {
@@ -299,6 +301,7 @@ export function lerConfig(env: Env = process.env): Config {
       // Eletrônicos, Celulares, Informática, Eletrodomésticos, Casa, Games, Beleza e Esportes.
       categorias: env.ML_CATEGORIAS === undefined ? ['MLB1000', 'MLB1051', 'MLB1648', 'MLB5726', 'MLB1574', 'MLB1144', 'MLB1246', 'MLB1276'] : lista(env.ML_CATEGORIAS).map((c) => c.toUpperCase()),
       paginasDeCategoria: numero(env, 'ML_PAGINAS_DE_CATEGORIA', 2),
+      apiCategoriasPorRodada: numero(env, 'ML_API_CATEGORIAS_POR_RODADA', 6),
     },
     amazon: {
       ativo: ligado(env, 'AMAZON_ATIVO', false),

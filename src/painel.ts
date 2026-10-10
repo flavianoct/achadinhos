@@ -30,6 +30,7 @@ export const CAMPOS: Campo[] = [
   { grupo: 'Mercado Livre', chave: 'ML_MATT_TOOL', rotulo: 'matt_tool', tipo: 'texto', padrao: '' },
   { grupo: 'Mercado Livre', chave: 'ML_PAGINAS', rotulo: 'Páginas de ofertas por rodada', tipo: 'numero', padrao: '3', ajuda: 'Cerca de 48 produtos por página.' },
   { grupo: 'Mercado Livre', chave: 'ML_PAGINAS_DE_CATEGORIA', rotulo: 'Páginas que vão para categorias', tipo: 'numero', padrao: '2', ajuda: 'Do total acima, quantas leem ofertas de uma categoria em rodízio (0 = só a vitrine geral).' },
+  { grupo: 'Mercado Livre', chave: 'ML_API_CATEGORIAS_POR_RODADA', rotulo: 'Categorias lidas pela API por rodada', tipo: 'numero', padrao: '6', ajuda: 'A API lê as categorias abaixo e as subcategorias delas em rodízio; cada uma traz até 20 mais vendidos (2 pedidos por produto).' },
   { grupo: 'Mercado Livre', chave: 'ML_CATEGORIAS', rotulo: 'Categorias do rodízio', tipo: 'texto', padrao: 'MLB1000,MLB1051,MLB1648,MLB5726,MLB1574,MLB1144,MLB1246,MLB1276', ajuda: 'IDs MLB separados por vírgula.' },
 
   { grupo: 'Amazon', chave: 'AMAZON_ATIVO', rotulo: 'Usar a Amazon', tipo: 'simnao', padrao: '0', ajuda: 'Ainda não coleta sozinha (depende da Creators API).' },

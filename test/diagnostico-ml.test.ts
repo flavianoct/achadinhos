@@ -36,23 +36,29 @@ test('ml-api: o log diz qual complemento falhou e com qual código HTTP (e não 
   const { valor, linhas } = await capturandoLog(() => api.coletar(0));
   assert.equal(valor.length, 2, 'as ofertas saem mesmo sem nota e vendas');
   const resumo = linhas.find((l) => l.startsWith('[ml-api]'))!;
-  assert.match(resumo, /anúncio 403 x2/);
+  assert.match(resumo, /anúncio 403 x1/, 'no 403 para de pedir esse recurso na rodada');
   assert.match(resumo, /avaliações 404 x2/);
 });
 
-test('ml: quando a página barra e a API salva a rodada, o motivo da página vira aviso e linha de log', async () => {
-  const barrada = (async () => new Response('captcha', { status: 403 })) as unknown as typeof fetch;
+test('ml: quando a API falha e a página salva a rodada, o motivo da API vira aviso e linha de log', async () => {
   const oferta: Oferta = { loja: 'mercadolivre', idProduto: 'MLB1', titulo: 'Fone', preco: 50, desconto: 50, link: 'https://x/1', nota: 4.8, vendas: 900 };
-  const fonte = new FonteMercadoLivre({ mattWord: 'w', mattTool: 't', reserva: { coletar: async () => [oferta] } }, barrada);
+  // Página com um cartão legível mínimo não é necessária: a reserva aqui é a página simulada por uma subclasse.
+  class PaginaOk extends FonteMercadoLivre {
+    protected override async coletarDaPagina(): Promise<Oferta[]> {
+      return [oferta];
+    }
+  }
+  const apiQuebrada = { coletar: async () => { throw new Error('403 em /highlights/MLB/category/MLB1000'); } };
+  const fonte = new PaginaOk({ mattWord: 'w', mattTool: 't', reserva: apiQuebrada });
   const { valor, linhas } = await capturandoLog(() => fonte.coletar());
   assert.equal(valor.length, 1);
-  assert.match(fonte.avisoDaColeta() ?? '', /403/);
+  assert.match(fonte.avisoDaColeta() ?? '', /API do Mercado Livre falhou.*403/);
   assert.ok(linhas.some((l) => l.startsWith('[ml]') && /403/.test(l)));
 
   // No resumo da coleta o aviso aparece por loja, e a fonte não é marcada como quebrada.
   const banco = new Banco(':memory:');
   const r = await coletar([fonte], banco, lerConfig({}), AGORA);
-  assert.match(r.avisosPorFonte.mercadolivre ?? '', /página de ofertas/);
+  assert.match(r.avisosPorFonte.mercadolivre ?? '', /API do Mercado Livre falhou/);
   assert.deepEqual(r.errosPorFonte, {});
   assert.equal(banco.fontesComFalhas(1).length, 0);
 });
