@@ -106,6 +106,8 @@ export interface Config {
   /** Mensagens de WhatsApp para o enviador do PC (ver pasta enviador/). */
   whatsapp: {
     ativo: boolean;
+    /** Máximo de ofertas que entram na fila do WhatsApp por rodada (WHATSAPP_POR_RODADA); as primeiras de cada rodada são as melhores. 0 = sem limite. O Telegram não é afetado. */
+    porRodada: number;
     /** Duas linhas no fim de cada oferta com o Telegram e o Instagram (WHATSAPP_RODAPE). */
     rodape: boolean;
     /** Canais e grupos gerais onde o enviador posta (links https do WhatsApp), de WHATSAPP_DESTINOS. Seguem o filtro do geral. */
@@ -364,7 +366,7 @@ export function lerConfig(env: Env = process.env): Config {
       amazonArquivo: (env.BLOG_AMAZON_ARQUIVO ?? '').trim() || 'amazon.json',
     },
     convite: { ativo: ligado(env, 'CONVITE_ATIVO', false), porDia: Math.min(6, Math.max(0, numero(env, 'CONVITES_POR_DIA', 3))) },
-    whatsapp: { ativo: ligado(env, 'WHATSAPP_ATIVO', true), rodape: ligado(env, 'WHATSAPP_RODAPE', true), destinos: destinosDoWhatsapp(env.WHATSAPP_DESTINOS ?? ''), ...rotasDoWhatsapp(env.WHATSAPP_ROTAS) },
+    whatsapp: { ativo: ligado(env, 'WHATSAPP_ATIVO', true), porRodada: numero(env, 'WHATSAPP_POR_RODADA', 0), rodape: ligado(env, 'WHATSAPP_RODAPE', true), destinos: destinosDoWhatsapp(env.WHATSAPP_DESTINOS ?? ''), ...rotasDoWhatsapp(env.WHATSAPP_ROTAS) },
     social: { ativo: ligado(env, 'SOCIAL_ATIVO', true) },
     instagram: {
       ativo: ligado(env, 'INSTAGRAM_ATIVO', false),

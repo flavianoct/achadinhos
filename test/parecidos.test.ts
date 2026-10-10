@@ -92,3 +92,23 @@ test('tema: com TEMA=celular, projetor só entram e saem ofertas desses assuntos
   assert.deepEqual(publicados, ['Projetor Portátil 4K'], 'a air fryer, de pontuação maior, fica de fora');
   assert.equal(banco.tamanhoDaFila(), 0);
 });
+
+test('whatsapp: com WHATSAPP_POR_RODADA=2, só as 2 melhores de cada rodada entram na fila do WhatsApp, todas as rodadas recebem, e o Telegram posta todas', async () => {
+  const banco = new Banco(':memory:');
+  for (let i = 1; i <= 8; i++) banco.enfileirar(oferta(i, `Produto${i} Diferente${i} Unico${i}`, 100 - i), AGORA);
+  const publicados: string[] = [];
+  const base = { TELEGRAM_BOT_TOKEN: 't', TELEGRAM_CHAT_ID: '1', HORA_INICIO: '8', HORA_FIM: '23', PARECIDOS_HORAS: '0', WHATSAPP_ATIVO: '1' };
+  const config = lerConfig({ ...base, WHATSAPP_POR_RODADA: '2' });
+  const pub = { async publicar(o: OfertaAvaliada) { publicados.push(o.idProduto); } } as any;
+  // Rodada 1: 4 posts. Rodada 2, meia hora depois: mais 4. Cada rodada deixa 2 no WhatsApp.
+  for (let i = 0; i < 4; i++) await postarProxima(pub, banco, config, AGORA);
+  const meiaHoraDepois = new Date(AGORA.getTime() + 27 * 60_000);
+  for (let i = 0; i < 4; i++) await postarProxima(pub, banco, config, meiaHoraDepois);
+  assert.equal(publicados.length, 8, 'o Telegram posta as 8');
+  assert.deepEqual(banco.mensagensDoWhatsapp(2, meiaHoraDepois).map((m) => m.chave.split(':')[1]), ['MLB1', 'MLB2', 'MLB5', 'MLB6'], 'o WhatsApp recebe as 2 melhores de CADA rodada (nenhuma rodada fica sem)');
+  // Sem limite (0), tudo entra.
+  const b2 = new Banco(':memory:');
+  for (let i = 1; i <= 3; i++) b2.enfileirar(oferta(i, `Item${i} Outro${i} Raro${i}`, 90 - i), AGORA);
+  for (let i = 0; i < 3; i++) await postarProxima({ async publicar() {} } as any, b2, lerConfig({ ...base, WHATSAPP_POR_RODADA: '0' }), AGORA);
+  assert.equal(b2.mensagensDoWhatsapp(1, AGORA).length, 3);
+});
