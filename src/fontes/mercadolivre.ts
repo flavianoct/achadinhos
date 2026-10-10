@@ -119,9 +119,9 @@ export function categoriasDoTurno(categorias: string[], quantas: number, turno: 
 }
 
 /**
- * Mercado Livre pela página pública de ofertas.
- * A API oficial (pesquisa, mais vendidos, produtos) responde 403 para apps comuns, mesmo com o token do app,
- * então o robô lê a mesma página de ofertas que qualquer visitante vê: título, preço, preço antigo, foto, nota e vendas.
+ * Mercado Livre: a API oficial primeiro (FonteMercadoLivreApi) e, se ela falhar, a página pública de ofertas.
+ * A API do app não lê anúncios (nota e vendas dão 403) nem a busca de anúncios, mas lê os mais vendidos, os produtos de catálogo e a busca
+ * de produtos. A página traz título, preço, preço antigo, foto, nota e vendas, mas o site a barra com captcha desde 06/10/2026.
  * Parte das páginas da rodada vai para a vitrine geral e parte para as ofertas de uma categoria (em rodízio):
  * o total de pedidos é o mesmo, mas os guias ganham produtos que a vitrine geral não mostra.
  */
@@ -168,34 +168,37 @@ export class FonteMercadoLivre implements Fonte {
     return this.aviso;
   }
 
-  /** Lê a página de ofertas; se o site barrar (captcha), tenta a API oficial e só falha se as duas falharem. */
+  /**
+   * A API oficial é o caminho principal (documentada, sem captcha); a página pública de ofertas só entra se a API falhar.
+   * Sem as chaves da API (ML_CLIENT_ID e ML_CLIENT_SECRET), lê só a página.
+   */
   async coletar(): Promise<Oferta[]> {
     this.aviso = undefined;
-    // Com tema, tenta primeiro a busca por palavra pela API; se ela não trouxer nada, segue para a página de ofertas (que o filtro do tema limpa depois).
+    // Com tema, tenta primeiro a busca por palavra pela API; se ela não trouxer nada, segue para a coleta normal (que o filtro do tema limpa depois).
     if (this.tema.length && this.reserva?.buscar) {
       try {
         return await this.reserva.buscar(this.tema);
       } catch {
-        // cai na leitura normal
+        // cai na coleta normal
       }
     }
+    if (!this.reserva) return this.coletarDaPagina();
     try {
-      return await this.coletarDaPagina();
-    } catch (e) {
-      if (!this.reserva) throw e;
+      return await this.reserva.coletar();
+    } catch (eApi) {
+      // A API falhou: tenta a página, mas o motivo da API não pode sumir (é por ele que o volume cai).
       try {
-        const ofertas = await this.reserva.coletar();
-        // A rodada foi salva pela API, mas o motivo da página falhar não pode sumir: é por ele que o volume cai.
-        this.aviso = `A página de ofertas do Mercado Livre falhou (${(e as Error).message}); a coleta usou só a API oficial.`;
+        const ofertas = await this.coletarDaPagina();
+        this.aviso = `A API do Mercado Livre falhou (${(eApi as Error).message}); a coleta usou a página de ofertas.`;
         console.log(`[ml] ${this.aviso}`);
         return ofertas;
-      } catch (e2) {
-        throw new Error(`${(e as Error).message} Reserva: ${(e2 as Error).message}`);
+      } catch (ePagina) {
+        throw new Error(`API do Mercado Livre: ${(eApi as Error).message} Página: ${(ePagina as Error).message}`);
       }
     }
   }
 
-  private async coletarDaPagina(): Promise<Oferta[]> {
+  protected async coletarDaPagina(): Promise<Oferta[]> {
     const vistos = new Map<string, Oferta>();
     const guardar = (cartoes: any[]) => {
       for (const c of cartoes) {

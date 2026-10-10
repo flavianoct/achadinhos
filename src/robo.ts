@@ -38,7 +38,7 @@ function fontesReais(config: Config): Fonte[] {
   const fontes: Fonte[] = [];
   if (config.shopee.ativo) fontes.push(new FonteShopee(config.shopee));
   if (config.ml.ativo) {
-    const api = config.ml.clientId && config.ml.clientSecret ? new FonteMercadoLivreApi({ clientId: config.ml.clientId, clientSecret: config.ml.clientSecret, mattWord: config.ml.mattWord, mattTool: config.ml.mattTool, categorias: config.ml.categorias }) : undefined;
+    const api = config.ml.clientId && config.ml.clientSecret ? new FonteMercadoLivreApi({ clientId: config.ml.clientId, clientSecret: config.ml.clientSecret, mattWord: config.ml.mattWord, mattTool: config.ml.mattTool, categorias: config.ml.categorias, porRodada: config.ml.apiCategoriasPorRodada }) : undefined;
     fontes.push(new FonteMercadoLivre({ ...config.ml, reserva: api, tema: config.filtro.tema }));
   }
   if (config.amazon.ativo) fontes.push(new FonteAmazon());
