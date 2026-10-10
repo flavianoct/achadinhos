@@ -71,6 +71,7 @@ export const CAMPOS: Campo[] = [
   { grupo: 'Cupons e campanhas', chave: 'CUPONS_ATIVO', rotulo: 'Postar cupons do cupons.json', tipo: 'simnao', padrao: '1' },
   { grupo: 'Cupons e campanhas', chave: 'CUPONS_POR_DIA', rotulo: 'Cupons por dia', tipo: 'numero', padrao: '3' },
   { grupo: 'Cupons e campanhas', chave: 'CUPONS_REPETIR_DIAS', rotulo: 'Repetir cupom depois de (dias)', tipo: 'numero', padrao: '3' },
+  { grupo: 'Cupons e campanhas', chave: 'CUPONS_LOJAS', rotulo: 'Lojas do garimpo de cupons', tipo: 'texto', padrao: 'mercadolivre,shopee', ajuda: 'mercadolivre, shopee ou as duas. Tire a shopee até ter um link que abra os cupons de verdade.' },
   { grupo: 'Cupons e campanhas', chave: 'CAMPANHAS_POR_DIA', rotulo: 'Campanhas da Shopee por dia', tipo: 'numero', padrao: '0', ajuda: '0 desliga.' },
   { grupo: 'Cupons e campanhas', chave: 'CAMPANHAS_REPETIR_DIAS', rotulo: 'Repetir campanha depois de (dias)', tipo: 'numero', padrao: '7' },
   { grupo: 'Cupons e campanhas', chave: 'VENDAS_ATIVO', rotulo: 'Ler vendas e comissão da Shopee', tipo: 'simnao', padrao: '1' },
