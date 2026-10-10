@@ -4,7 +4,8 @@ import { diaDe } from './db.ts';
 /**
  * Convites para os canais: algumas vezes por dia (CONVITES_POR_DIA), em horários sorteados a cada dia dentro do horário de postagem,
  * o robô manda uma chamada CURTA com um gatilho mental, para quem não curte grupo nem mostrar o número: o canal tem as mesmas ofertas
- * do grupo, sem mostrar o número e sem conversa. A mesma mensagem sai no Telegram e no WhatsApp e leva aos DOIS canais.
+ * do grupo, sem mostrar o número e sem conversa. Cada lugar convida para os OUTROS canais, nunca para si mesmo: o canal do Telegram
+ * convida para o canal do WhatsApp, o canal do WhatsApp convida para o canal do Telegram e o grupo do WhatsApp convida para os dois.
  * Cada mensagem tem a saudação da hora e um gatilho diferente (só os verdadeiros: nada de número ou estoque inventado).
  */
 export interface Convite {
@@ -15,9 +16,16 @@ export interface Convite {
   numero: number;
   /** Hora sorteada do convite (ms): o enviador descarta mensagem com mais de 3 horas, então ele não sai atrasado. */
   criadoEm: number;
-  /** O texto, o mesmo no Telegram e no WhatsApp: leva aos dois canais. */
-  texto: string;
+  /**
+   * O texto de cada lugar. Vazio quando não há para onde convidar (o outro canal não está configurado).
+   * telegram: canal do Telegram, convida para o canal do WhatsApp. whatsappCanal: canal do WhatsApp, convida para o canal do Telegram.
+   * whatsappGrupo: grupo do WhatsApp, convida para os dois.
+   */
+  textos: { telegram: string; whatsappCanal: string; whatsappGrupo: string };
 }
+
+/** Onde o convite aparece. */
+export type LugarDoConvite = 'telegram' | 'whatsapp-canal' | 'whatsapp-grupo';
 
 /** Quantas horas depois da hora sorteada o convite ainda pode sair. */
 export const HORAS_DE_VALIDADE_DO_CONVITE = 3;
@@ -72,18 +80,24 @@ function sorteio(semente: string): () => number {
   };
 }
 
-/** Os dois canais que o convite divulga: o do WhatsApp e o do Telegram (só os que estão configurados). O grupo não entra: o convite é para quem não curte grupo. */
-export function linksDosCanais(config: Config): Array<{ emoji: string; rotulo: string; link: string }> {
+/**
+ * Os canais que o convite divulga (só os configurados). O grupo nunca entra: o convite é para quem não curte grupo.
+ * Sem `lugar`, os dois. Com `lugar`, só os OUTROS: o Telegram não convida para o Telegram e o canal do WhatsApp não convida para si mesmo.
+ */
+export function linksDosCanais(config: Config, lugar?: LugarDoConvite): Array<{ emoji: string; rotulo: string; link: string }> {
   const canalWhatsapp = config.blog.whatsappLink || config.whatsapp.destinos.find((d) => /whatsapp\.com\/channel\//i.test(d)) || '';
   return [
-    { emoji: '📢', rotulo: 'Canal do WhatsApp', link: canalWhatsapp },
-    { emoji: '✈️', rotulo: 'Canal do Telegram', link: config.blog.telegramLink },
-  ].filter((l) => /^https:\/\//.test(l.link));
+    { emoji: '📢', rotulo: 'Canal do WhatsApp', link: canalWhatsapp, lugar: 'whatsapp-canal' },
+    { emoji: '✈️', rotulo: 'Canal do Telegram', link: config.blog.telegramLink, lugar: 'telegram' },
+  ]
+    .filter((l) => /^https:\/\//.test(l.link))
+    .filter((l) => lugar === undefined || lugar === 'whatsapp-grupo' || l.lugar !== lugar)
+    .map(({ emoji, rotulo, link }) => ({ emoji, rotulo, link }));
 }
 
-/** O texto de um convite: saudação e gatilho, a vantagem, a chamada e os dois canais. Vazio quando nenhum canal está configurado. */
-export function textoDoConvite(config: Config, variante: number, hora: number): string {
-  const links = linksDosCanais(config);
+/** O texto de um convite: saudação e gatilho, a vantagem, a chamada e os canais para onde convidar. Vazio quando não há canal para divulgar. */
+export function textoDoConvite(config: Config, variante: number, hora: number, lugar?: LugarDoConvite): string {
+  const links = linksDosCanais(config, lugar);
   if (links.length === 0) return '';
   const v = VARIANTES[((variante % VARIANTES.length) + VARIANTES.length) % VARIANTES.length]!;
   return [`${saudacaoDaHora(hora)}! ${v.emoji} ${v.frase}`, v.vantagem, '', `👇 ${v.chamada}`, ...links.map((l) => `${l.emoji} ${l.rotulo}: ${l.link}`)].join('\n');
@@ -118,9 +132,13 @@ export function convitesDeHoje(config: Config, agora: Date): Convite[] {
     if (agora.getTime() < criadoEm || agora.getTime() >= criadoEm + HORAS_DE_VALIDADE_DO_CONVITE * 3_600_000) return;
     const hora = Number(new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', hourCycle: 'h23' }).format(new Date(criadoEm)));
     const variante = ordem[numero % ordem.length]!;
-    const texto = textoDoConvite(config, variante, hora);
-    if (!texto) return;
-    lista.push({ id: `convite:${dia}:${numero}`, dia, numero, criadoEm, texto });
+    const textos = {
+      telegram: textoDoConvite(config, variante, hora, 'telegram'),
+      whatsappCanal: textoDoConvite(config, variante, hora, 'whatsapp-canal'),
+      whatsappGrupo: textoDoConvite(config, variante, hora, 'whatsapp-grupo'),
+    };
+    if (!textos.telegram && !textos.whatsappCanal) return;
+    lista.push({ id: `convite:${dia}:${numero}`, dia, numero, criadoEm, textos });
   });
   return lista;
 }

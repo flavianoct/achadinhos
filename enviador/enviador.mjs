@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import makeWASocket, { Browsers, DisconnectReason, fetchLatestBaileysVersion, useMultiFileAuthState } from '@whiskeysockets/baileys';
 import pino from 'pino';
 import qrcode from 'qrcode-terminal';
-import { destinoAceita, enderecosDaFoto, esperaAleatoria, podarEstado, podeEnviarAgora, selecionarPendentes, tipoDeDestino } from './logica.mjs';
+import { destinoAceita, enderecosDaFoto, esperaAleatoria, podarEstado, podeEnviarAgora, selecionarPendentes, textoParaDestino, tipoDeDestino } from './logica.mjs';
 
 const aqui = dirname(fileURLToPath(import.meta.url));
 const CAMINHO_CONFIG = join(aqui, 'config.json');
@@ -327,7 +327,7 @@ async function montarPrevia(m) {
 async function enviarUma(sock, jid, m) {
   // O convite aos outros canais é só texto, sem foto e sem cartão de prévia.
   if (String(m.id).startsWith('convite:')) {
-    recibo(await sock.sendMessage(jid, { text: m.texto }), 'convite');
+    recibo(await sock.sendMessage(jid, { text: textoParaDestino(m, jid) }), 'convite');
     return;
   }
   // Grupo aceita imagem normalmente (a foto do produto, como no Telegram, com a legenda); canal só aceita texto.

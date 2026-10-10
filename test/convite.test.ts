@@ -4,6 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { convitesDeHoje, horariosDosConvites, linksDosCanais, saudacaoDaHora, textoDoConvite } from '../src/convite.ts';
+// @ts-ignore: módulo .mjs puro, sem tipos
+import { textoParaDestino } from '../enviador/logica.mjs';
 import { lerConfig } from '../src/config.ts';
 import { Banco } from '../src/db.ts';
 import { publicarControle } from '../src/exportar.ts';
@@ -38,6 +40,31 @@ test('convite: chamada curta com gatilho, as mesmas ofertas do grupo sem mostrar
   for (const t of todas) assert.ok(t.length < 330);
 });
 
+test('convite: cada lugar convida só para os OUTROS canais (o Telegram não convida para o Telegram, o canal do WhatsApp não convida para si)', () => {
+  const config = lerConfig(base);
+  const rotulos = (lugar: 'telegram' | 'whatsapp-canal' | 'whatsapp-grupo') => linksDosCanais(config, lugar).map((l) => l.rotulo);
+  assert.deepEqual(rotulos('telegram'), ['Canal do WhatsApp'], 'no Telegram: só o canal do WhatsApp');
+  assert.deepEqual(rotulos('whatsapp-canal'), ['Canal do Telegram'], 'no canal do WhatsApp: só o Telegram');
+  assert.deepEqual(rotulos('whatsapp-grupo'), ['Canal do WhatsApp', 'Canal do Telegram'], 'no grupo: os dois');
+  const noTelegram = textoDoConvite(config, 0, 9, 'telegram');
+  assert.ok(noTelegram.includes(canal) && !noTelegram.includes('t.me/canal'), 'o texto do Telegram leva ao WhatsApp e não ao Telegram');
+  const noCanal = textoDoConvite(config, 0, 9, 'whatsapp-canal');
+  assert.ok(noCanal.includes('https://t.me/canal') && !noCanal.includes(canal), 'o texto do canal do WhatsApp leva ao Telegram e não ao WhatsApp');
+  const noGrupo = textoDoConvite(config, 0, 9, 'whatsapp-grupo');
+  assert.ok(noGrupo.includes(canal) && noGrupo.includes('https://t.me/canal') && !noGrupo.includes(grupo), 'o do grupo leva aos dois canais, nunca ao próprio grupo');
+  // Sem o link do outro canal não há o que divulgar naquele lugar.
+  assert.equal(textoDoConvite(lerConfig({ BLOG_TELEGRAM: 'https://t.me/canal' }), 0, 9, 'telegram'), '', 'só o Telegram configurado: o Telegram não tem para onde convidar');
+  assert.equal(textoDoConvite(lerConfig({ BLOG_WHATSAPP: canal }), 0, 9, 'whatsapp-canal'), '', 'só o canal do WhatsApp configurado: ele não tem para onde convidar');
+});
+
+test('enviador: o convite vai com o texto certo para cada destino (canal ou grupo); mensagem sem textos usa o texto de sempre', () => {
+  const convite = { id: 'convite:x:0', texto: 'so Telegram', textos: { canal: 'so Telegram', grupo: 'os dois' } };
+  assert.equal(textoParaDestino(convite, '120363171744447809@newsletter'), 'so Telegram');
+  assert.equal(textoParaDestino(convite, '120363000000000000@g.us'), 'os dois');
+  assert.equal(textoParaDestino({ id: 'a', texto: 'oferta' }, '1@g.us'), 'oferta');
+  assert.equal(textoParaDestino({ id: 'b', texto: 'velho', textos: { canal: '', grupo: '' } }, '1@g.us'), 'velho', 'texto vazio cai no texto de sempre');
+});
+
 test('convite: os horários são sorteados por dia, espalhados no horário de postagem e sempre os mesmos para o mesmo dia', () => {
   const config = lerConfig(base);
   const a = horariosDosConvites(config, DIA);
@@ -64,7 +91,7 @@ test('convite: só aparece na hora sorteada e até 3 horas depois; desligado nã
   assert.ok(depois.some((c) => c.numero === 1));
   assert.deepEqual(convitesDeHoje(lerConfig({ ...base, CONVITE_ATIVO: '0' }), new Date(primeiro + 60_000)), [], 'desligado');
   // Convites do mesmo dia usam variantes diferentes (nunca o mesmo texto duas vezes).
-  const textos = horariosDosConvites(config, DIA).flatMap((t) => convitesDeHoje(config, new Date(t + 1000)).filter((c) => c.criadoEm === t).map((c) => c.texto.replace(/^(Bom dia|Boa tarde|Boa noite)/, '')));
+  const textos = horariosDosConvites(config, DIA).flatMap((t) => convitesDeHoje(config, new Date(t + 1000)).filter((c) => c.criadoEm === t).map((c) => c.textos.whatsappGrupo.replace(/^(Bom dia|Boa tarde|Boa noite)/, '')));
   assert.equal(new Set(textos).size, 3);
 });
 
@@ -102,14 +129,16 @@ test('convite: entra no whatsapp.json só na janela de cada convite e só com o 
   const naHora = gerar({}, new Date(primeiro + 60_000)).mensagens;
   assert.deepEqual(naHora.map((m) => m.id), [`convite:${DIA}:0`]);
   assert.equal(naHora[0]!.imagem, undefined, 'só texto');
-  assert.ok(naHora[0]!.texto.includes('https://t.me/canal') && naHora[0]!.texto.includes(canal), 'leva aos dois canais');
+  assert.ok(naHora[0]!.texto.includes('https://t.me/canal') && !naHora[0]!.texto.includes(canal), 'o texto de sempre (canal do WhatsApp) leva só ao Telegram');
+  const textos = (naHora[0] as unknown as { textos: { canal: string; grupo: string } }).textos;
+  assert.ok(textos.canal === naHora[0]!.texto && textos.grupo.includes(canal) && textos.grupo.includes('https://t.me/canal'), 'o grupo recebe os dois canais');
   assert.deepEqual(gerar({}, new Date(primeiro - 60_000)).mensagens, []);
   assert.deepEqual(gerar({ WHATSAPP_ATIVO: '0' }, new Date(primeiro + 60_000)).mensagens, []);
   // Perto do segundo convite, o primeiro ainda está na validade e o segundo já entrou: o enviador manda cada id uma vez só.
   assert.ok(gerar({}, new Date(segundo + 60_000)).mensagens.some((m) => m.id === `convite:${DIA}:1`));
 });
 
-test('convite: o Telegram recebe cada convite do dia uma vez só, em texto simples e sem prévia, com os dois canais', async () => {
+test('convite: o Telegram recebe cada convite do dia uma vez só, em texto simples e sem prévia, convidando só para o canal do WhatsApp', async () => {
   const enviados: Array<{ chat_id: string; text: string; link_preview_options?: { is_disabled: boolean } }> = [];
   const f = (async (_url: string, init: any) => {
     enviados.push(JSON.parse(init.body));
@@ -132,7 +161,7 @@ test('convite: o Telegram recebe cada convite do dia uma vez só, em texto simpl
   assert.equal(enviados.length, 1);
   assert.equal(enviados[0]!.chat_id, '@canal');
   assert.equal(enviados[0]!.link_preview_options?.is_disabled, true);
-  assert.ok(enviados[0]!.text.includes(canal) && enviados[0]!.text.includes('https://t.me/canal'), 'leva aos dois canais');
+  assert.ok(enviados[0]!.text.includes(canal) && !enviados[0]!.text.includes('t.me/canal'), 'leva ao canal do WhatsApp e não ao próprio Telegram');
   assert.ok(!enviados[0]!.text.includes('<a '), 'texto simples, sem formatação');
   // O segundo convite do dia sai na hora dele, com um texto diferente.
   assert.equal((await robo.postarConviteAgora(new Date(segundo + 60_000))).postou, true);
