@@ -1,13 +1,18 @@
-// Mapa da API do Mercado Livre com as chaves do seu app. Roda só no seu PC.
-// Lê as chaves de ml-teste.env (ML_CLIENT_ID=... e ML_CLIENT_SECRET=...). Esse arquivo não vai para o GitHub.
+// Mapa da API do Mercado Livre com as chaves do seu app. Roda no seu PC ou no GitHub Actions ("Diagnosticar API do Mercado Livre").
+// As chaves vêm de ml-teste.env (ML_CLIENT_ID=... e ML_CLIENT_SECRET=..., arquivo que não vai para o GitHub)
+// ou, se esse arquivo não existir, das variáveis de ambiente ML_CLIENT_ID e ML_CLIENT_SECRET (os Secrets do Actions).
 // Mostra códigos de resposta, nomes de campos e contagens. Nunca imprime as chaves nem o token.
 import { existsSync, readFileSync } from 'node:fs';
 
-if (!existsSync('ml-teste.env')) {
-  console.log('Crie o arquivo ml-teste.env nesta pasta com duas linhas:\nML_CLIENT_ID=684292819226465\nML_CLIENT_SECRET=sua_secret_key');
+let env;
+if (existsSync('ml-teste.env')) {
+  env = Object.fromEntries(readFileSync('ml-teste.env', 'utf8').split(/\r?\n/).map((l) => l.trim()).filter((l) => l && !l.startsWith('#')).map((l) => [l.slice(0, l.indexOf('=')).trim(), l.slice(l.indexOf('=') + 1).trim()]));
+} else if (process.env.ML_CLIENT_ID && process.env.ML_CLIENT_SECRET) {
+  env = { ML_CLIENT_ID: process.env.ML_CLIENT_ID, ML_CLIENT_SECRET: process.env.ML_CLIENT_SECRET };
+} else {
+  console.log('Crie o arquivo ml-teste.env nesta pasta com duas linhas:\nML_CLIENT_ID=o_id_do_app\nML_CLIENT_SECRET=sua_secret_key\n(ou defina as variáveis ML_CLIENT_ID e ML_CLIENT_SECRET).');
   process.exit(1);
 }
-const env = Object.fromEntries(readFileSync('ml-teste.env', 'utf8').split(/\r?\n/).map((l) => l.trim()).filter((l) => l && !l.startsWith('#')).map((l) => [l.slice(0, l.indexOf('=')).trim(), l.slice(l.indexOf('=') + 1).trim()]));
 const API = 'https://api.mercadolibre.com';
 const ok = (r) => (r.ok ? 'OK   ' : 'FALHA');
 const chaves = (o, n = 14) => Object.keys(o ?? {}).slice(0, n).join(',');
@@ -69,3 +74,50 @@ if (itemId) {
 const tr = await get('/trends/MLB');
 const trj = await json(tr);
 linha('6. tendências (/trends/MLB)', tr, tr.ok && Array.isArray(trj) ? `termos: ${trj.length} | exemplo: ${trj[0]?.keyword ?? '-'}` : '');
+
+// ───────── Fase 1 do plano: outros recursos que podem trazer mais produtos, nota e vendas ─────────
+const palavra = 'celular';
+const sondar = async (rotulo, caminho, descrever) => {
+  try {
+    const r = await get(caminho);
+    const j = await json(r);
+    let extra = '';
+    try {
+      extra = r.ok ? descrever(j) : `${j.error ?? ''} ${j.message ?? ''}`.trim();
+    } catch (e) {
+      extra = `(resposta em formato inesperado: ${e.message})`;
+    }
+    linha(rotulo, r, extra);
+    return { r, j };
+  } catch (e) {
+    console.log(`FALHA ---  ${rotulo}\n         sem resposta: ${e.message}`);
+    return {};
+  }
+};
+
+console.log('\n--- busca e descoberta ---');
+await sondar(`7. busca por palavra (/sites/MLB/search?q=${palavra})`, `/sites/MLB/search?q=${palavra}&limit=3`, (j) => `resultados: ${j.results?.length ?? 0} de ${j.paging?.total ?? '-'} | campos: ${chaves(j.results?.[0], 12)}`);
+await sondar(`8. busca de produtos de catálogo (/products/search?q=${palavra})`, `/products/search?status=active&site_id=MLB&q=${palavra}&limit=3`, (j) => `resultados: ${j.results?.length ?? 0} de ${j.paging?.total ?? '-'} | campos: ${chaves(j.results?.[0], 10)}`);
+await sondar(`9. palavra para categoria (/sites/MLB/domain_discovery/search?q=${palavra})`, `/sites/MLB/domain_discovery/search?q=${palavra}&limit=3`, (j) => `sugestões: ${Array.isArray(j) ? j.length : 0} | exemplo: ${j?.[0]?.category_id ?? '-'} ${j?.[0]?.category_name ?? ''}`);
+
+console.log('\n--- categorias ---');
+const cats = await sondar('10. categorias do site (/sites/MLB/categories)', '/sites/MLB/categories', (j) => `categorias: ${Array.isArray(j) ? j.length : 0} | exemplo: ${j?.[0]?.id ?? '-'} ${j?.[0]?.name ?? ''}`);
+const cat = await sondar('11. uma categoria (/categories/MLB1000)', '/categories/MLB1000', (j) => `subcategorias: ${j.children_categories?.length ?? 0} | campos: ${chaves(j, 10)}`);
+const filha = cat.j?.children_categories?.[0]?.id;
+if (filha) {
+  await sondar(`12. mais vendidos de uma subcategoria (/highlights/MLB/category/${filha})`, `/highlights/MLB/category/${filha}`, (j) => {
+    const t = {};
+    for (const c of j.content ?? []) t[c.type] = (t[c.type] ?? 0) + 1;
+    return `tipos: ${JSON.stringify(t)}`;
+  });
+} else {
+  console.log('FALHA ---  12. sem subcategoria para testar o /highlights de subcategoria');
+}
+
+console.log('\n--- anúncios e avaliações ---');
+if (itemId) {
+  await sondar(`13. vários anúncios de uma vez (/items?ids=${itemId})`, `/items?ids=${itemId}&attributes=id,price,sold_quantity,status`, (j) => `itens: ${Array.isArray(j) ? j.length : 0} | status_code: ${j?.[0]?.code ?? j?.[0]?.status_code ?? '-'} | campos: ${chaves(j?.[0]?.body, 8)}`);
+} else {
+  console.log('FALHA ---  13. sem anúncio para testar o multiget (/items?ids=)');
+}
+console.log('\nPronto. Cole a tabela acima no plano: os códigos HTTP decidem a Fase 2.');

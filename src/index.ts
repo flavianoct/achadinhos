@@ -86,6 +86,15 @@ async function modoNuvem(): Promise<void> {
     rodada.coleta = coleta;
     dizer(`- Coleta: ${coleta.coletadas} ofertas vistas, ${coleta.aprovadas} aprovadas.`);
     for (const [fonte, erro] of Object.entries(coleta.errosPorFonte)) dizer(`- **Erro em ${fonte}:** ${erro}`);
+    for (const [fonte, aviso] of Object.entries(coleta.avisosPorFonte)) {
+      dizer(`- **Aviso em ${fonte}:** ${aviso}`);
+      avisar(chaveDoAviso(`coleta-${fonte}`, aviso), aviso);
+    }
+    // Por que as ofertas vistas não foram aprovadas, loja a loja (para achar o filtro que está esvaziando a fila).
+    for (const [loja, motivos] of Object.entries(coleta.reprovadasPorLoja)) {
+      const lista = Object.entries(motivos).sort((a, b) => b[1] - a[1]).map(([m, n]) => `${m} x${n}`).join(', ');
+      if (lista) dizer(`- Reprovadas (${loja}): ${lista}.`);
+    }
     // Se nenhuma loja respondeu, a rodada termina em vermelho para chamar atenção, mas o blog e o banco seguem.
     const fontesComErro = Object.keys(coleta.errosPorFonte).length;
     if (fontesComErro > 0 && coleta.coletadas === 0) {
@@ -123,6 +132,8 @@ async function modoNuvem(): Promise<void> {
     else if (motivoDaParada.startsWith('erro')) avisar('telegram:erro', `Falha ao postar no Telegram (${motivoDaParada})`, 'erro');
     rodada.postados = postados;
     rodada.parou = motivoDaParada;
+    const d = robo.descartes;
+    if (d.parecidosComPostados || d.perdeuParaMelhorVendedor) dizer(`- Fila: ${d.parecidosComPostados} ofertas tiradas por serem parecidas com algo postado nas últimas ${robo.config.ritmo.parecidosHoras} h e ${d.perdeuParaMelhorVendedor} por perderem para outro anúncio do mesmo tipo.`);
     dizer(`- Telegram: ${postados} ofertas postadas${motivoDaParada ? ` (parou por: ${motivoDaParada})` : ''}. Na fila: ${robo.banco.tamanhoDaFila()}.`);
 
     // Cupons do Mercado Livre e da Amazon, cadastrados em cupons.json (no máximo CUPONS_POR_DIA por dia).

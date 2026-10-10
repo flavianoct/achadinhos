@@ -18,7 +18,11 @@ export interface ResumoDaColeta {
   coletadas: number;
   aprovadas: number;
   reprovadasPorMotivo: Record<string, number>;
+  /** Os mesmos motivos, separados por loja (para o log mostrar de onde vem cada reprovação). */
+  reprovadasPorLoja: Record<string, Record<string, number>>;
   errosPorFonte: Record<string, string>;
+  /** Avisos que não derrubaram a coleta (a loja respondeu por um caminho reserva). */
+  avisosPorFonte: Record<string, string>;
 }
 
 /** Sem tema, tudo vale. Com tema (TEMA=celular,projetor), só o título que tem uma dessas palavras. */
@@ -33,7 +37,13 @@ export function dentroDoTema(titulo: string, config: Config): boolean {
 
 /** Busca ofertas em todas as lojas, guarda os preços no histórico e enfileira as aprovadas. */
 export async function coletar(fontes: Fonte[], banco: Banco, config: Config, agora: Date = new Date()): Promise<ResumoDaColeta> {
-  const resumo: ResumoDaColeta = { coletadas: 0, aprovadas: 0, reprovadasPorMotivo: {}, errosPorFonte: {} };
+  const resumo: ResumoDaColeta = { coletadas: 0, aprovadas: 0, reprovadasPorMotivo: {}, reprovadasPorLoja: {}, errosPorFonte: {}, avisosPorFonte: {} };
+
+  const contar = (loja: string, motivo: string) => {
+    resumo.reprovadasPorMotivo[motivo] = (resumo.reprovadasPorMotivo[motivo] ?? 0) + 1;
+    const deLoja = (resumo.reprovadasPorLoja[loja] ??= {});
+    deLoja[motivo] = (deLoja[motivo] ?? 0) + 1;
+  };
 
   for (const fonte of fontes) {
     let ofertas;
@@ -45,6 +55,8 @@ export async function coletar(fontes: Fonte[], banco: Banco, config: Config, ago
       banco.registrarSaudeFonte(fonte.nome, (e as Error).message, agora);
       continue;
     }
+    const avisoDaFonte = fonte.avisoDaColeta?.();
+    if (avisoDaFonte) resumo.avisosPorFonte[fonte.nome] = avisoDaFonte;
     // Loja que responde mas devolve zero ofertas também conta como falha (o site pode ter mudado sem dar erro).
     banco.registrarSaudeFonte(fonte.nome, ofertas.length === 0 ? 'respondeu, mas sem nenhuma oferta' : undefined, agora);
     resumo.coletadas += ofertas.length;
@@ -63,17 +75,25 @@ export async function coletar(fontes: Fonte[], banco: Banco, config: Config, ago
       if (resultado.oferta) banco.guardarProduto(resultado.oferta, agora);
 
       if (resultado.aprovada && !dentroDoTema(resultado.oferta.titulo, config)) {
-        resumo.reprovadasPorMotivo['fora do tema'] = (resumo.reprovadasPorMotivo['fora do tema'] ?? 0) + 1;
+        contar(oferta.loja, 'fora do tema');
       } else if (resultado.aprovada) {
         banco.enfileirar(resultado.oferta, agora);
         resumo.aprovadas++;
       } else {
         const chave = resultado.motivo.split(':')[0];
-        resumo.reprovadasPorMotivo[chave] = (resumo.reprovadasPorMotivo[chave] ?? 0) + 1;
+        contar(oferta.loja, chave);
       }
     }
   }
   return resumo;
+}
+
+/** Quantas ofertas a regra de "parecidos" tirou da fila (contagem acumulada; quem chama zera a cada rodada). */
+export interface Descartes {
+  /** Parecidas com algo já postado nas últimas PARECIDOS_HORAS horas. */
+  parecidosComPostados: number;
+  /** Perderam para outro anúncio do mesmo tipo na fila (o do melhor vendedor fica). */
+  perdeuParaMelhorVendedor: number;
 }
 
 export type ResultadoDoPost =
@@ -81,7 +101,7 @@ export type ResultadoDoPost =
   | { postou: false; motivo: 'fora do horário' | 'limite diário' | 'fila vazia' | 'nichos no limite' | 'erro'; detalhe?: string };
 
 /** Posta a melhor oferta da fila, respeitando horário e limite diário. */
-export async function postarProxima(publicador: Publicador, banco: Banco, config: Config, agora: Date = new Date()): Promise<ResultadoDoPost> {
+export async function postarProxima(publicador: Publicador, banco: Banco, config: Config, agora: Date = new Date(), descartes?: Descartes): Promise<ResultadoDoPost> {
   const hora = horaDe(agora);
   if (hora < config.ritmo.horaInicio || hora >= config.ritmo.horaFim) return { postou: false, motivo: 'fora do horário' };
   if (banco.postsNoDia(agora) >= config.ritmo.maxPostsPorDia) return { postou: false, motivo: 'limite diário' };
@@ -101,6 +121,7 @@ export async function postarProxima(publicador: Publicador, banco: Banco, config
     // Outro anúncio do mesmo tipo de produto já saiu há pouco (ex.: 3 chapas de policarbonato de vendedores diferentes): sai da fila.
     if (parecidoComAlgum(oferta.titulo, recentes)) {
       banco.removerDaFila(oferta.loja, oferta.idProduto);
+      if (descartes) descartes.parecidosComPostados++;
       oferta = undefined;
       continue;
     }
@@ -110,10 +131,15 @@ export async function postarProxima(publicador: Publicador, banco: Banco, config
       const grupo = banco.itensDaFila(1000).filter((o) => o.loja === base.loja && o.idProduto === base.idProduto || mesmoTipoDeProduto(o.titulo, base.titulo));
       if (grupo.length > 1) {
         const melhor = melhorVendedor(grupo);
-        for (const o of grupo) if (o !== melhor && !(o.loja === melhor.loja && o.idProduto === melhor.idProduto)) banco.removerDaFila(o.loja, o.idProduto);
+        for (const o of grupo) {
+          if (o === melhor || (o.loja === melhor.loja && o.idProduto === melhor.idProduto)) continue;
+          banco.removerDaFila(o.loja, o.idProduto);
+          if (descartes) descartes.perdeuParaMelhorVendedor++;
+        }
         if (melhor.idProduto !== base.idProduto || melhor.loja !== base.loja) {
           // O melhor pode ser parecido com algo já postado (a semelhança não é transitiva): confere de novo.
           oferta = parecidoComAlgum(melhor.titulo, recentes) ? undefined : melhor;
+          if (!oferta && descartes) descartes.parecidosComPostados++;
           if (!oferta) banco.removerDaFila(melhor.loja, melhor.idProduto);
           if (!oferta) continue;
         }

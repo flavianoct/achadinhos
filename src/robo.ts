@@ -10,7 +10,7 @@ import { conviteDeHoje } from './convite.ts';
 import { chaveDoCupom, lerCupons } from './cupons.ts';
 import { garimparCupons, type ResultadoDoGarimpo } from './garimpo-cupons.ts';
 import { buscarCampanhas, buscarVendas } from './shopee-extra.ts';
-import { atualizarVendas, coletar, postarCampanha, postarProxima, postarProximoCupom, type ResultadoDaCampanha, type ResultadoDoCupom, type ResultadoDoPost, type ResumoDaColeta } from './pipeline.ts';
+import { atualizarVendas, coletar, postarCampanha, postarProxima, postarProximoCupom, type Descartes, type ResultadoDaCampanha, type ResultadoDoCupom, type ResultadoDoPost, type ResumoDaColeta } from './pipeline.ts';
 import { Telegram, type Publicador } from './telegram.ts';
 import type { Fonte, Loja } from './types.ts';
 
@@ -57,6 +57,8 @@ export class Robo {
   ultimaColeta?: { em: number; resumo: ResumoDaColeta };
   ultimoBlog?: { em: number; resultado: ResultadoDoBlog };
   registro: string[] = [];
+  /** Ofertas que a regra de parecidos tirou da fila desde que o robô começou (a rodada na nuvem é uma só). */
+  descartes: Descartes = { parecidosComPostados: 0, perdeuParaMelhorVendedor: 0 };
 
   private opcoes: OpcoesDoRobo;
   private fontes: Fonte[] = [];
@@ -140,7 +142,7 @@ export class Robo {
       this.postEm = agora.getTime();
       if (!this.publicador) return { postou: false, motivo: 'erro', detalhe: 'Telegram não configurado' } as ResultadoDoPost;
       const config: Config = forcar ? { ...this.config, ritmo: { ...this.config.ritmo, horaInicio: 0, horaFim: 24, maxPostsPorDia: Number.MAX_SAFE_INTEGER } } : this.config;
-      const r = await postarProxima(this.publicador, this.banco, config, agora);
+      const r = await postarProxima(this.publicador, this.banco, config, agora, this.descartes);
       if (r.postou) {
         const destino = Object.keys(this.config.rotas.porCategoria).length ? ` [${r.oferta.categoria} → ${r.canais.join(' + ')}]` : '';
         this.log(`postado: [${r.oferta.loja}] ${r.oferta.titulo.slice(0, 60)}${destino}`);

@@ -44,4 +44,6 @@ export interface OfertaAvaliada extends Oferta {
 export interface Fonte {
   nome: Loja | 'simulada';
   coletar(): Promise<Oferta[]>;
+  /** Aviso da última coleta que não derrubou a rodada (ex.: a página do site barrou, mas a API salvou). Vai para o painel do dono. */
+  avisoDaColeta?(): string | undefined;
 }

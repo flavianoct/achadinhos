@@ -137,6 +137,7 @@ export class FonteMercadoLivre implements Fonte {
   private fetchFn: Fetch;
   private reserva?: { coletar(): Promise<Oferta[]>; buscar?(palavras: string[]): Promise<Oferta[]> };
   private tema: string[];
+  private aviso?: string;
 
   constructor(
     opcoes: { mattWord: string; mattTool: string; paginas?: number; categorias?: string[]; paginasDeCategoria?: number; intervaloMs?: number; agora?: () => number; reserva?: { coletar(): Promise<Oferta[]>; buscar?(palavras: string[]): Promise<Oferta[]> }; tema?: string[] },
@@ -163,8 +164,13 @@ export class FonteMercadoLivre implements Fonte {
     return resposta.text();
   }
 
+  avisoDaColeta(): string | undefined {
+    return this.aviso;
+  }
+
   /** Lê a página de ofertas; se o site barrar (captcha), tenta a API oficial e só falha se as duas falharem. */
   async coletar(): Promise<Oferta[]> {
+    this.aviso = undefined;
     // Com tema, tenta primeiro a busca por palavra pela API; se ela não trouxer nada, segue para a página de ofertas (que o filtro do tema limpa depois).
     if (this.tema.length && this.reserva?.buscar) {
       try {
@@ -178,7 +184,11 @@ export class FonteMercadoLivre implements Fonte {
     } catch (e) {
       if (!this.reserva) throw e;
       try {
-        return await this.reserva.coletar();
+        const ofertas = await this.reserva.coletar();
+        // A rodada foi salva pela API, mas o motivo da página falhar não pode sumir: é por ele que o volume cai.
+        this.aviso = `A página de ofertas do Mercado Livre falhou (${(e as Error).message}); a coleta usou só a API oficial.`;
+        console.log(`[ml] ${this.aviso}`);
+        return ofertas;
       } catch (e2) {
         throw new Error(`${(e as Error).message} Reserva: ${(e2 as Error).message}`);
       }
