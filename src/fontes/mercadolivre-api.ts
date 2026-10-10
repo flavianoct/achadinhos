@@ -31,7 +31,7 @@ interface Diagnostico {
 }
 
 /**
- * Mercado Livre pela API oficial (reserva da leitura da página, que o site às vezes barra com captcha).
+ * Mercado Livre pela API oficial (caminho principal da coleta; a página de ofertas, que o site barra com captcha, é a reserva).
  * Usa o app do DevCenter (ML_CLIENT_ID e ML_CLIENT_SECRET, Secrets do GitHub): troca as chaves por um token e lê
  * os 20 mais vendidos de cada categoria e subcategoria (/highlights), o produto de catálogo (/products) e o anúncio
  * vencedor (/products/{id}/items). Só lê dados públicos; não precisa de nenhuma permissão de vendedor.
