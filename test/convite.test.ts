@@ -27,7 +27,8 @@ test('convite: curto, abre com a vantagem principal (ninguém vê o seu número,
   assert.ok(noTelegram.includes(canal) && !noTelegram.includes(grupo));
   assert.match(noTelegram, /✅ Ninguém vê o seu número\n✅ Não incomoda como grupo/);
   assert.equal((noTelegram.match(/✅/g) ?? []).length, 3);
-  assert.ok(noTelegram.split('\n').length <= 7 && noTelegram.length < 300, 'curto');
+  assert.ok(noTelegram.split('\n').length <= 9 && noTelegram.length < 360, 'curto');
+  assert.match(noTelegram, /\n👇 [^\n]+\n📢 Canal do WhatsApp: https:/, 'uma chamada para agir logo acima do link');
   const noWhatsapp = textoDoConvite(config, 'whatsapp', 0, 20);
   assert.match(noWhatsapp, /^Boa noite, /);
   assert.ok(noWhatsapp.includes('https://t.me/canal'));
@@ -42,7 +43,7 @@ test('convite: curto, abre com a vantagem principal (ninguém vê o seu número,
   // As variantes dizem coisas diferentes e todas são curtas.
   const todas = Array.from({ length: 8 }, (_, v) => textoDoConvite(config, 'telegram', v, 14));
   assert.equal(new Set(todas).size, 8);
-  for (const t of todas) assert.ok(t.length < 300);
+  for (const t of todas) assert.ok(t.length < 360);
 });
 
 test('convite: os horários são sorteados por dia, espalhados no horário de postagem e sempre os mesmos para o mesmo dia', () => {

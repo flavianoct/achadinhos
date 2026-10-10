@@ -29,10 +29,12 @@ export const HORAS_DE_VALIDADE_DO_CONVITE = 3;
 export const MAXIMO_DE_CONVITES_POR_DIA = 6;
 
 interface Variante {
-  /** Primeira frase, depois da saudação. */
+  /** Primeira frase, depois da saudação: é onde entra o gatilho mental. */
   gancho: string;
   /** Uma terceira vantagem, curta, por plataforma de destino (as duas primeiras são sempre as mesmas). */
   extra: { telegram: string; whatsapp: string };
+  /** Chamada para agir, logo acima do link. */
+  chamada: string;
 }
 
 /** As vantagens que abrem toda mensagem: são o principal do canal. */
@@ -41,16 +43,20 @@ const PRINCIPAIS: Record<Plataforma, string[]> = {
   whatsapp: ['Não incomoda como grupo: sem conversa, só as ofertas', 'Você entra e sai quando quiser'],
 };
 
-/** As variantes: ganchos curtos e uma terceira vantagem diferente cada. Escolhidas ao acaso (sem repetir no mesmo dia). */
+/**
+ * As variantes, cada uma com um gatilho mental diferente (todos verdadeiros: nada de número inventado nem estoque falso):
+ * aversão à perda, curiosidade, exclusividade (o preço das artes do Instagram está no canal), escassez, autoridade (o histórico de 30 dias),
+ * gratuidade, pertencimento e urgência do momento. Escolhidas ao acaso, sem repetir no mesmo dia.
+ */
 const VARIANTES: Variante[] = [
-  { gancho: 'quer pagar menos sem se incomodar?', extra: { telegram: 'Só oferta com desconto bom ou queda real', whatsapp: 'Os cupons do Mercado Livre saem lá também' } },
-  { gancho: 'aquele produto que não baixa de preço?', extra: { telegram: 'A gente confere o histórico de 30 dias', whatsapp: 'A gente confere o histórico de 30 dias' } },
-  { gancho: 'o dia está corrido, mas dá para economizar.', extra: { telegram: 'Mercado Livre e Shopee num lugar só', whatsapp: 'Mercado Livre e Shopee num lugar só' } },
-  { gancho: 'tem oferta boa saindo agora.', extra: { telegram: 'Chega direto no seu zap, na hora', whatsapp: 'Chega direto no seu Telegram, na hora' } },
-  { gancho: 'uma dica de quem não gosta de pagar caro:', extra: { telegram: 'Grátis, e você compra direto na loja', whatsapp: 'Grátis, e você compra direto na loja' } },
-  { gancho: 'sabia que a gente também está por outros lados?', extra: { telegram: 'As mesmas ofertas, no WhatsApp', whatsapp: 'As mesmas ofertas, mais cupons do Mercado Livre' } },
-  { gancho: 'antes de comprar, confira se o preço está bom.', extra: { telegram: 'Avisamos quando está no menor preço dos últimos dias', whatsapp: 'Avisamos quando está no menor preço dos últimos dias' } },
-  { gancho: 'cansou de caçar promoção?', extra: { telegram: 'A gente caça e separa só as que valem', whatsapp: 'A gente caça e separa só as que valem' } },
+  { gancho: 'quem não está no canal pode estar pagando mais caro agora. 💸', extra: { telegram: 'Só oferta com desconto bom ou queda real', whatsapp: 'Os cupons do Mercado Livre saem lá também' }, chamada: 'Entre agora, é grátis:' },
+  { gancho: 'já viu qual produto mais caiu de preço hoje? 👀', extra: { telegram: 'Avisamos quando está no menor preço dos últimos dias', whatsapp: 'Avisamos quando está no menor preço dos últimos dias' }, chamada: 'Toque e confira:' },
+  { gancho: 'viu no Instagram e quer saber o preço? Ele está no canal. 🔎', extra: { telegram: 'Todas as ofertas, não só as do Instagram', whatsapp: 'Todas as ofertas, não só as do Instagram' }, chamada: 'O preço está aqui:' },
+  { gancho: 'oferta boa acaba rápido. ⏳', extra: { telegram: 'Chega na hora, direto no seu zap', whatsapp: 'Chega na hora, direto no seu Telegram' }, chamada: 'Entre e fique na frente:' },
+  { gancho: 'a gente confere o histórico de 30 dias antes de postar. ✔️', extra: { telegram: 'Já esteve mais barato no mês? Nem entra', whatsapp: 'Já esteve mais barato no mês? Nem entra' }, chamada: 'Receba só o que vale:' },
+  { gancho: 'de graça e sem pegadinha. 🎁', extra: { telegram: 'Você compra direto na loja, sem pagar nada a mais', whatsapp: 'Você compra direto na loja, sem pagar nada a mais' }, chamada: 'É só tocar para entrar:' },
+  { gancho: 'quem gosta de economizar já está por lá. 🙌', extra: { telegram: 'Mercado Livre e Shopee num lugar só', whatsapp: 'Mercado Livre e Shopee num lugar só' }, chamada: 'Junte-se a eles:' },
+  { gancho: 'ainda tem oferta boa saindo hoje. 🔥', extra: { telegram: 'A gente caça e separa só as que valem', whatsapp: 'A gente caça e separa só as que valem' }, chamada: 'Não perca as próximas:' },
 ];
 
 /** Bom dia, boa tarde ou boa noite, pela hora de Brasília. */
@@ -97,6 +103,7 @@ export function textoDoConvite(config: Config, plataforma: Plataforma, variante:
     '',
     ...[...principais, v.extra[plataforma]].map((x) => `✅ ${x}`),
     '',
+    `👇 ${v.chamada}`,
     `${l.emoji} ${l.rotulo}: ${l.link}`,
   ].join('\n');
 }
