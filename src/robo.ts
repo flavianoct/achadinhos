@@ -171,24 +171,24 @@ export class Robo {
   }
 
   /**
-   * Convite para o canal do WhatsApp no canal geral do Telegram: CONVITES_POR_DIA por dia, em horários sorteados, um por rodada no máximo.
+   * Convite para os dois canais, postado no canal geral do Telegram: CONVITES_POR_DIA por dia, em horários sorteados, um por rodada no máximo.
    * Cada convite sai uma vez só (fica registrado por dia e número).
    */
   postarConviteAgora(agora: Date = new Date()): Promise<{ postou: boolean; motivo?: string }> {
     return this.emSerie(async () => {
-      const devidos = convitesDeHoje(this.config, agora).filter((c) => c.textoTelegram);
+      const devidos = convitesDeHoje(this.config, agora);
       if (!devidos.length) return { postou: false, motivo: 'fora do dia ou da hora do convite' };
       if (!this.publicador?.publicarTexto) return { postou: false, motivo: 'Telegram não configurado' };
       const convite = devidos.find((c) => !this.banco.convitePostado(`telegram:${c.numero}`, c.dia));
       if (!convite) return { postou: false, motivo: 'já postado hoje' };
       try {
-        await this.publicador.publicarTexto(convite.textoTelegram);
+        await this.publicador.publicarTexto(convite.texto);
       } catch (e) {
         this.log(`ERRO ao postar o convite: ${(e as Error).message}`);
         return { postou: false, motivo: (e as Error).message };
       }
       this.banco.marcarConvitePostado(`telegram:${convite.numero}`, convite.dia, agora);
-      this.log(`convite para o canal do WhatsApp postado no Telegram (${convite.numero + 1} do dia)`);
+      this.log(`convite para os canais postado no Telegram (${convite.numero + 1} do dia)`);
       return { postou: true };
     });
   }
