@@ -23,6 +23,7 @@ export const CAMPOS: Campo[] = [
   { grupo: 'Shopee', chave: 'SHOPEE_APP_ID', rotulo: 'App ID', tipo: 'texto', padrao: '' },
   { grupo: 'Shopee', chave: 'SHOPEE_SECRET', rotulo: 'Secret', tipo: 'segredo', padrao: '' },
   { grupo: 'Shopee', chave: 'SHOPEE_PALAVRAS', rotulo: 'Buscas extras', tipo: 'texto', padrao: '', ajuda: 'Separadas por vírgula. Ex.: fone bluetooth, air fryer' },
+  { grupo: 'Shopee', chave: 'SHOPEE_BUSCAS_POR_RODADA', rotulo: 'Buscas por rodada', tipo: 'numero', padrao: '2', ajuda: 'Quantas buscas por palavra a Shopee faz a cada rodada, em rodízio (0 = só o ranking de afiliados).' },
   { grupo: 'Shopee', chave: 'SHOPEE_PAGINAS', rotulo: 'Páginas por rodada', tipo: 'numero', padrao: '2', ajuda: '50 ofertas por página.' },
 
   { grupo: 'Mercado Livre', chave: 'ML_ATIVO', rotulo: 'Usar o Mercado Livre', tipo: 'simnao', padrao: '0' },
