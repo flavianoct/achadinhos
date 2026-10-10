@@ -21,7 +21,7 @@ export interface Config {
     limites: Record<string, number>;
     avisos: string[];
   };
-  shopee: { ativo: boolean; appId: string; secret: string; palavras: string[]; paginas: number };
+  shopee: { ativo: boolean; appId: string; secret: string; palavras: string[]; paginas: number; buscasPorRodada: number };
   ml: {
     ativo: boolean;
     mattWord: string;
@@ -290,6 +290,7 @@ export function lerConfig(env: Env = process.env): Config {
       // Com tema, a busca da Shopee procura só pelas palavras do tema.
       palavras: lista(env.TEMA).length ? lista(env.TEMA) : lista(env.SHOPEE_PALAVRAS),
       paginas: numero(env, 'SHOPEE_PAGINAS', 2),
+      buscasPorRodada: numero(env, 'SHOPEE_BUSCAS_POR_RODADA', 2),
     },
     ml: {
       ativo: ligado(env, 'ML_ATIVO', false),
@@ -324,7 +325,7 @@ export function lerConfig(env: Env = process.env): Config {
       horaInicio: numero(env, 'HORA_INICIO', 8),
       horaFim: numero(env, 'HORA_FIM', 23),
       maxPostsPorDia: numero(env, 'MAX_POSTS_POR_DIA', 60),
-      parecidosHoras: numero(env, 'PARECIDOS_HORAS', 48),
+      parecidosHoras: numero(env, 'PARECIDOS_HORAS', 24),
       postsPorRodada: numero(env, 'POSTS_POR_RODADA', 2),
     },
     vendas: { ativo: ligado(env, 'VENDAS_ATIVO', true), horasEntreLeituras: numero(env, 'VENDAS_HORAS', 3), dias: numero(env, 'VENDAS_DIAS', 30) },

@@ -18,6 +18,9 @@ function semAcento(s: string): string {
   return s.normalize('NFD').replace(/[̀-ͯ]/g, '');
 }
 
+/** Parte das palavras do título mais curto que o outro precisa ter. Era 50%, mas cortava mais de 70% dos bons produtos de um dia; 60% ainda pega "Telha/Chapa Policarbonato Alveolar" (2 de 3). */
+const RAZAO_MINIMA = 0.6;
+
 /** As palavras que identificam o produto: só letras, 4 ou mais, sem as genéricas e sem plural ("telhas" = "telha"). */
 export function palavrasDoProduto(titulo: string): string[] {
   const vistas = new Set<string>();
@@ -41,12 +44,21 @@ export function mesmoTipoDeProduto(a: string, b: string): boolean {
   const conjuntoB = new Set(pb);
   const comuns = pa.filter((p) => conjuntoB.has(p)).length;
   const menor = Math.min(pa.length, pb.length);
-  return comuns >= Math.min(2, menor) && comuns / menor >= 0.5;
+  return comuns >= Math.min(2, menor) && comuns / menor >= RAZAO_MINIMA;
 }
 
-/** Melhor vendedor: a maior nota ganha; empate pela quantidade de vendas e, depois, pela pontuação. */
+/**
+ * Melhor vendedor entre anúncios do mesmo tipo: a maior nota ganha; empate pela quantidade de vendas e, depois, pela pontuação.
+ * Só compara nota (ou vendas) quando os DOIS têm esse dado: o Mercado Livre pela API vem sem nota e sem vendas, e não pode perder
+ * para a Shopee só por isso; nesse caso decide a pontuação.
+ */
 export function melhorVendedor<T extends { nota?: number; vendas?: number; pontos: number }>(ofertas: T[]): T {
-  return [...ofertas].sort((a, b) => (b.nota ?? 0) - (a.nota ?? 0) || (b.vendas ?? 0) - (a.vendas ?? 0) || b.pontos - a.pontos)[0]!;
+  const melhorDe = (a: T, b: T): T => {
+    if (a.nota && b.nota && a.nota !== b.nota) return a.nota > b.nota ? a : b;
+    if (a.vendas && b.vendas && a.vendas !== b.vendas) return a.vendas > b.vendas ? a : b;
+    return b.pontos > a.pontos ? b : a;
+  };
+  return ofertas.reduce(melhorDe);
 }
 
 /** O título é do mesmo tipo de algum dos recentes? Devolve o primeiro que bate. */

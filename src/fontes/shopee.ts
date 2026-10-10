@@ -63,19 +63,39 @@ export function converterItemShopee(item: any): Oferta | undefined {
   };
 }
 
+/**
+ * Buscas usadas em rodízio quando nenhuma é configurada (SHOPEE_PALAVRAS vazio e sem TEMA): sem elas a coleta só vê o topo do ranking
+ * de afiliados, sempre os mesmos ~100 produtos (293 distintos em 4 dias). Uma ou duas por rodada trazem mais variedade a cada meia hora.
+ */
+export const BUSCAS_PADRAO = [
+  'fone bluetooth', 'air fryer', 'tênis', 'smartwatch', 'caixa de som bluetooth', 'garrafa térmica', 'organizador', 'carregador',
+  'panela', 'mochila', 'luminária', 'ventilador', 'creatina', 'secador de cabelo', 'jogo de lençol', 'cadeira gamer',
+];
+
+/** Rodízio: quais buscas ler neste turno (o robô roda a cada ~30 minutos). Com `porRodada` 0, nenhuma. */
+export function buscasDoTurno(palavras: string[], porRodada: number, turno: number): string[] {
+  if (porRodada <= 0 || palavras.length === 0) return [];
+  const n = Math.min(porRodada, palavras.length);
+  return Array.from({ length: n }, (_, j) => palavras[(turno * n + j) % palavras.length]!);
+}
+
 export class FonteShopee implements Fonte {
   nome = 'shopee' as const;
   private appId: string;
   private secret: string;
   private palavras: string[];
   private paginas: number;
+  private buscasPorRodada: number;
+  private agora: () => number;
   private fetchFn: Fetch;
 
-  constructor(opcoes: { appId: string; secret: string; palavras?: string[]; paginas?: number }, fetchFn: Fetch = fetch) {
+  constructor(opcoes: { appId: string; secret: string; palavras?: string[]; paginas?: number; buscasPorRodada?: number; agora?: () => number }, fetchFn: Fetch = fetch) {
     this.appId = opcoes.appId;
     this.secret = opcoes.secret;
     this.palavras = opcoes.palavras ?? [];
     this.paginas = Math.max(1, opcoes.paginas ?? 2);
+    this.buscasPorRodada = opcoes.buscasPorRodada ?? 2;
+    this.agora = opcoes.agora ?? Date.now;
     this.fetchFn = fetchFn;
   }
 
@@ -123,13 +143,21 @@ export class FonteShopee implements Fonte {
       if (!temMais) break;
     }
     // Buscas por palavra-chave, ordenadas pelos mais vendidos (sortType 2).
-    for (const palavra of this.palavras) {
-      const { itens } = await this.pagina(`keyword: ${JSON.stringify(palavra)}, sortType: 2, page: 1, limit: 50`);
-      guardar(itens);
+    // Com buscas configuradas (ou tema), usa as configuradas em rodízio; sem nenhuma, a lista padrão. Falha de uma busca não derruba a rodada.
+    const buscas = buscasDoTurno(this.palavras.length ? this.palavras : BUSCAS_PADRAO, this.buscasPorRodada, Math.floor(this.agora() / (25 * 60_000)));
+    for (const palavra of buscas) {
+      try {
+        const { itens } = await this.pagina(`keyword: ${JSON.stringify(palavra)}, sortType: 2, page: 1, limit: 50`);
+        guardar(itens);
+      } catch (e) {
+        if (vistos.size === 0) throw e;
+        console.log(`[shopee] busca "${palavra}" falhou: ${(e as Error).message}`);
+        break;
+      }
     }
     const lista = [...vistos.values()];
     // Resumo para o log da rodada: o que a API trouxe.
-    console.log(`[shopee] ofertas: ${lista.length}; com desconto: ${lista.filter((o) => o.desconto).length}; com nota: ${lista.filter((o) => o.nota).length}; com vendas: ${lista.filter((o) => o.vendas).length}`);
+    console.log(`[shopee] buscas: ${buscas.join(', ') || 'nenhuma'}; ofertas: ${lista.length}; com desconto: ${lista.filter((o) => o.desconto).length}; com nota: ${lista.filter((o) => o.nota).length}; com vendas: ${lista.filter((o) => o.vendas).length}`);
     return lista;
   }
 }
