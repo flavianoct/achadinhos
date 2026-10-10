@@ -31,86 +31,26 @@ export const MAXIMO_DE_CONVITES_POR_DIA = 6;
 interface Variante {
   /** Primeira frase, depois da saudação. */
   gancho: string;
-  /** Vantagens do canal para quem está lendo, por plataforma de destino. */
-  vantagens: { telegram: string[]; whatsapp: string[] };
-  /** Frase final, antes de o link repetir para um amigo. */
-  fecho: string;
+  /** Uma terceira vantagem, curta, por plataforma de destino (as duas primeiras são sempre as mesmas). */
+  extra: { telegram: string; whatsapp: string };
 }
 
-const COMUNS = {
-  filtro: 'Só entra oferta com desconto bom ou queda real de preço',
-  historico: 'A gente confere o histórico de 30 dias: se o produto já esteve mais barato no último mês, ele fica de fora',
-  lojas: 'Mercado Livre e Shopee num lugar só, sem você procurar em dois apps',
-  gratis: '100% grátis. Você compra direto na loja e não paga nada a mais pelo nosso link',
-  semSpam: 'Sem spam: poucas ofertas por vez, só as boas',
+/** As vantagens que abrem toda mensagem: são o principal do canal. */
+const PRINCIPAIS: Record<Plataforma, string[]> = {
+  telegram: ['Ninguém vê o seu número', 'Não incomoda como grupo: sem conversa, só as ofertas'],
+  whatsapp: ['Não incomoda como grupo: sem conversa, só as ofertas', 'Você entra e sai quando quiser'],
 };
 
-/** As variantes: cada uma usa vantagens diferentes e um tom diferente. Escolhidas ao acaso (sem repetir no mesmo dia). */
+/** As variantes: ganchos curtos e uma terceira vantagem diferente cada. Escolhidas ao acaso (sem repetir no mesmo dia). */
 const VARIANTES: Variante[] = [
-  {
-    gancho: 'quer parar de pagar mais caro por aí?',
-    vantagens: {
-      telegram: [COMUNS.filtro, COMUNS.historico, 'No WhatsApp as ofertas chegam direto no zap, sem você abrir outro aplicativo'],
-      whatsapp: [COMUNS.filtro, COMUNS.historico, 'No Telegram saem também os cupons do Mercado Livre, no mesmo lugar das ofertas'],
-    },
-    fecho: 'Entra, silencia se quiser e olha só quando der vontade de comprar.',
-  },
-  {
-    gancho: 'sabe aquele produto que você vive olhando e nunca baixa de preço?',
-    vantagens: {
-      telegram: ['Nós vigiamos os preços todo dia e só avisamos quando cai de verdade', COMUNS.historico, 'Os avisos chegam direto no seu WhatsApp'],
-      whatsapp: ['Nós vigiamos os preços todo dia e só avisamos quando cai de verdade', COMUNS.historico, 'Cupons do Mercado Livre também saem no Telegram'],
-    },
-    fecho: 'Quando o preço cair, você fica sabendo na hora.',
-  },
-  {
-    gancho: 'o dia está corrido, mas dá tempo de economizar.',
-    vantagens: {
-      telegram: [COMUNS.lojas, 'Cada oferta vem com foto, preço e frete grátis quando tem', 'No WhatsApp você olha quando quiser: é só silenciar'],
-      whatsapp: [COMUNS.lojas, 'Cada oferta vem com foto, preço e frete grátis quando tem', 'No Telegram os cupons do Mercado Livre saem junto'],
-    },
-    fecho: 'Três toques e você já está recebendo.',
-  },
-  {
-    gancho: 'tem coisa boa saindo por preço baixo agora e o seu zap pode ser o primeiro a saber.',
-    vantagens: {
-      telegram: ['Ofertas durante todo o dia, nos horários em que as promoções aparecem', COMUNS.filtro, COMUNS.gratis],
-      whatsapp: ['Ofertas durante todo o dia, nos horários em que as promoções aparecem', COMUNS.filtro, COMUNS.gratis],
-    },
-    fecho: 'Quem entra cedo pega o melhor preço antes de acabar o estoque.',
-  },
-  {
-    gancho: 'uma dica de quem não gosta de pagar caro:',
-    vantagens: {
-      telegram: [COMUNS.historico, COMUNS.semSpam, 'No WhatsApp é só oferta, direto ao ponto'],
-      whatsapp: [COMUNS.historico, COMUNS.semSpam, 'No Telegram é só oferta e cupom, direto ao ponto'],
-    },
-    fecho: 'É só entrar e deixar as ofertas virem até você.',
-  },
-  {
-    gancho: 'você sabia que a gente também está por outros lados?',
-    vantagens: {
-      telegram: ['As mesmas ofertas, na hora, direto no seu WhatsApp', COMUNS.lojas, COMUNS.gratis],
-      whatsapp: ['As mesmas ofertas, na hora, direto no seu Telegram, mais os cupons do Mercado Livre', COMUNS.lojas, COMUNS.gratis],
-    },
-    fecho: 'Escolha onde é mais fácil para você acompanhar.',
-  },
-  {
-    gancho: 'antes de comprar, vale conferir se o preço está bom de verdade.',
-    vantagens: {
-      telegram: ['Mostramos quando o produto está no menor preço dos últimos dias', COMUNS.filtro, COMUNS.semSpam],
-      whatsapp: ['Mostramos quando o produto está no menor preço dos últimos dias', COMUNS.filtro, COMUNS.semSpam],
-    },
-    fecho: 'Compra com mais segurança e sem se arrepender depois.',
-  },
-  {
-    gancho: 'quer economizar sem perder tempo caçando promoção?',
-    vantagens: {
-      telegram: ['A gente caça as promoções por você, todo dia, e separa só as que valem', COMUNS.lojas, 'Chega no WhatsApp, onde você já olha toda hora'],
-      whatsapp: ['A gente caça as promoções por você, todo dia, e separa só as que valem', COMUNS.lojas, 'No Telegram ainda saem os cupons do Mercado Livre'],
-    },
-    fecho: 'Você só escolhe o que quer comprar.',
-  },
+  { gancho: 'quer pagar menos sem se incomodar?', extra: { telegram: 'Só oferta com desconto bom ou queda real', whatsapp: 'Os cupons do Mercado Livre saem lá também' } },
+  { gancho: 'aquele produto que não baixa de preço?', extra: { telegram: 'A gente confere o histórico de 30 dias', whatsapp: 'A gente confere o histórico de 30 dias' } },
+  { gancho: 'o dia está corrido, mas dá para economizar.', extra: { telegram: 'Mercado Livre e Shopee num lugar só', whatsapp: 'Mercado Livre e Shopee num lugar só' } },
+  { gancho: 'tem oferta boa saindo agora.', extra: { telegram: 'Chega direto no seu zap, na hora', whatsapp: 'Chega direto no seu Telegram, na hora' } },
+  { gancho: 'uma dica de quem não gosta de pagar caro:', extra: { telegram: 'Grátis, e você compra direto na loja', whatsapp: 'Grátis, e você compra direto na loja' } },
+  { gancho: 'sabia que a gente também está por outros lados?', extra: { telegram: 'As mesmas ofertas, no WhatsApp', whatsapp: 'As mesmas ofertas, mais cupons do Mercado Livre' } },
+  { gancho: 'antes de comprar, confira se o preço está bom.', extra: { telegram: 'Avisamos quando está no menor preço dos últimos dias', whatsapp: 'Avisamos quando está no menor preço dos últimos dias' } },
+  { gancho: 'cansou de caçar promoção?', extra: { telegram: 'A gente caça e separa só as que valem', whatsapp: 'A gente caça e separa só as que valem' } },
 ];
 
 /** Bom dia, boa tarde ou boa noite, pela hora de Brasília. */
@@ -138,20 +78,10 @@ function sorteio(semente: string): () => number {
 export function linksParaConvidar(config: Config, plataforma: Plataforma): Array<{ emoji: string; rotulo: string; link: string }> {
   const grupo = config.whatsapp.destinos.find((d) => /chat\.whatsapp\.com\//i.test(d)) ?? '';
   const canal = config.blog.whatsappLink || config.whatsapp.destinos.find((d) => /whatsapp\.com\/channel\//i.test(d)) || '';
-  const lista =
-    plataforma === 'telegram'
-      ? [
-          { emoji: '📢', rotulo: 'Canal do WhatsApp', link: canal },
-          { emoji: '👥', rotulo: 'Grupo do WhatsApp', link: grupo },
-        ]
-      : [{ emoji: '✈️', rotulo: 'Canal do Telegram', link: config.blog.telegramLink }];
-  return lista.filter((l) => /^https:\/\//.test(l.link));
-}
-
-/** O link do próprio canal, para a pessoa mandar a um amigo. */
-function linkDoProprioCanal(config: Config, plataforma: Plataforma): string {
-  const l = plataforma === 'telegram' ? config.blog.telegramLink : config.blog.whatsappLink || config.whatsapp.destinos.find((d) => /whatsapp\.com\/channel\//i.test(d)) || '';
-  return /^https:\/\//.test(l) ? l : '';
+  if (plataforma === 'whatsapp') return /^https:\/\//.test(config.blog.telegramLink) ? [{ emoji: '✈️', rotulo: 'Canal do Telegram', link: config.blog.telegramLink }] : [];
+  // O pitch é "ninguém vê o seu número": vale para o canal. Só se não houver canal é que o convite leva ao grupo.
+  if (/^https:\/\//.test(canal)) return [{ emoji: '📢', rotulo: 'Canal do WhatsApp', link: canal }];
+  return /^https:\/\//.test(grupo) ? [{ emoji: '👥', rotulo: 'Grupo do WhatsApp', link: grupo }] : [];
 }
 
 /** O texto de um convite. Vazio quando não há para onde convidar (falta o link do outro canal). */
@@ -159,13 +89,16 @@ export function textoDoConvite(config: Config, plataforma: Plataforma, variante:
   const links = linksParaConvidar(config, plataforma);
   if (links.length === 0) return '';
   const v = VARIANTES[((variante % VARIANTES.length) + VARIANTES.length) % VARIANTES.length]!;
-  const nome = plataforma === 'telegram' ? 'WhatsApp' : 'Telegram';
-  const linhas: string[] = [`${saudacaoDaHora(hora)}, ${v.gancho}`, '', `Entre no nosso canal do ${nome} e receba as ofertas do Mata Preço:`, ''];
-  for (const vantagem of v.vantagens[plataforma]) linhas.push(`✅ ${vantagem}`);
-  linhas.push('', v.fecho, '', ...links.map((l) => `${l.emoji} ${l.rotulo}: ${l.link}`));
-  const proprio = linkDoProprioCanal(config, plataforma);
-  if (proprio) linhas.push('', `Já está por aqui? Manda este canal para um amigo que gosta de economizar: ${proprio}`);
-  return linhas.join('\n');
+  const l = links[0]!;
+  // Se só há o grupo (sem canal), "ninguém vê o seu número" não vale: o convite fala só do que é verdade para grupo.
+  const principais = l.rotulo.startsWith('Grupo') ? PRINCIPAIS.telegram.slice(1) : PRINCIPAIS[plataforma];
+  return [
+    `${saudacaoDaHora(hora)}, ${v.gancho}`,
+    '',
+    ...[...principais, v.extra[plataforma]].map((x) => `✅ ${x}`),
+    '',
+    `${l.emoji} ${l.rotulo}: ${l.link}`,
+  ].join('\n');
 }
 
 /** Os horários sorteados do dia (ms), um em cada faixa igual do horário de postagem, com pelo menos 1 hora de folga nas pontas. */
