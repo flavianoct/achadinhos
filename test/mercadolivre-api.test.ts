@@ -99,3 +99,32 @@ test('ML pela API: título do catálogo perde a lista de modelos e fica com até
   const longo = limparTituloML('Kit '.repeat(5) + 'Organizador de Cozinha Premium com Tampa Hermética Livre de BPA para Geladeira e Despensa Alta Durabilidade');
   assert.ok(longo.length <= 110 && !/\s$/.test(longo));
 });
+
+test('ML por tema: busca cada palavra pela API, traz nota e link de afiliado; se a busca for recusada, cai na página de ofertas', async () => {
+  const chamadas: string[] = [];
+  let recusar = false;
+  const f = (async (url: string, init: any = {}) => {
+    const u = String(url);
+    chamadas.push(u.replace('https://api.mercadolibre.com', ''));
+    if (u.endsWith('/oauth/token')) return resposta({ access_token: 'TOKEN' });
+    if (u.includes('/sites/MLB/search')) return recusar ? resposta({ message: 'forbidden' }, 403) : resposta({ results: [{ id: 'MLB777', title: 'Projetor Portátil 4K Wi-Fi', price: 400, original_price: 800, permalink: 'https://produto.mercadolivre.com.br/MLB-777-projetor', thumbnail: 'http://http2.mlstatic.com/p.jpg', condition: 'new', shipping: { free_shipping: true }, sold_quantity: 1200 }, { id: 'MLB778', title: 'Projetor Usado', price: 100, permalink: 'https://x.mercadolivre.com.br/MLB-778', condition: 'used' }] });
+    if (u.includes('/reviews/item/MLB777')) return resposta({ rating_average: 4.6 });
+    return resposta({}, 404);
+  }) as unknown as typeof fetch;
+  const api = new FonteMercadoLivreApi(op, f, 0);
+  const achadas = await api.buscar(['projetor']);
+  assert.equal(achadas.length, 1, 'o usado é descartado');
+  assert.equal(achadas[0]!.idProduto, 'MLB777');
+  assert.equal(achadas[0]!.nota, 4.6);
+  assert.equal(achadas[0]!.desconto, 50);
+  assert.match(achadas[0]!.link, /matt_word=topfera/);
+  assert.ok(chamadas.some((c) => c.includes('q=projetor')));
+
+  // Pela fonte do ML: com tema, a busca vem primeiro.
+  const fonte = new FonteMercadoLivre({ mattWord: 'topfera', mattTool: '1', reserva: api, tema: ['projetor'] }, (async () => { throw new Error('a página nem devia ser lida'); }) as unknown as typeof fetch);
+  assert.equal((await fonte.coletar())[0]!.idProduto, 'MLB777');
+
+  // Busca recusada (403): volta para a página de ofertas, e o erro da página aparece.
+  recusar = true;
+  await assert.rejects(new FonteMercadoLivre({ mattWord: 'topfera', mattTool: '1', paginas: 1, reserva: api, tema: ['projetor'] }, (async () => new Response('x', { status: 503 })) as unknown as typeof fetch).coletar(), /503/);
+});

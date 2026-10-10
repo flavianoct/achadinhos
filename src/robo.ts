@@ -39,7 +39,7 @@ function fontesReais(config: Config): Fonte[] {
   if (config.shopee.ativo) fontes.push(new FonteShopee(config.shopee));
   if (config.ml.ativo) {
     const api = config.ml.clientId && config.ml.clientSecret ? new FonteMercadoLivreApi({ clientId: config.ml.clientId, clientSecret: config.ml.clientSecret, mattWord: config.ml.mattWord, mattTool: config.ml.mattTool, categorias: config.ml.categorias }) : undefined;
-    fontes.push(new FonteMercadoLivre({ ...config.ml, reserva: api }));
+    fontes.push(new FonteMercadoLivre({ ...config.ml, reserva: api, tema: config.filtro.tema }));
   }
   if (config.amazon.ativo) fontes.push(new FonteAmazon());
   return fontes;

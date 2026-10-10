@@ -188,6 +188,41 @@ export class FonteMercadoLivreApi {
     return [...ofertas.values()];
   }
 
+  /**
+   * Busca por palavra (o tema do dia): pesquisa cada palavra no Mercado Livre e devolve os anúncios novos com nota e vendas.
+   * Se a API recusar a busca, o erro sobe e quem chamou volta para a leitura normal da página de ofertas.
+   */
+  async buscar(palavras: string[]): Promise<Oferta[]> {
+    if (!this.opcoes.clientId || !this.opcoes.clientSecret) throw new ErroApiML('faltam os Secrets ML_CLIENT_ID e ML_CLIENT_SECRET');
+    const ofertas = new Map<string, Oferta>();
+    let ultimoErro = '';
+    for (const palavra of palavras.slice(0, 4)) {
+      let resultados: any[] = [];
+      try {
+        const r = await this.autorizado(`/sites/MLB/search?q=${encodeURIComponent(palavra)}&limit=30`);
+        resultados = Array.isArray(r?.results) ? r.results : [];
+      } catch (e) {
+        ultimoErro = (e as Error).message;
+        if (/^40[13]/.test(ultimoErro)) break;
+        continue;
+      }
+      for (const b of resultados) {
+        const oferta = this.converter(b);
+        if (!oferta || ofertas.has(oferta.idProduto)) continue;
+        await pausa(this.pausaMs);
+        try {
+          const media = Number((await this.autorizado(`/reviews/item/${oferta.idProduto}`))?.rating_average);
+          if (Number.isFinite(media) && media > 0 && media <= 5) oferta.nota = Math.round(media * 10) / 10;
+        } catch {
+          // sem nota a oferta só não passa no filtro de qualidade
+        }
+        ofertas.set(oferta.idProduto, oferta);
+      }
+    }
+    if (ofertas.size === 0) throw new ErroApiML(`a busca por tema não trouxe anúncios${ultimoErro ? `: ${ultimoErro}` : ''}`);
+    return [...ofertas.values()];
+  }
+
   /** Monta a oferta a partir do produto de catálogo e do anúncio que o vende (o vencedor). */
   private converterProduto(p: any, vencedor: any, idProduto: string): Oferta | undefined {
     const preco = Number(vencedor?.price);

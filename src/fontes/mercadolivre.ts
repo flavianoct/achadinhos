@@ -135,10 +135,11 @@ export class FonteMercadoLivre implements Fonte {
   private intervaloMs: number;
   private agora: () => number;
   private fetchFn: Fetch;
-  private reserva?: { coletar(): Promise<Oferta[]> };
+  private reserva?: { coletar(): Promise<Oferta[]>; buscar?(palavras: string[]): Promise<Oferta[]> };
+  private tema: string[];
 
   constructor(
-    opcoes: { mattWord: string; mattTool: string; paginas?: number; categorias?: string[]; paginasDeCategoria?: number; intervaloMs?: number; agora?: () => number; reserva?: { coletar(): Promise<Oferta[]> } },
+    opcoes: { mattWord: string; mattTool: string; paginas?: number; categorias?: string[]; paginasDeCategoria?: number; intervaloMs?: number; agora?: () => number; reserva?: { coletar(): Promise<Oferta[]>; buscar?(palavras: string[]): Promise<Oferta[]> }; tema?: string[] },
     fetchFn: Fetch = fetch,
   ) {
     this.mattWord = opcoes.mattWord;
@@ -150,6 +151,7 @@ export class FonteMercadoLivre implements Fonte {
     this.agora = opcoes.agora ?? Date.now;
     this.fetchFn = fetchFn;
     this.reserva = opcoes.reserva;
+    this.tema = opcoes.tema ?? [];
   }
 
   private async baixar(url: string): Promise<string> {
@@ -163,6 +165,14 @@ export class FonteMercadoLivre implements Fonte {
 
   /** Lê a página de ofertas; se o site barrar (captcha), tenta a API oficial e só falha se as duas falharem. */
   async coletar(): Promise<Oferta[]> {
+    // Com tema, tenta primeiro a busca por palavra pela API; se ela não trouxer nada, segue para a página de ofertas (que o filtro do tema limpa depois).
+    if (this.tema.length && this.reserva?.buscar) {
+      try {
+        return await this.reserva.buscar(this.tema);
+      } catch {
+        // cai na leitura normal
+      }
+    }
     try {
       return await this.coletarDaPagina();
     } catch (e) {
