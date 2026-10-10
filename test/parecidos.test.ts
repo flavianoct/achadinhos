@@ -71,3 +71,24 @@ test('pipeline: entre anúncios repetidos, o melhor vendedor (maior nota) ganha,
   assert.deepEqual(publicados, ['MLB2'], 'só o de nota 4,9 sai; os outros foram apagados da fila');
   assert.equal(banco.tamanhoDaFila(), 0);
 });
+
+test('tema: com TEMA=celular, projetor só entram e saem ofertas desses assuntos; sem tema, tudo', async () => {
+  const { dentroDoTema } = await import('../src/pipeline.ts');
+  const base = { TELEGRAM_BOT_TOKEN: 't', TELEGRAM_CHAT_ID: '1', HORA_INICIO: '8', HORA_FIM: '23', PARECIDOS_HORAS: '0' };
+  const tema = lerConfig({ ...base, TEMA: 'celular, projetor' });
+  assert.deepEqual(tema.filtro.tema, ['celular', 'projetor']);
+  assert.equal(dentroDoTema('Celulares Samsung Galaxy A15 128GB', tema), true, 'plural');
+  assert.equal(dentroDoTema('Projetor Portátil 4K Wi-Fi', tema), true);
+  assert.equal(dentroDoTema('Capa para Celular Silicone', tema), true, 'o título tem a palavra');
+  assert.equal(dentroDoTema('Air Fryer 4L Digital', tema), false);
+  assert.equal(dentroDoTema('Air Fryer 4L Digital', lerConfig(base)), true, 'sem tema vale tudo');
+  assert.deepEqual(tema.shopee.palavras, ['celular', 'projetor'], 'a busca da Shopee vai só pelo tema');
+
+  const banco = new Banco(':memory:');
+  banco.enfileirar(oferta(1, 'Air Fryer 4L Digital', 99), AGORA);
+  banco.enfileirar(oferta(2, 'Projetor Portátil 4K', 50), AGORA);
+  const publicados: string[] = [];
+  for (let i = 0; i < 2; i++) await postarProxima({ async publicar(o: OfertaAvaliada) { publicados.push(o.titulo); } } as any, banco, tema, AGORA);
+  assert.deepEqual(publicados, ['Projetor Portátil 4K'], 'a air fryer, de pontuação maior, fica de fora');
+  assert.equal(banco.tamanhoDaFila(), 0);
+});

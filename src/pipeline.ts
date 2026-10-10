@@ -21,6 +21,14 @@ export interface ResumoDaColeta {
   errosPorFonte: Record<string, string>;
 }
 
+/** Sem tema, tudo vale. Com tema (TEMA=celular,projetor), só o título que tem uma dessas palavras. */
+export function dentroDoTema(titulo: string, config: Config): boolean {
+  const tema = config.filtro.tema;
+  if (!tema.length) return true;
+  const t = normalizar(titulo);
+  // Começo de palavra: \
+}
+
 /** Busca ofertas em todas as lojas, guarda os preços no histórico e enfileira as aprovadas. */
 export async function coletar(fontes: Fonte[], banco: Banco, config: Config, agora: Date = new Date()): Promise<ResumoDaColeta> {
   const resumo: ResumoDaColeta = { coletadas: 0, aprovadas: 0, reprovadasPorMotivo: {}, errosPorFonte: {} };
@@ -52,7 +60,9 @@ export async function coletar(fontes: Fonte[], banco: Banco, config: Config, ago
       // Toda oferta boa fica guardada como produto: é disso que o blog monta as listas "Top N".
       if (resultado.oferta) banco.guardarProduto(resultado.oferta, agora);
 
-      if (resultado.aprovada) {
+      if (resultado.aprovada && !dentroDoTema(resultado.oferta.titulo, config)) {
+        resumo.reprovadasPorMotivo['fora do tema'] = (resumo.reprovadasPorMotivo['fora do tema'] ?? 0) + 1;
+      } else if (resultado.aprovada) {
         banco.enfileirar(resultado.oferta, agora);
         resumo.aprovadas++;
       } else {
@@ -75,6 +85,8 @@ export async function postarProxima(publicador: Publicador, banco: Banco, config
   if (banco.postsNoDia(agora) >= config.ritmo.maxPostsPorDia) return { postou: false, motivo: 'limite diário' };
 
   banco.limparFilaAntiga(HORAS_NA_FILA, agora);
+  // Com tema ligado, o que está na fila fora do tema sai (a fila renasce a cada coleta).
+  if (config.filtro.tema.length) for (const o of banco.itensDaFila(2000)) if (!dentroDoTema(o.titulo, config)) banco.removerDaFila(o.loja, o.idProduto);
   // Oferta de um nicho que não tem canal próprio e que o filtro do canal geral recusa não vai a lugar nenhum:
   // sai da fila e a próxima é tentada.
   let oferta: OfertaAvaliada | undefined;

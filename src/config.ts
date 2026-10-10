@@ -38,6 +38,8 @@ export interface Config {
   };
   amazon: { ativo: boolean; tag: string };
   filtro: {
+    /** Tema: só ofertas com uma destas palavras no título são coletadas e postadas (ex.: celular, projetor). Vazio = todos os assuntos. */
+    tema: string[];
     descontoMinimo: number;
     quedaMinima: number;
     precoMinimo: number;
@@ -283,7 +285,8 @@ export function lerConfig(env: Env = process.env): Config {
       ativo: ligado(env, 'SHOPEE_ATIVO', true),
       appId: (env.SHOPEE_APP_ID ?? '').trim(),
       secret: (env.SHOPEE_SECRET ?? '').trim(),
-      palavras: lista(env.SHOPEE_PALAVRAS),
+      // Com tema, a busca da Shopee procura só pelas palavras do tema.
+      palavras: lista(env.TEMA).length ? lista(env.TEMA) : lista(env.SHOPEE_PALAVRAS),
       paginas: numero(env, 'SHOPEE_PAGINAS', 2),
     },
     ml: {
@@ -302,6 +305,7 @@ export function lerConfig(env: Env = process.env): Config {
       tag: (env.AMAZON_TAG ?? '').trim(),
     },
     filtro: {
+      tema: lista(env.TEMA),
       descontoMinimo: numero(env, 'DESCONTO_MINIMO', 25),
       quedaMinima: numero(env, 'QUEDA_MINIMA', 10),
       precoMinimo: numero(env, 'PRECO_MINIMO', 15),
