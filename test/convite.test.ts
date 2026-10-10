@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { conviteDeHoje, linksDoConvite, textoDoConvite } from '../src/convite.ts';
+import { convitesDeHoje, horariosDosConvites, linksParaConvidar, saudacaoDaHora, textoDoConvite } from '../src/convite.ts';
 import { lerConfig } from '../src/config.ts';
 import { Banco } from '../src/db.ts';
 import { publicarControle } from '../src/exportar.ts';
@@ -15,36 +15,59 @@ import type { OfertaAvaliada } from '../src/types.ts';
 const canal = 'https://whatsapp.com/channel/0029VbDtCLD2UPBAGBZ4UO1W';
 const grupo = 'https://chat.whatsapp.com/KRJ3OtHhmZ10XfReNMTIaw';
 const base = { BLOG_URL: 'https://flavianoct.github.io/achadinhos', BLOG_TELEGRAM: 'https://t.me/canal', BLOG_INSTAGRAM: '@perfil', BLOG_WHATSAPP: canal, WHATSAPP_DESTINOS: `${canal},${grupo}`, HORA_INICIO: '8', HORA_FIM: '23', CONVITE_ATIVO: '1' };
-// 12h05 e 11h em Brasília, 9h e 16h
-const as12 = new Date('2026-10-08T15:05:00Z');
-const as11 = new Date('2026-10-08T14:05:00Z');
-const as16 = new Date('2026-10-08T19:05:00Z');
+const DIA = '2026-10-08';
+const noMs = (hhmm: string) => Date.parse(`${DIA}T${hhmm}:00-03:00`);
 
-test('convite: texto curto com os quatro caminhos, e vazio quando não há o que escolher', () => {
+test('convite: cada plataforma convida para a outra, com as vantagens, o link e a saudação da hora', () => {
   const config = lerConfig(base);
-  assert.deepEqual(linksDoConvite(config).map((l) => l.rotulo), ['Canal do WhatsApp', 'Grupo do WhatsApp', 'Telegram', 'Instagram']);
-  const texto = textoDoConvite(config);
-  assert.match(texto, /^Se preferir receber de outro jeito, a gente também está por aqui:/);
-  for (const l of [canal, grupo, 'https://t.me/canal', 'https://www.instagram.com/perfil/']) assert.ok(texto.includes(l), l);
-  assert.ok(texto.split('\n').length <= 7 && texto.length < 400, 'curto');
-  assert.equal(textoDoConvite(lerConfig({ BLOG_TELEGRAM: 'https://t.me/canal' })), '', 'um caminho só não é convite');
+  assert.deepEqual(linksParaConvidar(config, 'telegram').map((l) => l.rotulo), ['Canal do WhatsApp', 'Grupo do WhatsApp']);
+  assert.deepEqual(linksParaConvidar(config, 'whatsapp').map((l) => l.rotulo), ['Canal do Telegram']);
+  const noTelegram = textoDoConvite(config, 'telegram', 0, 9);
+  assert.match(noTelegram, /^Bom dia, /);
+  assert.ok(noTelegram.includes(canal) && noTelegram.includes(grupo), 'o Telegram divulga o canal e o grupo do WhatsApp');
+  assert.ok(noTelegram.includes('https://t.me/canal'), 'e deixa o link do próprio canal para a pessoa mandar a um amigo');
+  assert.ok((noTelegram.match(/✅/g) ?? []).length >= 3, 'explica as vantagens');
+  const noWhatsapp = textoDoConvite(config, 'whatsapp', 0, 20);
+  assert.match(noWhatsapp, /^Boa noite, /);
+  assert.ok(noWhatsapp.includes('https://t.me/canal') && noWhatsapp.includes(canal));
+  assert.deepEqual([saudacaoDaHora(8), saudacaoDaHora(12), saudacaoDaHora(17), saudacaoDaHora(18), saudacaoDaHora(23)], ['Bom dia', 'Boa tarde', 'Boa tarde', 'Boa noite', 'Boa noite']);
+  // Sem para onde convidar: texto vazio.
+  assert.equal(textoDoConvite(lerConfig({ BLOG_TELEGRAM: 'https://t.me/canal' }), 'telegram', 0, 9), '', 'sem WhatsApp configurado');
+  assert.equal(textoDoConvite(lerConfig({ BLOG_WHATSAPP: canal }), 'whatsapp', 0, 9), '', 'sem Telegram configurado');
+  // Todas as variantes dizem coisas diferentes e cabem numa mensagem.
+  const todas = Array.from({ length: 8 }, (_, v) => textoDoConvite(config, 'telegram', v, 14));
+  assert.equal(new Set(todas).size, 8);
+  for (const t of todas) assert.ok(t.length < 900, 'cabe numa mensagem');
 });
 
-test('convite: uma vez por dia, só na hora configurada e nunca fora da validade; "a cada N dias" respeita o ritmo', () => {
+test('convite: os horários são sorteados por dia, espalhados no horário de postagem e sempre os mesmos para o mesmo dia', () => {
   const config = lerConfig(base);
-  assert.equal(conviteDeHoje(config, as11), undefined, 'antes da hora (12h)');
-  assert.equal(conviteDeHoje(config, as16), undefined, 'depois da validade (3 horas)');
-  const c = conviteDeHoje(config, as12)!;
-  assert.equal(c.id, 'convite:2026-10-08');
-  assert.equal(c.criadoEm, Date.parse('2026-10-08T12:00:00-03:00'));
-  assert.equal(conviteDeHoje(config, new Date('2026-10-08T17:30:00Z'))!.id, c.id, 'mesmo id o dia todo: o enviador manda uma vez só');
-  assert.equal(conviteDeHoje(lerConfig({ ...base, CONVITE_ATIVO: '0' }), as12), undefined, 'desligado');
-  assert.equal(conviteDeHoje(lerConfig({ ...base, CONVITE_HORA: '19' }), new Date('2026-10-08T22:10:00Z'))!.criadoEm, Date.parse('2026-10-08T19:00:00-03:00'));
-  // A cada 2 dias: só aparece em dias alternados, nunca em dois dias seguidos.
-  const dois = lerConfig({ ...base, CONVITE_A_CADA_DIAS: '2' });
-  const dias = [8, 9, 10, 11].map((d) => conviteDeHoje(dois, new Date(`2026-10-${String(d).padStart(2, '0')}T15:05:00Z`)) !== undefined);
-  assert.equal(dias.filter(Boolean).length, 2);
-  assert.ok(dias[0] !== dias[1] && dias[1] !== dias[2], 'alternados');
+  const a = horariosDosConvites(config, DIA);
+  assert.equal(a.length, 3);
+  assert.deepEqual(horariosDosConvites(config, DIA), a, 'o mesmo dia sorteia o mesmo');
+  assert.notDeepEqual(horariosDosConvites(config, '2026-10-09'), horariosDosConvites(config, DIA).map((t) => t + 86_400_000), 'outro dia, outro sorteio');
+  // Dentro do horário (9h às 22h), em ordem, e uma hora ou mais de distância entre vizinhos (uma faixa cada).
+  for (const t of a) assert.ok(t >= noMs('09:00') && t <= noMs('22:00'), new Date(t).toISOString());
+  assert.deepEqual([...a].sort((x, y) => x - y), a);
+  for (let i = 1; i < a.length; i++) assert.ok(a[i]! - a[i - 1]! >= 3_600_000 / 2, 'espalhados');
+  assert.equal(horariosDosConvites(lerConfig({ ...base, CONVITES_POR_DIA: '0' }), DIA).length, 0);
+  assert.equal(horariosDosConvites(lerConfig({ ...base, CONVITES_POR_DIA: '50' }), DIA).length, 6, 'no máximo 6 por dia');
+});
+
+test('convite: só aparece na hora sorteada e até 3 horas depois; desligado não aparece; cada convite tem texto e id próprios', () => {
+  const config = lerConfig(base);
+  const [primeiro, segundo] = horariosDosConvites(config, DIA) as [number, number];
+  assert.deepEqual(convitesDeHoje(config, new Date(primeiro - 60_000)), [], 'antes da hora');
+  const naHora = convitesDeHoje(config, new Date(primeiro + 60_000));
+  assert.deepEqual(naHora.map((c) => c.id), [`convite:${DIA}:0`]);
+  assert.equal(naHora[0]!.criadoEm, primeiro);
+  assert.deepEqual(convitesDeHoje(config, new Date(primeiro + 4 * 3_600_000)).filter((c) => c.numero === 0), [], 'depois da validade (3 horas)');
+  const depois = convitesDeHoje(config, new Date(segundo + 60_000));
+  assert.ok(depois.some((c) => c.numero === 1));
+  assert.deepEqual(convitesDeHoje(lerConfig({ ...base, CONVITE_ATIVO: '0' }), new Date(primeiro + 60_000)), [], 'desligado');
+  // Convites do mesmo dia usam variantes diferentes (nunca o mesmo texto duas vezes).
+  const textos = horariosDosConvites(config, DIA).flatMap((t) => convitesDeHoje(config, new Date(t + 1000)).filter((c) => c.criadoEm === t).map((c) => c.textoTelegram.replace(/^(Bom dia|Boa tarde|Boa noite)/, '')));
+  assert.equal(new Set(textos).size, 3);
 });
 
 test('rodapé: cada oferta do WhatsApp termina com duas linhas curtas (Telegram e Instagram), depois do link da oferta', () => {
@@ -70,22 +93,25 @@ test('rodapé: mensagem que já estava na fila sai com o link novo do Instagram 
   assert.equal(atualizarRodape(montarMensagemWhatsapp(o), nova), montarMensagemWhatsapp(o), 'mensagem sem rodapé não muda');
 });
 
-test('convite: entra no whatsapp.json só na janela do dia e só com o WhatsApp ligado', () => {
+test('convite: entra no whatsapp.json só na janela de cada convite e só com o WhatsApp ligado, em texto simples', () => {
   const ler = (dir: string) => JSON.parse(readFileSync(join(dir, 'whatsapp.json'), 'utf8')) as { mensagens: Array<{ id: string; texto: string; imagem?: string }> };
   const gerar = (extra: Record<string, string>, quando: Date) => {
     const dir = mkdtempSync(join(tmpdir(), 'convite-'));
     publicarControle(new Banco(':memory:'), lerConfig({ ...base, BLOG_PASTA: dir, ...extra }), { postados: 0 }, quando, 'dono/repo');
     return ler(dir);
   };
-  const ao12 = gerar({}, as12).mensagens;
-  assert.deepEqual(ao12.map((m) => m.id), ['convite:2026-10-08']);
-  assert.equal(ao12[0]!.imagem, undefined, 'só texto');
-  assert.deepEqual(gerar({}, as11).mensagens, []);
-  assert.deepEqual(gerar({}, as16).mensagens, []);
-  assert.deepEqual(gerar({ WHATSAPP_ATIVO: '0' }, as12).mensagens, []);
+  const [primeiro, segundo] = horariosDosConvites(lerConfig(base), DIA) as [number, number];
+  const naHora = gerar({}, new Date(primeiro + 60_000)).mensagens;
+  assert.deepEqual(naHora.map((m) => m.id), [`convite:${DIA}:0`]);
+  assert.equal(naHora[0]!.imagem, undefined, 'só texto');
+  assert.ok(naHora[0]!.texto.includes('https://t.me/canal'), 'o WhatsApp convida para o Telegram');
+  assert.deepEqual(gerar({}, new Date(primeiro - 60_000)).mensagens, []);
+  assert.deepEqual(gerar({ WHATSAPP_ATIVO: '0' }, new Date(primeiro + 60_000)).mensagens, []);
+  // Perto do segundo convite, o primeiro ainda está na validade e o segundo já entrou: o enviador manda cada id uma vez só.
+  assert.ok(gerar({}, new Date(segundo + 60_000)).mensagens.some((m) => m.id === `convite:${DIA}:1`));
 });
 
-test('convite: o Telegram recebe uma vez por dia, em texto simples e sem prévia, e nunca duas vezes', async () => {
+test('convite: o Telegram recebe cada convite do dia uma vez só, em texto simples e sem prévia, convidando para o WhatsApp', async () => {
   const enviados: Array<{ chat_id: string; text: string; link_preview_options?: { is_disabled: boolean } }> = [];
   const f = (async (_url: string, init: any) => {
     enviados.push(JSON.parse(init.body));
@@ -101,13 +127,18 @@ test('convite: o Telegram recebe uma vez por dia, em texto simples e sem prévia
     criarPublicador: (c) => new Telegram(c.telegram.token, c.telegram.chatId, f),
     silencioso: true,
   });
-  assert.deepEqual(await robo.postarConviteAgora(as11), { postou: false, motivo: 'fora do dia ou da hora do convite' });
-  assert.equal((await robo.postarConviteAgora(as12)).postou, true);
-  assert.equal((await robo.postarConviteAgora(new Date(as12.getTime() + 600_000))).motivo, 'já postado hoje');
+  const [primeiro, segundo] = horariosDosConvites(robo.config, DIA) as [number, number];
+  assert.deepEqual(await robo.postarConviteAgora(new Date(primeiro - 60_000)), { postou: false, motivo: 'fora do dia ou da hora do convite' });
+  assert.equal((await robo.postarConviteAgora(new Date(primeiro + 60_000))).postou, true);
+  assert.equal((await robo.postarConviteAgora(new Date(primeiro + 600_000))).motivo, 'já postado hoje', 'o mesmo convite nunca sai duas vezes');
   assert.equal(enviados.length, 1);
   assert.equal(enviados[0]!.chat_id, '@canal');
   assert.equal(enviados[0]!.link_preview_options?.is_disabled, true);
-  assert.match(enviados[0]!.text, /Se preferir receber de outro jeito/);
+  assert.ok(enviados[0]!.text.includes(canal), 'convida para o canal do WhatsApp');
   assert.ok(!enviados[0]!.text.includes('<a '), 'texto simples, sem formatação');
+  // O segundo convite do dia sai na hora dele, com um texto diferente.
+  assert.equal((await robo.postarConviteAgora(new Date(segundo + 60_000))).postou, true);
+  assert.equal(enviados.length, 2);
+  assert.notEqual(enviados[0]!.text.replace(/^[^,]+,/, ''), enviados[1]!.text.replace(/^[^,]+,/, ''));
   robo.fechar();
 });

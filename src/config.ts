@@ -65,7 +65,7 @@ export interface Config {
   /** Cupons do Mercado Livre e da Amazon, cadastrados por você em cupons.json. */
   cupons: { ativo: boolean; arquivo: string; porDia: number; repetirDias: number; garimpo: boolean; lojas: string[]; bloquear: string[]; linkShopee: string; paginaShopee: string };
   /** Convite discreto aos outros canais (WhatsApp, Telegram, Instagram): poucas vezes, sem encher o canal. */
-  convite: { ativo: boolean; aCadaDias: number; hora: number };
+  convite: { ativo: boolean; porDia: number };
   /** Vendas e comissão da Shopee (conversionReport), lidas de tempos em tempos para o painel. */
   vendas: { ativo: boolean; horasEntreLeituras: number; dias: number };
   /** Campanhas da própria Shopee postadas no canal geral do Telegram. 0 = desligado. */
@@ -363,7 +363,7 @@ export function lerConfig(env: Env = process.env): Config {
       whatsappLink: linkDoWhatsapp(env.BLOG_WHATSAPP ?? ''),
       amazonArquivo: (env.BLOG_AMAZON_ARQUIVO ?? '').trim() || 'amazon.json',
     },
-    convite: { ativo: ligado(env, 'CONVITE_ATIVO', false), aCadaDias: Math.max(1, numero(env, 'CONVITE_A_CADA_DIAS', 1)), hora: Math.min(21, Math.max(0, numero(env, 'CONVITE_HORA', 12))) },
+    convite: { ativo: ligado(env, 'CONVITE_ATIVO', false), porDia: Math.min(6, Math.max(0, numero(env, 'CONVITES_POR_DIA', 3))) },
     whatsapp: { ativo: ligado(env, 'WHATSAPP_ATIVO', true), rodape: ligado(env, 'WHATSAPP_RODAPE', true), destinos: destinosDoWhatsapp(env.WHATSAPP_DESTINOS ?? ''), ...rotasDoWhatsapp(env.WHATSAPP_ROTAS) },
     social: { ativo: ligado(env, 'SOCIAL_ATIVO', true) },
     instagram: {
