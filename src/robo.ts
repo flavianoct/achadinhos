@@ -6,7 +6,7 @@ import { FonteAmazon } from './fontes/amazon.ts';
 import { FonteMercadoLivre } from './fontes/mercadolivre.ts';
 import { FonteMercadoLivreApi } from './fontes/mercadolivre-api.ts';
 import { FonteShopee } from './fontes/shopee.ts';
-import { conviteDeHoje } from './convite.ts';
+import { convitesDeHoje } from './convite.ts';
 import { chaveDoCupom, lerCupons } from './cupons.ts';
 import { garimparCupons, type ResultadoDoGarimpo } from './garimpo-cupons.ts';
 import { buscarCampanhas, buscarVendas } from './shopee-extra.ts';
@@ -170,21 +170,25 @@ export class Robo {
     });
   }
 
-  /** Convite discreto aos outros canais, no canal geral do Telegram: no máximo uma vez por dia de convite, na hora configurada. */
+  /**
+   * Convite para o canal do WhatsApp no canal geral do Telegram: CONVITES_POR_DIA por dia, em horários sorteados, um por rodada no máximo.
+   * Cada convite sai uma vez só (fica registrado por dia e número).
+   */
   postarConviteAgora(agora: Date = new Date()): Promise<{ postou: boolean; motivo?: string }> {
     return this.emSerie(async () => {
-      const convite = conviteDeHoje(this.config, agora);
-      if (!convite) return { postou: false, motivo: 'fora do dia ou da hora do convite' };
+      const devidos = convitesDeHoje(this.config, agora).filter((c) => c.textoTelegram);
+      if (!devidos.length) return { postou: false, motivo: 'fora do dia ou da hora do convite' };
       if (!this.publicador?.publicarTexto) return { postou: false, motivo: 'Telegram não configurado' };
-      if (this.banco.convitePostado('telegram', convite.dia)) return { postou: false, motivo: 'já postado hoje' };
+      const convite = devidos.find((c) => !this.banco.convitePostado(`telegram:${c.numero}`, c.dia));
+      if (!convite) return { postou: false, motivo: 'já postado hoje' };
       try {
-        await this.publicador.publicarTexto(convite.texto);
+        await this.publicador.publicarTexto(convite.textoTelegram);
       } catch (e) {
         this.log(`ERRO ao postar o convite: ${(e as Error).message}`);
         return { postou: false, motivo: (e as Error).message };
       }
-      this.banco.marcarConvitePostado('telegram', convite.dia, agora);
-      this.log('convite aos outros canais postado no Telegram');
+      this.banco.marcarConvitePostado(`telegram:${convite.numero}`, convite.dia, agora);
+      this.log(`convite para o canal do WhatsApp postado no Telegram (${convite.numero + 1} do dia)`);
       return { postou: true };
     });
   }
