@@ -22,8 +22,7 @@ test('convite: chamada curta com gatilho, as mesmas ofertas do grupo sem mostrar
   const config = lerConfig(base);
   assert.deepEqual(linksDosCanais(config).map((l) => l.rotulo), ['Canal do WhatsApp', 'Canal do Telegram'], 'o grupo não entra: o convite é para quem não curte grupo');
   const texto = textoDoConvite(config, 2, 9);
-  assert.match(texto, /^Bom dia, /);
-  assert.match(texto, /Mesmas ofertas do grupo, sem mostrar o seu número e sem conversa\./);
+  assert.match(texto, /^Bom dia! 🔎 Viu no Instagram e quer saber o preço\? Ele está no canal\.\nMesmas ofertas do grupo, sem mostrar o seu número e sem barulho\./);
   assert.ok(texto.includes(canal) && texto.includes('https://t.me/canal') && !texto.includes(grupo), 'os dois canais, sem o grupo');
   assert.match(texto, /\n👇 [^\n]+\n📢 Canal do WhatsApp: https:[^\n]+\n✈️ Canal do Telegram: https:/, 'uma chamada para agir logo acima dos links');
   assert.ok(texto.split("\n").length <= 7 && texto.length < 330, 'curto');
@@ -35,6 +34,7 @@ test('convite: chamada curta com gatilho, as mesmas ofertas do grupo sem mostrar
   // As 8 variantes dizem coisas diferentes, cada uma com seu gatilho, e todas são curtas.
   const todas = Array.from({ length: 8 }, (_, v) => textoDoConvite(config, v, 14));
   assert.equal(new Set(todas).size, 8);
+  for (const t of todas) assert.match(t, /número|grupo/, 'toda mensagem fala para quem não curte grupo nem mostrar o número');
   for (const t of todas) assert.ok(t.length < 330);
 });
 

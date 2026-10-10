@@ -25,29 +25,30 @@ export const HORAS_DE_VALIDADE_DO_CONVITE = 3;
 export const MAXIMO_DE_CONVITES_POR_DIA = 6;
 
 interface Variante {
-  /** Primeira frase, depois da saudação: é onde entra o gatilho mental. */
-  gancho: string;
+  /** O emoji que abre a mensagem, depois da saudação. */
+  emoji: string;
+  /** A frase do gatilho mental. */
+  frase: string;
+  /** A vantagem do canal para quem não curte grupo nem mostrar o número. */
+  vantagem: string;
   /** Chamada para agir, logo acima dos links. */
   chamada: string;
 }
 
-/** A vantagem do canal, igual em toda mensagem: as mesmas ofertas do grupo para quem não curte grupo nem mostrar o número. */
-const VANTAGEM = 'Mesmas ofertas do grupo, sem mostrar o seu número e sem conversa.';
-
 /**
  * Um gatilho mental por variante, todos verdadeiros: aversão à perda, curiosidade, exclusividade (o preço das artes do Instagram está
  * no canal), escassez, autoridade (o histórico de 30 dias), gratuidade, pertencimento e urgência do momento.
- * Escolhidas ao acaso, sem repetir no mesmo dia.
+ * Escolhidas ao acaso, sem repetir no mesmo dia. Textos aprovados pelo dono.
  */
 const VARIANTES: Variante[] = [
-  { gancho: 'quem não está no canal pode estar pagando mais caro agora. 💸', chamada: 'Entre agora, é grátis:' },
-  { gancho: 'já viu qual produto mais caiu de preço hoje? 👀', chamada: 'Toque e confira:' },
-  { gancho: 'viu no Instagram e quer saber o preço? Ele está no canal. 🔎', chamada: 'O preço está aqui:' },
-  { gancho: 'oferta boa acaba rápido. ⏳', chamada: 'Entre e fique na frente:' },
-  { gancho: 'a gente confere o histórico de 30 dias antes de postar. ✔️', chamada: 'Receba só o que vale:' },
-  { gancho: 'de graça e sem pegadinha. 🎁', chamada: 'É só tocar para entrar:' },
-  { gancho: 'quem gosta de economizar já está por lá. 🙌', chamada: 'Junte-se a eles:' },
-  { gancho: 'ainda tem oferta boa saindo hoje. 🔥', chamada: 'Não perca as próximas:' },
+  { emoji: '💸', frase: 'Está deixando de economizar só porque não curte grupo?', vantagem: 'No canal são as mesmas ofertas, sem mostrar o seu número e sem conversa.', chamada: 'Entre agora, é grátis:' },
+  { emoji: '👀', frase: 'Já viu qual produto mais caiu de preço hoje?', vantagem: 'Está no canal, as mesmas ofertas do grupo, sem ninguém ver o seu número.', chamada: 'Toque e confira:' },
+  { emoji: '🔎', frase: 'Viu no Instagram e quer saber o preço? Ele está no canal.', vantagem: 'Mesmas ofertas do grupo, sem mostrar o seu número e sem barulho.', chamada: 'O preço está aqui:' },
+  { emoji: '⏳', frase: 'Oferta boa acaba rápido, e no canal ela chega na hora.', vantagem: 'Sem grupo, sem conversa e sem mostrar o seu número.', chamada: 'Entre e fique na frente:' },
+  { emoji: '✔️', frase: 'A gente confere o histórico de 30 dias antes de postar.', vantagem: 'Mesmas ofertas do grupo, sem mostrar o seu número e sem conversa.', chamada: 'Receba só o que vale:' },
+  { emoji: '🎁', frase: 'De graça e sem pegadinha: você compra direto na loja.', vantagem: 'Para quem não curte grupo: as mesmas ofertas, sem mostrar o seu número.', chamada: 'É só tocar para entrar:' },
+  { emoji: '🙌', frase: 'Quem gosta de economizar já está por lá.', vantagem: 'Mesmas ofertas do grupo, sem mostrar o seu número e sem conversa.', chamada: 'Junte-se a eles:' },
+  { emoji: '🔥', frase: 'Ainda tem oferta boa saindo hoje.', vantagem: 'Receba na hora, sem grupo e sem mostrar o seu número.', chamada: 'Não perca as próximas:' },
 ];
 
 /** Bom dia, boa tarde ou boa noite, pela hora de Brasília. */
@@ -85,7 +86,7 @@ export function textoDoConvite(config: Config, variante: number, hora: number): 
   const links = linksDosCanais(config);
   if (links.length === 0) return '';
   const v = VARIANTES[((variante % VARIANTES.length) + VARIANTES.length) % VARIANTES.length]!;
-  return [`${saudacaoDaHora(hora)}, ${v.gancho}`, VANTAGEM, '', `👇 ${v.chamada}`, ...links.map((l) => `${l.emoji} ${l.rotulo}: ${l.link}`)].join('\n');
+  return [`${saudacaoDaHora(hora)}! ${v.emoji} ${v.frase}`, v.vantagem, '', `👇 ${v.chamada}`, ...links.map((l) => `${l.emoji} ${l.rotulo}: ${l.link}`)].join('\n');
 }
 
 /** Os horários sorteados do dia (ms), um em cada faixa igual do horário de postagem, com pelo menos 1 hora de folga nas pontas. */
