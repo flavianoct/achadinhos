@@ -189,12 +189,13 @@ export interface ResultadoDoGarimpo {
   avisos: string[];
 }
 
-/** Busca os cupons das lojas ligadas e devolve só os confiáveis. Nunca lança: falha vira aviso. */
+/** Busca os cupons das lojas ligadas (e escolhidas em CUPONS_LOJAS) e devolve só os confiáveis. Nunca lança: falha vira aviso. */
 export async function garimparCupons(config: Config, agora: Date, fetchFn: typeof fetch = fetch): Promise<ResultadoDoGarimpo> {
   const resultado: ResultadoDoGarimpo = { cupons: [], avisos: [] };
   const opcoes = opcoesDoGarimpo(config);
   // Sem CUPONS_LINK_SHOPEE, o robô gera o link de afiliado sozinho com as chaves da Shopee que ele já usa.
-  if (config.shopee.ativo && !opcoes.linkShopee && config.shopee.appId && config.shopee.secret) {
+  const quer = (l: Loja) => config.cupons.lojas.includes(l);
+  if (quer('shopee') && config.shopee.ativo && !opcoes.linkShopee && config.shopee.appId && config.shopee.secret) {
     try {
       opcoes.linkShopee = await gerarLinkShopee(config, fetchFn);
     } catch (e) {
@@ -202,8 +203,8 @@ export async function garimparCupons(config: Config, agora: Date, fetchFn: typeo
     }
   }
   const lojas: Loja[] = [];
-  if (config.ml.ativo) lojas.push('mercadolivre');
-  if (config.shopee.ativo) lojas.push('shopee');
+  if (config.ml.ativo && quer('mercadolivre')) lojas.push('mercadolivre');
+  if (config.shopee.ativo && quer('shopee')) lojas.push('shopee');
   for (const loja of lojas) {
     const link = loja === 'mercadolivre' ? opcoes.linkMercadoLivre : opcoes.linkShopee;
     if (!link) {

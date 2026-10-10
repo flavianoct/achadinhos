@@ -131,3 +131,19 @@ test('garimpo: desligado por CUPONS_GARIMPO=0 e sem os parâmetros do Mercado Li
   assert.match(r.avisos.join(' '), /ML_MATT_WORD/);
   assert.deepEqual(r.cupons, []);
 });
+
+test('garimpo: CUPONS_LOJAS=mercadolivre deixa a Shopee de fora (nem busca a página, nem gera o link, nem avisa)', async () => {
+  assert.deepEqual(lerConfig({}).cupons.lojas, ['mercadolivre', 'shopee']);
+  const so = lerConfig({ ML_ATIVO: '1', ML_MATT_WORD: 'eu', ML_MATT_TOOL: '123', SHOPEE_ATIVO: '1', SHOPEE_APP_ID: 'a', SHOPEE_SECRET: 'b', CUPONS_LOJAS: 'Mercadolivre' });
+  assert.deepEqual(so.cupons.lojas, ['mercadolivre']);
+  const chamadas: string[] = [];
+  const f = (async (url: string) => {
+    chamadas.push(String(url));
+    if (String(url).includes('mercado-livre')) return new Response(pagina([site({})]));
+    throw new Error('só o Mercado Livre devia ser buscado');
+  }) as unknown as typeof fetch;
+  const r = await garimparCupons(so, AGORA, f);
+  assert.equal(r.cupons.length, 1);
+  assert.deepEqual(r.avisos, []);
+  assert.ok(chamadas.every((c) => c.includes('promobit') && c.includes('mercado-livre')), 'nenhuma chamada à Shopee');
+});
