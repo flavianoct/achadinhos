@@ -79,7 +79,8 @@ export class FonteMercadoLivreApi {
     const falhas = new Map<string, number>();
     const falhou = (rotulo: string, e: unknown) => {
       const codigo = /^(\d{3})/.exec((e as Error).message)?.[1] ?? 'erro';
-      falhas.set(` `, (falhas.get(` `) ?? 0) + 1);
+      const chave = `${rotulo} ${codigo}`;
+      falhas.set(chave, (falhas.get(chave) ?? 0) + 1);
     };
     let ultimoErro = '';
     for (const categoria of this.categoriasDoTurno(turno)) {
@@ -180,7 +181,7 @@ export class FonteMercadoLivreApi {
     }
     const lista = [...ofertas.values()];
     // Resumo do que a API trouxe, para o log da rodada mostrar o que existe (e o que falta) sem adivinhar.
-    console.log(`[ml-api] ranking: ${vistosNoRanking} produtos; ofertas: ${lista.length}; com preço antigo: ${lista.filter((o) => o.precoOriginal).length}; com nota: ${lista.filter((o) => o.nota).length}; com vendas: ${lista.filter((o) => o.vendas).length}; com frete grátis: ${lista.filter((o) => o.freteGratis).length}; falhas dos complementos: ${[...falhas].map(([k, n]) => ` x${n}`).join(', ') || 'nenhuma'}`);
+    console.log(`[ml-api] ranking: ${vistosNoRanking} produtos; ofertas: ${lista.length}; com preço antigo: ${lista.filter((o) => o.precoOriginal).length}; com nota: ${lista.filter((o) => o.nota).length}; com vendas: ${lista.filter((o) => o.vendas).length}; com frete grátis: ${lista.filter((o) => o.freteGratis).length}; falhas dos complementos: ${[...falhas].map(([k, n]) => `${k} x${n}`).join(', ') || 'nenhuma'}`);
     if (ofertas.size === 0) {
       const tipos = [...ignorados].map(([t, n]) => `${n} do tipo ${t}`).join(', ');
       throw new ErroApiML(`API do Mercado Livre sem ofertas${ultimoErro ? `: ${ultimoErro}` : ''}${tipos ? ` (itens que a API devolveu em outro formato: ${tipos})` : ''}${formatos.size ? ` [${[...formatos].slice(0, 2).join('; ')}]` : ''}`);

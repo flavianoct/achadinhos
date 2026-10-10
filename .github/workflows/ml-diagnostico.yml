@@ -1,0 +1,35 @@
+name: Diagnosticar API do Mercado Livre
+
+# Roda só quando você clicar em "Run workflow". Testa, com as chaves do seu app (Secrets ML_CLIENT_ID e ML_CLIENT_SECRET),
+# cada recurso da API do Mercado Livre e mostra o código HTTP, os campos e as contagens. Não posta nada e não grava nada.
+# O script nunca imprime as chaves nem o token.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnosticar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Testar a API
+        env:
+          ML_CLIENT_ID: ${{ secrets.ML_CLIENT_ID }}
+          ML_CLIENT_SECRET: ${{ secrets.ML_CLIENT_SECRET }}
+        run: |
+          node testar-api-ml.mjs | tee ml-diagnostico.txt
+          {
+            echo '## Diagnóstico da API do Mercado Livre'
+            echo
+            echo '```'
+            cat ml-diagnostico.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
