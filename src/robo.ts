@@ -7,7 +7,8 @@ import { FonteMercadoLivre } from './fontes/mercadolivre.ts';
 import { FonteMercadoLivreApi } from './fontes/mercadolivre-api.ts';
 import { FonteShopee } from './fontes/shopee.ts';
 import { convitesDeHoje } from './convite.ts';
-import { chaveDaFase, fasesDevidas, lembretesDoDono, lerDatas, textoDaData, todasAsCampanhas } from './datas.ts';
+import { carregarCampanhas, chaveDaFase, fasesDevidas, grandesDeHoje, lembretesDoDono, lerDatas, textoDaData, textoDosMelhores, todasAsCampanhas } from './datas.ts';
+import { escolherParaCarrossel } from './carrossel.ts';
 import { linkAfiliadoML } from './fontes/mercadolivre.ts';
 import { chaveDoCupom, lerCupons } from './cupons.ts';
 import { garimparCupons, type ResultadoDoGarimpo } from './garimpo-cupons.ts';
@@ -143,7 +144,9 @@ export class Robo {
     return this.emSerie(async () => {
       this.postEm = agora.getTime();
       if (!this.publicador) return { postou: false, motivo: 'erro', detalhe: 'Telegram não configurado' } as ResultadoDoPost;
-      const config: Config = forcar ? { ...this.config, ritmo: { ...this.config.ritmo, horaInicio: 0, horaFim: 24, maxPostsPorDia: Number.MAX_SAFE_INTEGER } } : this.config;
+      // Em data grande, o limite do dia sobe junto com os posts extras (uns 35 por extra, o número de rodadas do dia).
+      const extra = forcar ? 0 : this.postsExtraDeHoje(agora);
+      const config: Config = forcar ? { ...this.config, ritmo: { ...this.config.ritmo, horaInicio: 0, horaFim: 24, maxPostsPorDia: Number.MAX_SAFE_INTEGER } } : extra ? { ...this.config, ritmo: { ...this.config.ritmo, maxPostsPorDia: this.config.ritmo.maxPostsPorDia + extra * 35 } } : this.config;
       const r = await postarProxima(this.publicador, this.banco, config, agora, this.descartes);
       if (r.postou) {
         const destino = Object.keys(this.config.rotas.porCategoria).length ? ` [${r.oferta.categoria} → ${r.canais.join(' + ')}]` : '';
@@ -211,27 +214,49 @@ export class Robo {
       if (!this.publicador?.publicarTexto) return { postou: false, motivo: 'Telegram não configurado', avisos };
       const hora = horaDe(agora);
       if (hora < this.config.ritmo.horaInicio || hora >= this.config.ritmo.horaFim) return { postou: false, motivo: 'fora do horário', avisos };
-      const devida = campanhas
+      const devidas = campanhas
         .flatMap((c) => fasesDevidas(c, hoje, hora).map((fase) => ({ c, fase })))
-        .find(({ c, fase }) => !this.banco.convitePostado(chaveDaFase(c, fase), c.inicio));
-      if (!devida) return { postou: false, motivo: 'nenhuma data na hora', avisos };
-      const { c, fase } = devida;
-      // O link do Mercado Livre é a página de ofertas com o código do dono (sempre abre); o da Shopee só vale se o dono colocou um em datas.json.
-      const { mattWord, mattTool } = this.config.ml;
-      const links = {
-        mercadolivre: c.mercadolivre ?? (this.config.ml.ativo && mattWord && mattTool ? linkAfiliadoML('https://www.mercadolivre.com.br/ofertas', mattWord, mattTool) : undefined),
-        shopee: c.shopee,
-      };
-      try {
-        await this.publicador.publicarTexto(textoDaData(c, fase, links));
-      } catch (e) {
-        this.log(`ERRO ao postar o aviso da data ${c.nome}: ${(e as Error).message}`);
-        return { postou: false, motivo: (e as Error).message, avisos };
+        .filter(({ c, fase }) => !this.banco.convitePostado(chaveDaFase(c, fase), c.inicio));
+      if (!devidas.length) return { postou: false, motivo: 'nenhuma data na hora', avisos };
+      // O primeiro aviso que dá para postar agora. A lista dos melhores achados espera produto bom e não segura os outros avisos do dia.
+      let pulou = '';
+      for (const { c, fase } of devidas) {
+        // O link do Mercado Livre é a página de ofertas com o código do dono (sempre abre); o da Shopee só vale se o dono colocou um em datas.json.
+        const { mattWord, mattTool } = this.config.ml;
+        const links = {
+          mercadolivre: c.mercadolivre ?? (this.config.ml.ativo && mattWord && mattTool ? linkAfiliadoML('https://www.mercadolivre.com.br/ofertas', mattWord, mattTool) : undefined),
+          shopee: c.shopee,
+        };
+        let texto: string;
+        if (fase === 'melhores') {
+          // A lista dos melhores achados: os mesmos critérios de qualidade do Instagram (nota, vendas, sem "genérico"), sem teto de preço, variando os assuntos.
+          const cfg5 = { ...this.config, instagram: { ...this.config.instagram, carrosselItens: 5, carrosselTetos: [Number.MAX_SAFE_INTEGER] } };
+          const escolha = escolherParaCarrossel(this.banco.melhoresProdutos({ horas: 36, limite: 150 }, agora), cfg5, agora);
+          if (!escolha || escolha.ordem.length < 3) {
+            pulou = 'poucos achados bons para a lista';
+            continue;
+          }
+          texto = textoDosMelhores(c, escolha.ordem.slice(0, 5));
+        } else texto = textoDaData(c, fase, links);
+        try {
+          await this.publicador.publicarTexto(texto);
+        } catch (e) {
+          this.log(`ERRO ao postar o aviso da data ${c.nome}: ${(e as Error).message}`);
+          return { postou: false, motivo: (e as Error).message, avisos };
+        }
+        this.banco.marcarConvitePostado(chaveDaFase(c, fase), c.inicio, agora);
+        this.log(`aviso da data postado no Telegram: ${c.nome} (${fase})`);
+        return { postou: true, avisos };
       }
-      this.banco.marcarConvitePostado(chaveDaFase(c, fase), c.inicio, agora);
-      this.log(`aviso da data postado no Telegram: ${c.nome} (${fase})`);
-      return { postou: true, avisos };
+      return { postou: false, motivo: pulou, avisos };
     });
+  }
+
+  /** Quantos posts a mais por rodada valem hoje: nas datas grandes (10.10, Black Friday...), DATAS_POSTS_EXTRA. Só o Telegram; o WhatsApp segue o seu limite. */
+  postsExtraDeHoje(agora: Date = new Date()): number {
+    const d = this.config.datas;
+    if (!d.ativo || d.postsExtra <= 0) return 0;
+    return grandesDeHoje(carregarCampanhas(this.config, agora), diaDe(agora)).length ? d.postsExtra : 0;
   }
 
   /** Posta uma campanha da Shopee no canal geral (até CAMPANHAS_POR_DIA por dia). */

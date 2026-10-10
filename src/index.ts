@@ -11,7 +11,7 @@ import { gravarReel, prepararReel } from './reel.ts';
 import { gravarPngs, prepararSocial } from './social.ts';
 import { gravarBio } from './bio.ts';
 import { PublicadorDeTeste } from './telegram.ts';
-import { gravarResumoDoDia } from './vitrine.ts';
+import { gravarDataEspecial, gravarResumoDoDia } from './vitrine.ts';
 
 const pausa = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -110,7 +110,10 @@ async function modoNuvem(): Promise<void> {
 
     let postados = 0;
     let motivoDaParada = '';
-    for (let i = 0; i < robo.config.ritmo.postsPorRodada; i++) {
+    // Em data grande (10.10, Black Friday...), mais posts por rodada no Telegram (DATAS_POSTS_EXTRA).
+    const postsDaRodada = robo.config.ritmo.postsPorRodada + robo.postsExtraDeHoje();
+    if (postsDaRodada > robo.config.ritmo.postsPorRodada) dizer(`- Data grande hoje: ${postsDaRodada} posts nesta rodada (o normal são ${robo.config.ritmo.postsPorRodada}).`);
+    for (let i = 0; i < postsDaRodada; i++) {
       if (i > 0) await pausa(3000);
       const r = await robo.postarAgora();
       if (!r.postou) {
@@ -196,6 +199,8 @@ async function modoNuvem(): Promise<void> {
     }
     // Story "Hoje no grupo" (a vitrine do grupo): gravado a partir de uma hora antes da hora do resumo.
     await gravarResumoDoDia(robo.banco, robo.config, new Date());
+    // Story da data grande de hoje (10.10, Black Friday...): gravado a partir de uma hora antes da hora dele.
+    await gravarDataEspecial(robo.banco, robo.config, new Date());
     const ig = await publicarNoInstagram(robo.banco, robo.config, new Date());
     if (robo.config.instagram.ativo) dizer(`- Instagram: ${ig.feed} posts de feed, ${ig.stories} stories e ${ig.reels} reels publicados.`);
     for (const a of ig.avisos) {

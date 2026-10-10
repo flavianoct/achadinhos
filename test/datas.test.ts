@@ -4,7 +4,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { lerConfig } from '../src/config.ts';
-import { campanhasDoAno, diasEntre, fasesDevidas, lembretesDoDono, lerDatas, pascoa, textoDaData, todasAsCampanhas } from '../src/datas.ts';
+import { campanhaDeHoje, campanhasDoAno, diasEntre, fasesDevidas, grandesDeHoje, lembretesDoDono, lerDatas, pascoa, textoDaData, textoDosMelhores, todasAsCampanhas } from '../src/datas.ts';
+import { Banco } from '../src/db.ts';
+import { Instagram, publicarNoInstagram } from '../src/instagram.ts';
+import { svgDaDataEspecial } from '../src/moldes.ts';
+import type { OfertaAvaliada } from '../src/types.ts';
 import { Robo } from '../src/robo.ts';
 import { Telegram } from '../src/telegram.ts';
 
@@ -40,7 +44,7 @@ test('datas: a véspera sai à noite, a abertura só no primeiro dia e as últim
   assert.deepEqual(fasesDevidas(dez, '2026-10-09', 18), ['teaser']);
   assert.deepEqual(fasesDevidas(dez, '2026-10-10', 8), [], 'abertura só depois das 9h');
   assert.deepEqual(fasesDevidas(dez, '2026-10-10', 10), ['comecou']);
-  assert.deepEqual(fasesDevidas(dez, '2026-10-10', 21), ['comecou', 'ultimas'], 'data de um dia: abertura e últimas horas');
+  assert.deepEqual(fasesDevidas(dez, '2026-10-10', 21), ['comecou', 'melhores', 'ultimas'], 'data grande de um dia: abertura, lista e últimas horas');
   assert.deepEqual(fasesDevidas(dez, '2026-10-11', 10), [], 'passou');
   const maes = achar(2026, 'maes');
   assert.deepEqual(fasesDevidas(maes, '2026-05-06', 22), [], 'no meio da semana não há aviso');
@@ -136,4 +140,150 @@ test('datas: DATAS_ATIVO=0 desliga e o padrão é ligado', () => {
   assert.equal(lerConfig({ DATAS_ATIVO: '0' }).datas.ativo, false);
   assert.equal(lerConfig({}).datas.avisoDias, 3);
   assert.equal(lerConfig({ DATAS_ARQUIVO: 'x.json' }).datas.arquivo, 'x.json');
+});
+
+const em = (data: string, hhmm: string) => new Date(`${data}T${hhmm}:00-03:00`);
+
+test('datas grandes: as principais são grandes, as pequenas não, e a mais específica do dia ganha (10.10 e não a Semana das Crianças)', () => {
+  const lista = todasAsCampanhas('2026-10-10');
+  for (const id of ['dupla-10', 'dupla-11', 'dupla-12', 'dupla-9', 'consumidor', 'maes', 'pais', 'namorados', 'criancas', 'natal', 'blackfriday']) assert.equal(lista.find((c) => c.id === `${id}-2026`)?.grande, true, id);
+  for (const id of ['dupla-1', 'dupla-3', 'dupla-8', 'mulher', 'cliente']) assert.notEqual(lista.find((c) => c.id === `${id}-2026`)?.grande, true, id);
+  assert.deepEqual(grandesDeHoje(lista, '2026-10-10').map((c) => c.id).sort(), ['criancas-2026', 'dupla-10-2026']);
+  assert.equal(campanhaDeHoje(lista, '2026-10-10')?.id, 'dupla-10-2026');
+  assert.equal(campanhaDeHoje(lista, '2026-10-11')?.id, 'criancas-2026', 'depois do 10.10 fica a semana');
+  assert.equal(campanhaDeHoje(lista, '2026-10-20'), undefined, 'sem data grande');
+  assert.equal(campanhaDeHoje(lista, '2026-03-03'), undefined, 'o 3.3 é pequeno: sem Story');
+  // O dono marca uma data como grande ou não.
+  const ajustada = todasAsCampanhas('2026-10-10', [{ inicio: '2026-03-03', grande: true }, { inicio: '2026-10-10', grande: false }]);
+  assert.equal(campanhaDeHoje(ajustada, '2026-03-03')?.id, 'dupla-3-2026');
+  assert.equal(campanhaDeHoje(ajustada, '2026-10-10')?.id, 'criancas-2026');
+  assert.equal(lerDatas(JSON.stringify([{ inicio: '2026-08-08', grande: true }])).datas[0]!.grande, true);
+});
+
+test('datas grandes: a lista dos melhores achados sai às 13h do primeiro dia, só nas datas grandes', () => {
+  const dez = achar(2026, 'dupla-10');
+  assert.deepEqual(fasesDevidas(dez, '2026-10-10', 12), ['comecou']);
+  assert.deepEqual(fasesDevidas(dez, '2026-10-10', 14), ['comecou', 'melhores']);
+  assert.deepEqual(fasesDevidas(achar(2026, 'dupla-3'), '2026-03-03', 14), ['comecou'], 'data pequena não tem a lista');
+  assert.deepEqual(fasesDevidas(achar(2026, 'maes'), '2026-05-05', 14), [], 'só no primeiro dia');
+});
+
+const produto = (n: number, extra: Partial<OfertaAvaliada> = {}): OfertaAvaliada => ({
+  loja: n % 2 ? 'shopee' : 'mercadolivre', idProduto: `P${n}`, titulo: `Produto Excelente Numero${n} Com Nome Bem Longo Para Testar O Corte Do Titulo Na Lista`, preco: 50 + n, link: `https://s.shopee.com.br/${n}`,
+  imagem: `https://exemplo.com/foto-${n}.png`, nota: 4.8, vendas: 2000 + n * 1000, categoria: ['tech', 'casa', 'beleza', 'moda', 'esporte', 'pet'][n % 6]!, pontos: 100 - n, ...extra,
+});
+
+test('datas grandes: o texto da lista não leva preço, mostra só o que se sabe e corta título comprido', () => {
+  const texto = textoDosMelhores(achar(2026, 'dupla-10'), [produto(1, { menorPrecoEmDias: 30 }), produto(2, { nota: undefined, vendas: undefined })]);
+  assert.match(texto, /^🏆 Os 2 melhores achados de 10\.10\n/);
+  assert.ok(texto.includes('1. Produto Excelente Numero1') && !texto.includes('Na Lista'), 'título curto');
+  assert.ok(texto.includes('⭐ 4,8 · 3 mil vendidos · menor preço em 30 dias'));
+  assert.ok(texto.includes('https://s.shopee.com.br/1') && texto.includes('https://s.shopee.com.br/2'));
+  assert.doesNotMatch(texto, /R\$|\d+% |restam/);
+  const semDados = texto.split('\n').filter((l) => l.includes('Numero2'))[0]!;
+  assert.ok(semDados.startsWith('2. '));
+  assert.ok(!texto.includes('⭐ undefined') && !texto.includes('NaN'));
+});
+
+function robo10(extra: Record<string, string> = {}) {
+  const enviados: string[] = [];
+  const f = (async (_u: string, init: any) => {
+    enviados.push(JSON.parse(init.body).text);
+    return new Response(JSON.stringify({ ok: true, result: {} }));
+  }) as unknown as typeof fetch;
+  const dir = mkdtempSync(join(tmpdir(), 'datas2-'));
+  const robo = new Robo({
+    caminhoEnv: join(dir, '.env'), modeloEnv: '', caminhoBanco: ':memory:',
+    envBase: { TELEGRAM_BOT_TOKEN: '1:abc', TELEGRAM_CHAT_ID: '@canal', BLOG_PASTA: dir, HORA_INICIO: '8', HORA_FIM: '23', DATAS_ARQUIVO: join(dir, 'sem.json'), PARECIDOS_HORAS: '0', ...extra },
+    criarFontes: () => [], criarPublicador: (c) => new Telegram(c.telegram.token, c.telegram.chatId, f), silencioso: true,
+  });
+  return { robo, enviados, dir };
+}
+
+test('datas grandes: às 13h do 10.10 o robô posta a lista dos 5 melhores (uma vez só); sem produtos bons, espera', async () => {
+  const { robo, enviados } = robo10();
+  const dia = em('2026-10-10', '14:00');
+  // Sem produtos bons: a abertura sai, a lista espera.
+  assert.equal((await robo.postarDataEspecialAgora(dia)).postou, true);
+  assert.match(enviados[0]!, /Hoje é 10\.10!/);
+  const sem = await robo.postarDataEspecialAgora(new Date(dia.getTime() + 60_000));
+  assert.deepEqual([sem.postou, sem.motivo], [false, 'poucos achados bons para a lista']);
+  for (let i = 1; i <= 12; i++) robo.banco.guardarProduto(produto(i), new Date(dia.getTime() - i * 60_000));
+  const lista = await robo.postarDataEspecialAgora(new Date(dia.getTime() + 120_000));
+  assert.equal(lista.postou, true);
+  assert.match(enviados[1]!, /^🏆 Os 5 melhores achados de 10\.10/);
+  assert.equal(enviados[1]!.split('\n').filter((l) => /^\d\. /.test(l)).length, 5);
+  assert.equal((await robo.postarDataEspecialAgora(new Date(dia.getTime() + 180_000))).postou, false, 'a lista sai uma vez só');
+  assert.equal(enviados.length, 2);
+  robo.fechar();
+});
+
+test('datas grandes: nas datas grandes o Telegram posta DATAS_POSTS_EXTRA a mais por rodada e o limite do dia sobe junto; o resto do ano, não', async () => {
+  const { robo } = robo10({ MAX_POSTS_POR_DIA: '1' });
+  assert.equal(robo.postsExtraDeHoje(em('2026-10-10', '12:00')), 2);
+  assert.equal(robo.postsExtraDeHoje(em('2026-10-20', '12:00')), 0, 'dia comum');
+  assert.equal(robo.postsExtraDeHoje(em('2026-03-03', '12:00')), 0, 'data pequena');
+  for (let i = 1; i <= 3; i++) robo.banco.enfileirar({ ...produto(i), titulo: `Item${i} Distinto${i} Raro${i}`, categoria: 'casa' }, em('2026-10-10', '11:00'));
+  assert.equal((await robo.postarAgora(em('2026-10-10', '12:00'))).postou, true);
+  assert.equal((await robo.postarAgora(em('2026-10-10', '12:01'))).postou, true, 'em data grande o limite do dia sobe');
+  // Dia comum: o limite de 1 segura.
+  const comum = robo10({ MAX_POSTS_POR_DIA: '1' });
+  for (let i = 1; i <= 3; i++) comum.robo.banco.enfileirar({ ...produto(i), titulo: `Item${i} Distinto${i} Raro${i}`, categoria: 'casa' }, em('2026-10-20', '11:00'));
+  assert.equal((await comum.robo.postarAgora(em('2026-10-20', '12:00'))).postou, true);
+  assert.deepEqual(await comum.robo.postarAgora(em('2026-10-20', '12:01')), { postou: false, motivo: 'limite diário' });
+  // Desligado.
+  assert.equal(robo10({ DATAS_POSTS_EXTRA: '0' }).robo.postsExtraDeHoje(em('2026-10-10', '12:00')), 0);
+  robo.fechar();
+  comum.robo.fechar();
+});
+
+test('datas grandes: a arte do Story da data é só a marca e texto: sem preço, sem foto, sem logo nem nome de loja', () => {
+  for (const [nome, umDia] of [['10.10', true], ['Semana do Dia das Mães', false], ['Black Friday e Cyber Monday', false]] as const) {
+    const svg = svgDaDataEspecial({ nome, umDia });
+    assert.match(svg, /^<svg[^>]+width="1080" height="1920"/);
+    assert.ok(svg.includes('MATA') && svg.includes('PREÇO') && svg.includes(nome.toUpperCase().split(' ')[0]!), nome);
+    assert.ok(svg.includes(umDia ? 'HOJE É' : 'ESTÁ NO AR'));
+    assert.ok(svg.includes('ENTRE NO GRUPO') && svg.includes('Publi · link de afiliado'));
+    assert.doesNotMatch(svg, /R\$|<image|href=|data:image|Mercado ?Livre|Shopee|Amazon/i, 'nada de preço, foto, loja nem link');
+  }
+});
+
+function apiFalsa() {
+  const chamadas: Array<{ metodo: string; url: string; corpo: URLSearchParams }> = [];
+  const f = (async (url: string, init: any = {}) => {
+    const u = String(url);
+    const metodo = init.method ?? 'GET';
+    chamadas.push({ metodo, url: u, corpo: new URLSearchParams(init.body ? String(init.body) : u.split('?')[1] ?? '') });
+    if (metodo === 'HEAD') return new Response(null, { status: 200 });
+    if (u.includes('/media_publish')) return new Response(JSON.stringify({ id: 'post-1' }));
+    if (u.includes('/media')) return new Response(JSON.stringify({ id: 'cont-1' }));
+    if (u.includes('cont-1')) return new Response(JSON.stringify({ status_code: 'FINISHED' }));
+    return new Response(JSON.stringify({ username: 'mataprecooficial' }));
+  }) as unknown as typeof fetch;
+  return { f, chamadas };
+}
+
+test('datas grandes: o Instagram publica o Story da data uma vez por dia, a partir de INSTAGRAM_DATA_HORA, só em data grande', async () => {
+  const config = lerConfig({ INSTAGRAM_ATIVO: '1', INSTAGRAM_TOKEN: 'tok', INSTAGRAM_USER_ID: '1789', BLOG_URL: 'https://fulano.github.io/achadinhos', HORA_INICIO: '8', HORA_FIM: '23', DATAS_ARQUIVO: join(mkdtempSync(join(tmpdir(), 'ig-')), 'sem.json'), INSTAGRAM_HORARIOS_STORIES: '' });
+  const banco = new Banco(':memory:');
+  const { f, chamadas } = apiFalsa();
+  const api = new Instagram('tok', '1789', f, 0);
+  const stories = () => chamadas.filter((c) => c.metodo === 'POST' && c.url.endsWith('/1789/media') && c.corpo.get('media_type') === 'STORIES');
+  // 9h: ainda cedo. 12h: sai.
+  await publicarNoInstagram(banco, config, em('2026-10-10', '09:00'), f, api);
+  assert.equal(stories().length, 0);
+  const r = await publicarNoInstagram(banco, config, em('2026-10-10', '12:00'), f, api);
+  assert.equal(r.stories, 1);
+  assert.equal(stories().length, 1);
+  assert.match(stories()[0]!.corpo.get('image_url')!, /\/social\/data-dupla-10-2026-2026-10-10\.png$/);
+  // Na rodada seguinte, o mesmo dia: não repete.
+  await publicarNoInstagram(banco, config, em('2026-10-10', '12:30'), f, api);
+  assert.equal(stories().length, 1, 'uma vez por data e dia');
+  // Dia sem data grande: nenhum Story de data.
+  await publicarNoInstagram(banco, config, em('2026-10-20', '12:00'), f, api);
+  assert.equal(stories().length, 1);
+  // Desligado por INSTAGRAM_DATA_HORA=0.
+  const desligado = lerConfig({ INSTAGRAM_ATIVO: '1', INSTAGRAM_TOKEN: 'tok', INSTAGRAM_USER_ID: '1789', BLOG_URL: 'https://fulano.github.io/achadinhos', HORA_INICIO: '8', HORA_FIM: '23', INSTAGRAM_DATA_HORA: '0', INSTAGRAM_HORARIOS_STORIES: '' });
+  await publicarNoInstagram(new Banco(':memory:'), desligado, em('2026-11-11', '12:00'), f, api);
+  assert.equal(stories().length, 1);
 });

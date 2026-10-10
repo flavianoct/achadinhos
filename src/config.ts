@@ -67,7 +67,7 @@ export interface Config {
   /** Convite discreto aos outros canais (WhatsApp, Telegram, Instagram): poucas vezes, sem encher o canal. */
   convite: { ativo: boolean; porDia: number };
   /** Datas especiais (10.10, Black Friday...): avisos no Telegram e lembretes para o dono. O datas.json do dono acrescenta ou ajusta datas. */
-  datas: { ativo: boolean; arquivo: string; avisoDias: number };
+  datas: { ativo: boolean; arquivo: string; avisoDias: number; postsExtra: number };
   /** Vendas e comissão da Shopee (conversionReport), lidas de tempos em tempos para o painel. */
   vendas: { ativo: boolean; horasEntreLeituras: number; dias: number };
   /** Campanhas da própria Shopee postadas no canal geral do Telegram. 0 = desligado. */
@@ -121,7 +121,7 @@ export interface Config {
   /** Arte de Story, legenda e roteiro de vídeo das ofertas postadas (aparecem no painel). */
   social: { ativo: boolean };
   /** Publicação automática no Instagram (conta profissional). Token e ID ficam nos Secrets. */
-  instagram: { ativo: boolean; token: string; userId: string; feedPorDia: number; storiesPorDia: number; intervaloFeedMin: number; intervaloStoryMin: number; notaMinima: number; vendasMinimas: number; palavrasBloqueadas: string[]; carrosselPorDia: number; carrosselItens: number; carrosselTetos: number[]; dicasDias: number[]; horariosFeed: number[]; horariosStories: number[]; reelsPorDia: number; horariosReels: number[]; resumoHora: number; grupoDias: number[]; tokenData: string };
+  instagram: { ativo: boolean; token: string; userId: string; feedPorDia: number; storiesPorDia: number; intervaloFeedMin: number; intervaloStoryMin: number; notaMinima: number; vendasMinimas: number; palavrasBloqueadas: string[]; carrosselPorDia: number; carrosselItens: number; carrosselTetos: number[]; dicasDias: number[]; horariosFeed: number[]; horariosStories: number[]; reelsPorDia: number; horariosReels: number[]; resumoHora: number; dataHora: number; grupoDias: number[]; tokenData: string };
   painel: { porta: number };
 }
 
@@ -367,7 +367,7 @@ export function lerConfig(env: Env = process.env): Config {
       whatsappLink: linkDoWhatsapp(env.BLOG_WHATSAPP ?? ''),
       amazonArquivo: (env.BLOG_AMAZON_ARQUIVO ?? '').trim() || 'amazon.json',
     },
-    datas: { ativo: ligado(env, 'DATAS_ATIVO', true), arquivo: (env.DATAS_ARQUIVO ?? '').trim() || 'datas.json', avisoDias: Math.max(0, numero(env, 'DATAS_AVISO_DIAS', 3)) },
+    datas: { ativo: ligado(env, 'DATAS_ATIVO', true), arquivo: (env.DATAS_ARQUIVO ?? '').trim() || 'datas.json', avisoDias: Math.max(0, numero(env, 'DATAS_AVISO_DIAS', 3)), postsExtra: Math.max(0, numero(env, 'DATAS_POSTS_EXTRA', 2)) },
     convite: { ativo: ligado(env, 'CONVITE_ATIVO', false), porDia: Math.min(6, Math.max(0, numero(env, 'CONVITES_POR_DIA', 3))) },
     whatsapp: { ativo: ligado(env, 'WHATSAPP_ATIVO', true), porRodada: numero(env, 'WHATSAPP_POR_RODADA', 0), rodape: ligado(env, 'WHATSAPP_RODAPE', true), destinos: destinosDoWhatsapp(env.WHATSAPP_DESTINOS ?? ''), ...rotasDoWhatsapp(env.WHATSAPP_ROTAS) },
     social: { ativo: ligado(env, 'SOCIAL_ATIVO', true) },
@@ -396,6 +396,7 @@ export function lerConfig(env: Env = process.env): Config {
       horariosReels: horas(env.INSTAGRAM_HORARIOS_REELS, [19, 20]),
       // Story "Hoje no grupo" (o resumo do que o grupo entregou no dia), uma vez por dia a partir desta hora. 0 desliga.
       resumoHora: numero(env, 'INSTAGRAM_RESUMO_HORA', 21),
+      dataHora: numero(env, 'INSTAGRAM_DATA_HORA', 10),
       // Dias da semana do carrossel "Por que entrar no grupo" (no máximo um por semana). Vazio = nunca. Padrão: segunda.
       grupoDias: lista(env.INSTAGRAM_GRUPO_DIAS === undefined ? '1' : env.INSTAGRAM_GRUPO_DIAS).map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6),
       palavrasBloqueadas: env.INSTAGRAM_PALAVRAS_BLOQUEADAS === undefined ? ['generico', 'paralelo', 'similar', 'replica', 'imitacao', 'sem marca', 'inspirado', 'primeira linha'] : lista(env.INSTAGRAM_PALAVRAS_BLOQUEADAS),

@@ -113,6 +113,11 @@ O robô conhece sozinho as datas do varejo: as datas duplas (1.1 a 12.12), Dia d
 Em cada data ele faz três coisas:
 - **Lembrete para você, só no painel** (Avisos do robô): `DATAS_AVISO_DIAS` dias antes (padrão 3), para você colar o link da campanha e os cupons. Nunca vai para o canal.
 - **Aviso no Telegram**: na véspera às 18h ("Amanhã é 10.10!"), na abertura a partir das 9h e nas últimas horas, a partir das 20h do último dia. Cada um sai uma vez só, sem preço e sem número inventado. O WhatsApp e o Instagram não mudam.
+- **Datas grandes** (6.6, 7.7, 9.9, 10.10, 11.11, 12.12, Dia do Consumidor, semanas de Mães, Namorados, Pais, Crianças e Natal, Black Friday) ganham mais três coisas:
+  - **A lista dos 5 melhores achados**, no Telegram, a partir das 13h do primeiro dia: os mais vendidos e bem avaliados, só com o que o robô sabe (nota, vendas, menor preço em N dias), sem preço. Se não houver produto bom o bastante, ela espera e não segura os outros avisos.
+  - **Mais posts por rodada no Telegram** (`DATAS_POSTS_EXTRA`, padrão 2), com o limite do dia subindo junto. O WhatsApp não muda.
+  - **Story no Instagram** a partir das 10h (`INSTAGRAM_DATA_HORA`): só a marca Mata Preço e texto, sem foto de produto, sem logo nem nome de loja.
+  No `datas.json`, `"grande": true` ou `"grande": false` liga ou desliga isso para uma data.
 - **Links**: o do Mercado Livre é a página de ofertas com o seu código de afiliado. A Shopee só entra se você colocar o link dela em `datas.json`: um link gerado às cegas já mostrou "oferta expirada".
 
 Para colocar o link oficial de uma campanha, ou acrescentar uma data sua, edite `datas.json` (na raiz, pelo lápis do GitHub). Uma data com o mesmo `inicio` de uma data do calendário só ajusta os links; uma com `inicio` novo é acrescentada:

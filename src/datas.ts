@@ -5,7 +5,13 @@
  *  - posta no Telegram um aviso na véspera, outro quando a data começa e outro nas últimas horas.
  * Os posts só trazem links que abrem de verdade: a página de ofertas do Mercado Livre com o seu código de afiliado e, para a Shopee, só
  * o link que o dono colocar em datas.json (um link gerado às cegas já mostrou "oferta expirada").
+ * As datas GRANDES (10.10, 11.11, Black Friday, Dia das Mães...) ainda ganham a lista dos melhores achados, um Story no Instagram e mais
+ * posts por rodada no Telegram.
  */
+import { existsSync, readFileSync } from 'node:fs';
+import type { Config } from './config.ts';
+import { diaDe } from './db.ts';
+import type { OfertaAvaliada } from './types.ts';
 
 export interface Campanha {
   /** Único por data e ano ("dupla-10-2026"). */
@@ -15,12 +21,14 @@ export interface Campanha {
   /** Primeiro e último dia, AAAA-MM-DD. */
   inicio: string;
   fim: string;
+  /** Data grande: ganha a lista dos melhores achados, o Story do Instagram e mais posts por rodada. */
+  grande?: boolean;
   /** Links do dono para esta data (opcionais). */
   mercadolivre?: string;
   shopee?: string;
 }
 
-export type FaseDaData = 'teaser' | 'comecou' | 'ultimas';
+export type FaseDaData = 'teaser' | 'comecou' | 'melhores' | 'ultimas';
 
 const dia = (d: Date) => d.toISOString().slice(0, 10);
 const utc = (ano: number, mes: number, diaDoMes: number) => new Date(Date.UTC(ano, mes - 1, diaDoMes));
@@ -55,13 +63,13 @@ export function pascoa(ano: number): Date {
 /** Todas as datas de um ano. As de presente duram a semana que termina no dia; as demais, o próprio dia. */
 export function campanhasDoAno(ano: number): Campanha[] {
   const lista: Campanha[] = [];
-  const um = (id: string, nome: string, emoji: string, d: Date) => lista.push({ id: `${id}-${ano}`, nome, emoji, inicio: dia(d), fim: dia(d) });
-  const semana = (id: string, nome: string, emoji: string, ate: Date) => lista.push({ id: `${id}-${ano}`, nome, emoji, inicio: dia(somar(ate, -6)), fim: dia(ate) });
+  const um = (id: string, nome: string, emoji: string, d: Date, grande = false) => lista.push({ id: `${id}-${ano}`, nome, emoji, inicio: dia(d), fim: dia(d), ...(grande ? { grande } : {}) });
+  const semana = (id: string, nome: string, emoji: string, ate: Date) => lista.push({ id: `${id}-${ano}`, nome, emoji, inicio: dia(somar(ate, -6)), fim: dia(ate), grande: true });
 
   // Datas duplas (1.1 a 12.12): a Shopee faz campanha em todas, e o Mercado Livre nas maiores.
-  for (let m = 1; m <= 12; m++) um(`dupla-${m}`, `${m}.${m}`, m >= 10 ? '🔥' : '🛍️', utc(ano, m, m));
+  for (let m = 1; m <= 12; m++) um(`dupla-${m}`, `${m}.${m}`, m >= 10 ? '🔥' : '🛍️', utc(ano, m, m), [6, 7, 9, 10, 11, 12].includes(m));
   um('mulher', 'Dia da Mulher', '🌷', utc(ano, 3, 8));
-  um('consumidor', 'Dia do Consumidor', '🛒', utc(ano, 3, 15));
+  um('consumidor', 'Dia do Consumidor', '🛒', utc(ano, 3, 15), true);
   semana('pascoa', 'Semana da Páscoa', '🐰', pascoa(ano));
   semana('maes', 'Semana do Dia das Mães', '💐', enesimoDiaDaSemana(ano, 5, 0, 2));
   semana('namorados', 'Semana do Dia dos Namorados', '💘', utc(ano, 6, 12));
@@ -70,7 +78,7 @@ export function campanhasDoAno(ano: number): Campanha[] {
   semana('criancas', 'Semana do Dia das Crianças', '🧸', utc(ano, 10, 12));
   // Black Friday: a sexta depois do Dia de Ação de Graças (4ª quinta de novembro); a campanha vai até a Cyber Monday.
   const sextaNegra = somar(enesimoDiaDaSemana(ano, 11, 4, 4), 1);
-  lista.push({ id: `blackfriday-${ano}`, nome: 'Black Friday e Cyber Monday', emoji: '🖤', inicio: dia(sextaNegra), fim: dia(somar(sextaNegra, 3)) });
+  lista.push({ id: `blackfriday-${ano}`, nome: 'Black Friday e Cyber Monday', emoji: '🖤', inicio: dia(sextaNegra), fim: dia(somar(sextaNegra, 3)), grande: true });
   semana('natal', 'Semana do Natal', '🎄', utc(ano, 12, 25));
   return lista.sort((a, b) => a.inicio.localeCompare(b.inicio));
 }
@@ -88,6 +96,8 @@ export interface DataDoDono {
   emoji?: string;
   inicio: string;
   fim?: string;
+  /** true = data grande (lista dos melhores achados, Story e mais posts); false = só os avisos. */
+  grande?: boolean;
   mercadolivre?: string;
   shopee?: string;
 }
@@ -135,7 +145,7 @@ export function lerDatas(texto: string): { datas: DataDoDono[]; avisos: string[]
     if (sh === null) return void r.avisos.push(`${nome} (${inicio}): "shopee" precisa ser um link https da Shopee.`);
     const nomeDaData = String(item?.nome ?? '').replace(/\s+/g, ' ').trim();
     const emoji = String(item?.emoji ?? '').trim();
-    r.datas.push({ inicio, ...(fim ? { fim } : {}), ...(nomeDaData ? { nome: nomeDaData } : {}), ...(emoji ? { emoji } : {}), ...(ml ? { mercadolivre: ml } : {}), ...(sh ? { shopee: sh } : {}) });
+    r.datas.push({ inicio, ...(fim ? { fim } : {}), ...(nomeDaData ? { nome: nomeDaData } : {}), ...(emoji ? { emoji } : {}), ...(typeof item?.grande === 'boolean' ? { grande: item.grande } : {}), ...(ml ? { mercadolivre: ml } : {}), ...(sh ? { shopee: sh } : {}) });
   });
   return r;
 }
@@ -150,10 +160,11 @@ export function todasAsCampanhas(hoje: string, doDono: DataDoDono[] = []): Campa
       if (d.nome) igual.nome = d.nome;
       if (d.emoji) igual.emoji = d.emoji;
       if (d.fim) igual.fim = d.fim;
+      if (d.grande !== undefined) igual.grande = d.grande;
       if (d.mercadolivre) igual.mercadolivre = d.mercadolivre;
       if (d.shopee) igual.shopee = d.shopee;
     } else {
-      lista.push({ id: `dono-${d.inicio}`, nome: d.nome ?? 'Data especial', emoji: d.emoji ?? '🎯', inicio: d.inicio, fim: d.fim ?? d.inicio, ...(d.mercadolivre ? { mercadolivre: d.mercadolivre } : {}), ...(d.shopee ? { shopee: d.shopee } : {}) });
+      lista.push({ id: `dono-${d.inicio}`, nome: d.nome ?? 'Data especial', emoji: d.emoji ?? '🎯', inicio: d.inicio, fim: d.fim ?? d.inicio, ...(d.grande ? { grande: true } : {}), ...(d.mercadolivre ? { mercadolivre: d.mercadolivre } : {}), ...(d.shopee ? { shopee: d.shopee } : {}) });
     }
   }
   return lista.sort((a, b) => a.inicio.localeCompare(b.inicio));
@@ -164,6 +175,7 @@ export function todasAsCampanhas(hoje: string, doDono: DataDoDono[] = []): Campa
 /** Hora (Brasília) a partir da qual cada aviso pode sair. */
 export const HORA_DO_TEASER = 18;
 export const HORA_DA_ABERTURA = 9;
+export const HORA_DOS_MELHORES = 13;
 export const HORA_DAS_ULTIMAS = 20;
 
 /** As fases que estão na hora para esta campanha, hoje. A véspera sai à noite; a abertura só no primeiro dia; as últimas horas no último. */
@@ -171,6 +183,7 @@ export function fasesDevidas(c: Campanha, hoje: string, hora: number): FaseDaDat
   const fases: FaseDaData[] = [];
   if (diasEntre(hoje, c.inicio) === 1 && hora >= HORA_DO_TEASER) fases.push('teaser');
   if (hoje === c.inicio && hora >= HORA_DA_ABERTURA) fases.push('comecou');
+  if (c.grande && hoje === c.inicio && hora >= HORA_DOS_MELHORES) fases.push('melhores');
   if (hoje === c.fim && hora >= HORA_DAS_ULTIMAS) fases.push('ultimas');
   return fases;
 }
@@ -181,6 +194,52 @@ export const chaveDaFase = (c: Campanha, fase: FaseDaData) => `data:${c.id}:${fa
 export interface LinksDaData {
   mercadolivre?: string;
   shopee?: string;
+}
+
+/** Datas grandes que estão valendo hoje. */
+export function grandesDeHoje(campanhas: Campanha[], hoje: string): Campanha[] {
+  return campanhas.filter((c) => c.grande && c.inicio <= hoje && hoje <= c.fim);
+}
+
+/** A data grande de hoje (a mais curta, que é a mais específica: 10.10 ganha da Semana das Crianças), ou undefined. */
+export function campanhaDeHoje(campanhas: Campanha[], hoje: string): Campanha | undefined {
+  return [...grandesDeHoje(campanhas, hoje)].sort((a, b) => diasEntre(a.inicio, a.fim) - diasEntre(b.inicio, b.fim) || b.inicio.localeCompare(a.inicio))[0];
+}
+
+/** As datas do calendário e do datas.json do dono. Nunca lança: arquivo ausente ou com erro vale como vazio. */
+export function carregarCampanhas(config: Pick<Config, 'datas'>, agora: Date): Campanha[] {
+  const arquivo = config.datas.arquivo;
+  let texto = '';
+  try {
+    texto = existsSync(arquivo) ? readFileSync(arquivo, 'utf8') : '';
+  } catch {
+    // sem o arquivo do dono vale só o calendário
+  }
+  return todasAsCampanhas(diaDe(agora), lerDatas(texto).datas);
+}
+
+const vendasCurtas = (n: number) => (n >= 1000 ? `${(Math.round(n / 100) / 10).toString().replace('.', ',')} mil` : String(n));
+const tituloCurto = (t: string) => {
+  const limpo = t.replace(/\s+/g, ' ').trim();
+  if (limpo.length <= 62) return limpo;
+  const corte = limpo.slice(0, 62);
+  return corte.slice(0, Math.max(corte.lastIndexOf(' '), 40)).replace(/[\s,;:\-–]+$/, '');
+};
+
+/** A lista dos melhores achados da data (texto simples, sem preço; só o que o robô sabe de cada produto). */
+export function textoDosMelhores(c: Campanha, itens: OfertaAvaliada[]): string {
+  const linhas = [`🏆 Os ${itens.length} melhores achados de ${c.nome}`, 'Os mais vendidos e bem avaliados, um por um:', ''];
+  itens.forEach((o, i) => {
+    const sinais = [
+      o.nota ? `⭐ ${o.nota.toFixed(1).replace('.', ',')}` : '',
+      o.vendas ? `${vendasCurtas(o.vendas)} vendidos` : '',
+      o.menorPrecoEmDias ? `menor preço em ${o.menorPrecoEmDias} dias` : '',
+    ].filter(Boolean);
+    linhas.push(`${i + 1}. ${tituloCurto(o.titulo)}`);
+    if (sinais.length) linhas.push(`   ${sinais.join(' · ')}`);
+    linhas.push(`   ${o.link}`, '');
+  });
+  return linhas.join('\n').trimEnd();
 }
 
 /** O texto do aviso (texto simples; nunca preço nem estoque inventado). */

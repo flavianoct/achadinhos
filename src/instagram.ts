@@ -1,11 +1,12 @@
 import { contemPalavra, normalizar } from './categoria.ts';
 import type { Config } from './config.ts';
 import type { Banco } from './db.ts';
-import { horaDe } from './db.ts';
+import { diaDe, horaDe } from './db.ts';
 import { HORAS_DO_SOCIAL, arquivoDaArte, arquivosDoCarrossel, legendaDoCarrossel, montarLegenda, totalDeImagens, type DadosDoCarrossel, type Fetch } from './social.ts';
 import { arquivoDoReel, legendaDoReel, type DadosDoReel } from './reel.ts';
 import type { OfertaAvaliada } from './types.ts';
-import { arquivoDoResumo, chaveDoResumoPublicado } from './vitrine.ts';
+import { campanhaDeHoje, carregarCampanhas } from './datas.ts';
+import { arquivoDaData, arquivoDoResumo, chaveDaDataPublicada, chaveDoResumoPublicado } from './vitrine.ts';
 
 const BASE = 'https://graph.instagram.com/v23.0';
 const pausa = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -265,6 +266,17 @@ export async function publicarNoInstagram(banco: Banco, config: Config, agora: D
           resumo.avisos.push(`Instagram: o Reel não saiu (tentativa ${reel.tentativas + 1} de 3): ${(e as Error).message}`);
           if (e instanceof ErroInstagram && e.fatal) throw e;
         }
+      }
+    }
+    // Story da data grande de hoje (10.10, Black Friday...): uma vez por data e dia, a partir de INSTAGRAM_DATA_HORA, antes dos Stories de produto.
+    const dataDeHoje = config.datas.ativo && ig.dataHora > 0 && hora >= ig.dataHora ? campanhaDeHoje(carregarCampanhas(config, agora), diaDe(agora)) : undefined;
+    if (dataDeHoje && !banco.textoSalvo(chaveDaDataPublicada(dataDeHoje, agora), 1, agora)) {
+      const arteDaData = `${config.blog.url}/social/${arquivoDaData(dataDeHoje, agora)}`;
+      if (await noAr(arteDaData)) {
+        await etapa(`Story da data ${dataDeHoje.nome}`, () => api.publicarStory(arteDaData));
+        banco.salvarTexto(chaveDaDataPublicada(dataDeHoje, agora), arteDaData, agora);
+        resumo.stories++;
+        await pausa(2000);
       }
     }
     // Story "Hoje no grupo": uma vez por dia, a partir da hora do resumo. É o post que vende o grupo, por isso vem antes

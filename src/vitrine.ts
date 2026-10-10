@@ -3,7 +3,8 @@ import { join } from 'node:path';
 import { nomeDoNicho, normalizar } from './categoria.ts';
 import type { Config } from './config.ts';
 import { diaDe, horaDe, type Banco } from './db.ts';
-import { svgDoResumoDoDia, type DadosDaApresentacao, type DadosDoResumo } from './moldes.ts';
+import { campanhaDeHoje, carregarCampanhas, type Campanha } from './datas.ts';
+import { svgDaDataEspecial, svgDoResumoDoDia, type DadosDaApresentacao, type DadosDoResumo } from './moldes.ts';
 import { descontoParaArte, renderizarPng } from './social.ts';
 import type { OfertaAvaliada } from './types.ts';
 
@@ -106,3 +107,25 @@ export async function gravarResumoDoDia(banco: Banco, config: Config, agora: Dat
 
 /** Chave que marca o resumo de hoje como publicado. */
 export const chaveDoResumoPublicado = (agora: Date) => `ig-resumo:${diaDe(agora)}`;
+
+/** Nome do PNG do Story da data grande de hoje (um por data e dia). */
+export const arquivoDaData = (c: Campanha, agora: Date) => `data-${c.id}-${diaDe(agora)}.png`;
+
+/** Chave que marca o Story da data de hoje como publicado. */
+export const chaveDaDataPublicada = (c: Campanha, agora: Date) => `ig-data:${c.id}:${diaDe(agora)}`;
+
+/** Grava em blog/social/ o Story da data grande de hoje, a partir de uma hora antes da hora dele (INSTAGRAM_DATA_HORA). */
+export async function gravarDataEspecial(banco: Banco, config: Config, agora: Date): Promise<boolean> {
+  const ig = config.instagram;
+  if (!config.social.ativo || !ig.ativo || !config.datas.ativo || ig.dataHora <= 0) return false;
+  if (horaDe(agora) < ig.dataHora - 1) return false;
+  const c = campanhaDeHoje(carregarCampanhas(config, agora), diaDe(agora));
+  if (!c) return false;
+  // Só a marca e texto: nada de foto de produto nem de loja (direito autoral).
+  const png = await renderizarPng(svgDaDataEspecial({ nome: c.nome, umDia: c.inicio === c.fim }), 1080);
+  if (!png) return false;
+  const pasta = join(config.blog.pasta, 'social');
+  mkdirSync(pasta, { recursive: true });
+  writeFileSync(join(pasta, arquivoDaData(c, agora)), png);
+  return true;
+}
