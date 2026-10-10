@@ -121,3 +121,35 @@ if (itemId) {
   console.log('FALHA ---  13. sem anúncio para testar o multiget (/items?ids=)');
 }
 console.log('\nPronto. Cole a tabela acima no plano: os códigos HTTP decidem a Fase 2.');
+
+// ───────── Preço antigo (o "De" riscado): de onde a API pode trazê-lo? ─────────
+console.log('\n--- preço antigo (original_price / sale_price) em 10 produtos dos mais vendidos ---');
+const amostra = (hj.content ?? []).filter((c) => c.type === 'PRODUCT').slice(0, 10).map((c) => c.id);
+let nVencedor = 0, nVencedorComAntigo = 0, nLista = 0, nListaComAntigo = 0, nListaComSale = 0;
+const exemplos = [];
+for (const id of amostra) {
+  const p = await json(await get(`/products/${id}`));
+  const v = p.buy_box_winner;
+  if (v) {
+    nVencedor++;
+    if (v.original_price) nVencedorComAntigo++;
+  }
+  const l = await json(await get(`/products/${id}/items?limit=5`));
+  for (const it of l.results ?? []) {
+    nLista++;
+    if (it.original_price) nListaComAntigo++;
+    if (it.sale_price) nListaComSale++;
+  }
+  if (exemplos.length < 2 && (l.results ?? [])[0]) exemplos.push(`campos de um anúncio da lista: ${chaves(l.results[0], 40)}`);
+}
+console.log(`produtos: ${amostra.length} | com vencedor: ${nVencedor} (com original_price: ${nVencedorComAntigo}) | anúncios na lista: ${nLista} (com original_price: ${nListaComAntigo}, com sale_price: ${nListaComSale})`);
+for (const e of exemplos) console.log('         ' + e);
+const um = (hj.content ?? []).find((c) => c.type === 'PRODUCT')?.id;
+if (um) {
+  const l = await json(await get(`/products/${um}/items?limit=1`));
+  const item = l.results?.[0]?.item_id;
+  if (item) {
+    await sondar(`14. preço de promoção do anúncio (/items/${item}/sale_price)`, `/items/${item}/sale_price`, (j) => `campos: ${chaves(j, 12)} | amount: ${j.amount ?? '-'} | regular_amount: ${j.regular_amount ?? '-'}`);
+    await sondar(`15. preços do anúncio (/items/${item}/prices)`, `/items/${item}/prices`, (j) => `campos: ${chaves(j, 12)} | preços: ${j.prices?.length ?? 0}`);
+  }
+}
