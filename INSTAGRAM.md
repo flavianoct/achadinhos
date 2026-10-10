@@ -40,6 +40,7 @@ O robô publica no Instagram uma foto de feed (com legenda) e um Story (sem lege
 ## Manutenção
 
 - **Token vence em 60 dias.** O painel avisa a partir do dia 50. Para renovar, repita o passo 4 e atualize o Secret e a data.
+  - **Renovar sem refazer o passo 4:** enquanto o token ainda vale (e tem pelo menos 24 horas de vida), abra no navegador `https://graph.instagram.com/refresh_access_token?grant_type=ig_refresh_token&access_token=SEU_TOKEN` (troque `SEU_TOKEN`). A resposta traz um `access_token` novo, válido por mais 60 dias: coloque-o no Secret `INSTAGRAM_TOKEN` e a data de hoje em `INSTAGRAM_TOKEN_DATA`. Faça isso por volta do dia 50, antes de o aviso do painel virar vermelho. Se o token já venceu, só o passo 4 resolve. O token de 03/10/2026 vence por volta de 02/12/2026.
 - Se o painel mostrar "Instagram recusou (…/190)", o token venceu ou foi revogado.
 - Comece devagar (2 a 3 posts por dia). Conta parada que de repente posta muito com link de afiliado pode ser limitada pela Meta.
 - Escreva sempre que é publicidade: a legenda já leva "Publi: link de afiliado".
