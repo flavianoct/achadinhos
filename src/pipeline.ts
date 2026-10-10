@@ -26,7 +26,9 @@ export function dentroDoTema(titulo: string, config: Config): boolean {
   const tema = config.filtro.tema;
   if (!tema.length) return true;
   const t = normalizar(titulo);
-  // Começo de palavra: \
+  // Começo de palavra: "celular" pega "celulares"; "tv" pega "tvs" mas não "gravidade".
+  const palavras = t.split(/[^a-z0-9]+/);
+  return tema.some((p) => palavras.some((w) => w.startsWith(normalizar(p).trim())));
 }
 
 /** Busca ofertas em todas as lojas, guarda os preços no histórico e enfileira as aprovadas. */
