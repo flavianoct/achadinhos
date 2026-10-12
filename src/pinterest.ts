@@ -8,7 +8,7 @@ import { TIPOS_DE_GUIA } from './guias.ts';
 import { passaNoFiltroDoInstagram } from './instagram.ts';
 import { esc, fundo, linhasDaPergunta, marca, MARCA } from './moldes.ts';
 import { criarSilhueta } from './silhueta.ts';
-import { baixarImagemComoDataUri, nomeDoCanal, perguntaDaArte, renderizarPng, tituloParaArte, type Fetch } from './social.ts';
+import { baixarImagemComoDataUri, nomeDoCanal, perguntaDaArte, reduzirFoto, renderizarPng, tituloParaArte, type Fetch } from './social.ts';
 import type { OfertaAvaliada } from './types.ts';
 
 /**
@@ -174,19 +174,6 @@ function descricaoBase(config: Config, resumo: string): string {
   return cortar(`${resumo} O ${nomeDoCanal(config)} confere o histórico de preço de 30 dias antes de postar. ${convite} Publi: links de afiliado, preços podem mudar. ${HASHTAGS}`, MAX_DESCRICAO);
 }
 
-/** Reduz a foto para o pin (o banco guarda a foto de cada pin por uma semana). */
-export async function reduzirFoto(dataUri: string | undefined, lado = 640): Promise<string | undefined> {
-  if (!dataUri) return undefined;
-  try {
-    const sharp = (await import('sharp')).default;
-    const entrada = Buffer.from(dataUri.slice(dataUri.indexOf(',') + 1), 'base64');
-    const saida = await sharp(entrada).flatten({ background: '#ffffff' }).resize({ width: lado, height: lado, fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 80 }).toBuffer();
-    return `data:image/jpeg;base64,${saida.toString('base64')}`;
-  } catch {
-    return dataUri;
-  }
-}
-
 const idDe = (o: OfertaAvaliada) => `${o.loja}:${o.idProduto}`;
 
 /** Os produtos de hoje que servem para pin: foto, link, passa no filtro de qualidade e não saiu em outro pin da semana. */
@@ -235,7 +222,7 @@ async function criarDados(estrategia: EstrategiaDoPin, produtos: OfertaAvaliada[
     if (produtos.length < 3) return undefined;
     const escolhidos = produtos.slice(0, 3);
     const itens: NonNullable<DadosDoPin['itens']> = [];
-    for (const o of escolhidos) itens.push({ titulo: nomeCurto(o.titulo, 2, 24), foto: await reduzirFoto(await baixarImagemComoDataUri(o.imagem, fetchFn)) });
+    for (const o of escolhidos) itens.push({ titulo: nomeCurto(o.titulo, 2, 24), foto: await reduzirFoto(await baixarImagemComoDataUri(o.imagem, fetchFn), 640, 80) });
     if (itens.some((i) => !i.foto)) return undefined;
     return {
       estrategia,
@@ -250,7 +237,7 @@ async function criarDados(estrategia: EstrategiaDoPin, produtos: OfertaAvaliada[
   }
   // produto, quiz e sombra: um produto só.
   for (const o of produtos) {
-    const foto = await reduzirFoto(await baixarImagemComoDataUri(o.imagem, fetchFn));
+    const foto = await reduzirFoto(await baixarImagemComoDataUri(o.imagem, fetchFn), 640, 80);
     if (!foto) continue;
     const nome = nomeCurto(o.titulo, 2, 30);
     if (estrategia === 'produto') {
