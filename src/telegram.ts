@@ -110,6 +110,11 @@ export class Telegram implements Publicador {
     await this.chamar('sendMessage', { chat_id: destino, text: escaparHtml(texto), parse_mode: 'HTML', link_preview_options: { is_disabled: true } });
   }
 
+  /** Manda um vídeo (endereço público) com legenda em texto simples. Usado para o quiz pronto chegar ao dono. */
+  async enviarVideo(video: string, legenda: string, destino: string = this.chatId): Promise<void> {
+    await this.chamar('sendVideo', { chat_id: destino, video, caption: legenda.slice(0, 1020), supports_streaming: true, width: 1080, height: 1920 });
+  }
+
   /** Confere o token e se o bot enxerga o canal. Devolve um resumo legível. */
   async checar(destino: string = this.chatId): Promise<string> {
     const eu = await this.chamar('getMe', {});

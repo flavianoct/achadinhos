@@ -67,7 +67,7 @@ export interface Config {
   /** Convite discreto aos outros canais (WhatsApp, Telegram, Instagram): poucas vezes, sem encher o canal. */
   convite: { ativo: boolean; porDia: number };
   /** Quiz "Preço certo" nos Reels: o último Reel do dia (ou os últimos QUIZ_POR_DIA) vira um quiz. */
-  quiz: { ativo: boolean; lojas: string[]; porDia: number; dias: number[]; formatos: Array<'preco' | 'sombra' | 'prefere'> };
+  quiz: { ativo: boolean; lojas: string[]; porDia: number; dias: number[]; formatos: Array<'preco' | 'sombra' | 'prefere'>; enviarPara: string };
   /** Datas especiais (10.10, Black Friday...): avisos no Telegram e lembretes para o dono. O datas.json do dono acrescenta ou ajusta datas. */
   datas: { ativo: boolean; arquivo: string; avisoDias: number; postsExtra: number };
   /** Vendas e comissão da Shopee (conversionReport), lidas de tempos em tempos para o painel. */
@@ -373,6 +373,8 @@ export function lerConfig(env: Env = process.env): Config {
     convite: { ativo: ligado(env, 'CONVITE_ATIVO', false), porDia: Math.min(6, Math.max(0, numero(env, 'CONVITES_POR_DIA', 3))) },
     quiz: {
       ativo: ligado(env, 'QUIZ_ATIVO', false),
+      // Chat privado do dono (ID numérico) que recebe o vídeo do quiz pronto, com a legenda, para postar no TikTok e nos Shorts. Vazio = não envia.
+      enviarPara: /^-?\d{5,}$/.test((env.QUIZ_ENVIAR_PARA ?? '').trim()) ? (env.QUIZ_ENVIAR_PARA ?? '').trim() : '',
       // O preço é a estrela do quiz: por padrão só a Shopee, onde o preço vem direto da API (no Mercado Livre pela API ele pode diferir da página).
       lojas: env.QUIZ_LOJAS === undefined ? ['shopee'] : lista(env.QUIZ_LOJAS).map((l) => l.toLowerCase()),
       porDia: Math.min(4, Math.max(0, numero(env, 'QUIZ_POR_DIA', 1))),

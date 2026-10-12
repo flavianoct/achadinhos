@@ -3,7 +3,8 @@ import type { Config } from './config.ts';
 import type { Banco } from './db.ts';
 import { diaDe, horaDe } from './db.ts';
 import { HORAS_DO_SOCIAL, arquivoDaArte, arquivosDoCarrossel, legendaDoCarrossel, montarLegenda, totalDeImagens, type DadosDoCarrossel, type Fetch } from './social.ts';
-import { legendaDoQuiz, type DadosDoQuiz } from './quiz.ts';
+import { Telegram } from './telegram.ts';
+import { legendaDoQuiz, legendaParaTikTokEShorts, type DadosDoQuiz } from './quiz.ts';
 import { arquivoDoReel, legendaDoReel, type DadosDoReel } from './reel.ts';
 import type { OfertaAvaliada } from './types.ts';
 import { campanhaDeHoje, carregarCampanhas } from './datas.ts';
@@ -263,6 +264,14 @@ export async function publicarNoInstagram(banco: Banco, config: Config, agora: D
           banco.marcarReelPublicado(reel.chave, agora);
           resumo.reels++;
           await pausa(2000);
+          if (dadosDoReel.formato === 'quiz' && config.quiz.enviarPara && config.telegram.token) {
+            // O quiz também vai para o TikTok e os Shorts: o robô manda o vídeo pronto, com a legenda, para o chat privado do dono.
+            try {
+              await new Telegram(config.telegram.token, config.quiz.enviarPara, fetchFn).enviarVideo(video, legendaParaTikTokEShorts(dadosDoReel));
+            } catch (e) {
+              resumo.avisos.push(`Quiz: não consegui mandar o vídeo para o seu Telegram privado: ${(e as Error).message}`);
+            }
+          }
         } catch (e) {
           banco.registrarFalhaDoReel(reel.chave);
           resumo.avisos.push(`Instagram: o Reel não saiu (tentativa ${reel.tentativas + 1} de 3): ${(e as Error).message}`);
