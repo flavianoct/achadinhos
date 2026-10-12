@@ -68,6 +68,8 @@ export interface Config {
   convite: { ativo: boolean; porDia: number };
   /** Quiz "Preço certo" nos Reels: o último Reel do dia (ou os últimos QUIZ_POR_DIA) vira um quiz. */
   quiz: { ativo: boolean; lojas: string[]; porDia: number; dias: number[]; formatos: Array<'preco' | 'sombra' | 'prefere'>; enviarPara: string };
+  /** Pinterest: pins no formato 2:3 que levam gente ao grupo e aos canais. Sempre gera as imagens, a planilha de envio em massa, o feed RSS e a galeria; publica pela API quando há token e quadro. */
+  pinterest: { ativo: boolean; pinsPorDia: number; token: string; boardId: string; quadro: string; sandbox: boolean; verificacao: string };
   /** Datas especiais (10.10, Black Friday...): avisos no Telegram e lembretes para o dono. O datas.json do dono acrescenta ou ajusta datas. */
   datas: { ativo: boolean; arquivo: string; avisoDias: number; postsExtra: number };
   /** Vendas e comissão da Shopee (conversionReport), lidas de tempos em tempos para o painel. */
@@ -370,6 +372,15 @@ export function lerConfig(env: Env = process.env): Config {
       amazonArquivo: (env.BLOG_AMAZON_ARQUIVO ?? '').trim() || 'amazon.json',
     },
     datas: { ativo: ligado(env, 'DATAS_ATIVO', true), arquivo: (env.DATAS_ARQUIVO ?? '').trim() || 'datas.json', avisoDias: Math.max(0, numero(env, 'DATAS_AVISO_DIAS', 3)), postsExtra: Math.max(0, numero(env, 'DATAS_POSTS_EXTRA', 2)) },
+    pinterest: {
+      ativo: ligado(env, 'PINTEREST_ATIVO', true),
+      pinsPorDia: Math.min(15, Math.max(0, numero(env, 'PINTEREST_PINS_POR_DIA', 5))),
+      token: (env.PINTEREST_TOKEN ?? '').trim(),
+      boardId: (env.PINTEREST_BOARD_ID ?? '').trim(),
+      quadro: (env.PINTEREST_QUADRO ?? '').trim() || 'Achadinhos e ofertas do dia',
+      sandbox: ligado(env, 'PINTEREST_SANDBOX', false),
+      verificacao: /^[A-Za-z0-9]{10,64}$/.test((env.PINTEREST_VERIFICACAO ?? '').trim()) ? (env.PINTEREST_VERIFICACAO ?? '').trim() : '',
+    },
     convite: { ativo: ligado(env, 'CONVITE_ATIVO', false), porDia: Math.min(6, Math.max(0, numero(env, 'CONVITES_POR_DIA', 3))) },
     quiz: {
       ativo: ligado(env, 'QUIZ_ATIVO', false),

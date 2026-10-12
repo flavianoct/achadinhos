@@ -95,6 +95,7 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           INSTAGRAM_TOKEN: ${{ secrets.INSTAGRAM_TOKEN }}
           INSTAGRAM_USER_ID: ${{ secrets.INSTAGRAM_USER_ID }}
+          PINTEREST_TOKEN: ${{ secrets.PINTEREST_TOKEN }}
           BLOG_URL: ${{ steps.pages.outputs.base_url }}
         run: node --disable-warning=ExperimentalWarning src/index.ts --nuvem
 
