@@ -3,10 +3,10 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
-import { escolherParaCarrossel } from './carrossel.ts';
+import { diaDaSemana, escolherParaCarrossel } from './carrossel.ts';
 import type { Config } from './config.ts';
 import { diaDe, horaDe, type Banco } from './db.ts';
-import { estiloDaMusica, sintetizarMusica } from './musica.ts';
+import { estiloDaMusica, sintetizarEfeitos, sintetizarMusica, type Efeito } from './musica.ts';
 import { fundo, marca, MARCA } from './moldes.ts';
 import { baixarImagemComoDataUri, montarSvgDoStory, renderizarPng, temWhatsapp, type Fetch } from './social.ts';
 import type { OfertaAvaliada } from './types.ts';
@@ -21,8 +21,8 @@ export interface DadosDoReel {
 }
 
 const ITENS_DO_REEL = 3;
-const FPS = 30;
-const TRANSICAO = 0.4;
+export const FPS = 30;
+export const TRANSICAO = 0.4;
 
 function nomeDoArquivo(chave: string): string {
   return `${chave.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}.mp4`;
@@ -34,6 +34,17 @@ export function arquivoDoReel(chave: string): string {
 }
 
 /**
+ * Este é o momento do quiz? Com o quiz ligado, os ÚLTIMOS QUIZ_POR_DIA Reels do dia viram quiz (nos dias QUIZ_DIAS, 0 = domingo).
+ * `jaCriados` é quantos Reels do dia já nasceram: com 2 Reels por dia e 1 quiz, o primeiro é o Reel normal e o segundo, o quiz.
+ */
+export function ehVezDoQuiz(config: Config, jaCriados: number, agora: Date): boolean {
+  const q = config.quiz;
+  if (!q.ativo || q.porDia <= 0 || !q.dias.includes(diaDaSemana(agora))) return false;
+  const quizzes = Math.min(q.porDia, config.instagram.reelsPorDia);
+  return jaCriados >= config.instagram.reelsPorDia - quizzes;
+}
+
+/**
  * Cria o próximo Reel do dia (até `INSTAGRAM_REELS_POR_DIA`), com os melhores produtos que passam no filtro de qualidade do Instagram.
  * Cada Reel só nasce perto da sua hora de publicar e depois que o anterior já saiu; os produtos de um não se repetem no outro.
  */
@@ -42,6 +53,8 @@ export async function prepararReel(banco: Banco, config: Config, agora: Date, fe
   if (!config.social.ativo || !ig.ativo || ig.reelsPorDia <= 0) return false;
   const jaCriados = banco.reelsCriadosNoDia(agora);
   if (jaCriados >= ig.reelsPorDia || banco.reelPendente(agora)) return false;
+  // O Reel desta vaga é o quiz (src/quiz.ts), não o "Caiu mesmo?".
+  if (ehVezDoQuiz(config, jaCriados, agora)) return false;
   const hora = horaDe(agora);
   if (hora < config.ritmo.horaInicio || hora >= config.ritmo.horaFim) return false;
   // Só prepara perto da hora de publicar (1 hora antes da janela deste Reel), para o desconto e o selo de menor preço serem de agora.
@@ -67,11 +80,11 @@ export async function prepararReel(banco: Banco, config: Config, agora: Date, fe
 }
 
 const fonte = 'font-family="Liberation Sans,DejaVu Sans,Arial,Helvetica,sans-serif"';
-const moldura = (corpo: string) => `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920">
+export const moldura = (corpo: string) => `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920">
 ${fundo(1080, 1920)}${corpo}</svg>`;
-const texto = (y: number, s: string, tam: number, cor: string = MARCA.branco, peso = 800) =>
+export const texto = (y: number, s: string, tam: number, cor: string = MARCA.branco, peso = 800) =>
   `<text x="540" y="${y}" text-anchor="middle" ${fonte} font-size="${tam}" font-weight="${peso}" font-style="italic" fill="${cor}">${s}</text>`;
-const logo = (y: number) => marca(540, y, 64, 'centro');
+export const logo = (y: number) => marca(540, y, 64, 'centro');
 
 /** Abertura do Reel: a pergunta que prende a atenção, sem preço. */
 export function svgDaAberturaDoReel(n: number): string {
@@ -124,24 +137,33 @@ async function rodar(ffmpeg: string, args: string[]): Promise<void> {
   await executar(ffmpeg, ['-y', '-loglevel', 'error', ...args], { timeout: 180_000, maxBuffer: 10_000_000 });
 }
 
-/**
- * Monta o mp4 do Reel em blog/social/: abertura, uma tela por produto (a arte de Story do robô, com zoom suave),
- * fechamento, e a trilha sintetizada ao fundo. Devolve o aviso de erro, ou undefined se o vídeo foi gravado.
- */
-export async function gravarReel(banco: Banco, config: Config, agora: Date): Promise<string | undefined> {
-  if (!config.social.ativo || !config.instagram.ativo || config.instagram.reelsPorDia <= 0) return undefined;
-  const pendente = banco.reelPendente(agora);
-  if (!pendente) return undefined;
-  const dados = JSON.parse(pendente.dados) as DadosDoReel;
-  if (dados.formato !== 'reel' || !dados.itens?.length) return undefined;
+/** Quando cada tela começa no vídeo final (segundos), já descontando a sobreposição das transições. */
+export function iniciosDasTelas(duracoes: number[]): number[] {
+  const inicios: number[] = [];
+  let t = 0;
+  for (let i = 0; i < duracoes.length; i++) {
+    inicios.push(t);
+    t += duracoes[i]! - TRANSICAO;
+  }
+  return inicios;
+}
 
+/** Duração total do vídeo (segundos) de telas com essas durações. */
+export function duracaoTotal(duracoes: number[]): number {
+  return duracoes.reduce((total, d) => total + d, 0) - TRANSICAO * (duracoes.length - 1);
+}
+
+/**
+ * Monta um mp4 vertical a partir de uma sequência de telas (SVG): cada tela vira um clipe com zoom suave, as telas se ligam com
+ * transição e a trilha sintetizada fica ao fundo (com `efeitos`, como o tic-tac do quiz, por cima dela). Grava em `pasta`
+ * com o nome do arquivo e devolve o aviso de erro, ou undefined se o vídeo foi gravado.
+ */
+export async function montarVideo(o: { svgs: string[]; duracoes: number[]; chave: string; pasta: string; efeitos?: Efeito[] }): Promise<string | undefined> {
   const ffmpeg = ffmpegDisponivel();
-  const pasta = join(config.blog.pasta, 'social');
-  mkdirSync(pasta, { recursive: true });
+  mkdirSync(o.pasta, { recursive: true });
   const tmp = mkdtempSync(join(tmpdir(), 'reel-'));
   try {
-    const svgs = [svgDaAberturaDoReel(dados.itens.length), ...dados.itens.map((it) => montarSvgDoStory(it.oferta, it.imagem)), svgDoFechamentoDoReel()];
-    const duracoes = svgs.map((_, i) => (i === 0 ? 2.5 : i === svgs.length - 1 ? 3 : 4.5));
+    const { svgs, duracoes } = o;
     const segmentos: string[] = [];
     for (let i = 0; i < svgs.length; i++) {
       const png = await renderizarPng(svgs[i]!, 1080);
@@ -172,13 +194,21 @@ export async function gravarReel(banco: Banco, config: Config, agora: Date): Pro
     filtro = filtro.replace(/;$/, '');
 
     const musica = join(tmp, 'musica.wav');
-    writeFileSync(musica, sintetizarMusica(acumulado + 0.5, estiloDaMusica(pendente.chave)));
-    const final = join(pasta, nomeDoArquivo(pendente.chave));
+    writeFileSync(musica, sintetizarMusica(acumulado + 0.5, estiloDaMusica(o.chave)));
+    const entradas = [...segmentos.flatMap((s) => ['-i', s]), '-i', musica];
+    let audio = `${segmentos.length}:a`;
+    if (o.efeitos?.length) {
+      const efeitos = join(tmp, 'efeitos.wav');
+      writeFileSync(efeitos, sintetizarEfeitos(acumulado + 0.5, o.efeitos));
+      entradas.push('-i', efeitos);
+      filtro += `;[${segmentos.length}:a][${segmentos.length + 1}:a]amix=inputs=2:duration=first:normalize=0[a]`;
+      audio = '[a]';
+    }
+    const final = join(o.pasta, nomeDoArquivo(o.chave));
     await rodar(ffmpeg, [
-      ...segmentos.flatMap((s) => ['-i', s]),
-      '-i', musica,
+      ...entradas,
       '-filter_complex', filtro,
-      '-map', '[v]', '-map', `${segmentos.length}:a`,
+      '-map', '[v]', '-map', audio,
       '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '21', '-r', String(FPS), '-pix_fmt', 'yuv420p',
       '-c:a', 'aac', '-b:a', '128k', '-shortest', '-movflags', '+faststart',
       final,
@@ -191,4 +221,19 @@ export async function gravarReel(banco: Banco, config: Config, agora: Date): Pro
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
+}
+
+/**
+ * Monta o mp4 do Reel em blog/social/: abertura, uma tela por produto (a arte de Story do robô, com zoom suave),
+ * fechamento, e a trilha sintetizada ao fundo. Devolve o aviso de erro, ou undefined se o vídeo foi gravado.
+ */
+export async function gravarReel(banco: Banco, config: Config, agora: Date): Promise<string | undefined> {
+  if (!config.social.ativo || !config.instagram.ativo || config.instagram.reelsPorDia <= 0) return undefined;
+  const pendente = banco.reelPendente(agora);
+  if (!pendente) return undefined;
+  const dados = JSON.parse(pendente.dados) as DadosDoReel;
+  if (dados.formato !== 'reel' || !dados.itens?.length) return undefined;
+  const svgs = [svgDaAberturaDoReel(dados.itens.length), ...dados.itens.map((it) => montarSvgDoStory(it.oferta, it.imagem)), svgDoFechamentoDoReel()];
+  const duracoes = svgs.map((_, i) => (i === 0 ? 2.5 : i === svgs.length - 1 ? 3 : 4.5));
+  return montarVideo({ svgs, duracoes, chave: pendente.chave, pasta: join(config.blog.pasta, 'social') });
 }

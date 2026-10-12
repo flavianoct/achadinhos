@@ -3,6 +3,7 @@ import type { Config } from './config.ts';
 import type { Banco } from './db.ts';
 import { diaDe, horaDe } from './db.ts';
 import { HORAS_DO_SOCIAL, arquivoDaArte, arquivosDoCarrossel, legendaDoCarrossel, montarLegenda, totalDeImagens, type DadosDoCarrossel, type Fetch } from './social.ts';
+import { legendaDoQuiz, type DadosDoQuiz } from './quiz.ts';
 import { arquivoDoReel, legendaDoReel, type DadosDoReel } from './reel.ts';
 import type { OfertaAvaliada } from './types.ts';
 import { campanhaDeHoje, carregarCampanhas } from './datas.ts';
@@ -257,7 +258,8 @@ export async function publicarNoInstagram(banco: Banco, config: Config, agora: D
       const video = `${config.blog.url}/social/${arquivoDoReel(reel.chave)}`;
       if (await noAr(video)) {
         try {
-          await api.publicarReel(video, legendaDoReel(JSON.parse(reel.dados) as DadosDoReel, config));
+          const dadosDoReel = JSON.parse(reel.dados) as DadosDoReel | DadosDoQuiz;
+          await api.publicarReel(video, dadosDoReel.formato === 'quiz' ? legendaDoQuiz(dadosDoReel, config) : legendaDoReel(dadosDoReel, config));
           banco.marcarReelPublicado(reel.chave, agora);
           resumo.reels++;
           await pausa(2000);

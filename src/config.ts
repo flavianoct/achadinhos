@@ -66,6 +66,8 @@ export interface Config {
   cupons: { ativo: boolean; arquivo: string; porDia: number; repetirDias: number; garimpo: boolean; lojas: string[]; bloquear: string[]; linkShopee: string; paginaShopee: string };
   /** Convite discreto aos outros canais (WhatsApp, Telegram, Instagram): poucas vezes, sem encher o canal. */
   convite: { ativo: boolean; porDia: number };
+  /** Quiz "Preço certo" nos Reels: o último Reel do dia (ou os últimos QUIZ_POR_DIA) vira um quiz. */
+  quiz: { ativo: boolean; lojas: string[]; porDia: number; dias: number[] };
   /** Datas especiais (10.10, Black Friday...): avisos no Telegram e lembretes para o dono. O datas.json do dono acrescenta ou ajusta datas. */
   datas: { ativo: boolean; arquivo: string; avisoDias: number; postsExtra: number };
   /** Vendas e comissão da Shopee (conversionReport), lidas de tempos em tempos para o painel. */
@@ -369,6 +371,13 @@ export function lerConfig(env: Env = process.env): Config {
     },
     datas: { ativo: ligado(env, 'DATAS_ATIVO', true), arquivo: (env.DATAS_ARQUIVO ?? '').trim() || 'datas.json', avisoDias: Math.max(0, numero(env, 'DATAS_AVISO_DIAS', 3)), postsExtra: Math.max(0, numero(env, 'DATAS_POSTS_EXTRA', 2)) },
     convite: { ativo: ligado(env, 'CONVITE_ATIVO', false), porDia: Math.min(6, Math.max(0, numero(env, 'CONVITES_POR_DIA', 3))) },
+    quiz: {
+      ativo: ligado(env, 'QUIZ_ATIVO', false),
+      // O preço é a estrela do quiz: por padrão só a Shopee, onde o preço vem direto da API (no Mercado Livre pela API ele pode diferir da página).
+      lojas: env.QUIZ_LOJAS === undefined ? ['shopee'] : lista(env.QUIZ_LOJAS).map((l) => l.toLowerCase()),
+      porDia: Math.min(4, Math.max(0, numero(env, 'QUIZ_POR_DIA', 1))),
+      dias: lista(env.QUIZ_DIAS === undefined ? '0,1,2,3,4,5,6' : env.QUIZ_DIAS).map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6),
+    },
     whatsapp: { ativo: ligado(env, 'WHATSAPP_ATIVO', true), porRodada: numero(env, 'WHATSAPP_POR_RODADA', 0), rodape: ligado(env, 'WHATSAPP_RODAPE', true), destinos: destinosDoWhatsapp(env.WHATSAPP_DESTINOS ?? ''), ...rotasDoWhatsapp(env.WHATSAPP_ROTAS) },
     social: { ativo: ligado(env, 'SOCIAL_ATIVO', true) },
     instagram: {

@@ -7,6 +7,7 @@ import { publicarControle, type DadosDaRodada } from './exportar.ts';
 import { gravarPngsDoCarrossel, prepararCarrossel } from './carrossel.ts';
 import { publicarNoInstagram } from './instagram.ts';
 import { type Alerta, chaveDoAviso } from './alertas.ts';
+import { gravarQuiz, prepararQuiz } from './quiz.ts';
 import { gravarReel, prepararReel } from './reel.ts';
 import { gravarPngs, prepararSocial } from './social.ts';
 import { gravarBio } from './bio.ts';
@@ -192,7 +193,8 @@ async function modoNuvem(): Promise<void> {
     await gravarPngsDoCarrossel(robo.banco, robo.config, new Date());
     // Reel do dia (vídeo com trilha): montado numa rodada, publicado na seguinte (e dentro das horas dos Reels).
     if (await prepararReel(robo.banco, robo.config, new Date())) dizer('- Instagram: Reel do dia preparado; sai quando o vídeo estiver no ar e na hora certa.');
-    const avisoDoReel = await gravarReel(robo.banco, robo.config, new Date());
+    if (await prepararQuiz(robo.banco, robo.config, new Date())) dizer('- Instagram: quiz "Preço certo" preparado; sai quando o vídeo estiver no ar e na hora certa.');
+    const avisoDoReel = (await gravarReel(robo.banco, robo.config, new Date())) ?? (await gravarQuiz(robo.banco, robo.config, new Date()));
     if (avisoDoReel) {
       dizer(`- Aviso do Instagram: ${avisoDoReel}`);
       avisar(chaveDoAviso('reel', avisoDoReel), avisoDoReel);
