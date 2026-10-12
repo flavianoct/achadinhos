@@ -67,7 +67,7 @@ export interface Config {
   /** Convite discreto aos outros canais (WhatsApp, Telegram, Instagram): poucas vezes, sem encher o canal. */
   convite: { ativo: boolean; porDia: number };
   /** Quiz "Preço certo" nos Reels: o último Reel do dia (ou os últimos QUIZ_POR_DIA) vira um quiz. */
-  quiz: { ativo: boolean; lojas: string[]; porDia: number; dias: number[] };
+  quiz: { ativo: boolean; lojas: string[]; porDia: number; dias: number[]; formatos: Array<'preco' | 'sombra' | 'prefere'> };
   /** Datas especiais (10.10, Black Friday...): avisos no Telegram e lembretes para o dono. O datas.json do dono acrescenta ou ajusta datas. */
   datas: { ativo: boolean; arquivo: string; avisoDias: number; postsExtra: number };
   /** Vendas e comissão da Shopee (conversionReport), lidas de tempos em tempos para o painel. */
@@ -377,6 +377,11 @@ export function lerConfig(env: Env = process.env): Config {
       lojas: env.QUIZ_LOJAS === undefined ? ['shopee'] : lista(env.QUIZ_LOJAS).map((l) => l.toLowerCase()),
       porDia: Math.min(4, Math.max(0, numero(env, 'QUIZ_POR_DIA', 1))),
       dias: lista(env.QUIZ_DIAS === undefined ? '0,1,2,3,4,5,6' : env.QUIZ_DIAS).map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6),
+      // O formato de cada dia da semana (domingo a sábado): preco, sombra ("Que produto é esse?") ou prefere ("Qual você prefere?"). Valor inválido ou faltando = preco.
+      formatos: Array.from({ length: 7 }, (_, i) => {
+        const f = (lista(env.QUIZ_FORMATOS)[i] ?? 'preco').toLowerCase();
+        return f === 'sombra' || f === 'prefere' ? f : 'preco';
+      }),
     },
     whatsapp: { ativo: ligado(env, 'WHATSAPP_ATIVO', true), porRodada: numero(env, 'WHATSAPP_POR_RODADA', 0), rodape: ligado(env, 'WHATSAPP_RODAPE', true), destinos: destinosDoWhatsapp(env.WHATSAPP_DESTINOS ?? ''), ...rotasDoWhatsapp(env.WHATSAPP_ROTAS) },
     social: { ativo: ligado(env, 'SOCIAL_ATIVO', true) },
