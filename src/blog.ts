@@ -268,6 +268,7 @@ function moldura(site: Site, p: { arquivo: string; titulo: string; tituloSeo?: s
 <title>${esc(tituloCompleto)}</title>
 <meta name="description" content="${esc(descricao)}">
 <meta name="robots" content="${p.arquivo === '404.html' ? 'noindex' : 'index,follow,max-image-preview:large'}">
+${site.config.pinterest.verificacao ? `<meta name="p:domain_verify" content="${esc(site.config.pinterest.verificacao)}">\n` : ''}
 <meta name="theme-color" content="#0E0E10">
 <meta name="color-scheme" content="dark">
 <link rel="icon" href="${ICONE_DO_SITE}">

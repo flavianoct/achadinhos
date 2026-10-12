@@ -7,6 +7,7 @@ import { publicarControle, type DadosDaRodada } from './exportar.ts';
 import { gravarPngsDoCarrossel, prepararCarrossel } from './carrossel.ts';
 import { publicarNoInstagram } from './instagram.ts';
 import { type Alerta, chaveDoAviso } from './alertas.ts';
+import { gravarPins, prepararPins, publicarNoPinterest } from './pinterest.ts';
 import { gravarQuiz, prepararQuiz } from './quiz.ts';
 import { gravarReel, prepararReel } from './reel.ts';
 import { gravarPngs, prepararSocial } from './social.ts';
@@ -210,6 +211,20 @@ async function modoNuvem(): Promise<void> {
       avisar(chaveDoAviso('instagram', a), a, /recusou|token|venceu|faltam os secrets/i.test(a) ? 'erro' : 'aviso');
     }
     rodada.instagram = ig;
+    // Pinterest: pins novos do dia, imagens/planilha/feed/galeria no site e, com token e quadro, publicação pela API.
+    try {
+      const novos = await prepararPins(robo.banco, robo.config, new Date());
+      const pins = await gravarPins(robo.banco, robo.config, new Date());
+      if (pins.semConversor) avisar('pinterest:sem-conversor', 'Faltou instalar o conversor de imagens (@resvg/resvg-js): o Pinterest não terá imagens.', 'erro');
+      const pin = await publicarNoPinterest(robo.banco, robo.config, new Date());
+      if (robo.config.pinterest.ativo) dizer(`- Pinterest: ${novos} pins novos, ${pins.gravados} imagens no site (${robo.config.blog.url}/pinterest.html), ${pin.publicados} publicados pela API.`);
+      for (const a of pin.avisos) {
+        dizer(`- Aviso do Pinterest: ${a}`);
+        avisar(chaveDoAviso('pinterest', a), a, /token|recusou/i.test(a) ? 'erro' : 'aviso');
+      }
+    } catch (e) {
+      dizer(`- Aviso: o Pinterest falhou nesta rodada (${(e as Error).message}).`);
+    }
     robo.banco.registrarAvisos(avisos, new Date());
     publicarControle(robo.banco, robo.config, rodada, new Date());
     const naBio = gravarBio(robo.banco, robo.config, new Date());

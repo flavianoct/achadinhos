@@ -36,6 +36,12 @@ export const CAMPOS: Campo[] = [
   { grupo: 'Instagram', chave: 'QUIZ_FORMATOS', rotulo: 'Formato do quiz por dia da semana', tipo: 'texto', padrao: 'preco,preco,preco,preco,preco,preco,preco', ajuda: 'Domingo a sábado: preco, sombra ou prefere. Ex.: preco,sombra,preco,prefere,preco,sombra,prefere' },
   { grupo: 'Instagram', chave: 'QUIZ_ENVIAR_PARA', rotulo: 'Enviar o quiz para o meu Telegram (TikTok e Shorts)', tipo: 'texto', padrao: '', ajuda: 'Seu ID numérico no Telegram (pergunte ao @userinfobot e mande /start para o seu bot). O vídeo pronto chega lá com a legenda.' },
   { grupo: 'Instagram', chave: 'QUIZ_POR_DIA', rotulo: 'Quizzes por dia', tipo: 'numero', padrao: '1', ajuda: 'Quantos dos Reels do dia viram quiz (os últimos).' },
+  { grupo: 'Pinterest', chave: 'PINTEREST_ATIVO', rotulo: 'Gerar pins do Pinterest', tipo: 'simnao', padrao: '1', ajuda: 'Gera pins 2:3 (produto, lista, benefícios, dica, quiz, silhueta) e a página /pinterest.html para salvar.' },
+  { grupo: 'Pinterest', chave: 'PINTEREST_PINS_POR_DIA', rotulo: 'Pins por dia', tipo: 'numero', padrao: '5', ajuda: 'O Pinterest gosta de pins novos todo dia: de 3 a 5 é um bom ritmo.' },
+  { grupo: 'Pinterest', chave: 'PINTEREST_BOARD_ID', rotulo: 'ID do quadro (API)', tipo: 'texto', padrao: '', ajuda: 'Número do quadro onde publicar pela API. Precisa também do Secret PINTEREST_TOKEN. Vazio = só gera os arquivos.' },
+  { grupo: 'Pinterest', chave: 'PINTEREST_QUADRO', rotulo: 'Nome do quadro (planilha)', tipo: 'texto', padrao: 'Achadinhos e ofertas do dia', ajuda: 'Usado na planilha de envio em massa.' },
+  { grupo: 'Pinterest', chave: 'PINTEREST_VERIFICACAO', rotulo: 'Código de verificação do site', tipo: 'texto', padrao: '', ajuda: 'O content da meta tag p:domain_verify, para reivindicar o site e usar o feed RSS.' },
+  { grupo: 'Pinterest', chave: 'PINTEREST_SANDBOX', rotulo: 'Usar o ambiente de testes', tipo: 'simnao', padrao: '0', ajuda: 'Ligue enquanto o app do Pinterest está só com acesso de teste.' },
   { grupo: 'Mercado Livre', chave: 'ML_API_CATEGORIAS_POR_RODADA', rotulo: 'Categorias lidas pela API por rodada', tipo: 'numero', padrao: '6', ajuda: 'A API lê as categorias abaixo e as subcategorias delas em rodízio; cada uma traz até 20 mais vendidos (2 pedidos por produto).' },
   { grupo: 'Mercado Livre', chave: 'ML_CATEGORIAS', rotulo: 'Categorias do rodízio', tipo: 'texto', padrao: 'MLB1000,MLB1051,MLB1648,MLB5726,MLB1574,MLB1144,MLB1246,MLB1276', ajuda: 'IDs MLB separados por vírgula.' },
 
