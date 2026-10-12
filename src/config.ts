@@ -114,6 +114,8 @@ export interface Config {
     ativo: boolean;
     /** Máximo de ofertas que entram na fila do WhatsApp por rodada (WHATSAPP_POR_RODADA); as primeiras de cada rodada são as melhores. 0 = sem limite. O Telegram não é afetado. */
     porRodada: number;
+    /** Como o enviador (VPS) manda a fila: o robô publica isto no whatsapp.json e o enviador obedece, sem mexer na VPS. */
+    envio: { maximoPorHora: number; esperaMinSeg: number; esperaMaxSeg: number; idadeMaximaMin: number; maisNovaPrimeiro: boolean };
     /** Duas linhas no fim de cada oferta com o Telegram e o Instagram (WHATSAPP_RODAPE). */
     rodape: boolean;
     /** Canais e grupos gerais onde o enviador posta (links https do WhatsApp), de WHATSAPP_DESTINOS. Seguem o filtro do geral. */
@@ -396,7 +398,7 @@ export function lerConfig(env: Env = process.env): Config {
         return f === 'sombra' || f === 'prefere' ? f : 'preco';
       }),
     },
-    whatsapp: { ativo: ligado(env, 'WHATSAPP_ATIVO', true), porRodada: numero(env, 'WHATSAPP_POR_RODADA', 0), rodape: ligado(env, 'WHATSAPP_RODAPE', true), destinos: destinosDoWhatsapp(env.WHATSAPP_DESTINOS ?? ''), ...rotasDoWhatsapp(env.WHATSAPP_ROTAS) },
+    whatsapp: { ativo: ligado(env, 'WHATSAPP_ATIVO', true), porRodada: numero(env, 'WHATSAPP_POR_RODADA', 0), envio: { maximoPorHora: Math.min(30, Math.max(1, numero(env, 'WHATSAPP_MAX_POR_HORA', 10))), esperaMinSeg: Math.max(20, numero(env, 'WHATSAPP_ESPERA_MIN_SEG', 60)), esperaMaxSeg: Math.max(30, numero(env, 'WHATSAPP_ESPERA_MAX_SEG', 150)), idadeMaximaMin: Math.max(15, numero(env, 'WHATSAPP_IDADE_MAXIMA_MIN', 120)), maisNovaPrimeiro: ligado(env, 'WHATSAPP_MAIS_NOVA_PRIMEIRO', true) }, rodape: ligado(env, 'WHATSAPP_RODAPE', true), destinos: destinosDoWhatsapp(env.WHATSAPP_DESTINOS ?? ''), ...rotasDoWhatsapp(env.WHATSAPP_ROTAS) },
     social: { ativo: ligado(env, 'SOCIAL_ATIVO', true) },
     instagram: {
       ativo: ligado(env, 'INSTAGRAM_ATIVO', false),

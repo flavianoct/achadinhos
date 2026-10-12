@@ -76,6 +76,11 @@ export const CAMPOS: Campo[] = [
   { grupo: 'Nichos e canais', chave: 'NICHO_PALAVRAS_ESPORTE', rotulo: 'Palavras extras: Esportes', tipo: 'texto', padrao: '' },
 
   { grupo: 'WhatsApp', chave: 'WHATSAPP_ATIVO', rotulo: 'Preparar mensagens de WhatsApp', tipo: 'simnao', padrao: '1' },
+  { grupo: 'WhatsApp', chave: 'WHATSAPP_MAX_POR_HORA', rotulo: 'Máximo de mensagens por hora', tipo: 'numero', padrao: '10', ajuda: 'O enviador obedece (até 1 minuto). Mais rápido = mais risco de o WhatsApp barrar o número.' },
+  { grupo: 'WhatsApp', chave: 'WHATSAPP_ESPERA_MIN_SEG', rotulo: 'Espera mínima entre mensagens (s)', tipo: 'numero', padrao: '60', ajuda: 'Espera aleatória entre mínima e máxima, para não ter ritmo de robô.' },
+  { grupo: 'WhatsApp', chave: 'WHATSAPP_ESPERA_MAX_SEG', rotulo: 'Espera máxima entre mensagens (s)', tipo: 'numero', padrao: '150', ajuda: '' },
+  { grupo: 'WhatsApp', chave: 'WHATSAPP_IDADE_MAXIMA_MIN', rotulo: 'Idade máxima da oferta (min)', tipo: 'numero', padrao: '120', ajuda: 'Oferta mais velha que isso não é enviada (o preço pode ter mudado).' },
+  { grupo: 'WhatsApp', chave: 'WHATSAPP_MAIS_NOVA_PRIMEIRO', rotulo: 'Oferta mais nova primeiro', tipo: 'simnao', padrao: '1', ajuda: 'Se a fila acumular, o que acabou de chegar sai antes das velhas.' },
   { grupo: 'WhatsApp', chave: 'WHATSAPP_DESTINOS', rotulo: 'Canais e grupos gerais', tipo: 'texto', padrao: '', ajuda: 'Links https do WhatsApp separados por vírgula. Seguem o filtro do canal geral.' },
   { grupo: 'WhatsApp', chave: 'WHATSAPP_ROTAS', rotulo: 'Canais e grupos por nicho', tipo: 'texto', padrao: '', ajuda: 'nicho=link, separados por vírgula. Ex.: moda=https://chat.whatsapp.com/XXXX' },
 

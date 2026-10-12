@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import makeWASocket, { Browsers, DisconnectReason, fetchLatestBaileysVersion, useMultiFileAuthState } from '@whiskeysockets/baileys';
 import pino from 'pino';
 import qrcode from 'qrcode-terminal';
-import { destinoAceita, enderecosDaFoto, esperaAleatoria, podarEstado, podeEnviarAgora, selecionarPendentes, textoParaDestino, tipoDeDestino } from './logica.mjs';
+import { destinoAceita, enderecosDaFoto, esperaAleatoria, podarEstado, podeEnviarAgora, ritmoDoEnvio, selecionarPendentes, textoParaDestino, tipoDeDestino } from './logica.mjs';
 
 const aqui = dirname(fileURLToPath(import.meta.url));
 const CAMINHO_CONFIG = join(aqui, 'config.json');
@@ -351,8 +351,12 @@ async function buscarFila(config) {
   const r = await fetch(url, { signal: AbortSignal.timeout(20_000), cache: 'no-store' });
   if (!r.ok) throw new Error(`o site respondeu ${r.status}`);
   const dados = await r.json();
+  envioRemoto = dados.envio && typeof dados.envio === 'object' ? dados.envio : {};
   return Array.isArray(dados.mensagens) ? dados.mensagens : [];
 }
+
+/** O ritmo publicado pelo robô (whatsapp.json, "envio"): limite por hora, espera, idade máxima, horário e ordem. */
+let envioRemoto = {};
 
 async function rodar() {
   const config = lerConfig();
@@ -394,8 +398,9 @@ async function rodar() {
       if (sockAtual.aberto && agora - destinosEm > 10 * 60_000) await recarregarDestinos();
       estado = { ...estado, ...podarEstado(estado, agora) };
       const fila = await buscarFila(config);
-      const pendentes = selecionarPendentes(fila, estado.enviados, agora, (config.idadeMaximaMin ?? 180) * 60_000);
-      const regra = podeEnviarAgora({ agora, envios: estado.envios, maximoPorHora: config.maximoPorHora ?? 6, horaInicio: config.horaInicio ?? 8, horaFim: config.horaFim ?? 22 });
+      const ritmo = ritmoDoEnvio(config, envioRemoto);
+      const pendentes = selecionarPendentes(fila, estado.enviados, agora, ritmo.idadeMaximaMin * 60_000, ritmo.maisNovaPrimeiro);
+      const regra = podeEnviarAgora({ agora, envios: estado.envios, maximoPorHora: ritmo.maximoPorHora, horaInicio: ritmo.horaInicio, horaFim: ritmo.horaFim });
       // Sem conexão aberta não adianta tentar (e não gasta a mensagem): espera a reconexão automática.
       if (pendentes.length && regra.pode && !sockAtual.aberto) {
         log(`${pendentes.length} na fila, aguardando a conexão com o WhatsApp voltar…`);
@@ -411,7 +416,7 @@ async function rodar() {
         const m = pendentes[0];
         // Só os destinos do nicho da oferta (e os gerais, se o filtro do geral aceitar o nicho).
         const alvos = destinos.filter((d) => destinoAceita(d, m.categoria, filtroGeral));
-        log(`Enviando${m.categoria ? ` [${m.categoria}]` : ''} para ${alvos.length} destino(s): ${m.texto.split('\n')[0].slice(0, 70)}`);
+        log(`Enviando${m.categoria ? ` [${m.categoria}]` : ''} para ${alvos.length} destino(s), ${Math.round((Date.now() - m.criadoEm) / 60_000)} min depois de a oferta nascer: ${m.texto.split('\n')[0].slice(0, 70)}`);
         if (!alvos.length) {
           // Nenhum grupo ou canal recebe este nicho: marca como resolvida para não travar a fila.
           estado.enviados[m.id] = Date.now();
@@ -447,7 +452,7 @@ async function rodar() {
           log('  nenhum destino recebeu; pulei esta mensagem.');
         }
         salvarEstado(estado);
-        const espera = esperaAleatoria((config.esperaMinSeg ?? 90) * 1000, (config.esperaMaxSeg ?? 240) * 1000);
+        const espera = esperaAleatoria(ritmo.esperaMinSeg * 1000, ritmo.esperaMaxSeg * 1000);
         log(`Próxima em ${Math.round(espera / 1000)} s. Faltam ${pendentes.length - 1}.`);
         await pausa(espera);
         continue;

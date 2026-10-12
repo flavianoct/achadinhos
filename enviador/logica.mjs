@@ -6,12 +6,29 @@ export function horaEmBrasilia(data) {
   return Number(fmtHora.format(data));
 }
 
-/** Mensagens que ainda não foram enviadas e ainda valem (preço velho não é postado), da mais antiga para a mais nova. */
-export function selecionarPendentes(mensagens, enviados, agora, idadeMaximaMs) {
-  return mensagens
-    .filter((m) => m && m.id && m.texto && !(m.id in enviados))
-    .filter((m) => agora - m.criadoEm <= idadeMaximaMs)
-    .sort((a, b) => a.criadoEm - b.criadoEm);
+/**
+ * Mensagens que ainda não foram enviadas e ainda valem (preço velho não é postado). Por padrão da mais antiga para a mais nova;
+ * com `maisNovaPrimeiro`, a oferta mais fresca sai primeiro (se a fila acumulou, o que chega agora não espera atrás das velhas, que vencem sozinhas).
+ */
+export function selecionarPendentes(mensagens, enviados, agora, idadeMaximaMs, maisNovaPrimeiro = false) {
+  const lista = mensagens.filter((m) => m && m.id && m.texto && !(m.id in enviados)).filter((m) => agora - m.criadoEm <= idadeMaximaMs);
+  return lista.sort((a, b) => (maisNovaPrimeiro ? b.criadoEm - a.criadoEm : a.criadoEm - b.criadoEm));
+}
+
+/** O ritmo do enviador: o que o robô publicou em `envio` (whatsapp.json) vale mais que o config.json da VPS, que só cobre o que faltar. */
+export function ritmoDoEnvio(config = {}, remoto = {}) {
+  const numero = (v, padrao) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Number(v) : padrao);
+  const e = remoto && typeof remoto === 'object' ? remoto : {};
+  const esperaMinSeg = numero(e.esperaMinSeg, numero(config.esperaMinSeg, 90));
+  return {
+    maximoPorHora: numero(e.maximoPorHora, numero(config.maximoPorHora, 6)),
+    esperaMinSeg,
+    esperaMaxSeg: Math.max(esperaMinSeg, numero(e.esperaMaxSeg, numero(config.esperaMaxSeg, 240))),
+    idadeMaximaMin: numero(e.idadeMaximaMin, numero(config.idadeMaximaMin, 180)),
+    maisNovaPrimeiro: typeof e.maisNovaPrimeiro === 'boolean' ? e.maisNovaPrimeiro : config.maisNovaPrimeiro === true,
+    horaInicio: Number.isFinite(Number(e.horaInicio)) && e.horaInicio !== null ? Number(e.horaInicio) : (config.horaInicio ?? 8),
+    horaFim: Number.isFinite(Number(e.horaFim)) && e.horaFim !== null ? Number(e.horaFim) : (config.horaFim ?? 22),
+  };
 }
 
 /** Diz se pode enviar agora: dentro do horário e abaixo do limite por hora. */
