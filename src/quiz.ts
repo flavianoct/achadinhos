@@ -7,7 +7,7 @@ import { diaDe, horaDe, type Banco } from './db.ts';
 import { passaNoFiltroDoInstagram } from './instagram.ts';
 import { formatarPreco } from './mensagem.ts';
 import type { Efeito } from './musica.ts';
-import { duracaoTotal, ehVezDoQuiz, iniciosDasTelas, logo, moldura, montarVideo, texto } from './reel.ts';
+import { duracaoTotal, ehVezDoQuiz, iniciosDasTelas, moldura, montarVideo, texto } from './reel.ts';
 import { esc, MARCA } from './moldes.ts';
 import { criarSilhueta } from './silhueta.ts';
 import { baixarImagemComoDataUri, temWhatsapp, type Fetch } from './social.ts';
@@ -244,7 +244,7 @@ const seloDeMenorPreco = (o: OfertaAvaliada, x: number, y: number) =>
  * y=1500: a parte de baixo do Reel é coberta pela legenda e pelos botões do Instagram.
  */
 function moldeDaRodada(indice: number, total: number, pergunta: string, corpo: string, rodape = '', tamanho = 74): string {
-  return moldura(`<g transform="translate(0,60)">${logo(170)}${texto(255, `${indice + 1} DE ${total}`, 38, MARCA.suave, 700)}${texto(350, pergunta, tamanho, MARCA.amarelo, 900)}${corpo}</g>${rodape}`);
+  return moldura(`<g transform="translate(0,60)">${texto(255, `${indice + 1} DE ${total}`, 38, MARCA.suave, 700)}${texto(350, pergunta, tamanho, MARCA.amarelo, 900)}${corpo}</g>${rodape}`);
 }
 
 const AVISO_DE_PRECO = (y: number) => texto(y, 'Preço de hoje, pode mudar', 32, MARCA.suave, 500);
@@ -314,8 +314,7 @@ function telaDeAbertura(tipo: TipoDeQuiz, n: number): string {
         : ['PREÇO', 'CERTO?', `Você acerta o preço de ${n} achados?`, 'Escolha A, B ou C'];
   const tamanho = tipo === 'preco' ? 190 : tipo === 'sombra' ? 118 : 150;
   return moldura(
-    logo(300) +
-      texto(820, linha1, tamanho, MARCA.amarelo, 900) +
+    texto(820, linha1, tamanho, MARCA.amarelo, 900) +
       texto(1010, linha2, tamanho, MARCA.amarelo, 900) +
       `<rect x="270" y="1090" width="540" height="12" rx="6" fill="${MARCA.vermelho}" transform="rotate(-3 540 1096)"/>` +
       texto(1290, sub1, 56, MARCA.branco, 700) +
@@ -326,8 +325,7 @@ function telaDeAbertura(tipo: TipoDeQuiz, n: number): string {
 function telaDeFechamento(tipo: TipoDeQuiz, n: number): string {
   const [linha1, linha2, sub] = tipo === 'prefere' ? ['E VOCÊ,', 'QUAL ESCOLHE?', 'Comenta A ou B em cada duelo'] : ['QUANTOS VOCÊ', 'ACERTOU?', `Comenta aqui o seu placar (de 0 a ${n})`];
   return moldura(
-    logo(300) +
-      texto(700, linha1, 100, MARCA.branco, 900) +
+    texto(700, linha1, 100, MARCA.branco, 900) +
       texto(820, linha2, tipo === 'prefere' ? 96 : 140, MARCA.amarelo, 900) +
       texto(950, sub, 46, MARCA.branco, 700) +
       `<rect x="140" y="1050" width="800" height="150" rx="40" fill="${MARCA.amarelo}"/>` +
