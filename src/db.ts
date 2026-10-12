@@ -399,6 +399,11 @@ export class Banco {
       .run(`${o.loja}:${o.idProduto}:${agora.getTime()}`, o.loja, texto, o.imagem ?? null, o.link, agora.getTime(), o.categoria ?? null);
   }
 
+  /** Quantas ofertas entraram na fila do WhatsApp nos últimos minutos minutos (uma rodada posta tudo em poucos segundos; as rodadas ficam a ~27 min uma da outra). */
+  whatsappNosUltimosMinutos(minutos: number, agora: Date): number {
+    return (this.db.prepare(`SELECT COUNT(*) AS n FROM whatsapp_saida WHERE criado_em >= ?`).get(agora.getTime() - minutos * 60_000) as { n: number }).n;
+  }
+
   /** Guarda a oferta postada para virar conteúdo de Stories e Reels. A arte é feita depois (precisa baixar a foto). */
   guardarParaSocial(o: OfertaAvaliada, agora: Date): void {
     this.db

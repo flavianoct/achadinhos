@@ -185,7 +185,9 @@ export async function postarProxima(publicador: Publicador, banco: Banco, config
   banco.registrarPost(oferta, agora, canais[0] ?? 'whatsapp');
   // A mesma oferta que saiu no Telegram também vira mensagem de WhatsApp (o enviador do PC é quem posta e escolhe os
   // grupos e canais pelo nicho dela).
-  if (config.whatsapp.ativo) banco.guardarParaWhatsapp(oferta, montarMensagemWhatsapp(oferta, rodapeDoWhatsapp(config)), agora);
+  // O WhatsApp (chip do dono, sem API oficial) recebe só as melhores de cada rodada (WHATSAPP_POR_RODADA); o Telegram posta todas.
+  const cabeNoWhatsapp = config.whatsapp.porRodada <= 0 || banco.whatsappNosUltimosMinutos(20, agora) < config.whatsapp.porRodada;
+  if (config.whatsapp.ativo && cabeNoWhatsapp) banco.guardarParaWhatsapp(oferta, montarMensagemWhatsapp(oferta, rodapeDoWhatsapp(config)), agora);
   if (config.social.ativo) banco.guardarParaSocial(oferta, agora);
   banco.removerDaFila(oferta.loja, oferta.idProduto);
   return { postou: true, oferta, canais, avisos };

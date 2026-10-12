@@ -74,3 +74,15 @@ export function enderecosDaFoto(url) {
   const jpg = /mlstatic\.com\/.+\.webp(\?|$)/i.test(url) ? url.replace(/\.webp(\?|$)/i, '.jpg$1') : undefined;
   return jpg ? [jpg, url] : [url];
 }
+
+/**
+ * O texto da mensagem para um destino. O convite traz `textos` ({ canal, grupo }): o canal convida para o outro canal e o grupo convida
+ * para os dois. Mensagem sem `textos` (ofertas, ou convite de um robô antigo) usa `texto`.
+ */
+export function textoParaDestino(m, jid) {
+  if (m?.textos) {
+    const t = String(jid ?? '').endsWith('@g.us') ? m.textos.grupo : m.textos.canal;
+    if (t) return t;
+  }
+  return m.texto;
+}

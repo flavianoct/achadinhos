@@ -7,11 +7,12 @@ import { publicarControle, type DadosDaRodada } from './exportar.ts';
 import { gravarPngsDoCarrossel, prepararCarrossel } from './carrossel.ts';
 import { publicarNoInstagram } from './instagram.ts';
 import { type Alerta, chaveDoAviso } from './alertas.ts';
+import { gravarQuiz, prepararQuiz } from './quiz.ts';
 import { gravarReel, prepararReel } from './reel.ts';
 import { gravarPngs, prepararSocial } from './social.ts';
 import { gravarBio } from './bio.ts';
 import { PublicadorDeTeste } from './telegram.ts';
-import { gravarResumoDoDia } from './vitrine.ts';
+import { gravarDataEspecial, gravarResumoDoDia } from './vitrine.ts';
 
 const pausa = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -110,7 +111,10 @@ async function modoNuvem(): Promise<void> {
 
     let postados = 0;
     let motivoDaParada = '';
-    for (let i = 0; i < robo.config.ritmo.postsPorRodada; i++) {
+    // Em data grande (10.10, Black Friday...), mais posts por rodada no Telegram (DATAS_POSTS_EXTRA).
+    const postsDaRodada = robo.config.ritmo.postsPorRodada + robo.postsExtraDeHoje();
+    if (postsDaRodada > robo.config.ritmo.postsPorRodada) dizer(`- Data grande hoje: ${postsDaRodada} posts nesta rodada (o normal são ${robo.config.ritmo.postsPorRodada}).`);
+    for (let i = 0; i < postsDaRodada; i++) {
       if (i > 0) await pausa(3000);
       const r = await robo.postarAgora();
       if (!r.postou) {
@@ -126,8 +130,13 @@ async function modoNuvem(): Promise<void> {
       avisar(chaveDoAviso('rotas', aviso), aviso);
     }
     const convite = await robo.postarConviteAgora();
-    if (convite.postou) dizer('- Convite para o canal do WhatsApp postado no Telegram.');
+    if (convite.postou) dizer('- Convite para os canais postado no Telegram.');
     else if (convite.motivo && !/fora do dia|já postado|Telegram não configurado/.test(convite.motivo)) avisar('convite:erro', `Não consegui postar o convite aos outros canais: ${convite.motivo}`);
+    // Datas especiais (10.10, Black Friday...): aviso no Telegram e lembretes para o dono (só no painel).
+    const data = await robo.postarDataEspecialAgora();
+    if (data.postou) dizer('- Aviso de data especial postado no Telegram.');
+    else if (data.motivo && !/desligado|fora do horário|nenhuma data|Telegram não configurado/.test(data.motivo)) avisar('datas:erro', `Não consegui postar o aviso da data especial: ${data.motivo}`);
+    for (const a of data.avisos) avisar(a.chave, a.texto);
     if (motivoDaParada === 'fila vazia') avisar('fila:vazia', 'A fila de ofertas está vazia: não há o que postar até a próxima coleta trazer ofertas aprovadas.');
     else if (motivoDaParada.startsWith('erro')) avisar('telegram:erro', `Falha ao postar no Telegram (${motivoDaParada})`, 'erro');
     rodada.postados = postados;
@@ -184,13 +193,16 @@ async function modoNuvem(): Promise<void> {
     await gravarPngsDoCarrossel(robo.banco, robo.config, new Date());
     // Reel do dia (vídeo com trilha): montado numa rodada, publicado na seguinte (e dentro das horas dos Reels).
     if (await prepararReel(robo.banco, robo.config, new Date())) dizer('- Instagram: Reel do dia preparado; sai quando o vídeo estiver no ar e na hora certa.');
-    const avisoDoReel = await gravarReel(robo.banco, robo.config, new Date());
+    if (await prepararQuiz(robo.banco, robo.config, new Date())) dizer('- Instagram: quiz "Preço certo" preparado; sai quando o vídeo estiver no ar e na hora certa.');
+    const avisoDoReel = (await gravarReel(robo.banco, robo.config, new Date())) ?? (await gravarQuiz(robo.banco, robo.config, new Date()));
     if (avisoDoReel) {
       dizer(`- Aviso do Instagram: ${avisoDoReel}`);
       avisar(chaveDoAviso('reel', avisoDoReel), avisoDoReel);
     }
     // Story "Hoje no grupo" (a vitrine do grupo): gravado a partir de uma hora antes da hora do resumo.
     await gravarResumoDoDia(robo.banco, robo.config, new Date());
+    // Story da data grande de hoje (10.10, Black Friday...): gravado a partir de uma hora antes da hora dele.
+    await gravarDataEspecial(robo.banco, robo.config, new Date());
     const ig = await publicarNoInstagram(robo.banco, robo.config, new Date());
     if (robo.config.instagram.ativo) dizer(`- Instagram: ${ig.feed} posts de feed, ${ig.stories} stories e ${ig.reels} reels publicados.`);
     for (const a of ig.avisos) {

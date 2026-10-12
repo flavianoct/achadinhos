@@ -2,12 +2,12 @@ name: Robô de ofertas
 
 on:
   schedule:
-    # A cada meia hora, só no horário de postagem: 8h às 23h em Brasília = 11h às 2h59 UTC.
+    # A cada meia hora, só no horário de postagem: 7h às 23h em Brasília = 10h às 2h59 UTC.
     # Se mudar HORA_INICIO ou HORA_FIM em ajustes.env, ajuste as horas aqui também.
-    - cron: '7,37 11-23,0-2 * * *'
+    - cron: '7,37 10-23,0-2 * * *'
     # Reforço da manhã: o agendador do GitHub às vezes atrasa ou pula disparos, e a primeira rodada do dia
     # chegou a sair 2 horas depois das 8h. Estes disparos extras só valem se ainda não houver rodada em andamento.
-    - cron: '17,27,47,57 11 * * *'
+    - cron: '17,27,47,57 10 * * *'
   # Permite rodar na hora pelo botão "Run workflow" da aba Actions.
   workflow_dispatch:
 

@@ -1,12 +1,15 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { gerarBlog, modelosDoOllama, pedirAoGemini, pedirAoGitHub, type ResultadoDoBlog } from './blog.ts';
 import { lerArquivoEnv, lerConfig, problemasDeConfig, problemasDoBlog, salvarNoEnv, type Config, type Env } from './config.ts';
-import { Banco, horaDe } from './db.ts';
+import { Banco, diaDe, horaDe } from './db.ts';
 import { FonteAmazon } from './fontes/amazon.ts';
 import { FonteMercadoLivre } from './fontes/mercadolivre.ts';
 import { FonteMercadoLivreApi } from './fontes/mercadolivre-api.ts';
 import { FonteShopee } from './fontes/shopee.ts';
 import { convitesDeHoje } from './convite.ts';
+import { carregarCampanhas, chaveDaFase, fasesDevidas, grandesDeHoje, lembretesDoDono, lerDatas, textoDaData, textoDosMelhores, todasAsCampanhas } from './datas.ts';
+import { escolherParaCarrossel } from './carrossel.ts';
+import { linkAfiliadoML } from './fontes/mercadolivre.ts';
 import { chaveDoCupom, lerCupons } from './cupons.ts';
 import { garimparCupons, type ResultadoDoGarimpo } from './garimpo-cupons.ts';
 import { buscarCampanhas, buscarVendas } from './shopee-extra.ts';
@@ -141,7 +144,9 @@ export class Robo {
     return this.emSerie(async () => {
       this.postEm = agora.getTime();
       if (!this.publicador) return { postou: false, motivo: 'erro', detalhe: 'Telegram não configurado' } as ResultadoDoPost;
-      const config: Config = forcar ? { ...this.config, ritmo: { ...this.config.ritmo, horaInicio: 0, horaFim: 24, maxPostsPorDia: Number.MAX_SAFE_INTEGER } } : this.config;
+      // Em data grande, o limite do dia sobe junto com os posts extras (uns 35 por extra, o número de rodadas do dia).
+      const extra = forcar ? 0 : this.postsExtraDeHoje(agora);
+      const config: Config = forcar ? { ...this.config, ritmo: { ...this.config.ritmo, horaInicio: 0, horaFim: 24, maxPostsPorDia: Number.MAX_SAFE_INTEGER } } : extra ? { ...this.config, ritmo: { ...this.config.ritmo, maxPostsPorDia: this.config.ritmo.maxPostsPorDia + extra * 35 } } : this.config;
       const r = await postarProxima(this.publicador, this.banco, config, agora, this.descartes);
       if (r.postou) {
         const destino = Object.keys(this.config.rotas.porCategoria).length ? ` [${r.oferta.categoria} → ${r.canais.join(' + ')}]` : '';
@@ -171,26 +176,87 @@ export class Robo {
   }
 
   /**
-   * Convite para o canal do WhatsApp no canal geral do Telegram: CONVITES_POR_DIA por dia, em horários sorteados, um por rodada no máximo.
+   * Convite para o canal do WhatsApp, postado no canal geral do Telegram: CONVITES_POR_DIA por dia, em horários sorteados, um por rodada no máximo.
    * Cada convite sai uma vez só (fica registrado por dia e número).
    */
   postarConviteAgora(agora: Date = new Date()): Promise<{ postou: boolean; motivo?: string }> {
     return this.emSerie(async () => {
-      const devidos = convitesDeHoje(this.config, agora).filter((c) => c.textoTelegram);
+      const devidos = convitesDeHoje(this.config, agora);
       if (!devidos.length) return { postou: false, motivo: 'fora do dia ou da hora do convite' };
       if (!this.publicador?.publicarTexto) return { postou: false, motivo: 'Telegram não configurado' };
-      const convite = devidos.find((c) => !this.banco.convitePostado(`telegram:${c.numero}`, c.dia));
+      // Só convida para o canal do WhatsApp (nunca para o próprio Telegram); sem o link dele, não há convite no Telegram.
+      const convite = devidos.find((c) => c.textos.telegram && !this.banco.convitePostado(`telegram:${c.numero}`, c.dia));
       if (!convite) return { postou: false, motivo: 'já postado hoje' };
       try {
-        await this.publicador.publicarTexto(convite.textoTelegram);
+        await this.publicador.publicarTexto(convite.textos.telegram);
       } catch (e) {
         this.log(`ERRO ao postar o convite: ${(e as Error).message}`);
         return { postou: false, motivo: (e as Error).message };
       }
       this.banco.marcarConvitePostado(`telegram:${convite.numero}`, convite.dia, agora);
-      this.log(`convite para o canal do WhatsApp postado no Telegram (${convite.numero + 1} do dia)`);
+      this.log(`convite para os canais postado no Telegram (${convite.numero + 1} do dia)`);
       return { postou: true };
     });
+  }
+
+  /**
+   * Datas especiais (10.10, Black Friday, Dia das Mães...): na véspera à noite, na abertura e nas últimas horas, um aviso curto no Telegram
+   * (no máximo um por rodada, cada um uma vez só). Devolve também os lembretes e os erros do datas.json, que vão só para o painel do dono.
+   */
+  postarDataEspecialAgora(agora: Date = new Date()): Promise<{ postou: boolean; motivo?: string; avisos: Array<{ chave: string; texto: string }> }> {
+    return this.emSerie(async () => {
+      const cfg = this.config.datas;
+      if (!cfg.ativo) return { postou: false, motivo: 'desligado', avisos: [] };
+      const lido = lerDatas(existsSync(cfg.arquivo) ? readFileSync(cfg.arquivo, 'utf8') : '');
+      const hoje = diaDe(agora);
+      const campanhas = todasAsCampanhas(hoje, lido.datas);
+      const avisos = [...lido.avisos.map((texto) => ({ chave: `datas:arquivo:${texto.slice(0, 60)}`, texto })), ...lembretesDoDono(campanhas, hoje, cfg.avisoDias)];
+      if (!this.publicador?.publicarTexto) return { postou: false, motivo: 'Telegram não configurado', avisos };
+      const hora = horaDe(agora);
+      if (hora < this.config.ritmo.horaInicio || hora >= this.config.ritmo.horaFim) return { postou: false, motivo: 'fora do horário', avisos };
+      const devidas = campanhas
+        .flatMap((c) => fasesDevidas(c, hoje, hora).map((fase) => ({ c, fase })))
+        .filter(({ c, fase }) => !this.banco.convitePostado(chaveDaFase(c, fase), c.inicio));
+      if (!devidas.length) return { postou: false, motivo: 'nenhuma data na hora', avisos };
+      // O primeiro aviso que dá para postar agora. A lista dos melhores achados espera produto bom e não segura os outros avisos do dia.
+      let pulou = '';
+      for (const { c, fase } of devidas) {
+        // O link do Mercado Livre é a página de ofertas com o código do dono (sempre abre); o da Shopee só vale se o dono colocou um em datas.json.
+        const { mattWord, mattTool } = this.config.ml;
+        const links = {
+          mercadolivre: c.mercadolivre ?? (this.config.ml.ativo && mattWord && mattTool ? linkAfiliadoML('https://www.mercadolivre.com.br/ofertas', mattWord, mattTool) : undefined),
+          shopee: c.shopee,
+        };
+        let texto: string;
+        if (fase === 'melhores') {
+          // A lista dos melhores achados: os mesmos critérios de qualidade do Instagram (nota, vendas, sem "genérico"), sem teto de preço, variando os assuntos.
+          const cfg5 = { ...this.config, instagram: { ...this.config.instagram, carrosselItens: 5, carrosselTetos: [Number.MAX_SAFE_INTEGER] } };
+          const escolha = escolherParaCarrossel(this.banco.melhoresProdutos({ horas: 36, limite: 150 }, agora), cfg5, agora);
+          if (!escolha || escolha.ordem.length < 3) {
+            pulou = 'poucos achados bons para a lista';
+            continue;
+          }
+          texto = textoDosMelhores(c, escolha.ordem.slice(0, 5));
+        } else texto = textoDaData(c, fase, links);
+        try {
+          await this.publicador.publicarTexto(texto);
+        } catch (e) {
+          this.log(`ERRO ao postar o aviso da data ${c.nome}: ${(e as Error).message}`);
+          return { postou: false, motivo: (e as Error).message, avisos };
+        }
+        this.banco.marcarConvitePostado(chaveDaFase(c, fase), c.inicio, agora);
+        this.log(`aviso da data postado no Telegram: ${c.nome} (${fase})`);
+        return { postou: true, avisos };
+      }
+      return { postou: false, motivo: pulou, avisos };
+    });
+  }
+
+  /** Quantos posts a mais por rodada valem hoje: nas datas grandes (10.10, Black Friday...), DATAS_POSTS_EXTRA. Só o Telegram; o WhatsApp segue o seu limite. */
+  postsExtraDeHoje(agora: Date = new Date()): number {
+    const d = this.config.datas;
+    if (!d.ativo || d.postsExtra <= 0) return 0;
+    return grandesDeHoje(carregarCampanhas(this.config, agora), diaDe(agora)).length ? d.postsExtra : 0;
   }
 
   /** Posta uma campanha da Shopee no canal geral (até CAMPANHAS_POR_DIA por dia). */

@@ -66,6 +66,10 @@ export interface Config {
   cupons: { ativo: boolean; arquivo: string; porDia: number; repetirDias: number; garimpo: boolean; lojas: string[]; bloquear: string[]; linkShopee: string; paginaShopee: string };
   /** Convite discreto aos outros canais (WhatsApp, Telegram, Instagram): poucas vezes, sem encher o canal. */
   convite: { ativo: boolean; porDia: number };
+  /** Quiz "Preço certo" nos Reels: o último Reel do dia (ou os últimos QUIZ_POR_DIA) vira um quiz. */
+  quiz: { ativo: boolean; lojas: string[]; porDia: number; dias: number[]; formatos: Array<'preco' | 'sombra' | 'prefere'> };
+  /** Datas especiais (10.10, Black Friday...): avisos no Telegram e lembretes para o dono. O datas.json do dono acrescenta ou ajusta datas. */
+  datas: { ativo: boolean; arquivo: string; avisoDias: number; postsExtra: number };
   /** Vendas e comissão da Shopee (conversionReport), lidas de tempos em tempos para o painel. */
   vendas: { ativo: boolean; horasEntreLeituras: number; dias: number };
   /** Campanhas da própria Shopee postadas no canal geral do Telegram. 0 = desligado. */
@@ -106,6 +110,8 @@ export interface Config {
   /** Mensagens de WhatsApp para o enviador do PC (ver pasta enviador/). */
   whatsapp: {
     ativo: boolean;
+    /** Máximo de ofertas que entram na fila do WhatsApp por rodada (WHATSAPP_POR_RODADA); as primeiras de cada rodada são as melhores. 0 = sem limite. O Telegram não é afetado. */
+    porRodada: number;
     /** Duas linhas no fim de cada oferta com o Telegram e o Instagram (WHATSAPP_RODAPE). */
     rodape: boolean;
     /** Canais e grupos gerais onde o enviador posta (links https do WhatsApp), de WHATSAPP_DESTINOS. Seguem o filtro do geral. */
@@ -117,7 +123,7 @@ export interface Config {
   /** Arte de Story, legenda e roteiro de vídeo das ofertas postadas (aparecem no painel). */
   social: { ativo: boolean };
   /** Publicação automática no Instagram (conta profissional). Token e ID ficam nos Secrets. */
-  instagram: { ativo: boolean; token: string; userId: string; feedPorDia: number; storiesPorDia: number; intervaloFeedMin: number; intervaloStoryMin: number; notaMinima: number; vendasMinimas: number; palavrasBloqueadas: string[]; carrosselPorDia: number; carrosselItens: number; carrosselTetos: number[]; dicasDias: number[]; horariosFeed: number[]; horariosStories: number[]; reelsPorDia: number; horariosReels: number[]; resumoHora: number; grupoDias: number[]; tokenData: string };
+  instagram: { ativo: boolean; token: string; userId: string; feedPorDia: number; storiesPorDia: number; intervaloFeedMin: number; intervaloStoryMin: number; notaMinima: number; vendasMinimas: number; palavrasBloqueadas: string[]; carrosselPorDia: number; carrosselItens: number; carrosselTetos: number[]; dicasDias: number[]; horariosFeed: number[]; horariosStories: number[]; reelsPorDia: number; horariosReels: number[]; resumoHora: number; dataHora: number; grupoDias: number[]; tokenData: string };
   painel: { porta: number };
 }
 
@@ -363,8 +369,21 @@ export function lerConfig(env: Env = process.env): Config {
       whatsappLink: linkDoWhatsapp(env.BLOG_WHATSAPP ?? ''),
       amazonArquivo: (env.BLOG_AMAZON_ARQUIVO ?? '').trim() || 'amazon.json',
     },
+    datas: { ativo: ligado(env, 'DATAS_ATIVO', true), arquivo: (env.DATAS_ARQUIVO ?? '').trim() || 'datas.json', avisoDias: Math.max(0, numero(env, 'DATAS_AVISO_DIAS', 3)), postsExtra: Math.max(0, numero(env, 'DATAS_POSTS_EXTRA', 2)) },
     convite: { ativo: ligado(env, 'CONVITE_ATIVO', false), porDia: Math.min(6, Math.max(0, numero(env, 'CONVITES_POR_DIA', 3))) },
-    whatsapp: { ativo: ligado(env, 'WHATSAPP_ATIVO', true), rodape: ligado(env, 'WHATSAPP_RODAPE', true), destinos: destinosDoWhatsapp(env.WHATSAPP_DESTINOS ?? ''), ...rotasDoWhatsapp(env.WHATSAPP_ROTAS) },
+    quiz: {
+      ativo: ligado(env, 'QUIZ_ATIVO', false),
+      // O preço é a estrela do quiz: por padrão só a Shopee, onde o preço vem direto da API (no Mercado Livre pela API ele pode diferir da página).
+      lojas: env.QUIZ_LOJAS === undefined ? ['shopee'] : lista(env.QUIZ_LOJAS).map((l) => l.toLowerCase()),
+      porDia: Math.min(4, Math.max(0, numero(env, 'QUIZ_POR_DIA', 1))),
+      dias: lista(env.QUIZ_DIAS === undefined ? '0,1,2,3,4,5,6' : env.QUIZ_DIAS).map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6),
+      // O formato de cada dia da semana (domingo a sábado): preco, sombra ("Que produto é esse?") ou prefere ("Qual você prefere?"). Valor inválido ou faltando = preco.
+      formatos: Array.from({ length: 7 }, (_, i) => {
+        const f = (lista(env.QUIZ_FORMATOS)[i] ?? 'preco').toLowerCase();
+        return f === 'sombra' || f === 'prefere' ? f : 'preco';
+      }),
+    },
+    whatsapp: { ativo: ligado(env, 'WHATSAPP_ATIVO', true), porRodada: numero(env, 'WHATSAPP_POR_RODADA', 0), rodape: ligado(env, 'WHATSAPP_RODAPE', true), destinos: destinosDoWhatsapp(env.WHATSAPP_DESTINOS ?? ''), ...rotasDoWhatsapp(env.WHATSAPP_ROTAS) },
     social: { ativo: ligado(env, 'SOCIAL_ATIVO', true) },
     instagram: {
       ativo: ligado(env, 'INSTAGRAM_ATIVO', false),
@@ -391,6 +410,7 @@ export function lerConfig(env: Env = process.env): Config {
       horariosReels: horas(env.INSTAGRAM_HORARIOS_REELS, [19, 20]),
       // Story "Hoje no grupo" (o resumo do que o grupo entregou no dia), uma vez por dia a partir desta hora. 0 desliga.
       resumoHora: numero(env, 'INSTAGRAM_RESUMO_HORA', 21),
+      dataHora: numero(env, 'INSTAGRAM_DATA_HORA', 10),
       // Dias da semana do carrossel "Por que entrar no grupo" (no máximo um por semana). Vazio = nunca. Padrão: segunda.
       grupoDias: lista(env.INSTAGRAM_GRUPO_DIAS === undefined ? '1' : env.INSTAGRAM_GRUPO_DIAS).map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6),
       palavrasBloqueadas: env.INSTAGRAM_PALAVRAS_BLOQUEADAS === undefined ? ['generico', 'paralelo', 'similar', 'replica', 'imitacao', 'sem marca', 'inspirado', 'primeira linha'] : lista(env.INSTAGRAM_PALAVRAS_BLOQUEADAS),

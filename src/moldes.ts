@@ -396,6 +396,27 @@ ${marca(540, 1760, 48, 'centro')}`;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920" font-family="${FONTE}">\n${corpo}\n</svg>`;
 }
 
+export interface DadosDaDataEspecial {
+  nome: string;
+  /** Data de um dia só ("HOJE É 10.10") ou período ("ESTÁ NO AR: SEMANA DO DIA DAS MÃES"). */
+  umDia: boolean;
+}
+
+/** Story da data grande (1080x1920): o nome da data, a promessa de que as ofertas saem no grupo e a faixa de entrada. Só a marca Mata Preço e texto: sem preço, sem foto de produto, sem logo nem nome de loja (direito autoral) e sem emoji (a fonte da arte não os desenha). */
+export function svgDaDataEspecial(d: DadosDaDataEspecial): string {
+  const titulo = perguntaGrande(d.nome.toUpperCase(), 470, 170);
+  const yFim = 470 + titulo.altura;
+  const corpo = `${fundo(1080, 1920)}
+${texto(540, 400, 66, MARCA.branco, d.umDia ? 'HOJE É' : 'ESTÁ NO AR')}
+${titulo.svg}
+${texto(540, yFim + 110, 46, MARCA.branco, 'As melhores ofertas saem no grupo,')}
+${texto(540, yFim + 170, 46, MARCA.branco, 'uma por uma.')}
+${aviso(Y_FAIXA_DO_STORY - 25, 28)}
+${faixaEntre(Y_FAIXA_DO_STORY, STORY_BASE_SEGURA - Y_FAIXA_DO_STORY, 64)}
+${marca(540, 1760, 48, 'centro')}`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920" font-family="${FONTE}">\n${corpo}\n</svg>`;
+}
+
 export interface DadosDaApresentacao {
   /** Achados separados nos últimos 7 dias. */
   achadosNaSemana: number;
