@@ -72,6 +72,24 @@ function forma(onda: Onda, fase: number): number {
   }
 }
 
+/** Coloca o cabeçalho WAV (PCM, estéreo, 16 bits) nas amostras. */
+function empacotarWav(dados: Buffer): Buffer {
+  const cab = Buffer.alloc(44);
+  cab.write('RIFF', 0);
+  cab.writeUInt32LE(36 + dados.length, 4);
+  cab.write('WAVEfmt ', 8);
+  cab.writeUInt32LE(16, 16);
+  cab.writeUInt16LE(1, 20); // PCM
+  cab.writeUInt16LE(2, 22); // estéreo
+  cab.writeUInt32LE(TAXA, 24);
+  cab.writeUInt32LE(TAXA * 4, 28);
+  cab.writeUInt16LE(4, 32);
+  cab.writeUInt16LE(16, 34);
+  cab.write('data', 36);
+  cab.writeUInt32LE(dados.length, 40);
+  return Buffer.concat([cab, dados]);
+}
+
 /** Gera a trilha em WAV estéreo de 16 bits. O volume já vem moderado, para ficar por trás de uma voz. `estilo` escolhe a variação (0 = a original). */
 export function sintetizarMusica(segundos: number, estilo = 0): Buffer {
   const e = ESTILOS[((Math.floor(estilo) % ESTILOS.length) + ESTILOS.length) % ESTILOS.length]!;
@@ -113,18 +131,43 @@ export function sintetizarMusica(segundos: number, estilo = 0): Buffer {
     dados.writeInt16LE(Math.round(amostra), i * 4);
     dados.writeInt16LE(Math.round(amostra), i * 4 + 2);
   }
-  const cab = Buffer.alloc(44);
-  cab.write('RIFF', 0);
-  cab.writeUInt32LE(36 + dados.length, 4);
-  cab.write('WAVEfmt ', 8);
-  cab.writeUInt32LE(16, 16);
-  cab.writeUInt16LE(1, 20); // PCM
-  cab.writeUInt16LE(2, 22); // estéreo
-  cab.writeUInt32LE(TAXA, 24);
-  cab.writeUInt32LE(TAXA * 4, 28);
-  cab.writeUInt16LE(4, 32);
-  cab.writeUInt16LE(16, 34);
-  cab.write('data', 36);
-  cab.writeUInt32LE(dados.length, 40);
-  return Buffer.concat([cab, dados]);
+  return empacotarWav(dados);
+}
+
+/** Um efeito sonoro do quiz, em segundos desde o início do vídeo: o tique e o taque da contagem e o "ding" da revelação. */
+export interface Efeito {
+  t: number;
+  tipo: 'tic' | 'tac' | 'ding';
+}
+
+/**
+ * Efeitos do quiz sintetizados em código (como a trilha, sem gravação de ninguém): "tic" e "tac" são cliques curtos de dois tons
+ * (o relógio), e o "ding" é um sino de duas parciais que demora a sumir. Devolve um WAV estéreo com silêncio entre os efeitos.
+ */
+export function sintetizarEfeitos(segundos: number, eventos: Efeito[]): Buffer {
+  const total = Math.round(segundos * TAXA);
+  const mix = new Float32Array(total);
+  for (const ev of eventos) {
+    const inicio = Math.round(ev.t * TAXA);
+    const duracao = ev.tipo === 'ding' ? 1.1 : 0.09;
+    const n = Math.round(duracao * TAXA);
+    for (let k = 0; k < n && inicio + k < total; k++) {
+      const x = k / TAXA;
+      let v: number;
+      if (ev.tipo === 'ding') {
+        v = (Math.sin(2 * Math.PI * 1318.5 * x) * 0.6 + Math.sin(2 * Math.PI * 1975.5 * x) * 0.3 + Math.sin(2 * Math.PI * 2637 * x) * 0.1) * Math.exp(-4.2 * x) * 0.55;
+      } else {
+        const f = ev.tipo === 'tic' ? 1800 : 1250;
+        v = (Math.sin(2 * Math.PI * f * x) * 0.8 + ruido(k) * 0.2) * Math.exp(-55 * x) * 0.6;
+      }
+      mix[inicio + k]! += v;
+    }
+  }
+  const dados = Buffer.alloc(total * 4);
+  for (let i = 0; i < total; i++) {
+    const amostra = Math.max(-1, Math.min(1, Math.tanh(mix[i]! * 1.2))) * 32767;
+    dados.writeInt16LE(Math.round(amostra), i * 4);
+    dados.writeInt16LE(Math.round(amostra), i * 4 + 2);
+  }
+  return empacotarWav(dados);
 }

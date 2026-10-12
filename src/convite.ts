@@ -67,7 +67,7 @@ export function saudacaoDaHora(hora: number): string {
 }
 
 /** Gerador pseudoaleatório pequeno e determinístico (mulberry32): o mesmo dia sorteia sempre os mesmos horários. */
-function sorteio(semente: string): () => number {
+export function sorteio(semente: string): () => number {
   let h = 1779033703;
   for (let i = 0; i < semente.length; i++) h = Math.imul(h ^ semente.charCodeAt(i), 3432918353), (h = (h << 13) | (h >>> 19));
   let a = h >>> 0;
