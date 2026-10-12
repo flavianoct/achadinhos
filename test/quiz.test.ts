@@ -8,7 +8,7 @@ import { lerConfig } from '../src/config.ts';
 import { Banco } from '../src/db.ts';
 import { Instagram, publicarNoInstagram } from '../src/instagram.ts';
 import { sintetizarEfeitos } from '../src/musica.ts';
-import { duracaoDoQuiz, gravarQuiz, legendaDoQuiz, opcoesDePreco, prepararQuiz, telasDoQuiz, type DadosDoQuiz } from '../src/quiz.ts';
+import { duracaoDoQuiz, gravarQuiz, legendaDoQuiz, legendaParaTikTokEShorts, opcoesDePreco, prepararQuiz, telasDoQuiz, type DadosDoQuiz } from '../src/quiz.ts';
 import { arquivoDoReel, ehVezDoQuiz, prepararReel } from '../src/reel.ts';
 import type { OfertaAvaliada } from '../src/types.ts';
 
@@ -151,6 +151,56 @@ test('quiz: o Instagram publica o quiz como Reel, com a legenda do quiz, e conta
   assert.ok(criar.corpo.get('video_url')!.endsWith(`/social/${arquivoDoReel('quiz-2026-10-12')}`));
   assert.match(criar.corpo.get('caption')!, /^🎯 Preço certo/);
   assert.equal(banco.reelsPublicadosNoDia(AGORA), 1);
+});
+
+test('quiz: com QUIZ_ENVIAR_PARA, o vídeo pronto e a legenda do TikTok/Shorts vão para o Telegram privado do dono (e só o quiz, uma vez)', async () => {
+  const banco = bancoComProdutos();
+  const config = lerConfig({ ...base, INSTAGRAM_REELS_POR_DIA: '1', TELEGRAM_BOT_TOKEN: 'bot-tok', TELEGRAM_CHAT_ID: '@canal', QUIZ_ENVIAR_PARA: '123456789' });
+  assert.equal(config.quiz.enviarPara, '123456789');
+  assert.equal(lerConfig({ ...base, QUIZ_ENVIAR_PARA: '@alguem' }).quiz.enviarPara, '', 'só ID numérico vale');
+  await prepararQuiz(banco, config, AGORA, foto);
+  const telegram: Array<{ url: string; corpo: any }> = [];
+  const f = (async (url: string, init: any = {}) => {
+    const u = String(url);
+    if (u.includes('api.telegram.org')) {
+      telegram.push({ url: u, corpo: JSON.parse(String(init.body)) });
+      return new Response(JSON.stringify({ ok: true, result: {} }));
+    }
+    if (init.method === 'HEAD') return new Response(null, { status: 200 });
+    if (u.includes('/media_publish')) return new Response(JSON.stringify({ id: 'p1' }));
+    if (u.includes('/media')) return new Response(JSON.stringify({ id: 'c1' }));
+    return new Response(JSON.stringify({ status_code: 'FINISHED' }));
+  }) as unknown as typeof fetch;
+  const r = await publicarNoInstagram(banco, config, AGORA, f, new Instagram('t', '1', f, 0));
+  assert.equal(r.reels, 1);
+  assert.doesNotMatch(r.avisos.join(' '), /Quiz:/);
+  assert.equal(telegram.length, 1);
+  assert.match(telegram[0]!.url, /\/botbot-tok\/sendVideo$/);
+  assert.equal(telegram[0]!.corpo.chat_id, '123456789');
+  assert.ok(telegram[0]!.corpo.video.endsWith(`/social/${arquivoDoReel('quiz-2026-10-12')}`));
+  assert.match(telegram[0]!.corpo.caption, /#fyp #shorts/);
+  assert.ok(telegram[0]!.corpo.caption.length <= 1024);
+  await publicarNoInstagram(banco, config, AGORA, f, new Instagram('t', '1', f, 0));
+  assert.equal(telegram.length, 1, 'não repete');
+
+  // Sem o ajuste, nada vai para o Telegram.
+  const banco2 = bancoComProdutos();
+  const sem = lerConfig({ ...base, INSTAGRAM_REELS_POR_DIA: '1', TELEGRAM_BOT_TOKEN: 'bot-tok', TELEGRAM_CHAT_ID: '@canal' });
+  await prepararQuiz(banco2, sem, AGORA, foto);
+  telegram.length = 0;
+  await publicarNoInstagram(banco2, sem, AGORA, f, new Instagram('t', '1', f, 0));
+  assert.equal(telegram.length, 0);
+});
+
+test('quiz: a legenda do TikTok e dos Shorts é curta, pede o placar e não lista os produtos', async () => {
+  const banco = bancoComProdutos();
+  await prepararQuiz(banco, lerConfig({ ...base, INSTAGRAM_REELS_POR_DIA: '1' }), AGORA, foto);
+  const dados = JSON.parse(banco.reelPendente(AGORA)!.dados) as DadosDoQuiz;
+  const legenda = legendaParaTikTokEShorts(dados);
+  assert.match(legenda, /Comenta o placar/);
+  assert.match(legenda, /link na bio/);
+  assert.ok(legenda.length < 400);
+  assert.doesNotMatch(legenda, /Produto Bom/);
 });
 
 test('quiz: efeitos sonoros são um WAV válido, com som nos instantes certos e silêncio entre eles', () => {
