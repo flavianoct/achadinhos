@@ -89,6 +89,12 @@ test('whatsapp.json: leva o ritmo do enviador definido no ajustes.env', async ()
   const { lerConfig } = await import('../src/config.ts');
   const { montarWhatsapp } = await import('../src/exportar.ts');
   const w = montarWhatsapp(lerConfig({ WHATSAPP_MAX_POR_HORA: '12', WHATSAPP_ESPERA_MIN_SEG: '45', WHATSAPP_ESPERA_MAX_SEG: '100', WHATSAPP_MAIS_NOVA_PRIMEIRO: '0', HORA_INICIO: '7', HORA_FIM: '23' }), [], new Date(AGORA));
-  assert.deepEqual(w.envio, { maximoPorHora: 12, esperaMinSeg: 45, esperaMaxSeg: 100, idadeMaximaMin: 120, maisNovaPrimeiro: false, horaInicio: 7, horaFim: 23 });
+  assert.deepEqual(w.envio, { maximoPorHora: 12, esperaMinSeg: 45, esperaMaxSeg: 100, idadeMaximaMin: 45, maisNovaPrimeiro: false, horaInicio: 7, horaFim: 23 });
   assert.equal(montarWhatsapp(lerConfig({}), [], new Date(AGORA)).envio.maximoPorHora, 10);
+});
+
+test('enviador: oferta velha é descartada, mas o convite vale 3 h', async () => {
+  const { selecionarPendentes } = await import('../enviador/logica.mjs');
+  const msgs = [{ id: 'velha', texto: 'x', criadoEm: AGORA - 60 * 60_000 }, { id: 'nova', texto: 'x', criadoEm: AGORA - 10 * 60_000 }, { id: 'convite', loja: 'convite', texto: 'x', criadoEm: AGORA - 100 * 60_000 }];
+  assert.deepEqual(selecionarPendentes(msgs, {}, AGORA, 45 * 60_000, true).map((m: any) => m.id), ['nova', 'convite']);
 });
