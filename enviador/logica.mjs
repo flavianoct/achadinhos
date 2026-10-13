@@ -7,11 +7,11 @@ export function horaEmBrasilia(data) {
 }
 
 /**
- * Mensagens que ainda não foram enviadas e ainda valem (preço velho não é postado). Por padrão da mais antiga para a mais nova;
+ * Mensagens que ainda não foram enviadas e ainda valem (preço velho não é postado: oferta mais velha que a idade máxima é descartada; o convite tem 3 h). Por padrão da mais antiga para a mais nova;
  * com `maisNovaPrimeiro`, a oferta mais fresca sai primeiro (se a fila acumulou, o que chega agora não espera atrás das velhas, que vencem sozinhas).
  */
 export function selecionarPendentes(mensagens, enviados, agora, idadeMaximaMs, maisNovaPrimeiro = false) {
-  const lista = mensagens.filter((m) => m && m.id && m.texto && !(m.id in enviados)).filter((m) => agora - m.criadoEm <= idadeMaximaMs);
+  const lista = mensagens.filter((m) => m && m.id && m.texto && !(m.id in enviados)).filter((m) => agora - m.criadoEm <= (m.loja === 'convite' ? Math.max(idadeMaximaMs, 3 * 3_600_000) : idadeMaximaMs));
   return lista.sort((a, b) => (maisNovaPrimeiro ? b.criadoEm - a.criadoEm : a.criadoEm - b.criadoEm));
 }
 
