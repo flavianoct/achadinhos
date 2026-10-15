@@ -34,7 +34,14 @@ export const CAMPOS: Campo[] = [
   { grupo: 'Instagram', chave: 'QUIZ_ATIVO', rotulo: 'Quiz "Preço certo" nos Reels', tipo: 'simnao', padrao: '0', ajuda: 'O último Reel do dia vira um quiz de preço (3 produtos, A/B/C, contagem e revelação).' },
   { grupo: 'Instagram', chave: 'QUIZ_LOJAS', rotulo: 'Lojas do quiz', tipo: 'texto', padrao: 'shopee', ajuda: 'shopee, mercadolivre ou as duas. Só a Shopee por padrão: o preço dela vem direto da API.' },
   { grupo: 'Instagram', chave: 'QUIZ_FORMATOS', rotulo: 'Formato do quiz por dia da semana', tipo: 'texto', padrao: 'preco,preco,preco,preco,preco,preco,preco', ajuda: 'Domingo a sábado: preco, sombra ou prefere. Ex.: preco,sombra,preco,prefere,preco,sombra,prefere' },
+  { grupo: 'Instagram', chave: 'QUIZ_ENVIAR_PARA', rotulo: 'Enviar o quiz para o meu Telegram (TikTok e Shorts)', tipo: 'texto', padrao: '', ajuda: 'Seu ID numérico no Telegram (pergunte ao @userinfobot e mande /start para o seu bot). O vídeo pronto chega lá com a legenda.' },
   { grupo: 'Instagram', chave: 'QUIZ_POR_DIA', rotulo: 'Quizzes por dia', tipo: 'numero', padrao: '1', ajuda: 'Quantos dos Reels do dia viram quiz (os últimos).' },
+  { grupo: 'Pinterest', chave: 'PINTEREST_ATIVO', rotulo: 'Gerar pins do Pinterest', tipo: 'simnao', padrao: '1', ajuda: 'Gera pins 2:3 (produto, lista, benefícios, dica, quiz, silhueta) e a página /pinterest.html para salvar.' },
+  { grupo: 'Pinterest', chave: 'PINTEREST_PINS_POR_DIA', rotulo: 'Pins por dia', tipo: 'numero', padrao: '5', ajuda: 'O Pinterest gosta de pins novos todo dia: de 3 a 5 é um bom ritmo.' },
+  { grupo: 'Pinterest', chave: 'PINTEREST_BOARD_ID', rotulo: 'ID do quadro (API)', tipo: 'texto', padrao: '', ajuda: 'Número do quadro onde publicar pela API. Precisa também do Secret PINTEREST_TOKEN. Vazio = só gera os arquivos.' },
+  { grupo: 'Pinterest', chave: 'PINTEREST_QUADRO', rotulo: 'Nome do quadro (planilha)', tipo: 'texto', padrao: 'Achadinhos e ofertas do dia', ajuda: 'Usado na planilha de envio em massa.' },
+  { grupo: 'Pinterest', chave: 'PINTEREST_VERIFICACAO', rotulo: 'Código de verificação do site', tipo: 'texto', padrao: '', ajuda: 'O content da meta tag p:domain_verify, para reivindicar o site e usar o feed RSS.' },
+  { grupo: 'Pinterest', chave: 'PINTEREST_SANDBOX', rotulo: 'Usar o ambiente de testes', tipo: 'simnao', padrao: '0', ajuda: 'Ligue enquanto o app do Pinterest está só com acesso de teste.' },
   { grupo: 'Mercado Livre', chave: 'ML_API_CATEGORIAS_POR_RODADA', rotulo: 'Categorias lidas pela API por rodada', tipo: 'numero', padrao: '6', ajuda: 'A API lê as categorias abaixo e as subcategorias delas em rodízio; cada uma traz até 20 mais vendidos (2 pedidos por produto).' },
   { grupo: 'Mercado Livre', chave: 'ML_CATEGORIAS', rotulo: 'Categorias do rodízio', tipo: 'texto', padrao: 'MLB1000,MLB1051,MLB1648,MLB5726,MLB1574,MLB1144,MLB1246,MLB1276', ajuda: 'IDs MLB separados por vírgula.' },
 
@@ -69,6 +76,11 @@ export const CAMPOS: Campo[] = [
   { grupo: 'Nichos e canais', chave: 'NICHO_PALAVRAS_ESPORTE', rotulo: 'Palavras extras: Esportes', tipo: 'texto', padrao: '' },
 
   { grupo: 'WhatsApp', chave: 'WHATSAPP_ATIVO', rotulo: 'Preparar mensagens de WhatsApp', tipo: 'simnao', padrao: '1' },
+  { grupo: 'WhatsApp', chave: 'WHATSAPP_MAX_POR_HORA', rotulo: 'Máximo de mensagens por hora', tipo: 'numero', padrao: '10', ajuda: 'O enviador obedece (até 1 minuto). Mais rápido = mais risco de o WhatsApp barrar o número.' },
+  { grupo: 'WhatsApp', chave: 'WHATSAPP_ESPERA_MIN_SEG', rotulo: 'Espera mínima entre mensagens (s)', tipo: 'numero', padrao: '60', ajuda: 'Espera aleatória entre mínima e máxima, para não ter ritmo de robô.' },
+  { grupo: 'WhatsApp', chave: 'WHATSAPP_ESPERA_MAX_SEG', rotulo: 'Espera máxima entre mensagens (s)', tipo: 'numero', padrao: '150', ajuda: '' },
+  { grupo: 'WhatsApp', chave: 'WHATSAPP_IDADE_MAXIMA_MIN', rotulo: 'Idade máxima da oferta (min)', tipo: 'numero', padrao: '45', ajuda: 'Oferta mais velha que isso é descartada, não enviada (o preço pode ter mudado). O WhatsApp só manda as mais recentes.' },
+  { grupo: 'WhatsApp', chave: 'WHATSAPP_MAIS_NOVA_PRIMEIRO', rotulo: 'Oferta mais nova primeiro', tipo: 'simnao', padrao: '1', ajuda: 'Se a fila acumular, o que acabou de chegar sai antes das velhas.' },
   { grupo: 'WhatsApp', chave: 'WHATSAPP_DESTINOS', rotulo: 'Canais e grupos gerais', tipo: 'texto', padrao: '', ajuda: 'Links https do WhatsApp separados por vírgula. Seguem o filtro do canal geral.' },
   { grupo: 'WhatsApp', chave: 'WHATSAPP_ROTAS', rotulo: 'Canais e grupos por nicho', tipo: 'texto', padrao: '', ajuda: 'nicho=link, separados por vírgula. Ex.: moda=https://chat.whatsapp.com/XXXX' },
 

@@ -164,7 +164,10 @@ export function montarWhatsapp(config: Config, mensagens: unknown[], agora: Date
       else destinos.push({ tipo: tipo(r.link), link: r.link, nichos: [r.nicho] });
     }
   }
-  return { atualizadoEm: agora.toISOString(), geral: { nichos: config.rotas.geralNichos, sem: config.rotas.geralSem }, destinos, mensagens };
+  // `envio`: o ritmo do enviador (limite por hora, espera entre mensagens, idade máxima, horário e ordem). Sem isto o enviador usa o config.json da VPS.
+  const e = config.whatsapp.envio;
+  const envio = { maximoPorHora: e.maximoPorHora, esperaMinSeg: e.esperaMinSeg, esperaMaxSeg: Math.max(e.esperaMaxSeg, e.esperaMinSeg), idadeMaximaMin: e.idadeMaximaMin, maisNovaPrimeiro: e.maisNovaPrimeiro, horaInicio: config.ritmo.horaInicio, horaFim: config.ritmo.horaFim };
+  return { atualizadoEm: agora.toISOString(), geral: { nichos: config.rotas.geralNichos, sem: config.rotas.geralSem }, envio, destinos, mensagens };
 }
 
 /**

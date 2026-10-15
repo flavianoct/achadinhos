@@ -435,7 +435,7 @@ export async function gravarPngs(banco: Banco, config: Config, agora: Date): Pro
     if (!l.svg) continue;
     const oferta = JSON.parse(l.dados) as OfertaAvaliada;
     const foto = await imagemParaPng(l.imagem);
-    const story = await renderizarPng(foto === l.imagem ? l.svg : montarSvgDoStory(oferta, foto, config), 1080);
+    const story = await renderizarPng(montarSvgDoStory(oferta, foto, config), 1080);
     if (!story) return { gravados, semConversor: true };
     const feed = await renderizarPng(montarSvgDoFeed(oferta, foto, config), 1080);
     writeFileSync(join(pasta, arquivoDaArte(l.chave, 'story')), story);
@@ -482,6 +482,23 @@ export async function baixarImagemComoDataUri(url: string | undefined, fetchFn: 
   }
 }
 
+/**
+ * Reduz a foto (data URI) para guardar no banco e desenhar a arte: no máximo `lado` px, JPEG. As fotos originais chegam a 500 KB e o banco
+ * (um arquivo só no ramo "dados") não pode passar de 100 MB. Sem o sharp, devolve a foto como veio.
+ */
+export async function reduzirFoto(dataUri: string | undefined, lado = 800, qualidade = 82): Promise<string | undefined> {
+  if (!dataUri) return undefined;
+  try {
+    const sharp = (await import('sharp')).default;
+    const entrada = Buffer.from(dataUri.slice(dataUri.indexOf(',') + 1), 'base64');
+    const saida = await sharp(entrada).flatten({ background: '#ffffff' }).resize({ width: lado, height: lado, fit: 'inside', withoutEnlargement: true }).jpeg({ quality: qualidade }).toBuffer();
+    const reduzida = `data:image/jpeg;base64,${saida.toString('base64')}`;
+    return reduzida.length < dataUri.length ? reduzida : dataUri;
+  } catch {
+    return dataUri;
+  }
+}
+
 export const HORAS_DO_SOCIAL = 12;
 const MAXIMO_DE_ARTES = 10;
 
@@ -491,8 +508,9 @@ export async function prepararSocial(banco: Banco, config: Config, agora: Date, 
   let feitas = 0;
   for (const linha of banco.socialSemArte(MAXIMO_DE_ARTES, HORAS_DO_SOCIAL, agora)) {
     const oferta = JSON.parse(linha.dados) as OfertaAvaliada;
-    const imagem = await baixarImagemComoDataUri(oferta.imagem, fetchFn);
-    banco.salvarArteSocial(linha.chave, montarSvgDoStory(oferta, imagem, config), imagem);
+    // O banco guarda a foto reduzida uma vez só (o desenho com a foto é refeito quando precisa): antes guardava a foto duas vezes, em tamanho original.
+    const imagem = await reduzirFoto(await baixarImagemComoDataUri(oferta.imagem, fetchFn));
+    banco.salvarArteSocial(linha.chave, montarSvgDoStory(oferta, undefined, config), imagem);
     feitas++;
   }
   return feitas;
@@ -503,6 +521,6 @@ export function conteudoSocialRecente(banco: Banco, config: Config, agora: Date)
   if (!config.social.ativo) return [];
   return banco.socialRecentes(HORAS_DO_SOCIAL, MAXIMO_DE_ARTES, agora).map((l) => {
     const o = JSON.parse(l.dados) as OfertaAvaliada;
-    return { id: l.chave, criadoEm: l.criadoEm, titulo: o.titulo, legenda: montarLegenda(o, config), roteiro: montarRoteiro(o, config), svg: l.svg ?? montarSvgDoStory(o, undefined, config) };
+    return { id: l.chave, criadoEm: l.criadoEm, titulo: o.titulo, legenda: montarLegenda(o, config), roteiro: montarRoteiro(o, config), svg: montarSvgDoStory(o, l.imagem, config) };
   });
 }

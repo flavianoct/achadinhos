@@ -73,3 +73,28 @@ test('enviador: foto do Mercado Livre é pedida primeiro em JPEG (sem precisar d
   assert.deepEqual(enderecosDaFoto('https://down-br.img.susercontent.com/file/abc'), ['https://down-br.img.susercontent.com/file/abc']);
   assert.deepEqual(enderecosDaFoto(undefined), []);
 });
+
+test('enviador: com maisNovaPrimeiro a oferta fresca sai antes da fila velha', async () => {
+  const { selecionarPendentes, ritmoDoEnvio } = await import('../enviador/logica.mjs');
+  const msgs = [{ id: 'a', texto: 'x', criadoEm: AGORA - 90 * 60_000 }, { id: 'b', texto: 'x', criadoEm: AGORA - 5 * 60_000 }, { id: 'c', texto: 'x', criadoEm: AGORA - 200 * 60_000 }];
+  assert.deepEqual(selecionarPendentes(msgs, {}, AGORA, 120 * 60_000, true).map((m: any) => m.id), ['b', 'a']);
+  assert.deepEqual(selecionarPendentes(msgs, {}, AGORA, 120 * 60_000).map((m: any) => m.id), ['a', 'b']);
+  // O ritmo do robô vale mais que o config.json da VPS; sem ele, vale o config.json; sem nenhum, os padrões antigos.
+  assert.deepEqual(ritmoDoEnvio({ maximoPorHora: 6, esperaMinSeg: 90, esperaMaxSeg: 240, idadeMaximaMin: 180, horaInicio: 8, horaFim: 22 }, { maximoPorHora: 10, esperaMinSeg: 60, esperaMaxSeg: 150, idadeMaximaMin: 120, maisNovaPrimeiro: true, horaInicio: 7, horaFim: 23 }), { maximoPorHora: 10, esperaMinSeg: 60, esperaMaxSeg: 150, idadeMaximaMin: 120, maisNovaPrimeiro: true, horaInicio: 7, horaFim: 23 });
+  assert.equal(ritmoDoEnvio({ maximoPorHora: 6 }, {}).maximoPorHora, 6);
+  assert.deepEqual(ritmoDoEnvio({}, undefined), { maximoPorHora: 6, esperaMinSeg: 90, esperaMaxSeg: 240, idadeMaximaMin: 180, maisNovaPrimeiro: false, horaInicio: 8, horaFim: 22 });
+});
+
+test('whatsapp.json: leva o ritmo do enviador definido no ajustes.env', async () => {
+  const { lerConfig } = await import('../src/config.ts');
+  const { montarWhatsapp } = await import('../src/exportar.ts');
+  const w = montarWhatsapp(lerConfig({ WHATSAPP_MAX_POR_HORA: '12', WHATSAPP_ESPERA_MIN_SEG: '45', WHATSAPP_ESPERA_MAX_SEG: '100', WHATSAPP_MAIS_NOVA_PRIMEIRO: '0', HORA_INICIO: '7', HORA_FIM: '23' }), [], new Date(AGORA));
+  assert.deepEqual(w.envio, { maximoPorHora: 12, esperaMinSeg: 45, esperaMaxSeg: 100, idadeMaximaMin: 45, maisNovaPrimeiro: false, horaInicio: 7, horaFim: 23 });
+  assert.equal(montarWhatsapp(lerConfig({}), [], new Date(AGORA)).envio.maximoPorHora, 10);
+});
+
+test('enviador: oferta velha é descartada, mas o convite vale 3 h', async () => {
+  const { selecionarPendentes } = await import('../enviador/logica.mjs');
+  const msgs = [{ id: 'velha', texto: 'x', criadoEm: AGORA - 60 * 60_000 }, { id: 'nova', texto: 'x', criadoEm: AGORA - 10 * 60_000 }, { id: 'convite', loja: 'convite', texto: 'x', criadoEm: AGORA - 100 * 60_000 }];
+  assert.deepEqual(selecionarPendentes(msgs, {}, AGORA, 45 * 60_000, true).map((m: any) => m.id), ['nova', 'convite']);
+});

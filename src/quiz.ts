@@ -403,3 +403,11 @@ export function legendaDoQuiz(dados: DadosDoQuiz, config: Config): string {
     hashtags,
   ].join('\n');
 }
+
+/** Legenda para o TikTok e os Shorts: curta, com o pedido de comentário e as hashtags da plataforma. O link fica na bio. */
+export function legendaParaTikTokEShorts(dados: DadosDoQuiz): string {
+  const tipo = tipoDoQuiz(dados);
+  const pedido = tipo === 'prefere' ? 'Qual você escolhe? Comenta A ou B 👇' : tipo === 'sombra' ? 'Quantos você adivinhou? Comenta o placar 👇' : 'Quantos você acertou? Comenta o placar 👇';
+  const quiz = tipo === 'prefere' ? '#qualprefere' : tipo === 'sombra' ? '#adivinhe' : '#precocerto';
+  return [`🎯 ${dados.titulo}`, pedido, 'Ofertas todo dia: link na bio 🔗', 'Publi: preços de hoje, podem mudar.', '', `#quiz ${quiz} #achadinhos #ofertas #desafio #fyp #shorts`].join('\n');
+}

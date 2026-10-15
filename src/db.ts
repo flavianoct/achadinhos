@@ -160,6 +160,16 @@ export class Banco {
         publicado_em INTEGER,
         tentativas INTEGER NOT NULL DEFAULT 0
       );
+      CREATE TABLE IF NOT EXISTS pinterest_pins (
+        chave TEXT PRIMARY KEY,
+        dia TEXT NOT NULL,
+        estrategia TEXT NOT NULL,
+        titulo TEXT NOT NULL,
+        dados TEXT NOT NULL,
+        criado_em INTEGER NOT NULL,
+        publicado_em INTEGER,
+        tentativas INTEGER NOT NULL DEFAULT 0
+      );
       CREATE TABLE IF NOT EXISTS convites_postados (
         canal TEXT NOT NULL,
         dia TEXT NOT NULL,
@@ -439,6 +449,37 @@ export class Banco {
     const linhas = this.db.prepare(`SELECT ${coluna} AS t FROM social_saida WHERE ${coluna} IS NOT NULL`).all() as Array<{ t: number }>;
     const hoje = diaDe(agora);
     return linhas.filter((l) => diaDe(new Date(l.t)) === hoje).length + (tipo === 'feed' ? this.carrosseisPublicadosNoDia(agora) : 0);
+  }
+
+  // ───────── Pinterest ─────────
+
+  /** Guarda um pin novo (os dados trazem textos e fotos, para refazer a imagem a cada rodada). */
+  salvarPin(chave: string, estrategia: string, titulo: string, dados: string, agora: Date): void {
+    this.db.prepare(`INSERT OR REPLACE INTO pinterest_pins (chave, dia, estrategia, titulo, dados, criado_em, publicado_em, tentativas) VALUES (?, ?, ?, ?, ?, ?, NULL, 0)`).run(chave, diaDe(agora), estrategia, titulo, dados, agora.getTime());
+  }
+
+  /** Os pins criados nos últimos `dias` dias, do mais novo para o mais antigo. */
+  pinsRecentes(dias: number, agora: Date): Array<{ chave: string; dia: string; estrategia: string; titulo: string; dados: string; criadoEm: number; publicadoEm?: number; tentativas: number }> {
+    const linhas = this.db.prepare(`SELECT chave, dia, estrategia, titulo, dados, criado_em AS criadoEm, publicado_em AS publicadoEm, tentativas FROM pinterest_pins WHERE criado_em >= ? ORDER BY criado_em DESC`).all(agora.getTime() - dias * 86_400_000) as Array<{ chave: string; dia: string; estrategia: string; titulo: string; dados: string; criadoEm: number; publicadoEm: number | null; tentativas: number }>;
+    return linhas.map((l) => ({ ...l, publicadoEm: l.publicadoEm ?? undefined }));
+  }
+
+  pinsCriadosNoDia(agora: Date): number {
+    return (this.db.prepare(`SELECT COUNT(*) AS n FROM pinterest_pins WHERE dia = ?`).get(diaDe(agora)) as { n: number }).n;
+  }
+
+  pinsPublicadosNoDia(agora: Date): number {
+    const linhas = this.db.prepare(`SELECT publicado_em AS t FROM pinterest_pins WHERE publicado_em IS NOT NULL`).all() as Array<{ t: number }>;
+    const hoje = diaDe(agora);
+    return linhas.filter((l) => diaDe(new Date(l.t)) === hoje).length;
+  }
+
+  registrarFalhaDoPin(chave: string): void {
+    this.db.prepare(`UPDATE pinterest_pins SET tentativas = tentativas + 1 WHERE chave = ?`).run(chave);
+  }
+
+  marcarPinPublicado(chave: string, agora: Date): void {
+    this.db.prepare(`UPDATE pinterest_pins SET publicado_em = ? WHERE chave = ?`).run(agora.getTime(), chave);
   }
 
   // ───────── Carrossel do Instagram (dica "Antes de comprar") ─────────
@@ -732,11 +773,27 @@ export class Banco {
     this.db.prepare(`DELETE FROM instagram_carrosseis WHERE publicado_em IS NULL AND criado_em < ?`).run(t - 2 * 86_400_000);
     this.db.prepare(`DELETE FROM instagram_reels WHERE criado_em < ?`).run(t - 30 * 86_400_000);
     this.db.prepare(`DELETE FROM instagram_reels WHERE publicado_em IS NULL AND criado_em < ?`).run(t - 2 * 86_400_000);
+    this.db.prepare(`DELETE FROM pinterest_pins WHERE criado_em < ?`).run(t - 8 * 86_400_000);
     this.db.prepare(`DELETE FROM produtos WHERE visto_em < ?`).run(t - 7 * 86_400_000);
     this.db.prepare(`DELETE FROM guia_produtos WHERE visto_em < ?`).run(t - 30 * 86_400_000);
     this.db.prepare(`DELETE FROM textos WHERE criado_em < ? AND chave LIKE 'produto:%'`).run(t - 30 * 86_400_000);
     this.db.prepare(`DELETE FROM textos WHERE criado_em < ? AND chave NOT LIKE 'produto:%'`).run(t - 3 * 86_400_000);
+    // A arte (svg e foto) só serve para refazer os PNGs das últimas HORAS (12 h): depois disso fica só a oferta. É isso que mantém o arquivo do banco
+    // longe do limite de 100 MB do GitHub (se passar, a rodada deixa de guardar o banco e o robô perde o que fez).
+    this.db.prepare(`UPDATE social_saida SET svg = NULL, imagem = NULL WHERE criado_em < ? AND (svg IS NOT NULL OR imagem IS NOT NULL)`).run(t - 14 * 3_600_000);
     this.db.exec('VACUUM');
+    // Rede de segurança: se mesmo assim o arquivo passar de 85 MB, joga fora a arte de tudo que não é da última hora.
+    if (this.tamanhoEmMb() > 85) {
+      this.db.prepare(`UPDATE social_saida SET svg = NULL, imagem = NULL WHERE criado_em < ?`).run(t - 3_600_000);
+      this.db.exec('VACUUM');
+    }
+  }
+
+  /** Tamanho do arquivo do banco, em MB (páginas x tamanho da página). */
+  tamanhoEmMb(): number {
+    const paginas = (this.db.prepare('PRAGMA page_count').get() as { page_count: number }).page_count;
+    const tamanho = (this.db.prepare('PRAGMA page_size').get() as { page_size: number }).page_size;
+    return (paginas * tamanho) / 1_000_000;
   }
 
   fechar(): void {
