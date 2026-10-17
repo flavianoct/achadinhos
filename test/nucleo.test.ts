@@ -360,3 +360,126 @@ test('avisos do robô: a chave ignora números, para o mesmo problema não virar
   assert.notEqual(chaveDoAviso('instagram', 'O token venceu'), chaveDoAviso('instagram', 'Imagens não estão no ar'));
   assert.ok(chaveDoAviso('blog', 'Texto muito '.repeat(40)).length <= 'blog:'.length + 48);
 });
+// ───────────── qualidade da promoção ─────────────
+
+test('qualidade: o desconto vale pela prova que temos do preço "de" (confirmado > sem prova > inflado)', () => {
+  const base = { precoOriginal: 200, preco: 100, desconto: undefined as number | undefined };
+  const semProva = avaliar(oferta(base), new Banco(':memory:'), config, AGORA);
+  assert.ok(semProva.aprovada);
+  assert.equal(semProva.oferta.precoDe, 'nao-confirmado');
+
+  // 15 dias a R$ 100 e um "de" de R$ 200 que o produto nunca custou: promoção inflada.
+  const inflado = new Banco(':memory:');
+  for (let d = 1; d <= 15; d++) inflado.registrarPreco(oferta({ preco: 100 }), dias(d));
+  const rInflado = avaliar(oferta(base), inflado, config, AGORA);
+  assert.ok(rInflado.aprovada);
+  assert.equal(rInflado.oferta.precoDe, 'inflado');
+  assert.ok(rInflado.oferta.pontos < semProva.oferta.pontos - 15, `inflado ${rInflado.oferta.pontos} contra sem prova ${semProva.oferta.pontos}`);
+
+  // O produto custava perto do "de" e caiu de verdade: confirmado, com queda histórica.
+  const confirmado = new Banco(':memory:');
+  for (const d of [6, 5, 4]) confirmado.registrarPreco(oferta({ preco: 195 }), dias(d));
+  const rConfirmado = avaliar(oferta(base), confirmado, config, AGORA);
+  assert.ok(rConfirmado.aprovada);
+  assert.equal(rConfirmado.oferta.precoDe, 'confirmado');
+  assert.ok(rConfirmado.oferta.pontos > semProva.oferta.pontos + 10, `confirmado ${rConfirmado.oferta.pontos} contra sem prova ${semProva.oferta.pontos}`);
+});
+
+test('qualidade: quem está no menor preço há mais tempo ganha mais (e o bônus tem teto)', () => {
+  const comRecorde = (diasDeRecorde: number) => {
+    const b = new Banco(':memory:');
+    // O produto custava R$ 100 antes e fica a R$ 80 desde há `diasDeRecorde` dias; hoje continua a R$ 80.
+    b.registrarPreco(oferta({ preco: 100 }), dias(diasDeRecorde + 1));
+    for (let d = diasDeRecorde; d >= 1; d--) b.registrarPreco(oferta({ preco: 80 }), dias(d));
+    return avaliar(oferta({ preco: 80, desconto: 40 }), b, config, AGORA);
+  };
+  const curto = comRecorde(4);
+  const longo = comRecorde(20);
+  assert.ok(curto.aprovada && longo.aprovada);
+  assert.ok(longo.oferta.pontos > curto.oferta.pontos + 4, `20 dias ${longo.oferta.pontos} contra 4 dias ${curto.oferta.pontos}`);
+  const enorme = comRecorde(28);
+  assert.ok(enorme.aprovada);
+  assert.ok(enorme.oferta.pontos - longo.oferta.pontos <= 12 - 0.01 + 1, 'o bônus de menor preço tem teto');
+});
+
+test('qualidade: PONTOS_MINIMOS barra a oferta fraca da fila, que continua no blog', async () => {
+  const fraca = oferta({ idProduto: 'FRACA', desconto: 26, nota: 4.5, vendas: 60 });
+  const forte = oferta({ idProduto: 'FORTE', desconto: 55, nota: 4.9, vendas: 5000, freteGratis: true });
+  const pontosDe = (o: Oferta) => {
+    const r = avaliar(o, new Banco(':memory:'), config, AGORA);
+    assert.ok(r.aprovada);
+    return r.oferta.pontos;
+  };
+  assert.ok(pontosDe(forte) > pontosDe(fraca) + 20);
+  const corte = Math.round((pontosDe(forte) + pontosDe(fraca)) / 2);
+
+  // Sem corte (o padrão), as duas entram na fila.
+  const livre = new Banco(':memory:');
+  await coletar([fonteFixa([fraca, forte])], livre, config, dias(1));
+  assert.equal(livre.tamanhoDaFila(), 2);
+
+  // Com corte, só a forte entra; a fraca é contada e continua como produto, para o blog e os guias.
+  const exigente = new Banco(':memory:');
+  const r = await coletar([fonteFixa([fraca, forte])], exigente, lerConfig({ PARECIDOS_HORAS: '0', PONTOS_MINIMOS: String(corte), FILA_MINIMA: '0' }), dias(1));
+  assert.equal(exigente.tamanhoDaFila(), 1);
+  assert.equal(r.aprovadas, 1);
+  assert.equal(r.reprovadasPorMotivo['pontuação abaixo do mínimo'], 1);
+  assert.equal(exigente.melhoresProdutos({ horas: 48, limite: 10 }, dias(1)).length, 2, 'a fraca continua no blog');
+});
+
+test('equilíbrio: com a fila curta, as melhores das fracas entram (o corte nunca para o robô)', async () => {
+  const f = (id: string, desconto: number) => oferta({ idProduto: id, desconto, nota: 4.6, vendas: 80 });
+  const ofertas = [f('A', 26), f('B', 30), f('C', 28), f('D', 27)];
+  const corte = lerConfig({ PARECIDOS_HORAS: '0', PONTOS_MINIMOS: '999', FILA_MINIMA: '2' });
+  const banco = new Banco(':memory:');
+  const r = await coletar([fonteFixa(ofertas)], banco, corte, dias(1));
+  assert.equal(banco.tamanhoDaFila(), 2, 'a fila fica com o mínimo, e não vazia');
+  assert.equal(r.aprovadas, 2);
+  assert.equal(r.reprovadasPorMotivo['pontuação abaixo do mínimo'], 2, 'as outras duas ficam de fora');
+  assert.deepEqual(banco.itensDaFila(5).map((o) => o.idProduto).sort(), ['B', 'C'], 'entram as de maior pontuação (B tem 30% e C tem 28%)');
+  // Fila que já está cheia: nada das fracas entra.
+  const cheia = new Banco(':memory:');
+  await coletar([fonteFixa([oferta({ idProduto: 'X', desconto: 60, nota: 4.9, vendas: 9000 })])], cheia, lerConfig({ PARECIDOS_HORAS: '0' }), dias(1));
+  const r2 = await coletar([fonteFixa([f('A', 26)])], cheia, lerConfig({ PARECIDOS_HORAS: '0', PONTOS_MINIMOS: '999', FILA_MINIMA: '1' }), dias(1));
+  assert.equal(cheia.tamanhoDaFila(), 1);
+  assert.equal(r2.aprovadas, 0);
+});
+
+test('apelo: produto de supermercado ou saúde de nicho não entra, mesmo vendendo muito', () => {
+  const vende = { vendas: 80_000, nota: 4.9, desconto: 45 };
+  for (const titulo of ['Fralda Geriátrica Adulto Confort Master Pants P/M 32 Unidades', 'Papel Higiênico Supra Folha Tripla 24 Rolos', 'Cotonete Hastes Flexíveis 150 Unidades', 'Detergente Líquido Neutro 500ml']) {
+    const r = avaliar(oferta({ titulo, ...vende }), new Banco(':memory:'), config, AGORA);
+    assert.ok(!r.aprovada, titulo);
+    assert.match(r.aprovada ? '' : r.motivo, /sem apelo/, titulo);
+  }
+  // Produto de verdade interessante passa; e quem quiser liberar tira a palavra da lista (PALAVRAS_SEM_APELO).
+  assert.equal(motivo(oferta({ titulo: 'Fone de Ouvido Bluetooth Sem Fio', ...vende })), 'APROVADA');
+  const liberado = lerConfig({ PARECIDOS_HORAS: '0', PALAVRAS_SEM_APELO: '' });
+  assert.ok(avaliar(oferta({ titulo: 'Papel Higiênico 24 Rolos', ...vende }), new Banco(':memory:'), liberado, AGORA).aprovada);
+});
+
+test('popularidade: o que mais vende e é "mais vendido" da loja sobe, sem passar por cima de promoção ruim', () => {
+  const pts = (extra: Partial<Oferta>) => {
+    const r = avaliar(oferta({ idProduto: 'Z', desconto: 40, nota: 4.8, ...extra }), new Banco(':memory:'), config, AGORA);
+    assert.ok(r.aprovada);
+    return r.oferta.pontos;
+  };
+  assert.ok(pts({ vendas: 20_000 }) > pts({ vendas: 200 }) + 8, 'muito vendido pesa mais que pouco vendido');
+  assert.ok(pts({ vendas: 2000, maisVendido: true }) >= pts({ vendas: 2000 }) + 8 - 0.01, 'selo de mais vendido da loja dá bônus');
+  // Desconto mais fraco com mais vendas não vira "mais quente" que uma promoção muito melhor.
+  assert.ok(pts({ desconto: 55, vendas: 2000 }) > pts({ desconto: 26, vendas: 100_000 }) - 6);
+});
+
+test('comissão: pesa de verdade (porcentagem e reais por venda), mas tem teto', () => {
+  const pts = (extra: Partial<Oferta>) => {
+    const r = avaliar(oferta({ idProduto: 'C', desconto: 40, nota: 4.8, vendas: 2000, ...extra }), new Banco(':memory:'), config, AGORA);
+    assert.ok(r.aprovada);
+    return r.oferta.pontos;
+  };
+  assert.ok(pts({ comissao: 0.13 }) > pts({ comissao: 0.03 }) + 6, '13% rende bem mais que 3%');
+  assert.ok(pts({ comissao: 0.03, preco: 300 }) > pts({ comissao: 0.03, preco: 20 }) + 3, 'mesma porcentagem: o de R$ 300 rende mais por venda');
+  assert.ok(pts({ comissao: 0.03 }) > pts({ comissao: undefined }), 'loja que informa comissão não perde para quem não informa');
+  // Campanha de comissão extra tem teto: 83% conta como 20%.
+  assert.equal(pts({ comissao: 0.83 }), pts({ comissao: 0.2 }));
+  assert.ok(pts({ comissao: 0.83, vendas: 112 }) < pts({ comissao: 0.03, vendas: 20_000 }), 'comissão enorme não bate o produto que muita gente compra');
+});

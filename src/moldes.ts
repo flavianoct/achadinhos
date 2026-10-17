@@ -27,7 +27,7 @@ export const MARCA = {
   suave: '#A9A9B3',
   /** Texto da faixa do grupo. */
   faixa: 'O PREÇO ESTÁ NO GRUPO',
-  faixaCurta: 'CORRE · ENTRE PELO LINK NA BIO',
+  faixaCurta: 'ENTRE PELO LINK NA BIO',
   aviso: 'Publi · link de afiliado · preço pode mudar',
 };
 
@@ -40,7 +40,7 @@ export interface DadosDaArte {
   desconto: number;
   /** Gatilho da etiqueta vermelha grande, inclinada (urgência: "CORRE!", "VAI SUMIR"...). */
   gatilho?: string;
-  /** Gatilho da etiqueta amarela pequena (exclusividade: "SÓ NO GRUPO", "QUEM ENTRA VÊ PRIMEIRO"...). */
+  /** Gatilho da etiqueta amarela pequena (exclusividade: "SÓ NO GRUPO", "VEJA PRIMEIRO NO GRUPO"...). */
   gatilho2?: string;
   freteGratis: boolean;
   /** Data URI da foto, se houver. */
@@ -182,10 +182,15 @@ const linhasDoTitulo = (d: DadosDaArte, x: number, y0: number, passo: number, ta
   d.titulo.map((l, i) => texto(x, y0 + i * passo, tamanho, cor, l)).join('\n');
 
 /** Faixa que leva ao grupo, onde está o preço. É texto, não botão: um botão desenhado parece clicável e frustra quem toca nele. */
+/** Chamada final clean: uma linha amarela e o "link na bio" pequeno embaixo. Sem caixa, sem bloco: o produto e a pergunta é que chamam a atenção. */
+function chamadaLimpa(y: number, altura: number, tamanho: number, linha: string, apoio: string): string {
+  const yLinha = y + altura * 0.5;
+  return `${texto(540, yLinha, tamanho, MARCA.amarelo, linha, ' font-style="italic"')}
+${texto(540, yLinha + Math.round(tamanho * 0.75), Math.max(24, Math.round(tamanho * 0.44)), MARCA.branco, apoio, ' letter-spacing="4"')}`;
+}
+
 function faixaDoGrupo(y: number, altura: number, tamanho: number): string {
-  return `<rect x="60" y="${y}" width="960" height="${altura}" rx="${Math.round(altura / 4)}" fill="${MARCA.amarelo}"/>
-${texto(540, y + altura * 0.48, tamanho, MARCA.f1, MARCA.faixa, ' font-style="italic"')}
-${texto(540, y + altura * 0.84, Math.round(tamanho * 0.7), MARCA.vermelho, MARCA.faixaCurta, ' font-style="italic"')}`;
+  return chamadaLimpa(y, altura, tamanho, MARCA.faixa, MARCA.faixaCurta);
 }
 
 const aviso = (y: number, tamanho: number) => `<text x="540" y="${y}" font-size="${tamanho}" font-weight="700" fill="${MARCA.suave}" text-anchor="middle">${MARCA.aviso}</text>`;
@@ -201,53 +206,56 @@ export const STORY_TOPO_SEGURO = 250;
 export const STORY_BASE_SEGURA = 1650;
 const Y_FAIXA_DO_STORY = 1470;
 
+/**
+ * Arte do post (Story e feed): clean, com o produto como herói e uma curiosidade só. A foto ocupa quase tudo; uma etiqueta de preço
+ * amarela com "?" no canto da foto diz que existe um preço para descobrir (o valor nunca aparece), e uma única pergunta ("QUANTO CUSTA
+ * AGORA?") fecha o post. Além disso, só o logo pequeno, o nome curto do produto e a linha de publi. Sem adesivos sobre o produto,
+ * sem estatísticas e sem blocos grandes: quem vê precisa sentir vontade de ver o produto e o preço.
+ */
+function etiquetaDePreco(cx: number, cy: number, escala: number): string {
+  // Etiqueta de preço com furo e um "?": o formato já conta a história sem escrever o valor.
+  return `<g transform="translate(${cx} ${cy}) rotate(-8) scale(${escala})">
+<path d="M-96,-54 H34 L104,0 L34,54 H-96 Q-112,54 -112,38 V-38 Q-112,-54 -96,-54 Z" fill="${MARCA.amarelo}" stroke="${MARCA.f1}" stroke-width="7" stroke-linejoin="round"/>
+<circle cx="64" cy="0" r="11" fill="${MARCA.f1}"/>
+${texto(-26, 26, 76, MARCA.f1, '?')}
+</g>`;
+}
+
+function arteDoProduto(d: DadosDaArte, g: { largura: number; altura: number; yLogo: number; yFoto: number; hFoto: number; passoDoTitulo: number; tamanhoDoTitulo: number; yPergunta: number; tamanhoDaPergunta: number; yAviso: number; escalaDaEtiqueta: number }): string {
+  const xCartao = 60;
+  const lCartao = 960;
+  const yTitulo = g.yFoto + g.hFoto + 24 + g.tamanhoDoTitulo;
+  // A pergunta encolhe se for comprida, para sempre caber folgada.
+  const tamanhoDaPergunta = Math.min(g.tamanhoDaPergunta, Math.floor(860 / (d.pergunta.length * 0.7)));
+  // Só o selo que o histórico prova ("MENOR PREÇO"), pequeno e no canto do cartão, fora do produto.
+  const selo = d.ganchoTipo === 'historico' ? pilula(xCartao + lCartao - 130, g.yFoto - 30, 60, larguraDaPilula(d.ganchoCurto, 28, 200, 330), MARCA.amarelo, 28, d.ganchoCurto) : '';
+  return `${fundo(g.largura, g.altura)}
+${marca(g.largura / 2, g.yLogo, 40, 'centro')}
+<rect x="${xCartao}" y="${g.yFoto}" width="${lCartao}" height="${g.hFoto}" rx="48" fill="${MARCA.branco}"/>
+${foto(d, xCartao + 30, g.yFoto + 30, lCartao - 60, g.hFoto - 60, 56)}
+${etiquetaDePreco(xCartao + lCartao - 30 - 104 * g.escalaDaEtiqueta, g.yFoto + g.hFoto - 96, g.escalaDaEtiqueta)}
+${selo}
+${linhasDoTitulo(d, 540, yTitulo, g.passoDoTitulo, g.tamanhoDoTitulo, MARCA.branco)}
+${texto(540, g.yPergunta, tamanhoDaPergunta, MARCA.amarelo, d.pergunta, ' font-style="italic"')}
+${texto(540, g.yPergunta + Math.round(tamanhoDaPergunta * 0.78), 28, MARCA.branco, 'VEJA NO LINK DA BIO', ' letter-spacing="4"')}
+${aviso(g.yAviso, 22)}`;
+}
+
+/** Story 1080x1920. A marca da plataforma tira o topo (até 250) e o pé (de 1650 em diante). */
 export function svgDoStory(d: DadosDaArte): string {
-  const tamanhoDoGancho = 42;
-  const gancho = pilula(540, 280, 80, larguraDaPilula(d.gancho, tamanhoDoGancho, 300, 900), corDoGancho(d), tamanhoDoGancho, d.gancho, d.ganchoTipo === 'categoria' ? 0.2 : 1);
-  const pergunta = perguntaGrande(d.pergunta, 390, 135);
-  const yFoto = 390 + pergunta.altura + 36;
-  // A foto se ajusta para título e prova social caberem acima do aviso e da faixa do grupo.
-  const lado = Math.min(700, Y_FAIXA_DO_STORY - 50 - yFoto - (90 + 60 * d.titulo.length + 16 + 44));
-  const yTitulo = yFoto + lado + 90;
-  const corpo = `${fundo(1080, 1920)}
-${gancho}
-${pergunta.svg}
-<rect x="${(1080 - lado) / 2}" y="${yFoto}" width="${lado}" height="${lado}" rx="52" fill="${MARCA.branco}"/>
-${foto(d, (1080 - lado) / 2 + 28, yFoto + 28, lado - 56, lado - 56, 56)}
-${circuloDesconto(d, (1080 + lado) / 2 - 20, yFoto + 40, 96, 62)}
-${etiquetaDeExclusividade(d, (1080 - lado) / 2 + 24, yFoto + lado - 56, 30)}
-${linhasDoTitulo(d, 540, yTitulo, 60, 50, MARCA.branco)}
-${apoio(d, 540, yTitulo + 60 * d.titulo.length + 16, 38)}
-${aviso(Y_FAIXA_DO_STORY - 25, 28)}
-${faixaDoGrupo(Y_FAIXA_DO_STORY, STORY_BASE_SEGURA - Y_FAIXA_DO_STORY, 60)}
-${marca(540, 1760, 48, 'centro')}`;
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920" font-family="${FONTE}">\n${corpo}\n</svg>`;
+  const corpo = arteDoProduto(d, { largura: 1080, altura: 1920, yLogo: 290, yFoto: 370, hFoto: 880, passoDoTitulo: 62, tamanhoDoTitulo: 52, yPergunta: 1520, tamanhoDaPergunta: 70, yAviso: 1640, escalaDaEtiqueta: 1.25 });
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920" font-family="${FONTE}">
+${corpo}
+</svg>`;
 }
 
 // ───────────────────────── Feed 1080x1350 ─────────────────────────
 
 export function svgDoFeed(d: DadosDaArte): string {
-  const tamanhoDoGancho = 30;
-  const larguraDoGancho = larguraDaPilula(d.ganchoCurto, tamanhoDoGancho, 220, 400);
-  const gancho = pilula(1020 - larguraDoGancho / 2, 50, 64, larguraDoGancho, corDoGancho(d), tamanhoDoGancho, d.ganchoCurto, d.ganchoTipo === 'categoria' ? 0.2 : 1);
-  const pergunta = perguntaGrande(d.pergunta, 130, 112);
-  const yFoto = 130 + pergunta.altura + 36;
-  // Idem no feed: a faixa do grupo começa em y 1130.
-  const lado = Math.min(570, 1100 - yFoto - (66 + 52 * d.titulo.length + 14 + 44));
-  const yTitulo = yFoto + lado + 66;
-  const corpo = `${fundo(1080, 1350)}
-${marca(60, 92, 44, 'esquerda')}
-${gancho}
-${pergunta.svg}
-<rect x="${(1080 - lado) / 2}" y="${yFoto}" width="${lado}" height="${lado}" rx="44" fill="${MARCA.branco}"/>
-${foto(d, (1080 - lado) / 2 + 24, yFoto + 24, lado - 48, lado - 48, 52)}
-${circuloDesconto(d, (1080 + lado) / 2 - 20, yFoto + 36, 80, 52)}
-${etiquetaDeExclusividade(d, (1080 - lado) / 2 + 22, yFoto + lado - 50, 26)}
-${linhasDoTitulo(d, 540, yTitulo, 52, 44, MARCA.branco)}
-${apoio(d, 540, yTitulo + 52 * d.titulo.length + 14, 34)}
-${faixaDoGrupo(1130, 160, 52)}
-${aviso(1334, 26)}`;
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350" font-family="${FONTE}">\n${corpo}\n</svg>`;
+  const corpo = arteDoProduto(d, { largura: 1080, altura: 1350, yLogo: 92, yFoto: 140, hFoto: 800, passoDoTitulo: 56, tamanhoDoTitulo: 46, yPergunta: 1190, tamanhoDaPergunta: 58, yAviso: 1312, escalaDaEtiqueta: 1.1 });
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350" font-family="${FONTE}">
+${corpo}
+</svg>`;
 }
 
 // ───────────────────────── Carrossel "Antes de comprar" (1080x1350) ─────────────────────────
@@ -304,8 +312,7 @@ ${texto(540, 350, 156, MARCA.f1, String(d.posicao))}
 ${texto(540, 480, 34, MARCA.suave, d.assunto.toUpperCase())}
 ${d.titulo.map((l, i) => texto(540, yTitulo + i * passoDoTitulo, d.tamanhoDoTitulo, MARCA.amarelo, l)).join('\n')}
 ${d.explicacao.map((l, i) => textoLeve(540, yExplicacao + i * passoDaExplicacao, 40, MARCA.branco, l)).join('\n')}
-${texto(540, 1190, 38, MARCA.suave, `${d.posicao} de ${d.total}`)}
-${marcador(250, 1245, 46)}${textoEsq(320, 1284, 36, MARCA.branco, 'Salve este post')}`);
+${texto(540, 1250, 38, MARCA.suave, `${d.posicao} de ${d.total}`)}`);
 }
 
 export interface DadosDoFechamento {
@@ -318,12 +325,14 @@ export interface DadosDoFechamento {
 export function svgDoFechamentoDaDica(d: DadosDoFechamento): string {
   const linhas = d.itens.slice(0, 3).map((it, i) => {
     const y = 330 + i * 250;
-    const partes = [it.nota ?? '', it.vendas ? `${it.vendas} vendidos` : ''].filter(Boolean).join(' · ');
+    const nome = it.linhas.slice(0, 2);
+    // Sem nota, vendas nem estrela: o cartão mostra o produto e o nome, e a curiosidade fica para o preço.
+    const yNome = y + 112 - ((nome.length - 1) * 42) / 2;
     return `<rect x="60" y="${y}" width="960" height="224" rx="36" fill="${MARCA.branco}"/>
 ${it.foto ? `<image href="${it.foto}" x="84" y="${y + 20}" width="184" height="184" preserveAspectRatio="xMidYMid meet"/>` : ''}
-<rect x="300" y="${y + 20}" width="76" height="40" rx="20" fill="${MARCA.vermelho}"/>${texto(338, y + 49, 28, MARCA.branco, `#${i + 1}`)}
-${it.linhas.slice(0, 2).map((l, k) => textoEsq(300, y + 108 + k * 42, 38, '#0f172a', l)).join('\n')}
-${partes ? `${it.nota ? estrela(314, y + 190, 14) : ''}${textoEsq(it.nota ? 338 : 300, y + 200, 32, '#475569', partes)}` : ''}`;
+<circle cx="338" cy="${y + 112}" r="0" fill="none"/>
+${nome.map((l, k) => textoEsq(300, yNome + 12 + k * 46, 40, '#0f172a', l)).join('\n')}
+<rect x="882" y="${y + 20}" width="118" height="50" rx="25" fill="${MARCA.vermelho}"/>${texto(941, y + 56, 32, MARCA.branco, `#${i + 1}`)}`;
   });
   return envolver(`${marca(60, 92, 44, 'esquerda')}
 ${texto(540, 200, 66, MARCA.branco, 'Os 3 do nosso guia')}
@@ -331,6 +340,55 @@ ${d.assunto.map((l, i) => texto(540, 262 + i * 50, 44, MARCA.amarelo, l)).join('
 ${linhas.join('\n')}
 ${faixaDoGrupo(1100, 170, 52)}
 ${aviso(1334, 24)}`);
+}
+
+// ───────────────────────── Carrossel "A ou B?" (1080x1350) ─────────────────────────
+
+export interface DadosDoCompetidor {
+  foto?: string;
+  /** Título já quebrado em linhas. */
+  linhas: string[];
+  nota?: string;
+  vendas?: string;
+  freteGratis?: boolean;
+}
+
+const quadroDaFoto = (foto: string | undefined, x: number, y: number, lado: number) =>
+  `<rect x="${x}" y="${y}" width="${lado}" height="${lado}" rx="36" fill="${MARCA.branco}"/>
+${foto ? `<image href="${foto}" x="${x + 16}" y="${y + 16}" width="${lado - 32}" height="${lado - 32}" preserveAspectRatio="xMidYMid meet"/>` : texto(x + lado / 2, y + lado / 2, 40, '#98a2b3', 'Sem foto')}`;
+
+/** Capa: as duas fotos lado a lado e a pergunta. Convida a comentar (comentário pesa no alcance). */
+export function svgDaCapaDoDuelo(d: { assunto: string[]; a?: string; b?: string }): string {
+  return envolver(`${marca(60, 92, 44, 'esquerda')}
+${texto(540, 270, 52, MARCA.amarelo, 'QUAL VOCÊ ESCOLHE?', ' letter-spacing="4"')}
+${d.assunto.map((l, i) => texto(540, 350 + i * 70, 60, MARCA.branco, l)).join('\n')}
+${quadroDaFoto(d.a, 60, 470, 450)}${quadroDaFoto(d.b, 570, 470, 450)}
+<circle cx="285" cy="475" r="62" fill="${MARCA.vermelho}"/>${texto(285, 505, 84, MARCA.branco, 'A')}
+<circle cx="795" cy="475" r="62" fill="${MARCA.amarelo}"/>${texto(795, 505, 84, MARCA.f1, 'B')}
+${texto(540, 1090, 64, MARCA.branco, 'A ou B?')}
+${texto(540, 1170, 40, MARCA.suave, 'Veja os dois e conte nos comentários')}
+${texto(540, 1250, 40, MARCA.branco, 'Arraste para o lado')}`);
+}
+
+/** Um competidor por imagem: letra grande, foto e nome. Sem estatísticas nem preço: a pessoa escolhe pelo que vê. */
+export function svgDoCompetidor(d: DadosDoCompetidor & { letra: 'A' | 'B' }): string {
+  const cor = d.letra === 'A' ? MARCA.vermelho : MARCA.amarelo;
+  const corLetra = d.letra === 'A' ? MARCA.branco : MARCA.f1;
+  return envolver(`${marca(60, 92, 44, 'esquerda')}
+<circle cx="540" cy="260" r="100" fill="${cor}"/>${texto(540, 318, 144, corLetra, d.letra)}
+${quadroDaFoto(d.foto, 215, 400, 650)}
+${d.linhas.slice(0, 2).map((l, i) => texto(540, 1120 + i * 54, 44, MARCA.branco, l)).join('\n')}
+`);
+}
+
+/** Última imagem: pede o voto e leva ao grupo (o preço só lá). */
+export function svgDoFechamentoDoDuelo(): string {
+  return envolver(`${marca(60, 92, 44, 'esquerda')}
+${texto(540, 380, 120, MARCA.branco, 'E você?')}
+${texto(540, 520, 76, MARCA.amarelo, 'A ou B?')}
+${texto(540, 640, 44, MARCA.branco, 'Comenta a sua escolha')}
+${faixaDoGrupo(960, 190, 56)}
+${aviso(1300, 24)}`);
 }
 
 // ───────────────────────── Vitrine do grupo: o que ele entrega ─────────────────────────
@@ -349,9 +407,7 @@ function gradeDeFotos(fotos: Array<string | undefined>, x0: number, y0: number, 
 
 /** Faixa de chamada para entrar no grupo (sem preço). */
 function faixaEntre(y: number, altura: number, tamanho: number): string {
-  return `<rect x="60" y="${y}" width="960" height="${altura}" rx="${Math.round(altura / 4)}" fill="${MARCA.amarelo}"/>
-${texto(540, y + altura * 0.48, tamanho, MARCA.f1, 'ENTRE NO GRUPO', ' font-style="italic"')}
-${texto(540, y + altura * 0.84, Math.round(tamanho * 0.62), MARCA.vermelho, 'É GRÁTIS · LINK NA BIO', ' font-style="italic"')}`;
+  return chamadaLimpa(y, altura, tamanho, 'ENTRE NO GRUPO', 'É GRÁTIS · LINK NA BIO');
 }
 
 /** Uma linha de destaque: número ou palavra grande em amarelo e o texto ao lado. */
@@ -375,25 +431,20 @@ export interface DadosDoResumo {
 
 /** Story "Hoje no grupo" (1080x1920): o resumo do que o grupo entregou hoje, para dar vontade de entrar. Sem preço. Respeita a área segura do Story. */
 export function svgDoResumoDoDia(d: DadosDoResumo): string {
-  const linhas: Array<[string, string]> = [];
-  if (d.maiorDesconto > 0) linhas.push([`${d.maiorDesconto}%`, 'foi o maior desconto']);
-  if (d.noMenorPreco > 0) linhas.push([String(d.noMenorPreco), 'no menor preço do mês']);
-  const assuntos = d.assuntos.slice(0, 3).join(' · ');
-  const yAssuntos = 730 + linhas.length * 130 + 60;
+  // Clean: o título, o número grande, e os produtos. Sem caixas de estatística nem lista de assuntos: as fotos é que dão vontade de entrar.
   const fotos = d.fotos.slice(0, 4);
-  const lado = 200;
+  const lado = 230;
   const corpo = `${fundo(1080, 1920)}
-${texto(540, 370, 92, MARCA.amarelo, 'HOJE NO GRUPO')}
-${texto(540, 600, 230, MARCA.branco, String(d.achados))}
-${texto(540, 680, 54, MARCA.branco, d.achados === 1 ? 'achado separado' : 'achados separados')}
-${linhas.map(([a, b], i) => linhaDeDestaque(730 + i * 130, a, b)).join('\n')}
-${assuntos ? texto(540, yAssuntos, 40, MARCA.suave, assuntos) : ''}
-${fotos.length ? texto(540, yAssuntos + 70, 36, MARCA.suave, 'Alguns achados de hoje') : ''}
-${gradeDeFotos(fotos, (1080 - (fotos.length * lado + Math.max(fotos.length - 1, 0) * 20)) / 2, yAssuntos + 95, lado, 20, 4)}
+${texto(540, 400, 92, MARCA.amarelo, 'HOJE NO GRUPO')}
+${texto(540, 690, 250, MARCA.branco, String(d.achados))}
+${texto(540, 780, 56, MARCA.branco, d.achados === 1 ? 'achado separado' : 'achados separados')}
+${gradeDeFotos(fotos, (1080 - (fotos.length * lado + Math.max(fotos.length - 1, 0) * 20)) / 2, 880, lado, 20, 4)}
 ${aviso(Y_FAIXA_DO_STORY - 25, 28)}
 ${faixaEntre(Y_FAIXA_DO_STORY, STORY_BASE_SEGURA - Y_FAIXA_DO_STORY, 64)}
 ${marca(540, 1760, 48, 'centro')}`;
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920" font-family="${FONTE}">\n${corpo}\n</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920" font-family="${FONTE}">
+${corpo}
+</svg>`;
 }
 
 export interface DadosDaDataEspecial {

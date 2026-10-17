@@ -5,7 +5,7 @@ import { diaDe, horaDe, type Banco } from './db.ts';
 import { EXPLICACOES_DOS_CRITERIOS } from './dicas.ts';
 import { TIPOS_DE_GUIA, tipoDeGuia } from './guias.ts';
 import { passaNoFiltroDoInstagram } from './instagram.ts';
-import { arquivosDoCarrossel, baixarImagemComoDataUri, montarSvgsDoCarrossel, nomeDaMarca, renderizarPng, type DadosDaDica, type DadosDoCarrossel, type DadosDoGrupo, type Fetch } from './social.ts';
+import { arquivosDoCarrossel, baixarImagemComoDataUri, montarSvgsDoCarrossel, nomeDaMarca, renderizarPng, type DadosDaDica, type DadosDoCarrossel, type DadosDoDuelo, type DadosDoGrupo, type Fetch } from './social.ts';
 import { dadosDaApresentacao } from './vitrine.ts';
 import type { OfertaAvaliada } from './types.ts';
 
@@ -54,8 +54,9 @@ export async function prepararCarrossel(banco: Banco, config: Config, agora: Dat
   if (hora < config.ritmo.horaInicio || hora >= config.ritmo.horaFim) return false;
   // Uma vez por semana, nos dias escolhidos, o carrossel apresenta o grupo ("Por que entrar no grupo").
   if (ig.grupoDias.includes(diaDaSemana(agora)) && prepararApresentacao(banco, config, agora)) return true;
-  if (!ig.dicasDias.includes(diaDaSemana(agora))) return false;
-  return prepararDica(banco, config, agora, fetchFn);
+  if (ig.dicasDias.includes(diaDaSemana(agora)) && (await prepararDica(banco, config, agora, fetchFn))) return true;
+  if (ig.perguntaDias.includes(diaDaSemana(agora))) return prepararDuelo(banco, config, agora, fetchFn);
+  return false;
 }
 
 /** A apresentação do grupo não volta antes disso, mesmo que mais de um dia da semana esteja marcado. */
@@ -85,7 +86,7 @@ export async function gravarPngsDoCarrossel(banco: Banco, config: Config, agora:
   const pasta = join(config.blog.pasta, 'social');
   mkdirSync(pasta, { recursive: true });
   // Carrossel de outro formato (o "Top" antigo, que mostrava preço) não é mais gravado.
-  if (dados.formato !== 'dica' && dados.formato !== 'grupo') return 0;
+  if (dados.formato !== 'dica' && dados.formato !== 'grupo' && dados.formato !== 'duelo') return 0;
   const svgs = montarSvgsDoCarrossel(dados);
   const nomes = arquivosDoCarrossel(pendente.chave, svgs.length);
   let gravados = 0;
@@ -152,5 +153,47 @@ export async function prepararDica(banco: Banco, config: Config, agora: Date, fe
     itens: primeiros,
   };
   banco.salvarCarrossel(`dica-${diaDe(agora)}-${tipo.slug}`, dados.titulo, JSON.stringify(dados), agora);
+  return true;
+}
+
+/** Um assunto do "A ou B?" não volta antes disso. */
+const DIAS_SEM_REPETIR_DUELO = 21;
+
+/**
+ * Cria o carrossel "A ou B?": os dois primeiros produtos de um guia publicado, lado a lado, para a pessoa escolher nos comentários.
+ * Só usa dois produtos de verdade do guia (com foto) e não repete o assunto nos últimos 21 dias. Sem preço.
+ */
+export async function prepararDuelo(banco: Banco, config: Config, agora: Date, fetchFn: Fetch = fetch): Promise<boolean> {
+  const usados = new Set(
+    banco
+      .carrosseisPublicadosRecentes(DIAS_SEM_REPETIR_DUELO, agora)
+      .filter((c) => c.startsWith('duelo-'))
+      .map((c) => c.replace(/^duelo-\d{4}-\d{2}-\d{2}-/, '')),
+  );
+  const candidatos: Array<{ tipo: (typeof TIPOS_DE_GUIA)[number]; itens: OfertaAvaliada[] }> = [];
+  for (const salvo of banco.guiasSalvos()) {
+    const tipo = TIPOS_DE_GUIA.find((t) => t.slug === salvo.tipo);
+    if (!tipo || usados.has(tipo.slug)) continue;
+    let itens: OfertaAvaliada[];
+    try {
+      itens = ((JSON.parse(salvo.dados) as { itens?: OfertaAvaliada[] }).itens ?? []).filter((o) => o?.titulo && Number.isFinite(o.preco) && /^https:\/\//i.test(o.link ?? '') && /^https:\/\//i.test(o.imagem ?? '') && tipoDeGuia(o.titulo)?.slug === tipo.slug);
+    } catch {
+      continue;
+    }
+    if (itens.length >= 2) candidatos.push({ tipo, itens });
+  }
+  if (candidatos.length === 0) return false;
+  candidatos.sort((a, b) => a.tipo.slug.localeCompare(b.tipo.slug));
+  const { tipo, itens } = candidatos[Math.floor(agora.getTime() / DIA_MS) % candidatos.length]!;
+
+  const dois: DadosDoDuelo['itens'] = [];
+  for (const o of itens.slice(0, 2)) {
+    const imagem = await baixarImagemComoDataUri(o.imagem, fetchFn);
+    if (!imagem) return false; // sem as duas fotos, o "A ou B?" não faz sentido
+    const oferta: OfertaAvaliada = { loja: o.loja, idProduto: o.idProduto, titulo: o.titulo, preco: o.preco, link: o.link, nota: o.nota, vendas: o.vendas, freteGratis: o.freteGratis, categoria: o.categoria, pontos: o.pontos };
+    dois.push({ oferta, imagem });
+  }
+  const dados: DadosDoDuelo = { formato: 'duelo', titulo: `${tipo.nome}: A ou B?`, slug: tipo.slug, assunto: tipo.nome, categoria: tipo.categoria, itens: dois };
+  banco.salvarCarrossel(`duelo-${diaDe(agora)}-${tipo.slug}`, dados.titulo, JSON.stringify(dados), agora);
   return true;
 }

@@ -10,6 +10,14 @@ export type Avaliacao = { aprovada: true; oferta: OfertaAvaliada } | { aprovada:
 const DIAS_DE_HISTORICO = 30;
 /** Com menos dias que isso, o histórico ainda não é confiável. */
 const DIAS_MINIMOS_DE_HISTORICO = 3;
+/** Quanto do desconto anunciado conta na pontuação, conforme a prova que temos do preço "de". */
+const PESO_DO_DESCONTO_INFLADO = 0.4;
+const PESO_DO_DESCONTO_SEM_PROVA = 0.85;
+const TETO_DO_BONUS_MENOR_PRECO = 12;
+/** O desconto anunciado vale 70% do que valia: as lojas anunciam descontos enormes o tempo todo, e sozinho ele não pode mandar na lista. */
+const PESO_BASE_DO_DESCONTO = 0.7;
+/** Comissão acima de 20% (campanhas passageiras) conta como 20%. */
+const TETO_DA_COMISSAO = 0.2;
 /** Com pelo menos isto de histórico, um "de" que o produto nunca chegou perto de custar é tratado como inflado. */
 const DIAS_PARA_DENUNCIAR_PRECO_DE = 14;
 
@@ -31,6 +39,9 @@ export function avaliar(o: Oferta, banco: Banco, config: Config, agora: Date): A
   const titulo = normalizar(o.titulo);
   const bloqueada = f.palavrasBloqueadas.find((p) => contemPalavra(titulo, p));
   if (bloqueada) return nao(`palavra bloqueada: ${bloqueada}`);
+
+  const semApelo = f.palavrasSemApelo.find((p) => contemPalavra(titulo, p));
+  if (semApelo) return nao(`sem apelo para o grupo: ${semApelo}`);
 
   if (o.nota !== undefined && o.nota > 0 && o.nota < f.notaMinima) return nao('nota baixa');
   if (o.vendas !== undefined && o.vendas < f.vendasMinimas) return nao('poucas vendas');
@@ -68,12 +79,31 @@ export function avaliar(o: Oferta, banco: Banco, config: Config, agora: Date): A
     else precoDe = 'nao-confirmado';
   }
 
+  // A promoção vale pelo que se confirma. O desconto anunciado é a loja falando: com o preço "de" confirmado pelo nosso histórico vale inteiro,
+  // sem histórico suficiente vale um pouco menos, e um "de" inflado (o produto nunca custou perto disso) quase não vale.
+  const pesoDoDesconto = precoDe === 'confirmado' ? 1 : precoDe === 'inflado' ? PESO_DO_DESCONTO_INFLADO : PESO_DO_DESCONTO_SEM_PROVA;
+  // O melhor tipo de promoção: o preço mais baixo que o produto teve no histórico, e quanto mais tempo esse recorde durava, melhor.
+  // Preço parado não é promoção: só conta se o preço esteve pelo menos 5% mais alto em algum momento da janela.
+  const caiuDeVerdade = hist.maior !== undefined && hist.maior >= o.preco * 1.05;
+  const bonusMenorPreco = menorPrecoEmDias && caiuDeVerdade ? Math.min(TETO_DO_BONUS_MENOR_PRECO, Math.log2(menorPrecoEmDias) * 3) : 0;
+
+  // A comissão conta de verdade, nas duas formas: a porcentagem e o valor em reais por venda (3% de um produto de R$ 300 rende mais que
+  // 13% de um de R$ 20). Os dois têm teto: campanhas de comissão extra (50%, 80%) não podem jogar para o topo um produto que quase ninguém compra.
+  const comissaoConsiderada = Math.min(TETO_DA_COMISSAO, o.comissao ?? 0);
+  const bonusDeComissao = comissaoConsiderada * 60 + Math.min(8, Math.log10(1 + o.preco * comissaoConsiderada) * 8);
+
+  // Equilíbrio entre os três pilares de uma boa oferta para o grupo: a promoção (desconto que se confirma), o que as pessoas mais compram
+  // (vendas e selo de "mais vendido" da loja) e a qualidade (nota). A comissão pesa (até ~20 pontos) mas com teto, para não mandar sozinha.
   const pontos =
-    desconto +
-    Math.max(0, quedaHistorica ?? 0) * 1.5 +
-    (o.comissao ?? 0) * 200 +
+    Math.min(desconto, 70) * PESO_BASE_DO_DESCONTO * pesoDoDesconto +
+    (precoDe === 'confirmado' ? 5 : 0) +
+    bonusMenorPreco +
+    Math.min(30, Math.max(0, quedaHistorica ?? 0) * 1.5) +
+    bonusDeComissao +
     (o.nota ? (o.nota - 4) * 10 : 0) +
-    (o.vendas ? Math.log10(o.vendas + 1) * 3 : 0) +
+    // Vendas em escala log: 100 vendas = 12, 1 mil = 18, 10 mil = 24, 100 mil = 30.
+    (o.vendas ? Math.log10(o.vendas + 1) * 6 : 0) +
+    (o.maisVendido ? 10 : 0) +
     (o.freteGratis ? 5 : 0);
 
   const avaliada: OfertaAvaliada = {

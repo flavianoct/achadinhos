@@ -88,9 +88,8 @@ function moldura(estrategia: EstrategiaDoPin, corpo: string, canais: string): st
 ${fundo(LARGURA_DO_PIN, ALTURA_DO_PIN)}
 ${marca(500, 112, 52, 'centro')}
 ${corpo}
-<rect x="80" y="1290" width="840" height="150" rx="40" fill="${MARCA.amarelo}"/>
-${t(500, 1362, 48, MARCA.f1, CHAMADAS[estrategia], 900, 'middle', ' font-style="italic"')}
-${t(500, 1410, 28, MARCA.f1, canais, 600)}
+${t(500, 1352, 54, MARCA.amarelo, CHAMADAS[estrategia], 900, 'middle', ' font-style="italic"')}
+${t(500, 1404, 26, MARCA.branco, canais, 600)}
 ${t(500, 1478, 22, MARCA.suave, 'Publi: links de afiliado. Preços podem mudar.', 400)}
 </svg>`;
 }
@@ -114,13 +113,13 @@ const selo = (texto: string, y: number) => {
 /** A imagem do pin (SVG 1000x1500) a partir dos dados. */
 export function svgDoPin(d: DadosDoPin, config: Config): string {
   const canais = canaisDaChamada(config);
-  const titulo = tituloGrande(d.gancho, 190, d.estrategia === 'beneficio' || d.estrategia === 'dica' ? 96 : 112);
+  const titulo = tituloGrande(d.gancho, 180, d.estrategia === 'beneficio' || d.estrategia === 'dica' ? 90 : d.estrategia === 'produto' ? 84 : 100);
   const topo = Math.round(titulo.fim + 30);
   let corpo = titulo.svg;
 
   if (d.estrategia === 'produto' || d.estrategia === 'quiz' || d.estrategia === 'sombra') {
     const item = d.itens?.[0];
-    const altura = d.estrategia === 'produto' ? 700 : 560;
+    const altura = d.estrategia === 'produto' ? 780 : 560;
     corpo += painelBranco(110, topo, 780, altura, d.estrategia === 'sombra' ? d.sombra : item?.foto, d.estrategia === 'sombra' ? 60 : 24);
     let y = topo + altura;
     if (d.estrategia === 'produto') {

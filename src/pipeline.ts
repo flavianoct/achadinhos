@@ -39,6 +39,7 @@ export function dentroDoTema(titulo: string, config: Config): boolean {
 export async function coletar(fontes: Fonte[], banco: Banco, config: Config, agora: Date = new Date()): Promise<ResumoDaColeta> {
   const resumo: ResumoDaColeta = { coletadas: 0, aprovadas: 0, reprovadasPorMotivo: {}, reprovadasPorLoja: {}, errosPorFonte: {}, avisosPorFonte: {} };
 
+  const fracas: OfertaAvaliada[] = [];
   const contar = (loja: string, motivo: string) => {
     resumo.reprovadasPorMotivo[motivo] = (resumo.reprovadasPorMotivo[motivo] ?? 0) + 1;
     const deLoja = (resumo.reprovadasPorLoja[loja] ??= {});
@@ -76,6 +77,9 @@ export async function coletar(fontes: Fonte[], banco: Banco, config: Config, ago
 
       if (resultado.aprovada && !dentroDoTema(resultado.oferta.titulo, config)) {
         contar(oferta.loja, 'fora do tema');
+      } else if (resultado.aprovada && resultado.oferta.pontos < config.filtro.pontosMinimos) {
+        // Oferta aprovada mas fraca: não vai para os canais (continua no blog e nos guias), a não ser que a fila fique curta (abaixo).
+        fracas.push(resultado.oferta);
       } else if (resultado.aprovada) {
         banco.enfileirar(resultado.oferta, agora);
         resumo.aprovadas++;
@@ -83,6 +87,19 @@ export async function coletar(fontes: Fonte[], banco: Banco, config: Config, ago
         const chave = resultado.motivo.split(':')[0];
         contar(oferta.loja, chave);
       }
+    }
+  }
+
+  // Equilíbrio: o corte de qualidade nunca pode parar o robô. Se a fila ficou curta, entram as melhores das fracas até a FILA_MINIMA.
+  fracas.sort((a, b) => b.pontos - a.pontos);
+  let vagas = Math.max(0, config.filtro.filaMinima - banco.tamanhoDaFila());
+  for (const oferta of fracas) {
+    if (vagas > 0) {
+      banco.enfileirar(oferta, agora);
+      resumo.aprovadas++;
+      vagas--;
+    } else {
+      contar(oferta.loja, 'pontuação abaixo do mínimo');
     }
   }
   return resumo;

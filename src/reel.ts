@@ -92,21 +92,17 @@ export function svgDaAberturaDoReel(n: number): string {
     logo(300) +
       texto(850, 'CAIU', 200, MARCA.amarelo, 900) +
       texto(1050, 'MESMO?', 200, MARCA.amarelo, 900) +
-      `<rect x="270" y="1130" width="540" height="12" rx="6" fill="${MARCA.vermelho}" transform="rotate(-3 540 1136)"/>` +
-      texto(1330, `${n} achados de hoje`, 70, MARCA.branco, 700) +
-      texto(1420, 'Veja até o final', 44, MARCA.suave, 500),
+      texto(1290, `${n} achados de hoje`, 66, MARCA.branco, 700),
   );
 }
 
-/** Fechamento do Reel: leva ao grupo, onde está o preço. */
+/** Fechamento do Reel: leva ao grupo, onde está o preço. Uma chamada limpa, sem caixa. */
 export function svgDoFechamentoDoReel(): string {
   return moldura(
     logo(300) +
-      texto(760, 'O PREÇO', 160, MARCA.branco, 900) +
-      texto(910, 'ESTÁ NO GRUPO', 112, MARCA.amarelo, 900) +
-      texto(1040, 'Achados assim todo dia, de graça', 50, MARCA.branco, 700) +
-      `<rect x="140" y="1120" width="800" height="150" rx="40" fill="${MARCA.amarelo}"/>` +
-      texto(1214, 'ENTRE PELO LINK NA BIO', 46, MARCA.f1, 900) +
+      texto(780, 'O PREÇO', 160, MARCA.branco, 900) +
+      texto(930, 'ESTÁ NO GRUPO', 112, MARCA.amarelo, 900) +
+      texto(1100, 'ENTRE PELO LINK NA BIO', 46, MARCA.branco, 700) +
       texto(1420, 'Publi: links de afiliado', 36, MARCA.suave, 500),
   );
 }
@@ -117,9 +113,11 @@ export function legendaDoReel(dados: DadosDoReel, config: Config): string {
   const linhas = dados.itens.map((it, i) => `${i + 1}. ${curto(it.oferta.titulo)}`);
   const telegram = config.blog.telegramLink ? `\n📲 Ofertas na hora no Telegram (link na bio)` : '\n🔗 Link na bio';
   return [
-    `🔥 ${dados.titulo}`,
+    `👀 Separei ${dados.itens.length} achados pra você: ${dados.titulo} #publi`,
     '',
     ...linhas,
+    '',
+    ['Qual deles você levaria? Conta aqui 👇', 'Qual é o seu favorito? Comenta o número 👇', 'Marca quem precisa ver isso 👇'][dados.itens.length % 3],
     '',
     `💰 O preço de agora está no grupo: link na bio.\nSalva para não perder e manda para quem vai gostar 💾${telegram}${temWhatsapp(config) ? '\n💬 Também no WhatsApp: canal e grupo, link na bio' : ''}`,
     '',
