@@ -320,7 +320,7 @@ test('dica: a legenda tem gancho e #publi na primeira linha, os critérios, uma 
   assert.ok(comExplicacao.length < 2200 && !comExplicacao.includes('…'), 'cabe no limite da legenda do Instagram');
   assert.match(comExplicacao.split('\n')[0]!, /#publi$/);
   assert.match(l, /💬 .*(👇)/);
-  assert.match(l, /Salve este post/);
+  assert.match(l, /Salva este post/);
   assert.match(l, /link na bio/);
   assert.match(l, /Publi: link de afiliado/);
   assert.ok(!l.includes('https://') && !l.includes('…') && l.length < 2200);
@@ -365,4 +365,62 @@ test('dica: grava as imagens (capa, critérios e fechamento) em 1080x1350 e publ
   assert.equal(banco.carrosselPendente(AGORA), undefined);
   assert.equal(banco.carrosseisPublicadosRecentes(14, AGORA).length, 1);
   assert.equal(banco.carrosselCriadoNoDia(AGORA), true, 'e o dia já tem o seu carrossel');
+});
+
+// ─── "A ou B?" ───
+
+test('duelo: nos dias da pergunta cria o "A ou B?" com os 2 primeiros do guia, 4 imagens, legenda sem preço e sem repetir o assunto', async () => {
+  const sexta = new Date('2026-10-09T15:00:00Z'); // sexta, dia da pergunta (a dica cai em ter, qui e sáb)
+  assert.equal(diaDaSemana(sexta), 5);
+  const banco = bancoComProdutos();
+  guiaSalvo(banco, 'air-fryers');
+  assert.equal(await prepararCarrossel(banco, config, sexta, fotoFalsa()), true);
+  const pendente = banco.carrosselPendente(sexta)!;
+  assert.equal(pendente.chave, 'duelo-2026-10-09-air-fryers');
+  const dados = JSON.parse(pendente.dados) as DadosDoCarrossel;
+  assert.equal(dados.formato, 'duelo');
+  if (dados.formato !== 'duelo') return;
+  assert.equal(dados.itens.length, 2);
+  assert.ok(dados.itens.every((i) => i.imagem?.startsWith('data:image/png;base64,')));
+  assert.equal(totalDeImagens(dados), 4, 'capa, A, B e o fechamento');
+
+  const legenda = legendaDoCarrossel(dados, config);
+  assert.match(legenda.split('\n')[0]!, /A ou B\? Qual você escolhe\? #publi$/);
+  assert.match(legenda, /Comenta A ou B/);
+  assert.doesNotMatch(legenda, /R\$/, 'sem preço em reais');
+  assert.doesNotMatch(legenda, /\d+% /, 'sem porcentagem');
+  assert.match(legenda, /Publi: link de afiliado/);
+
+  // O mesmo assunto não volta por 21 dias (depois de publicado): sem outro guia, não há "A ou B?".
+  banco.marcarCarrosselPublicado(pendente.chave, sexta);
+  assert.equal(await prepararCarrossel(banco, config, new Date(sexta.getTime() + 7 * DIA), fotoFalsa()), false);
+  // Guia com 1 produto só, ou foto que falha: não cria.
+  const sozinho = bancoComProdutos();
+  guiaSalvo(sozinho, 'air-fryers', 1);
+  assert.equal(await prepararCarrossel(sozinho, config, sexta, fotoFalsa()), false);
+  const semFoto = bancoComProdutos();
+  guiaSalvo(semFoto, 'air-fryers');
+  assert.equal(await prepararCarrossel(semFoto, config, sexta, fotoFalsa('foto-')), false, 'sem as duas fotos, não faz sentido');
+  // Fora dos dias da pergunta (quarta) não cria.
+  assert.equal(await prepararCarrossel(bancoComProdutos(), lerConfig({ ...base, INSTAGRAM_PERGUNTA_DIAS: '' }), sexta, fotoFalsa()), false);
+});
+
+test('duelo: grava as 4 imagens em 1080x1350', async (t) => {
+  try {
+    await import('@resvg/resvg-js');
+  } catch {
+    t.skip('conversor de imagens não instalado');
+    return;
+  }
+  const sexta = new Date('2026-10-09T15:00:00Z');
+  const banco = bancoComProdutos();
+  guiaSalvo(banco, 'air-fryers');
+  await prepararCarrossel(banco, config, sexta, fotoFalsa());
+  const dir = mkdtempSync(join(tmpdir(), 'duelo-'));
+  assert.equal(await gravarPngsDoCarrossel(banco, lerConfig({ ...base, BLOG_PASTA: dir }), sexta), 4);
+  for (const nome of arquivosDoCarrossel('duelo-2026-10-09-air-fryers', 4)) {
+    const png = readFileSync(join(dir, 'social', nome));
+    assert.equal(png.readUInt32BE(16), 1080, nome);
+    assert.equal(png.readUInt32BE(20), 1350, nome);
+  }
 });

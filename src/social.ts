@@ -4,7 +4,7 @@ import type { Config } from './config.ts';
 import type { Banco } from './db.ts';
 import { formatarVendas } from './mensagem.ts';
 import { normalizar } from './categoria.ts';
-import { MARCA, svgDaCapaDaDica, svgDoCriterio, svgDoFechamentoDaDica, svgDoFeed, svgDoStory, svgsDaApresentacao, type DadosDaApresentacao, type DadosDaArte, type TipoDeGancho } from './moldes.ts';
+import { MARCA, svgDaCapaDaDica, svgDaCapaDoDuelo, svgDoCompetidor, svgDoFechamentoDoDuelo, svgDoCriterio, svgDoFechamentoDaDica, svgDoFeed, svgDoStory, svgsDaApresentacao, type DadosDaApresentacao, type DadosDaArte, type TipoDeGancho } from './moldes.ts';
 import { semListaDeModelos } from './fontes/mercadolivre-api.ts';
 import type { OfertaAvaliada } from './types.ts';
 
@@ -131,7 +131,7 @@ export function ganchoDaOferta(o: OfertaAvaliada): { gancho: string; curto: stri
 }
 
 /** Perguntas de curiosidade: o preço só aparece no grupo. */
-const PERGUNTAS = ['QUANTO CUSTA AGORA?', 'JÁ VIU ESSE ACHADO?', 'VAI DEIXAR PASSAR?'];
+const PERGUNTAS = ['QUANTO CUSTA AGORA?', 'ADIVINHA O PREÇO?', 'QUANTO VOCÊ PAGARIA?'];
 
 /** A pergunta da arte: "CAIU MESMO?" quando o histórico prova a queda; senão, uma pergunta de curiosidade (a mesma para o mesmo produto). */
 export function perguntaDaArte(o: OfertaAvaliada): string {
@@ -142,8 +142,8 @@ export function perguntaDaArte(o: OfertaAvaliada): string {
  * Gatilhos mentais da arte, em duas etiquetas: a vermelha grande (urgência e escassez) e a amarela pequena (exclusividade e curiosidade).
  * Nada que invente estoque, prazo ou número: só a sensação de "corra e entre no grupo".
  */
-export const GATILHOS_DE_URGENCIA = ['CORRE!', 'ANTES QUE ACABE', 'VAI SUMIR', 'OFERTA RELÂMPAGO', 'NÃO DEIXE PASSAR', 'ACHADO DO DIA'];
-export const GATILHOS_DE_EXCLUSIVIDADE = ['SÓ NO GRUPO', 'QUEM ENTRA VÊ PRIMEIRO', 'PREÇO SECRETO', 'LIBERADO NO GRUPO'];
+export const GATILHOS_DE_URGENCIA = ['ACHADO DO DIA', 'OLHA ESSE ACHADO', 'VALE O OLHAR', 'GARIMPO DE HOJE', 'SEPARADO PRA VOCÊ', 'BOM DEMAIS'];
+export const GATILHOS_DE_EXCLUSIVIDADE = ['SÓ NO GRUPO', 'VEJA PRIMEIRO NO GRUPO', 'O PREÇO TÁ NO GRUPO', 'LIBERADO NO GRUPO'];
 
 export function gatilhoDaArte(o: OfertaAvaliada): string {
   return GATILHOS_DE_URGENCIA[escolha(`g${o.idProduto}`, GATILHOS_DE_URGENCIA.length)]!;
@@ -171,7 +171,7 @@ export function montarGancho(o: OfertaAvaliada): string {
   if (dias && queda >= 5) opcoes = [`📉 ${queda}% mais barato que o menor preço dos últimos ${dias} dias`, `📉 Caiu ${queda}% abaixo do nosso menor registro de ${dias} dias`];
   else if (dias) opcoes = [`📉 Menor preço dos últimos ${dias} dias`, `📉 O preço mais baixo que registramos em ${dias} dias`];
   else if (o.vendas && o.vendas >= 1000 && o.nota && o.nota >= 4.7) opcoes = [`⭐ Campeão de vendas: ${formatarVendas(o.vendas)} vendidos`, `⭐ Queridinho de quem compra: nota ${o.nota.toFixed(1).replace('.', ',')}`];
-  else opcoes = ['🔥 Achado do dia', '🛒 Oferta separada para você'];
+  else opcoes = ['👀 Separei esse achado pra você', '🛒 Olha o que eu garimpei hoje', '🔥 Esse achado merece o seu olhar'];
   return opcoes[escolha(o.idProduto, opcoes.length)];
 }
 
@@ -200,21 +200,53 @@ export function temWhatsapp(config: Config): boolean {
   return Boolean(config.blog.whatsappLink || config.whatsapp.destinos.length);
 }
 
+/** Para quem o produto serve: diz de cara se o post é para a pessoa, o que atrai quem realmente compra a categoria. */
+const PARA_QUEM: Record<string, string[]> = {
+  tech: ['Pra quem vive de tela e quer um upgrade sem gastar à toa', 'Pra quem quer tecnologia boa sem pagar o preço cheio'],
+  casa: ['Pra quem quer facilitar a rotina de casa e da cozinha', 'Pra quem gosta de casa organizada sem gastar muito'],
+  games: ['Pra quem joga e quer melhorar o setup', 'Pra gamer que sabe que cada real conta'],
+  beleza: ['Pra quem quer cuidar de si sem pesar no bolso', 'Pra quem ama beleza e adora um bom preço'],
+  moda: ['Pra quem quer estilo sem estourar o orçamento', 'Pra quem gosta de se vestir bem pagando menos'],
+  esporte: ['Pra quem treina e quer equipamento bom pelo preço certo', 'Pra quem está criando o hábito de se exercitar'],
+  pet: ['Pra quem tem pet e quer o melhor pra ele', 'Pra tutor que faz tudo pelo bichinho'],
+  bebe: ['Pra mamãe e papai que querem economizar no enxoval', 'Pra quem tem criança em casa e sabe como o gasto cresce'],
+  ferramentas: ['Pra quem gosta de resolver as coisas em casa', 'Pra quem tem uma reforma ou um conserto na lista'],
+  geral: ['Pra quem gosta de comprar bem e pagar menos', 'Pra quem não perde achado bom'],
+};
+
+/** Perguntas que convidam a responder (comentário pesa mais no alcance do que curtida). */
+const PERGUNTAS_DA_LEGENDA = ['Você usaria? Conta aqui 👇', 'Já tem um desses em casa? Me conta 👇', 'Entrou na sua lista? Responde aqui 👇', 'Marca quem precisa de um desses 👇'];
+
+/** Prova real, só com o que os dados mostram: nota, vendas e frete. Sem número, não inventa. */
+export function provaDaOferta(o: OfertaAvaliada): string | undefined {
+  const partes: string[] = [];
+  if (o.nota && o.nota >= 4) partes.push(`nota ${o.nota.toFixed(1).replace('.', ',')}`);
+  if (o.vendas && o.vendas >= 100) partes.push(`${formatarVendas(o.vendas)} vendidos`);
+  if (o.freteGratis) partes.push('frete grátis');
+  return partes.length ? `✅ ${partes.join(' · ')}` : undefined;
+}
+
 export function montarLegenda(o: OfertaAvaliada, config: Config): string {
   const linhas: string[] = [];
+  const quem = PARA_QUEM[o.categoria] ?? PARA_QUEM.geral!;
+  const grupo = temWhatsapp(config);
   // A primeira linha é o que aparece antes do "mais": gancho e aviso de publicidade já ali.
   linhas.push(`${montarGancho(o)} #publi`);
   linhas.push(tituloCompleto(o.titulo));
   linhas.push('');
+  linhas.push(`🎯 ${quem[escolha(`q${o.idProduto}`, quem.length)]}`);
+  const prova = provaDaOferta(o);
+  if (prova) linhas.push(prova);
+  linhas.push('');
+  linhas.push(PERGUNTAS_DA_LEGENDA[escolha(`p${o.idProduto}`, PERGUNTAS_DA_LEGENDA.length)]!);
+  linhas.push('💾 Salva o post pra achar depois');
+  linhas.push('');
   // O preço em reais não vai na imagem nem na legenda: quem quer saber entra no grupo.
   // Sem grupo de WhatsApp configurado, não promete grupo: manda para o link da bio (blog).
-  linhas.push(temWhatsapp(config) ? '💰 O preço de agora está no grupo (link na bio)' : '💰 O preço de agora está no link da bio');
-  linhas.push(temWhatsapp(config) ? '⏳ Achado assim some rápido: quem está no grupo vê primeiro' : '⏳ Achado assim some rápido: corre ver na bio');
-  if (o.freteGratis) linhas.push('🚚 Frete grátis');
-  if (o.nota && o.nota > 0) linhas.push(`⭐ ${o.nota.toFixed(1).replace('.', ',')}${o.vendas ? ` · ${formatarVendas(o.vendas)} vendidos` : ''}`);
-  linhas.push('');
+  linhas.push(grupo ? '💰 O preço de agora está no grupo (link na bio)' : '💰 O preço de agora está no link da bio');
+  linhas.push(grupo ? '⏳ Achado assim some rápido: quem está no grupo vê primeiro' : '⏳ Achado assim some rápido: corre ver na bio');
   linhas.push(`👉 Todas as ofertas no blog, link na bio: ${enderecoDoBlog(config)}`);
-  if (temWhatsapp(config)) linhas.push(`📲 No grupo ${nomeDaMarca()} chegam achados assim todo dia, com o preço de agora e o histórico conferido. Entrar é grátis: link na bio.`);
+  if (grupo) linhas.push(`📲 No grupo ${nomeDaMarca()} chegam achados assim todo dia, com o preço de agora e o histórico conferido. Entrar é grátis: link na bio.`);
   linhas.push('');
   linhas.push('Publi: link de afiliado. O preço pode mudar a qualquer momento.');
   linhas.push('');
@@ -304,16 +336,47 @@ export interface DadosDoGrupo extends DadosDaApresentacao {
   titulo: string;
 }
 
-/** Os carrosséis do perfil: a dica "Antes de comprar" e a apresentação do grupo (o "Top até R$" saiu: ele mostrava preço). */
-export type DadosDoCarrossel = DadosDaDica | DadosDoGrupo;
+/** Carrossel "A ou B?": os dois primeiros produtos de um guia, lado a lado, para a pessoa escolher nos comentários. Sem preço. */
+export interface DadosDoDuelo {
+  formato: 'duelo';
+  titulo: string;
+  slug: string;
+  /** O produto, no plural ("air fryers"). */
+  assunto: string;
+  categoria: string;
+  itens: Array<{ oferta: OfertaAvaliada; imagem?: string }>;
+}
+
+/** Os carrosséis do perfil: a dica "Antes de comprar", o "A ou B?" e a apresentação do grupo (o "Top até R$" saiu: ele mostrava preço). */
+export type DadosDoCarrossel = DadosDaDica | DadosDoGrupo | DadosDoDuelo;
+
+/** As quatro imagens do "A ou B?": capa, A, B e o fechamento. */
+export function montarSvgsDoDuelo(d: DadosDoDuelo): string[] {
+  const [a, b] = d.itens;
+  const prova = (o: OfertaAvaliada, imagem?: string) => ({
+    foto: imagem,
+    linhas: tituloParaArte(o.titulo, 30),
+    nota: o.nota && o.nota > 0 ? o.nota.toFixed(1).replace('.', ',') : undefined,
+    vendas: o.vendas && o.vendas > 0 ? formatarVendas(o.vendas) : undefined,
+    freteGratis: Boolean(o.freteGratis),
+  });
+  return [
+    svgDaCapaDoDuelo({ assunto: quebrarSemCorte(d.assunto, 24).slice(0, 2), a: a?.imagem, b: b?.imagem }),
+    svgDoCompetidor({ letra: 'A', ...prova(a!.oferta, a!.imagem) }),
+    svgDoCompetidor({ letra: 'B', ...prova(b!.oferta, b!.imagem) }),
+    svgDoFechamentoDoDuelo(),
+  ];
+}
 
 /** As imagens do carrossel, na ordem (a primeira é a capa). */
 export function montarSvgsDoCarrossel(d: DadosDoCarrossel): string[] {
+  if (d.formato === 'duelo') return montarSvgsDoDuelo(d);
   return d.formato === 'grupo' ? svgsDaApresentacao(d) : montarSvgsDaDica(d);
 }
 
 /** Quantas imagens o carrossel tem. O Instagram aceita no máximo 10. */
 export function totalDeImagens(d: DadosDoCarrossel): number {
+  if (d.formato === 'duelo') return 4;
   if (d.formato === 'grupo') return svgsDaApresentacao(d).length;
   return 1 + d.criterios.length + (d.itens.length >= 2 ? 1 : 0);
 }
@@ -366,7 +429,7 @@ function perguntaDaDica(d: DadosDaDica): string {
 
 /** Legenda da dica: gancho e #publi na primeira linha, os critérios por escrito, a pergunta e a chamada para o guia. */
 export function legendaDaDica(d: DadosDaDica, config: Config): string {
-  const linhas = [`📌 ${d.titulo} #publi`, '🔖 Salve este post para consultar na hora de comprar.', ''];
+  const linhas = [`📌 ${d.titulo} #publi`, '🔖 Salva este post: ajuda na hora de comprar e evita arrependimento.', ''];
   d.criterios.forEach((c, i) => linhas.push(d.explicacoes?.[i] ? `${i + 1}) ${c}: ${d.explicacoes[i]}` : `${i + 1}) ${c}`));
   linhas.push(
     '',
@@ -399,8 +462,34 @@ export function legendaDoGrupo(d: DadosDoGrupo): string {
   return linhas.join('\n');
 }
 
+/** Legenda do "A ou B?": a pergunta logo na primeira linha, os dois nomes, a prova de cada um e o pedido para comentar. Sem preço. */
+export function legendaDoDuelo(d: DadosDoDuelo, config: Config): string {
+  const [a, b] = d.itens.map((i) => i.oferta);
+  const um = (letra: string, o: OfertaAvaliada) => {
+    const prova = provaDaOferta(o);
+    return `${letra} ${titulosCurto(o.titulo, 60)}${prova ? `\n${prova}` : ''}`;
+  };
+  return [
+    `🤔 ${d.assunto}: A ou B? Qual você escolhe? #publi`,
+    '',
+    um('🅰️', a!),
+    '',
+    um('🅱️', b!),
+    '',
+    '💬 Comenta A ou B e conta o porquê 👇',
+    '💾 Salva o post pra decidir com calma',
+    '',
+    `👉 O guia completo de ${d.assunto}, com nota e vendas: link na bio (${enderecoDoBlog(config)}). O preço de agora está no grupo.`,
+    '',
+    'Publi: link de afiliado nos produtos do guia. Os preços podem mudar a qualquer momento.',
+    '',
+    hashtagsDaCategoria(d.categoria).join(' '),
+  ].join('\n');
+}
+
 /** Legenda do carrossel, pelo formato. */
 export function legendaDoCarrossel(d: DadosDoCarrossel, config: Config): string {
+  if (d.formato === 'duelo') return legendaDoDuelo(d, config);
   return d.formato === 'grupo' ? legendaDoGrupo(d) : legendaDaDica(d, config);
 }
 

@@ -84,7 +84,8 @@ test('social: título da arte é curto, sem reticências e sem terminar em palav
 
 test('social: o selo da arte é "menor preço" (só com histórico) ou o assunto; nunca "OFERTA" nem valor (reais ou %)', () => {
   const com = { ...oferta, menorPrecoEmDias: 15 };
-  assert.match(montarSvgDoStory(com, undefined, config), /MENOR PREÇO EM 15 DIAS/);
+  assert.match(montarSvgDoStory(com, undefined, config), /MENOR PREÇO/);
+  assert.doesNotMatch(montarSvgDoStory(oferta, undefined, config), /MENOR PREÇO/, 'sem histórico confirmado, nenhum selo (o assunto não vira texto na arte)');
   assert.match(montarSvgDoFeed(com, undefined, config), /MENOR PREÇO/);
   assert.deepEqual(ganchoDaOferta(com), { gancho: 'MENOR PREÇO EM 15 DIAS', curto: 'MENOR PREÇO', tipo: 'historico' });
   assert.equal(ganchoDaOferta(oferta).gancho, 'CASA E COZINHA', 'sem histórico, o assunto (nunca o desconto)');
@@ -106,7 +107,7 @@ test('social: a pergunta da arte é "CAIU MESMO?" só com histórico; senão, um
   assert.deepEqual(linhasDaPergunta('QUANTO CUSTA AGORA?'), ['QUANTO CUSTA', 'AGORA?']);
 });
 
-test('moldes: toda arte da marca é válida, sem preço em reais, com a pergunta, a faixa do grupo, o aviso de publi e o título escapado', () => {
+test('moldes: toda arte é válida, enxuta, sem preço em reais, com a pergunta, o link da bio, o aviso de publi e o título escapado', () => {
   const categorias = ['tech', 'casa', 'beleza', 'moda', 'esporte', 'games', 'bebe', 'ferramentas', 'pet', 'geral', 'inexistente'];
   for (const categoria of categorias) {
     for (let i = 0; i < 6; i++) {
@@ -114,16 +115,19 @@ test('moldes: toda arte da marca é válida, sem preço em reais, com a pergunta
       for (const [svg, w, h] of [[montarSvgDoStory(o, 'data:image/png;base64,AAAA'), 1080, 1920], [montarSvgDoFeed(o, 'data:image/png;base64,AAAA'), 1080, 1350]] as const) {
         assert.match(svg, new RegExp(`^<svg[^>]+width="${w}" height="${h}"`));
         assert.doesNotMatch(svg, /R\$|34,41|80,00|\d%/, 'nenhum valor na arte');
-        assert.ok(svg.includes('MATA') && svg.includes('PREÇO'), 'a marca');
-        assert.ok(svg.includes(MARCA.faixa) && svg.includes(MARCA.faixaCurta), 'a faixa que leva ao grupo');
+        assert.equal((svg.match(/>MATA</g) ?? []).length, 1, 'a marca aparece uma vez só');
+        assert.ok(svg.includes('VEJA NO LINK DA BIO'), 'leva ao link da bio');
+        assert.equal((svg.match(/>\?</g) ?? []).length, 1, 'a etiqueta de preço com "?" aparece uma vez (o valor nunca aparece)');
         assert.ok(svg.includes('Publi · link de afiliado'), 'aviso de publi');
-        assert.ok(/CAIU MESMO\?|QUANTO CUSTA|JÁ VIU|VAI DEIXAR/.test(svg), 'a pergunta');
-        assert.ok(GATILHOS_DE_URGENCIA.some((g) => svg.includes(`>${g}<`)), 'a etiqueta vermelha de urgência');
-        assert.ok(GATILHOS_DE_EXCLUSIVIDADE.some((g) => svg.includes(`>${g}<`)), 'a etiqueta amarela de exclusividade');
-        assert.ok(svg.includes('4,8') && svg.includes('5 mil vendidos') && svg.includes('<polygon'), 'nota, vendas e estrela no próprio card');
+        assert.ok(/CAIU MESMO\?|QUANTO CUSTA AGORA|ADIVINHA O PREÇO|QUANTO VOCÊ PAGARIA/.test(svg), 'a pergunta de curiosidade');
         assert.ok(!svg.includes('<INMA>') && svg.includes('&lt;INMA&gt;'), 'título escapado');
         assert.equal(svg.includes('MENOR PREÇO'), i % 2 === 1, 'selo só com histórico confirmado');
         assert.ok(!svg.includes('ACHADINHOS DO DIA'), 'a marca antiga saiu');
+        // Enxuta: o produto é o herói. Nada de adesivos, estrelas, nota, vendas nem faixa grande do grupo.
+        assert.ok(!svg.includes('<polygon') && !/vendidos|Frete grátis|\b4,8\b/.test(svg), 'sem estatísticas na arte');
+        assert.ok(!svg.includes(MARCA.faixa), 'sem o bloco grande do grupo');
+        assert.ok(!GATILHOS_DE_URGENCIA.some((g) => svg.includes(`>${g}<`)) && !GATILHOS_DE_EXCLUSIVIDADE.some((g) => svg.includes(`>${g}<`)), 'sem adesivos sobre o produto');
+        assert.ok((svg.match(/<text /g) ?? []).length <= 10, 'poucos textos na arte');
       }
     }
   }
@@ -131,18 +135,26 @@ test('moldes: toda arte da marca é válida, sem preço em reais, com a pergunta
   assert.equal(montarSvgDoStory(oferta, undefined), montarSvgDoStory({ ...oferta }, undefined));
 });
 
-test('moldes: a pergunta comprida quebra em duas linhas e nada passa da largura da arte', () => {
-  const svg = montarSvgDoStory({ ...oferta, menorPrecoEmDias: undefined }, undefined);
-  const tamanhos = [...svg.matchAll(/font-size="(\d+)"[^>]*font-style="italic"[^>]*>(QUANTO CUSTA|AGORA\?|JÁ VIU ESSE|ACHADO\?|VAI DEIXAR|PASSAR\?)</g)];
-  assert.ok(tamanhos.length >= 1, 'a pergunta aparece');
-  for (const m of tamanhos) assert.ok(Number(m[1]) * m[2]!.length * 0.7 <= 960, `${m[2]} cabe nas margens`);
+test('moldes: a pergunta cabe numa linha, para qualquer das perguntas', () => {
+  const vistas = new Set<string>();
+  for (let i = 0; i < 40; i++) {
+    for (const o of [{ ...oferta, idProduto: `P${i}`, menorPrecoEmDias: undefined }, { ...oferta, idProduto: `P${i}`, menorPrecoEmDias: 9 }]) {
+      for (const svg of [montarSvgDoStory(o, undefined), montarSvgDoFeed(o, undefined)]) {
+        const m = /font-size="(\d+)"[^>]*font-style="italic"[^>]*>(CAIU MESMO\?|QUANTO CUSTA AGORA\?|ADIVINHA O PREÇO\?|QUANTO VOCÊ PAGARIA\?)</.exec(svg);
+        assert.ok(m, 'a pergunta aparece');
+        vistas.add(m![2]!);
+        assert.ok(Number(m![1]) * m![2]!.length * 0.7 <= 860, `${m![2]} cabe folgada na largura da arte`);
+      }
+    }
+  }
+  assert.equal(vistas.size, 4, 'as quatro perguntas aparecem');
 });
 
-test('moldes: no Story, a pergunta, o selo e a faixa do grupo ficam na área segura (fora do que o Instagram cobre no topo e na base)', async () => {
+test('moldes: no Story, o logo, o selo, a pergunta e o aviso ficam na área segura (fora do que o Instagram cobre no topo e na base)', async () => {
   const { STORY_TOPO_SEGURO, STORY_BASE_SEGURA, svgDoResumoDoDia } = await import('../src/moldes.ts');
   const ys = (svg: string, texto: string) => [...svg.matchAll(new RegExp(`y="([\\d.]+)"[^>]*>${texto}<`, 'g'))].map((m) => Number(m[1]));
   for (const svg of [montarSvgDoStory(oferta, undefined), montarSvgDoStory({ ...oferta, precoDe: 'inflado' }, undefined), montarSvgDoStory({ ...oferta, menorPrecoEmDias: 9 }, undefined)]) {
-    for (const t of ['CAIU MESMO\\?', 'QUANTO CUSTA', 'AGORA\\?', 'O PREÇO ESTÁ NO GRUPO', 'ENTRE PELO LINK NA BIO', 'MENOR PREÇO EM 9 DIAS', 'Publi · link de afiliado · preço pode mudar']) {
+    for (const t of ['MATA', 'CAIU MESMO\\?', 'QUANTO CUSTA AGORA\\?', 'ADIVINHA O PREÇO\\?', 'QUANTO VOCÊ PAGARIA\\?', 'VEJA NO LINK DA BIO', 'MENOR PREÇO', 'Publi · link de afiliado · preço pode mudar']) {
       for (const y of ys(svg, t)) assert.ok(y > STORY_TOPO_SEGURO && y < STORY_BASE_SEGURA, `${t} em y ${y}`);
     }
   }
@@ -150,13 +162,13 @@ test('moldes: no Story, a pergunta, o selo e a faixa do grupo ficam na área seg
   for (const t of ['HOJE NO GRUPO', 'ENTRE NO GRUPO', 'É GRÁTIS · LINK NA BIO']) for (const y of ys(resumo, t)) assert.ok(y > STORY_TOPO_SEGURO && y < STORY_BASE_SEGURA, `${t} em y ${y}`);
 });
 
-test('moldes: título e prova social ficam sempre acima da faixa do grupo, com a pergunta de uma ou de duas linhas e o título de uma ou de duas linhas', () => {
+test('moldes: o título, de uma ou de duas linhas, fica sempre acima da pergunta', () => {
   const casos = [oferta, { ...oferta, precoDe: 'inflado' as const }, { ...oferta, titulo: 'Fone', precoDe: 'inflado' as const }, { ...oferta, titulo: 'Fone Bluetooth Sem Fio Cancelamento de Ruído Ativo Bateria 30h Compatível', menorPrecoEmDias: 9 }];
   for (const o of casos) {
-    for (const [svg, yFaixa] of [[montarSvgDoStory(o, undefined), 1470], [montarSvgDoFeed(o, undefined), 1130]] as const) {
-      const linhaDasVendas = /<text x="[\d.]+" y="([\d.]+)"[^>]*>[^<]*5 mil vendidos/.exec(svg);
-      assert.ok(linhaDasVendas, 'a prova social aparece');
-      assert.ok(Number(linhaDasVendas![1]) < yFaixa - 10, `a prova social (y ${linhaDasVendas![1]}) fica acima da faixa (y ${yFaixa})`);
+    for (const [svg, yBotao, tamanho] of [[montarSvgDoStory(o, undefined), 1470, 52], [montarSvgDoFeed(o, undefined), 1130, 46]] as const) {
+      const linhas = [...svg.matchAll(new RegExp(`<text x="540" y="([\\d.]+)" font-size="${tamanho}"[^>]*fill="#ffffff"`, 'g'))].map((m) => Number(m[1]));
+      assert.ok(linhas.length >= 1 && linhas.length <= 2, 'o título tem uma ou duas linhas');
+      assert.ok(Math.max(...linhas) < yBotao - 10, `o título (y ${Math.max(...linhas)}) fica acima da pergunta (y ${yBotao})`);
     }
   }
 });
@@ -176,7 +188,7 @@ test('social: arte do Story é um SVG válido de 1080x1920, com texto escapado e
   assert.ok(!svg.includes('<INMA>'));
   assert.ok(svg.includes('data:image/png;base64,AAAA'));
   assert.doesNotMatch(svg, /R\$|34,41/, 'o preço não vai na arte');
-  assert.match(svg, /Frete grátis/);
+  assert.doesNotMatch(svg, /Frete grátis|vendidos/, 'sem estatísticas na arte');
   const semFoto =montarSvgDoStory({ ...oferta, precoOriginal: undefined, desconto: undefined, freteGratis: false }, undefined, config);
   assert.ok(!semFoto.includes('<image'));
   assert.ok(!semFoto.includes('line-through'));

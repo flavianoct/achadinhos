@@ -70,6 +70,8 @@ export function converterItemShopee(item: any): Oferta | undefined {
 export const BUSCAS_PADRAO = [
   'fone bluetooth', 'air fryer', 'tênis', 'smartwatch', 'caixa de som bluetooth', 'garrafa térmica', 'organizador', 'carregador',
   'panela', 'mochila', 'luminária', 'ventilador', 'creatina', 'secador de cabelo', 'jogo de lençol', 'cadeira gamer',
+  // Pet: alimentam o grupo de pets (WHATSAPP_ROTAS=pet=...).
+  'ração cachorro', 'cama para cachorro', 'arranhador para gato', 'coleira peitoral cachorro', 'comedouro bebedouro pet', 'brinquedo para cachorro',
 ];
 
 /** Rodízio: quais buscas ler neste turno (o robô roda a cada ~30 minutos). Com `porRodada` 0, nenhuma. */

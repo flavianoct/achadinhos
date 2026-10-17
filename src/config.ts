@@ -48,7 +48,13 @@ export interface Config {
     precoMaximo: number;
     notaMinima: number;
     vendasMinimas: number;
+    /** Pontuação mínima para a oferta entrar na fila de postagem. 0 deixa tudo entrar (as fracas ficam só no blog). */
+    pontosMinimos: number;
     palavrasBloqueadas: string[];
+    /** Produto de baixo apelo para um grupo de ofertas (higiene, limpeza, saúde de nicho...): nem entra, mesmo vendendo muito. */
+    palavrasSemApelo: string[];
+    /** Se a fila ficar com menos ofertas que isso por causa do corte de pontuação, as melhores das fracas entram, para o robô nunca parar. */
+    filaMinima: number;
     diasSemRepetir: number;
   };
   ritmo: {
@@ -127,7 +133,7 @@ export interface Config {
   /** Arte de Story, legenda e roteiro de vídeo das ofertas postadas (aparecem no painel). */
   social: { ativo: boolean };
   /** Publicação automática no Instagram (conta profissional). Token e ID ficam nos Secrets. */
-  instagram: { ativo: boolean; token: string; userId: string; feedPorDia: number; storiesPorDia: number; intervaloFeedMin: number; intervaloStoryMin: number; notaMinima: number; vendasMinimas: number; palavrasBloqueadas: string[]; carrosselPorDia: number; carrosselItens: number; carrosselTetos: number[]; dicasDias: number[]; horariosFeed: number[]; horariosStories: number[]; reelsPorDia: number; horariosReels: number[]; resumoHora: number; dataHora: number; grupoDias: number[]; tokenData: string };
+  instagram: { ativo: boolean; token: string; userId: string; feedPorDia: number; storiesPorDia: number; intervaloFeedMin: number; intervaloStoryMin: number; notaMinima: number; vendasMinimas: number; palavrasBloqueadas: string[]; carrosselPorDia: number; carrosselItens: number; carrosselTetos: number[]; dicasDias: number[]; perguntaDias: number[]; horariosFeed: number[]; horariosStories: number[]; reelsPorDia: number; horariosReels: number[]; resumoHora: number; dataHora: number; grupoDias: number[]; tokenData: string };
   painel: { porta: number };
 }
 
@@ -283,6 +289,9 @@ export function lerPalavrasDosNichos(env: Env): Record<string, string[]> {
   return porNicho;
 }
 
+/** Produtos que vendem muito mas não empolgam ninguém num grupo de ofertas (supermercado, higiene, saúde de nicho). */
+export const PALAVRAS_SEM_APELO_PADRAO = 'geriátrica,geriatrica,geriátrico,incontinência,incontinencia,absorvente,papel higiênico,papel higienico,papel toalha,detergente,sabão em pó,sabao em po,amaciante,desinfetante,água sanitária,agua sanitaria,cotonete,curativo';
+
 export function lerConfig(env: Env = process.env): Config {
   const chatId = (env.TELEGRAM_CHAT_ID ?? '').trim();
   // As palavras dos nichos valem para o classificador inteiro (filtro, painel, guias), por isso são aplicadas aqui.
@@ -325,8 +334,11 @@ export function lerConfig(env: Env = process.env): Config {
       precoMinimo: numero(env, 'PRECO_MINIMO', 15),
       precoMaximo: numero(env, 'PRECO_MAXIMO', 5000),
       notaMinima: numero(env, 'NOTA_MINIMA', 4.5),
+      pontosMinimos: numero(env, 'PONTOS_MINIMOS', 0),
       vendasMinimas: numero(env, 'VENDAS_MINIMAS', 50),
       palavrasBloqueadas: lista(env.PALAVRAS_BLOQUEADAS ?? 'réplica,replica,usado,recondicionado,erótico'),
+      palavrasSemApelo: lista(env.PALAVRAS_SEM_APELO ?? PALAVRAS_SEM_APELO_PADRAO),
+      filaMinima: numero(env, 'FILA_MINIMA', 12),
       diasSemRepetir: numero(env, 'DIAS_SEM_REPETIR', 7),
     },
     ritmo: {
@@ -427,6 +439,7 @@ export function lerConfig(env: Env = process.env): Config {
       resumoHora: numero(env, 'INSTAGRAM_RESUMO_HORA', 21),
       dataHora: numero(env, 'INSTAGRAM_DATA_HORA', 10),
       // Dias da semana do carrossel "Por que entrar no grupo" (no máximo um por semana). Vazio = nunca. Padrão: segunda.
+      perguntaDias: lista(env.INSTAGRAM_PERGUNTA_DIAS === undefined ? '0,5' : env.INSTAGRAM_PERGUNTA_DIAS).map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6),
       grupoDias: lista(env.INSTAGRAM_GRUPO_DIAS === undefined ? '1' : env.INSTAGRAM_GRUPO_DIAS).map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6),
       palavrasBloqueadas: env.INSTAGRAM_PALAVRAS_BLOQUEADAS === undefined ? ['generico', 'paralelo', 'similar', 'replica', 'imitacao', 'sem marca', 'inspirado', 'primeira linha'] : lista(env.INSTAGRAM_PALAVRAS_BLOQUEADAS),
       tokenData: (env.INSTAGRAM_TOKEN_DATA ?? '').trim(),

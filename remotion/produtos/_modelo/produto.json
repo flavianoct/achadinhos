@@ -1,0 +1,7 @@
+{
+  "produto": "NOME CURTO EM MAIÚSCULAS",
+  "produtoCompleto": "Nome completo do produto",
+  "legendas": ["Primeira legenda ☕", "Segunda legenda"],
+  "gancho": "Frase de abertura do TikTok",
+  "passos": ["Passo um", "Passo dois", "Passo tres"]
+}

@@ -57,7 +57,7 @@ test('vitrine: as artes do grupo não têm preço em reais e mostram a chamada p
   const resumo = svgDoResumoDoDia({ achados: 24, maiorDesconto: 62, noMenorPreco: 5, assuntos: ['Eletrônicos', 'Moda'], fotos: [] });
   assert.match(resumo, /HOJE NO GRUPO/);
   assert.match(resumo, />24</);
-  assert.match(resumo, /62%/);
+  assert.doesNotMatch(resumo, /62%|maior desconto|menor preço do mês|Eletrônicos/, 'clean: só o título, o número e as fotos, sem caixas de estatística nem lista de assuntos');
   assert.match(resumo, /ENTRE NO GRUPO/);
   assert.doesNotMatch(resumo, /R\$/);
   const slides = svgsDaApresentacao(dadosDaApresentacao(bancoComPostsDoDia(12), config, AGORA));
