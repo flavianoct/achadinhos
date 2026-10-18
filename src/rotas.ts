@@ -1,3 +1,4 @@
+import { CATEGORIAS } from './categoria.ts';
 import type { Config } from './config.ts';
 
 /** O canal geral aceita este nicho? GERAL_NICHOS (vazio = todos) menos GERAL_SEM_NICHOS. */
@@ -37,4 +38,34 @@ export function nichosNoLimite(postsHoje: Array<{ categoria: string; posts: numb
 /** Algum grupo ou canal de WhatsApp é só deste nicho (WHATSAPP_ROTAS)? */
 export function temWhatsappDoNicho(categoria: string, config: Config): boolean {
   return config.whatsapp.ativo && config.whatsapp.rotas.some((r) => r.nicho === categoria);
+}
+
+/** O nicho tem canal do Telegram ou grupo/canal de WhatsApp só dele? */
+export function nichoTemDestinoProprio(categoria: string, config: Config): boolean {
+  return Boolean(config.rotas.porCategoria[categoria]) || temWhatsappDoNicho(categoria, config);
+}
+
+/** Pontuação mínima para a oferta do nicho entrar na fila: a do nicho (NICHO_PONTOS_MINIMOS) ou a de todos (PONTOS_MINIMOS). */
+export function pontosMinimosDoNicho(categoria: string, config: Config): number {
+  return config.filtro.pontosPorNicho[categoria] ?? config.filtro.pontosMinimos;
+}
+
+/** Mínimo de posts por dia do nicho: o definido (NICHO_MINIMOS) ou, se tem destino próprio, o padrão (NICHO_MINIMO_PADRAO). */
+export function minimoDoNicho(categoria: string, config: Config): number {
+  return config.rotas.minimos[categoria] ?? (nichoTemDestinoProprio(categoria, config) ? config.rotas.minimoPadrao : 0);
+}
+
+/**
+ * Nichos abaixo da meta de agora, do mais atrasado ao menos atrasado. A meta cresce ao longo do dia (o mínimo é distribuído entre
+ * horaInicio e horaFim), para o nicho não gastar o mínimo todo de manhã nem ficar o dia sem postar.
+ */
+export function nichosAbaixoDaMeta(postsHoje: Array<{ categoria: string; posts: number }>, config: Config, hora: number): string[] {
+  const { horaInicio, horaFim } = config.ritmo;
+  const total = Math.max(1, horaFim - horaInicio);
+  const passou = Math.min(total, Math.max(1, hora - horaInicio + 1));
+  const feitos = new Map(postsHoje.map((p) => [p.categoria, p.posts]));
+  return CATEGORIAS.map((categoria) => ({ categoria, falta: Math.ceil((minimoDoNicho(categoria, config) * passou) / total) - (feitos.get(categoria) ?? 0), minimo: minimoDoNicho(categoria, config) }))
+    .filter((n) => n.minimo > 0 && n.falta > 0)
+    .sort((a, b) => b.falta - a.falta)
+    .map((n) => n.categoria);
 }

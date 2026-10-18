@@ -483,3 +483,82 @@ test('comissão: pesa de verdade (porcentagem e reais por venda), mas tem teto',
   assert.equal(pts({ comissao: 0.83 }), pts({ comissao: 0.2 }));
   assert.ok(pts({ comissao: 0.83, vendas: 112 }) < pts({ comissao: 0.03, vendas: 20_000 }), 'comissão enorme não bate o produto que muita gente compra');
 });
+
+// ───────────── cada nicho com a sua configuração (fila, corte, válvula e WhatsApp) ─────────────
+
+const GRUPO_PET = 'https://chat.whatsapp.com/KJi6FhpMfda0s0phA5W3Y3';
+const naFila = (id: string, titulo: string, categoria: string, pontos: number): OfertaAvaliada => ({ loja: 'shopee', idProduto: id, titulo, preco: 100, link: 'https://s/x', nota: 4.8, vendas: 500, categoria, pontos });
+
+test('nichos: o corte de qualidade é de cada nicho, e a oferta de pet passa com a pontuação que o tech não passaria', async () => {
+  const mesmaOferta = { desconto: 26, nota: 4.5, vendas: 60 };
+  const pet = oferta({ idProduto: 'PET1', titulo: 'Ração Cachorro Adulto 10kg Premium', ...mesmaOferta });
+  const tech = oferta({ idProduto: 'TEC1', titulo: 'Fone Bluetooth Sem Fio Premium', ...mesmaOferta });
+  const p = avaliar(pet, new Banco(':memory:'), config, AGORA);
+  assert.ok(p.aprovada, 'ração não é "sem apelo": existe o grupo de pets');
+  assert.equal(p.oferta.categoria, 'pet');
+  const pontos = p.oferta.pontos;
+  const corte = lerConfig({ PARECIDOS_HORAS: '0', PONTOS_MINIMOS: String(Math.ceil(pontos) + 5), NICHO_PONTOS_MINIMOS: `pet=${Math.floor(pontos) - 1}`, FILA_MINIMA: '0', NICHO_FILA_MINIMA: '0' });
+  const banco = new Banco(':memory:');
+  await coletar([fonteFixa([pet, tech])], banco, corte, dias(1));
+  assert.equal(banco.tamanhoDaFilaDoNicho('pet'), 1, 'pet passa no corte do nicho');
+  assert.equal(banco.tamanhoDaFilaDoNicho('tech'), 0, 'tech fica abaixo do corte geral');
+});
+
+test('nichos: o nicho com grupo próprio nunca fica sem oferta na fila (entram as melhores das fracas dele)', async () => {
+  const fraca = (id: string, titulo: string) => oferta({ idProduto: id, titulo, desconto: 26, nota: 4.5, vendas: 60 });
+  const ofertas = [fraca('PET1', 'Cama para Cachorro Pet Lavável G'), fraca('PET2', 'Coleira Peitoral Cachorro Ajustável'), fraca('TEC1', 'Fone Bluetooth Sem Fio Premium')];
+  const base = { PARECIDOS_HORAS: '0', PONTOS_MINIMOS: '999', NICHO_PONTOS_MINIMOS: '', FILA_MINIMA: '0' };
+  const semGrupo = new Banco(':memory:');
+  await coletar([fonteFixa(ofertas)], semGrupo, lerConfig({ ...base, NICHO_FILA_MINIMA: '2' }), dias(1));
+  assert.equal(semGrupo.tamanhoDaFila(), 0, 'sem grupo próprio, o corte vale para todos');
+  const comGrupo = new Banco(':memory:');
+  const r = await coletar([fonteFixa(ofertas)], comGrupo, lerConfig({ ...base, NICHO_FILA_MINIMA: '2', WHATSAPP_ROTAS: `pet=${GRUPO_PET}` }), dias(1));
+  assert.equal(comGrupo.tamanhoDaFilaDoNicho('pet'), 2, 'o pet mantém 2 ofertas na fila');
+  assert.equal(comGrupo.tamanhoDaFilaDoNicho('tech'), 0, 'o tech, sem grupo próprio, continua barrado');
+  assert.equal(r.reprovadasPorMotivo['pontuação abaixo do mínimo'], 1, 'só o tech foi barrado');
+});
+
+test('nichos: o nicho abaixo da meta do dia passa na frente do ranking, e o grupo do nicho não gasta a cota do WhatsApp geral', async () => {
+  const cfg = lerConfig({ PARECIDOS_HORAS: '0', TELEGRAM_CHAT_ID: '-1001234567890', WHATSAPP_ROTAS: `pet=${GRUPO_PET}`, GERAL_SEM_NICHOS: 'pet', WHATSAPP_POR_RODADA: '1', HORA_INICIO: '8', HORA_FIM: '22', PONTOS_MINIMOS: '0' });
+  const monta = () => {
+    const banco = new Banco(':memory:');
+    banco.enfileirar(naFila('T1', 'Fone Bluetooth Premium Alpha', 'tech', 90), AGORA);
+    banco.enfileirar(naFila('T2', 'Caixa de Som Bluetooth Beta', 'tech', 80), AGORA);
+    banco.enfileirar(naFila('P1', 'Cama para Cachorro Pet Gama', 'pet', 50), AGORA);
+    return banco;
+  };
+  // Às 15h o pet (mínimo padrão 6/dia) deveria ter 4 posts e tem 0: ele passa na frente, mesmo com a menor pontuação.
+  const banco = monta();
+  const pub = new PublicadorFalso();
+  assert.equal((await postarProxima(pub, banco, cfg, AGORA)).postou, true);
+  assert.deepEqual(banco.postsPorCategoria(1, AGORA), [{ categoria: 'pet', posts: 1 }]);
+  assert.deepEqual(pub.enviados, [], 'o pet não vai para o Telegram geral (GERAL_SEM_NICHOS=pet), só para o grupo dele');
+  assert.equal(banco.mensagensDoWhatsapp(1, AGORA).length, 1, 'e a mensagem do pet foi para o WhatsApp');
+  // Sem pet na fila, o ranking geral volta a mandar.
+  assert.equal((await postarProxima(pub, banco, cfg, AGORA)).postou, true);
+  assert.deepEqual(pub.enviados, ['T1']);
+
+  // A cota do WhatsApp geral (1 por rodada) não é gasta pelo pet: T1 usa a cota, T2 não cabe, mas o pet entra.
+  const zerado = lerConfig({ PARECIDOS_HORAS: '0', TELEGRAM_CHAT_ID: '-1001234567890', WHATSAPP_ROTAS: `pet=${GRUPO_PET}`, GERAL_SEM_NICHOS: 'pet', WHATSAPP_POR_RODADA: '1', NICHO_MINIMOS: 'pet=0', PONTOS_MINIMOS: '0' });
+  const b2 = monta();
+  const pub2 = new PublicadorFalso();
+  for (let i = 0; i < 3; i++) assert.equal((await postarProxima(pub2, b2, zerado, AGORA)).postou, true);
+  assert.deepEqual(pub2.enviados, ['T1', 'T2']);
+  const mensagens = b2.mensagensDoWhatsapp(1, AGORA);
+  assert.equal(mensagens.length, 2, 'T1 (cota) e P1 (grupo do nicho); T2 ficou sem WhatsApp porque a cota estava cheia');
+  assert.ok(mensagens.some((m) => /Cama para Cachorro/.test(m.texto)));
+});
+
+test('db: melhorDaFila com soCategorias só considera esses nichos, e tamanhoDaFilaDoNicho conta por nicho', () => {
+  const banco = new Banco(':memory:');
+  banco.enfileirar(naFila('T1', 'Fone Alpha', 'tech', 90), AGORA);
+  banco.enfileirar(naFila('P1', 'Cama Gama', 'pet', 50), AGORA);
+  banco.enfileirar(naFila('P2', 'Coleira Delta', 'pet', 60), AGORA);
+  assert.equal(banco.melhorDaFila()!.idProduto, 'T1');
+  assert.equal(banco.melhorDaFila(undefined, [], ['pet'])!.idProduto, 'P2', 'só o pet concorre');
+  assert.equal(banco.melhorDaFila(undefined, ['pet'], [])!.idProduto, 'T1', 'sem o pet');
+  assert.equal(banco.melhorDaFila(undefined, [], ['bebe']), undefined);
+  assert.equal(banco.tamanhoDaFilaDoNicho('pet'), 2);
+  assert.equal(banco.tamanhoDaFilaDoNicho('tech'), 1);
+  assert.equal(banco.tamanhoDaFilaDoNicho('moda'), 0);
+});

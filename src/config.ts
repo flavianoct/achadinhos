@@ -19,9 +19,13 @@ export interface Config {
     limitePorDia: number;
     /** Limite próprio de alguns nichos (NICHO_LIMITES=moda=5,tech=10); vale mais que o geral. */
     limites: Record<string, number>;
+    /** Mínimo de posts por dia de cada nicho (NICHO_MINIMOS), distribuído ao longo do dia. Vale quando o nicho tem oferta na fila. */
+    minimos: Record<string, number>;
+    /** Mínimo diário dos nichos com canal ou grupo próprio que não têm mínimo definido (NICHO_MINIMO_PADRAO). */
+    minimoPadrao: number;
     avisos: string[];
   };
-  shopee: { ativo: boolean; appId: string; secret: string; palavras: string[]; paginas: number; buscasPorRodada: number };
+  shopee: { ativo: boolean; appId: string; secret: string; palavras: string[]; paginas: number; buscasPorRodada: number; nichosPrioritarios: string[]; buscasDeNicho: number };
   ml: {
     ativo: boolean;
     mattWord: string;
@@ -50,6 +54,10 @@ export interface Config {
     vendasMinimas: number;
     /** Pontuação mínima para a oferta entrar na fila de postagem. 0 deixa tudo entrar (as fracas ficam só no blog). */
     pontosMinimos: number;
+    /** Corte de pontuação próprio de alguns nichos (NICHO_PONTOS_MINIMOS=pet=48); vale mais que o de todos. Nicho pequeno tem menos oferta e precisa de um corte menor. */
+    pontosPorNicho: Record<string, number>;
+    /** Quantas ofertas o nicho com canal ou grupo próprio mantém na fila, entrando as melhores das fracas se faltar (NICHO_FILA_MINIMA). */
+    filaMinimaDoNicho: number;
     palavrasBloqueadas: string[];
     /** Produto de baixo apelo para um grupo de ofertas (higiene, limpeza, saúde de nicho...): nem entra, mesmo vendendo muito. */
     palavrasSemApelo: string[];
@@ -250,7 +258,7 @@ export function salvarNoEnv(alteracoes: Record<string, string>, caminho = '.env'
 
 /** Lê "categoria=@canal, categoria=-100123" do ajuste ROTAS_TELEGRAM. */
 export function lerRotas(texto: string | undefined, tambemNoGeral: boolean, geralNichos?: string, geralSem?: string, limitePorDia = 0, limites?: string): Config['rotas'] {
-  const rotas: Config['rotas'] = { porCategoria: {}, tambemNoGeral, geralNichos: [], geralSem: [], limitePorDia: Math.max(0, limitePorDia), limites: {}, avisos: [] };
+  const rotas: Config['rotas'] = { porCategoria: {}, tambemNoGeral, geralNichos: [], geralSem: [], limitePorDia: Math.max(0, limitePorDia), limites: {}, minimos: {}, minimoPadrao: 0, avisos: [] };
   for (const item of lista(limites)) {
     const [nicho, valor] = item.split('=').map((x) => x.trim().toLowerCase());
     const n = Number(valor);
@@ -292,7 +300,38 @@ export function lerPalavrasDosNichos(env: Env): Record<string, string[]> {
 /** Produtos que vendem muito mas não empolgam ninguém num grupo de ofertas (supermercado, higiene, saúde de nicho). */
 export const PALAVRAS_SEM_APELO_PADRAO = 'geriátrica,geriatrica,geriátrico,incontinência,incontinencia,absorvente,papel higiênico,papel higienico,papel toalha,detergente,sabão em pó,sabao em po,amaciante,desinfetante,água sanitária,agua sanitaria,cotonete,curativo';
 
+/** Corte de pontuação de cada nicho pequeno: tem menos oferta, então um corte menor mantém o canal dele alimentado. */
+export const PONTOS_POR_NICHO_PADRAO = 'pet=48,bebe=48,ferramentas=48,games=52';
+
+/** "pet=48,bebe=50" vira { pet: 48, bebe: 50 }. Nicho que não existe ou valor inválido vira aviso. */
+export function mapaPorNicho(texto: string | undefined, chave: string, avisos: string[], minimo = 0): Record<string, number> {
+  const mapa: Record<string, number> = {};
+  for (const item of lista(texto)) {
+    const [nicho, valor] = item.split('=').map((x) => x.trim().toLowerCase());
+    const n = Number(valor);
+    if (!CATEGORIAS.includes(nicho ?? '')) avisos.push(`${chave}: nicho "${nicho}" não existe (use: ${CATEGORIAS.join(', ')}).`);
+    else if (valor === undefined || valor === '' || !Number.isFinite(n) || n < minimo) avisos.push(`${chave}: "${item}" precisa ser nicho=número.`);
+    else mapa[nicho!] = n;
+  }
+  return mapa;
+}
+
+/** Nichos com canal do Telegram ou grupo/canal de WhatsApp próprio. */
+export function nichosComDestino(c: Config): string[] {
+  return [...new Set([...Object.keys(c.rotas.porCategoria), ...c.whatsapp.rotas.map((r) => r.nicho)])].filter((n) => n !== 'geral');
+}
+
 export function lerConfig(env: Env = process.env): Config {
+  const c = lerConfigBase(env);
+  c.filtro.pontosPorNicho = mapaPorNicho(env.NICHO_PONTOS_MINIMOS ?? PONTOS_POR_NICHO_PADRAO, 'NICHO_PONTOS_MINIMOS', c.rotas.avisos);
+  c.rotas.minimos = mapaPorNicho(env.NICHO_MINIMOS, 'NICHO_MINIMOS', c.rotas.avisos);
+  c.rotas.minimoPadrao = Math.max(0, numero(env, 'NICHO_MINIMO_PADRAO', 6));
+  c.shopee.nichosPrioritarios = nichosComDestino(c);
+  c.shopee.buscasDeNicho = Math.max(0, numero(env, 'SHOPEE_BUSCAS_DE_NICHO', 1));
+  return c;
+}
+
+function lerConfigBase(env: Env): Config {
   const chatId = (env.TELEGRAM_CHAT_ID ?? '').trim();
   // As palavras dos nichos valem para o classificador inteiro (filtro, painel, guias), por isso são aplicadas aqui.
   definirPalavrasDosNichos(lerPalavrasDosNichos(env));
@@ -310,6 +349,8 @@ export function lerConfig(env: Env = process.env): Config {
       palavras: lista(env.TEMA).length ? lista(env.TEMA) : lista(env.SHOPEE_PALAVRAS),
       paginas: numero(env, 'SHOPEE_PAGINAS', 2),
       buscasPorRodada: numero(env, 'SHOPEE_BUSCAS_POR_RODADA', 2),
+      nichosPrioritarios: [],
+      buscasDeNicho: 1,
     },
     ml: {
       ativo: ligado(env, 'ML_ATIVO', false),
@@ -319,7 +360,7 @@ export function lerConfig(env: Env = process.env): Config {
       clientSecret: (env.ML_CLIENT_SECRET ?? '').trim(),
       paginas: numero(env, 'ML_PAGINAS', 3),
       // Eletrônicos, Celulares, Informática, Eletrodomésticos, Casa, Games, Beleza e Esportes.
-      categorias: env.ML_CATEGORIAS === undefined ? ['MLB1000', 'MLB1051', 'MLB1648', 'MLB5726', 'MLB1574', 'MLB1144', 'MLB1246', 'MLB1276'] : lista(env.ML_CATEGORIAS).map((c) => c.toUpperCase()),
+      categorias: env.ML_CATEGORIAS === undefined ? ['MLB1000', 'MLB1051', 'MLB1648', 'MLB5726', 'MLB1574', 'MLB1144', 'MLB1246', 'MLB1276', 'MLB1071', 'MLB1384', 'MLB1430', 'MLB263532'] : lista(env.ML_CATEGORIAS).map((c) => c.toUpperCase()),
       paginasDeCategoria: numero(env, 'ML_PAGINAS_DE_CATEGORIA', 2),
       apiCategoriasPorRodada: numero(env, 'ML_API_CATEGORIAS_POR_RODADA', 6),
     },
@@ -335,6 +376,8 @@ export function lerConfig(env: Env = process.env): Config {
       precoMaximo: numero(env, 'PRECO_MAXIMO', 5000),
       notaMinima: numero(env, 'NOTA_MINIMA', 4.5),
       pontosMinimos: numero(env, 'PONTOS_MINIMOS', 0),
+      pontosPorNicho: {},
+      filaMinimaDoNicho: Math.max(0, numero(env, 'NICHO_FILA_MINIMA', 3)),
       vendasMinimas: numero(env, 'VENDAS_MINIMAS', 50),
       palavrasBloqueadas: lista(env.PALAVRAS_BLOQUEADAS ?? 'réplica,replica,usado,recondicionado,erótico'),
       palavrasSemApelo: lista(env.PALAVRAS_SEM_APELO ?? PALAVRAS_SEM_APELO_PADRAO),
