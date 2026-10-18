@@ -438,3 +438,38 @@ test('geral: a cota do nicho no geral cresce ao longo do dia, para os anúncios 
   assert.equal(cotaDoGeralAgora(2, c, 16), 2, 'à tarde, o segundo');
   assert.equal(cotaDoGeralAgora(2, c, 22), 2, 'nunca passa do limite do dia');
 });
+
+test('lojas: o Mercado Livre puxa a maior parte dos posts (LOJA_PROPORCAO) e a Shopee entra com a dela', async () => {
+  const { lojaParaEvitar } = await import('../src/rotas.ts');
+  const c = lerConfig({ ...base, LOJA_PROPORCAO: 'mercadolivre=65, shopee=35, amazon=9, shopee=x' });
+  assert.deepEqual(c.ritmo.proporcaoDasLojas, { mercadolivre: 65, shopee: 35 });
+  // Shopee acima da fatia nos últimos posts: evita a Shopee. Mercado Livre acima: evita o Mercado Livre.
+  assert.equal(lojaParaEvitar(['shopee', 'shopee', 'mercadolivre', 'shopee'], 'shopee', c), 'shopee');
+  assert.equal(lojaParaEvitar(['mercadolivre', 'mercadolivre', 'mercadolivre', 'mercadolivre'], 'mercadolivre', c), 'mercadolivre');
+  // Em 20 posts na proporção certa (13 e 7), a Shopee ainda cabe um pouco: não evita a Shopee.
+  const certo = [...Array(13).fill('mercadolivre'), ...Array(7).fill('shopee')] as string[];
+  assert.notEqual(lojaParaEvitar(certo, 'mercadolivre', c), 'shopee');
+  // Sem a proporção, vale a regra antiga: evita a loja da última oferta.
+  assert.equal(lojaParaEvitar(['shopee'], 'shopee', lerConfig(base)), 'shopee');
+  assert.equal(lojaParaEvitar([], undefined, c), undefined);
+
+  // Na fila: com a Shopee na frente do ranking, o Mercado Livre ainda é escolhido quando ele está abaixo da fatia.
+  const banco = new Banco(':memory:');
+  const ml = { ...oferta('Smartphone Xiaomi Redmi 13', 'M1'), loja: 'mercadolivre' as const, pontos: 60 };
+  const sp = { ...oferta('Camiseta Básica Algodão', 'S1'), loja: 'shopee' as const, pontos: 90 };
+  for (const o of [sp, ml]) banco.enfileirar(o, AGORA);
+  for (let i = 0; i < 6; i++) banco.registrarPost({ ...sp, idProduto: `x${i}` }, AGORA);
+  const pub = new Falso();
+  await postarProxima(pub, banco, lerConfig({ ...base, LOJA_PROPORCAO: 'mercadolivre=65,shopee=35' }), AGORA);
+  assert.equal(pub.enviados[0]!.id, 'M1');
+});
+
+test('filtro: a Shopee exige mais vendas (SHOPEE_VENDAS_MINIMAS), o Mercado Livre segue o mínimo de todos', async () => {
+  const { avaliar } = await import('../src/filtro.ts');
+  const c = lerConfig({ ...base, VENDAS_MINIMAS: '50', SHOPEE_VENDAS_MINIMAS: '1000' });
+  const banco = new Banco(':memory:');
+  const o = { loja: 'shopee' as const, idProduto: 'V1', titulo: 'Fone Bluetooth Sem Fio Premium', preco: 80, precoOriginal: 200, link: 'https://s/v', vendas: 400, nota: 4.8 };
+  assert.deepEqual(avaliar(o, banco, c, AGORA), { aprovada: false, motivo: 'poucas vendas' });
+  assert.equal(avaliar({ ...o, vendas: 4000 }, banco, c, AGORA).aprovada, true);
+  assert.equal(avaliar({ ...o, loja: 'mercadolivre', vendas: 400 }, banco, c, AGORA).aprovada, true);
+});

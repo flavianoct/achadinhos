@@ -7,9 +7,9 @@ import { categorizar, contemPalavra, normalizar } from './categoria.ts';
 import { avaliar } from './filtro.ts';
 import { melhorVendedor, mesmoTipoDeProduto, parecidoComAlgum } from './parecidos.ts';
 import { elegivelParaGuia, tipoDeGuia } from './guias.ts';
-import { cotaDoGeralAgora, destinosDaOferta, geralAceita, limiteNoGeral, nichosAbaixoDaMeta, nichosNoLimite, pontosMinimosDoNicho, temWhatsappDoNicho } from './rotas.ts';
+import { cotaDoGeralAgora, destinosDaOferta, geralAceita, limiteNoGeral, lojaParaEvitar, nichosAbaixoDaMeta, nichosNoLimite, pontosMinimosDoNicho, temWhatsappDoNicho } from './rotas.ts';
 import { ErroTelegram, type Publicador } from './telegram.ts';
-import type { Fonte, OfertaAvaliada } from './types.ts';
+import type { Fonte, Loja, OfertaAvaliada } from './types.ts';
 
 /** Oferta parada na fila por mais tempo que isso é descartada (o preço pode ter mudado). */
 const HORAS_NA_FILA = 6;
@@ -154,7 +154,8 @@ export async function postarProxima(publicador: Publicador, banco: Banco, config
   const preferidos = nichosAbaixoDaMeta(postsHoje, config, hora).filter((n) => !cheios.includes(n));
   const recentes = config.ritmo.parecidosHoras > 0 ? banco.titulosPostados(config.ritmo.parecidosHoras, agora) : [];
   for (let tentativa = 0; tentativa < 200; tentativa++) {
-    oferta = (preferidos.length ? banco.melhorDaFila(banco.ultimaLojaPostada(), cheios, preferidos) : undefined) ?? banco.melhorDaFila(banco.ultimaLojaPostada(), cheios);
+    const evitarLoja = lojaParaEvitar(banco.lojasDosUltimosPosts(20), banco.ultimaLojaPostada(), config) as Loja | undefined;
+    oferta = (preferidos.length ? banco.melhorDaFila(evitarLoja, cheios, preferidos) : undefined) ?? banco.melhorDaFila(evitarLoja, cheios);
     if (!oferta) break;
     // Outro anúncio do mesmo tipo de produto já saiu há pouco (ex.: 3 chapas de policarbonato de vendedores diferentes): sai da fila.
     if (parecidoComAlgum(oferta.titulo, recentes)) {

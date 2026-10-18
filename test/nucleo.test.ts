@@ -64,11 +64,14 @@ test('filtro: motivos de reprovação', () => {
   assert.equal(motivo(oferta({ desconto: undefined, precoOriginal: 105 })), 'desconto insuficiente');
 });
 
-test('filtro: barra promoção falsa usando o histórico de preços', () => {
+test('filtro: com PRECO_JA_MAIS_BARATO_REPROVA ligado, barra o que já esteve mais barato; desligado (padrão) vale a promoção do dia', () => {
   const banco = new Banco(':memory:');
   for (const d of [5, 4, 3]) banco.registrarPreco(oferta({ preco: 80 }), dias(d));
   // Anuncia 40% de desconto, mas custava 80 há poucos dias.
-  assert.equal(motivo(oferta({ preco: 100 }), banco), 'já esteve mais barato recentemente');
+  const rigorosa = lerConfig({ PARECIDOS_HORAS: '0', PRECO_JA_MAIS_BARATO_REPROVA: '1' });
+  const reprovada = avaliar(oferta({ preco: 100 }), banco, rigorosa, AGORA);
+  assert.ok(!reprovada.aprovada && reprovada.motivo === 'já esteve mais barato recentemente');
+  assert.equal(avaliar(oferta({ preco: 100 }), banco, config, AGORA).aprovada, true, 'padrão (desligado): a promoção do dia vale');
   // No mesmo preço de antes, com desconto anunciado: passa e ganha o selo de menor preço.
   const r = avaliar(oferta({ preco: 80 }), banco, config, AGORA);
   assert.ok(r.aprovada);

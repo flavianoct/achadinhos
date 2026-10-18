@@ -506,7 +506,7 @@ ${rodape(2)}`);
 ${titulo(['A GENTE CONFERE', 'O PREÇO'], 300)}
 ${texto(540, 640, 200, MARCA.branco, `${d.diasDeHistorico}`)}
 ${texto(540, 730, 60, MARCA.amarelo, 'dias de histórico')}
-${corpo(['O robô anota o preço de cada produto todo dia', 'e avisa quando é o menor preço do mês.', 'Se já esteve mais barato no último mês,', 'fica de fora.'], 850)}
+${corpo(['O robô anota o preço de cada produto todo dia', 'e avisa quando é o menor preço do mês.', 'Assim você vê se a promoção', 'de hoje vale mesmo a pena.'], 850)}
 ${rodape(3)}`);
   const filtro = envolver(`${cabeca}
 ${titulo(['SÓ ENTRA O QUE', 'PASSA NO FILTRO'], 300)}

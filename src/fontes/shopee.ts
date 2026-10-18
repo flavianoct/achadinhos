@@ -244,6 +244,24 @@ export class FonteShopee implements Fonte {
       }
     }
 
+    // Nenhuma categoria trouxe produto: tenta a consulta sem ordenação (a combinação pode ser o problema) e anota no log quais ids a Shopee
+    // usa de verdade nas categorias de um produto, para a lista em nichos.ts poder ser corrigida. Só diagnóstico: nunca derruba a rodada.
+    if (categorias.length && categorias.every((c) => resumoDasCategorias.includes(`${c.nome}=0`))) {
+      try {
+        const c = categorias[0]!;
+        const { itens } = await this.pagina(`productCatId: ${c.id}, page: 1, limit: 50`);
+        guardar(itens);
+        console.log(`[shopee] diagnóstico: "${c.nome}" sem ordenação trouxe ${itens.length} produtos`);
+        const termo = BUSCAS_POR_NICHO[c.nicho]?.[0];
+        if (termo) {
+          const d = await this.consultar(`{ productOfferV2(keyword: ${JSON.stringify(termo)}, sortType: 2, page: 1, limit: 3) { nodes { itemId productCatIds } } }`);
+          console.log(`[shopee] diagnóstico: ids de categoria dos produtos de "${termo}": ${JSON.stringify((d?.productOfferV2?.nodes ?? []).map((n: any) => n.productCatIds))}`);
+        }
+      } catch (e) {
+        console.log(`[shopee] diagnóstico das categorias falhou: ${(e as Error).message}`);
+      }
+    }
+
     // Buscas por palavra-chave, ordenadas pelos mais vendidos (sortType 2).
     // Com buscas configuradas (ou tema), usa as configuradas em rodízio; sem nenhuma, a lista padrão. Falha de uma busca não derruba a rodada.
     const buscas = planoDeBuscas(this.palavras, this.buscasPorRodada, this.nichosPrioritarios, this.buscasDeNicho, turno, this.nichosAtivos);
