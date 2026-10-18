@@ -415,7 +415,7 @@ async function rodar() {
       if (pendentes.length && regra.pode) {
         const m = pendentes[0];
         // Só os destinos do nicho da oferta (e os gerais, se o filtro do geral aceitar o nicho).
-        const alvos = destinos.filter((d) => destinoAceita(d, m.categoria, filtroGeral));
+        const alvos = destinos.filter((d) => destinoAceita(d, m.categoria, filtroGeral, m.soNicho));
         log(`Enviando${m.categoria ? ` [${m.categoria}]` : ''} para ${alvos.length} destino(s), ${Math.round((Date.now() - m.criadoEm) / 60_000)} min depois de a oferta nascer: ${m.texto.split('\n')[0].slice(0, 70)}`);
         if (!alvos.length) {
           // Nenhum grupo ou canal recebe este nicho: marca como resolvida para não travar a fila.

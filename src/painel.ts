@@ -68,6 +68,7 @@ export const CAMPOS: Campo[] = [
   { grupo: 'Nichos e canais', chave: 'GERAL_NICHOS', rotulo: 'Só estes nichos no canal geral', tipo: 'texto', padrao: '', ajuda: 'Vazio = todos.' },
   { grupo: 'Nichos e canais', chave: 'GERAL_SEM_NICHOS', rotulo: 'Nichos fora do canal geral', tipo: 'texto', padrao: '', ajuda: 'Ex.: bebe,pet' },
   { grupo: 'Nichos e canais', chave: 'NICHO_MAX_POR_DIA', rotulo: 'Limite por dia de cada nicho', tipo: 'numero', padrao: '0', ajuda: '0 = sem limite.' },
+  { grupo: 'Nichos e canais', chave: 'GERAL_LIMITES', rotulo: 'Anúncios por dia de um nicho no canal geral', tipo: 'texto', padrao: '', ajuda: 'Só vale para nicho com canal ou grupo próprio. Ex.: pet=2' },
   { grupo: 'Nichos e canais', chave: 'NICHO_LIMITES', rotulo: 'Limite próprio de alguns nichos', tipo: 'texto', padrao: '', ajuda: 'Ex.: moda=8,tech=15' },
   { grupo: 'Nichos e canais', chave: 'NICHO_PALAVRAS_TECH', rotulo: 'Palavras extras: Eletrônicos', tipo: 'texto', padrao: '', ajuda: 'Separadas por vírgula; "-palavra" tira a palavra do nicho.' },
   { grupo: 'Nichos e canais', chave: 'NICHO_PALAVRAS_MODA', rotulo: 'Palavras extras: Moda', tipo: 'texto', padrao: '' },

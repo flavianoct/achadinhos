@@ -8,15 +8,32 @@ export function geralAceita(categoria: string, config: Config): boolean {
   return geralNichos.length === 0 || geralNichos.includes(categoria);
 }
 
+/** Quantos anúncios por dia o canal geral aceita deste nicho (GERAL_LIMITES). 0 = sem limite; só vale para nicho com canal ou grupo próprio. */
+export function limiteNoGeral(categoria: string, config: Config): number {
+  return nichoTemDestinoProprio(categoria, config) ? (config.rotas.geralLimites[categoria] ?? 0) : 0;
+}
+
+/**
+ * Quantos anúncios do nicho o geral já pode ter recebido a esta hora: a cota do dia cresce ao longo do dia (como a meta dos mínimos),
+ * para os anúncios do nicho aparecerem no geral espalhados e não todos de manhã.
+ */
+export function cotaDoGeralAgora(limite: number, config: Config, hora: number): number {
+  const { horaInicio, horaFim } = config.ritmo;
+  const total = Math.max(1, horaFim - horaInicio);
+  const passou = Math.min(total, Math.max(1, hora - horaInicio + 1));
+  return Math.ceil((limite * passou) / total);
+}
+
 /**
  * Para onde vai uma oferta no Telegram: o canal do nicho dela, se houver rota; senão o canal geral,
  * se o filtro do geral aceitar o nicho. Com ROTAS_TAMBEM_NO_GERAL=1 a oferta de um nicho com rota também
- * sai no geral (se o filtro aceitar). Lista vazia = a oferta não vai para canal nenhum.
+ * sai no geral (se o filtro aceitar). Com `geralCheio` (o nicho já usou a cota de hoje no geral) ela vai só para o canal do nicho.
+ * Lista vazia = a oferta não vai para canal nenhum.
  * O primeiro da lista é o destino principal (é o que fica registrado no histórico).
  */
-export function destinosDaOferta(categoria: string, config: Config): string[] {
+export function destinosDaOferta(categoria: string, config: Config, geralCheio = false): string[] {
   const geral = config.telegram.chatId;
-  const noGeral = geralAceita(categoria, config);
+  const noGeral = geralAceita(categoria, config) && !geralCheio;
   const rota = config.rotas.porCategoria[categoria];
   if (!rota || rota === geral) return noGeral ? [geral] : [];
   return config.rotas.tambemNoGeral && noGeral ? [rota, geral] : [rota];

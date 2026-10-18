@@ -7,7 +7,7 @@ import { categorizar, contemPalavra, normalizar } from './categoria.ts';
 import { avaliar } from './filtro.ts';
 import { melhorVendedor, mesmoTipoDeProduto, parecidoComAlgum } from './parecidos.ts';
 import { elegivelParaGuia, tipoDeGuia } from './guias.ts';
-import { destinosDaOferta, geralAceita, nichosAbaixoDaMeta, nichosNoLimite, pontosMinimosDoNicho, temWhatsappDoNicho } from './rotas.ts';
+import { cotaDoGeralAgora, destinosDaOferta, geralAceita, limiteNoGeral, nichosAbaixoDaMeta, nichosNoLimite, pontosMinimosDoNicho, temWhatsappDoNicho } from './rotas.ts';
 import { ErroTelegram, type Publicador } from './telegram.ts';
 import type { Fonte, OfertaAvaliada } from './types.ts';
 
@@ -77,6 +77,9 @@ export async function coletar(fontes: Fonte[], banco: Banco, config: Config, ago
 
       if (resultado.aprovada && !dentroDoTema(resultado.oferta.titulo, config)) {
         contar(oferta.loja, 'fora do tema');
+      } else if (resultado.aprovada && config.filtro.nichosAtivos.length && !config.filtro.nichosAtivos.includes(resultado.oferta.categoria)) {
+        // Só os NICHOS_ATIVOS: o resto continua no blog, mas não vai para os canais.
+        contar(oferta.loja, 'fora dos nichos ativos');
       } else if (resultado.aprovada && resultado.oferta.pontos < pontosMinimosDoNicho(resultado.oferta.categoria, config)) {
         // Oferta aprovada mas fraca: não vai para os canais (continua no blog e nos guias), a não ser que a fila fique curta (abaixo).
         fracas.push(resultado.oferta);
@@ -144,6 +147,7 @@ export async function postarProxima(publicador: Publicador, banco: Banco, config
   // sai da fila e a próxima é tentada.
   let oferta: OfertaAvaliada | undefined;
   let destinos: string[] = [];
+  let geralCheio = false;
   const postsHoje = banco.postsPorCategoria(1, agora);
   const cheios = nichosNoLimite(postsHoje, config);
   // Nicho com mínimo diário (NICHO_MINIMOS, ou o padrão dos nichos com canal próprio) que está atrás da meta de agora passa na frente do ranking geral.
@@ -179,7 +183,10 @@ export async function postarProxima(publicador: Publicador, banco: Banco, config
         }
       }
     }
-    destinos = destinosDaOferta(oferta.categoria, config);
+    // Nicho com canal ou grupo próprio que já usou a cota de hoje no geral (GERAL_LIMITES): o resto do dia vai só para o dele.
+    const limiteGeral = limiteNoGeral(oferta.categoria, config);
+    geralCheio = limiteGeral > 0 && banco.postsNoGeralHoje(oferta.categoria, agora) >= cotaDoGeralAgora(limiteGeral, config, hora);
+    destinos = destinosDaOferta(oferta.categoria, config, geralCheio);
     // Sem canal no Telegram, mas com grupo ou canal de WhatsApp do nicho: vai só para o WhatsApp.
     if (destinos.length || temWhatsappDoNicho(oferta.categoria, config)) break;
     banco.removerDaFila(oferta.loja, oferta.idProduto);
@@ -216,14 +223,16 @@ export async function postarProxima(publicador: Publicador, banco: Banco, config
     }
   }
 
-  banco.registrarPost(oferta, agora, canais[0] ?? 'whatsapp');
+  banco.registrarPost(oferta, agora, canais[0] ?? 'whatsapp', geralAceita(oferta.categoria, config) && !geralCheio);
   // A mesma oferta que saiu no Telegram também vira mensagem de WhatsApp (o enviador do PC é quem posta e escolhe os
   // grupos e canais pelo nicho dela).
   // O WhatsApp (chip do dono, sem API oficial) recebe só as melhores de cada rodada (WHATSAPP_POR_RODADA); o Telegram posta todas.
   // A cota do WhatsApp (WHATSAPP_POR_RODADA) é dos canais gerais. Nicho que o geral não aceita e que tem grupo próprio não concorre com ela: o ritmo dele já é controlado pelos mínimos e limites do nicho.
-  const soNoGrupoDoNicho = temWhatsappDoNicho(oferta.categoria, config) && !geralAceita(oferta.categoria, config);
+  const soNoGrupoDoNicho = temWhatsappDoNicho(oferta.categoria, config) && (!geralAceita(oferta.categoria, config) || geralCheio);
   const cabeNoWhatsapp = soNoGrupoDoNicho || config.whatsapp.porRodada <= 0 || banco.whatsappNosUltimosMinutos(20, agora) < config.whatsapp.porRodada;
-  if (config.whatsapp.ativo && cabeNoWhatsapp) banco.guardarParaWhatsapp(oferta, montarMensagemWhatsapp(oferta, rodapeDoWhatsapp(config)), agora);
+  // Com a cota do geral cheia, a mensagem só serve ao grupo do nicho; sem grupo de WhatsApp do nicho, não há para quem mandar.
+  const semDestinoNoWhatsapp = geralCheio && !temWhatsappDoNicho(oferta.categoria, config);
+  if (config.whatsapp.ativo && cabeNoWhatsapp && !semDestinoNoWhatsapp) banco.guardarParaWhatsapp(oferta, montarMensagemWhatsapp(oferta, rodapeDoWhatsapp(config)), agora, geralCheio);
   if (config.social.ativo) banco.guardarParaSocial(oferta, agora);
   banco.removerDaFila(oferta.loja, oferta.idProduto);
   return { postou: true, oferta, canais, avisos };

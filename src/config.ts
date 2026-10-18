@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { parseEnv } from 'node:util';
 import { CATEGORIAS, definirPalavrasDosNichos } from './categoria.ts';
+import { NICHOS_DAS_LOJAS, categoriasMlDosNichos, categoriasShopeeDosNichos, type CategoriaDaShopee } from './nichos.ts';
 
 export interface Config {
   telegram: { token: string; chatId: string };
@@ -19,13 +20,15 @@ export interface Config {
     limitePorDia: number;
     /** Limite próprio de alguns nichos (NICHO_LIMITES=moda=5,tech=10); vale mais que o geral. */
     limites: Record<string, number>;
+    /** Quantos anúncios por dia o canal geral recebe de um nicho que tem canal ou grupo próprio (GERAL_LIMITES=pet=2); o resto vai só para o dele. */
+    geralLimites: Record<string, number>;
     /** Mínimo de posts por dia de cada nicho (NICHO_MINIMOS), distribuído ao longo do dia. Vale quando o nicho tem oferta na fila. */
     minimos: Record<string, number>;
     /** Mínimo diário dos nichos com canal ou grupo próprio que não têm mínimo definido (NICHO_MINIMO_PADRAO). */
     minimoPadrao: number;
     avisos: string[];
   };
-  shopee: { ativo: boolean; appId: string; secret: string; palavras: string[]; paginas: number; buscasPorRodada: number; nichosPrioritarios: string[]; buscasDeNicho: number };
+  shopee: { ativo: boolean; appId: string; secret: string; palavras: string[]; paginas: number; buscasPorRodada: number; nichosPrioritarios: string[]; buscasDeNicho: number; categorias: CategoriaDaShopee[]; categoriasPorRodada: number; categoriasDeNicho: number; nichosAtivos: string[] };
   ml: {
     ativo: boolean;
     mattWord: string;
@@ -56,6 +59,8 @@ export interface Config {
     pontosMinimos: number;
     /** Corte de pontuação próprio de alguns nichos (NICHO_PONTOS_MINIMOS=pet=48); vale mais que o de todos. Nicho pequeno tem menos oferta e precisa de um corte menor. */
     pontosPorNicho: Record<string, number>;
+    /** Os únicos nichos que o robô busca e posta (NICHOS_ATIVOS=pet). Vazio = todos. Vale para a Shopee e para o Mercado Livre. */
+    nichosAtivos: string[];
     /** Quantas ofertas o nicho com canal ou grupo próprio mantém na fila, entrando as melhores das fracas se faltar (NICHO_FILA_MINIMA). */
     filaMinimaDoNicho: number;
     palavrasBloqueadas: string[];
@@ -257,8 +262,15 @@ export function salvarNoEnv(alteracoes: Record<string, string>, caminho = '.env'
 }
 
 /** Lê "categoria=@canal, categoria=-100123" do ajuste ROTAS_TELEGRAM. */
-export function lerRotas(texto: string | undefined, tambemNoGeral: boolean, geralNichos?: string, geralSem?: string, limitePorDia = 0, limites?: string): Config['rotas'] {
-  const rotas: Config['rotas'] = { porCategoria: {}, tambemNoGeral, geralNichos: [], geralSem: [], limitePorDia: Math.max(0, limitePorDia), limites: {}, minimos: {}, minimoPadrao: 0, avisos: [] };
+export function lerRotas(texto: string | undefined, tambemNoGeral: boolean, geralNichos?: string, geralSem?: string, limitePorDia = 0, limites?: string, geralLimites?: string): Config['rotas'] {
+  const rotas: Config['rotas'] = { porCategoria: {}, tambemNoGeral, geralNichos: [], geralSem: [], limitePorDia: Math.max(0, limitePorDia), limites: {}, geralLimites: {}, minimos: {}, minimoPadrao: 0, avisos: [] };
+  for (const item of lista(geralLimites)) {
+    const [nicho, valor] = item.split('=').map((x) => x.trim().toLowerCase());
+    const n = Number(valor);
+    if (!CATEGORIAS.includes(nicho ?? '')) rotas.avisos.push(`GERAL_LIMITES: nicho "${nicho}" não existe (use: ${CATEGORIAS.join(', ')}).`);
+    else if (!Number.isInteger(n) || n < 0) rotas.avisos.push(`GERAL_LIMITES: "${item}" precisa ser nicho=número (0 = sem limite).`);
+    else rotas.geralLimites[nicho!] = n;
+  }
   for (const item of lista(limites)) {
     const [nicho, valor] = item.split('=').map((x) => x.trim().toLowerCase());
     const n = Number(valor);
@@ -328,6 +340,22 @@ export function lerConfig(env: Env = process.env): Config {
   c.rotas.minimoPadrao = Math.max(0, numero(env, 'NICHO_MINIMO_PADRAO', 6));
   c.shopee.nichosPrioritarios = nichosComDestino(c);
   c.shopee.buscasDeNicho = Math.max(0, numero(env, 'SHOPEE_BUSCAS_DE_NICHO', 1));
+  // NICHOS_ATIVOS: o robô puxa só esses nichos (vazio = todos). Vale para a Shopee (categorias e buscas) e para o Mercado Livre (categorias).
+  const ativos = lista(env.NICHOS_ATIVOS)
+    .map((n) => n.toLowerCase())
+    .filter((n) => {
+      if (NICHOS_DAS_LOJAS.includes(n)) return true;
+      c.rotas.avisos.push(`NICHOS_ATIVOS: nicho "${n}" não existe (use: ${NICHOS_DAS_LOJAS.join(', ')}).`);
+      return false;
+    });
+  const buscados = ativos.length ? ativos : NICHOS_DAS_LOJAS;
+  c.filtro.nichosAtivos = ativos;
+  c.shopee.nichosAtivos = ativos;
+  c.shopee.categorias = categoriasShopeeDosNichos(buscados);
+  c.shopee.categoriasPorRodada = Math.max(0, numero(env, 'SHOPEE_CATEGORIAS_POR_RODADA', 3));
+  c.shopee.categoriasDeNicho = Math.max(0, numero(env, 'SHOPEE_CATEGORIAS_DE_NICHO', 1));
+  // As categorias do Mercado Livre vêm dos nichos, a não ser que o dono liste as dele em ML_CATEGORIAS.
+  if (env.ML_CATEGORIAS === undefined) c.ml.categorias = categoriasMlDosNichos(buscados);
   return c;
 }
 
@@ -336,7 +364,7 @@ function lerConfigBase(env: Env): Config {
   // As palavras dos nichos valem para o classificador inteiro (filtro, painel, guias), por isso são aplicadas aqui.
   definirPalavrasDosNichos(lerPalavrasDosNichos(env));
   return {
-    rotas: lerRotas(env.ROTAS_TELEGRAM, ligado(env, 'ROTAS_TAMBEM_NO_GERAL', false), env.GERAL_NICHOS, env.GERAL_SEM_NICHOS, numero(env, 'NICHO_MAX_POR_DIA', 0), env.NICHO_LIMITES),
+    rotas: lerRotas(env.ROTAS_TELEGRAM, ligado(env, 'ROTAS_TAMBEM_NO_GERAL', false), env.GERAL_NICHOS, env.GERAL_SEM_NICHOS, numero(env, 'NICHO_MAX_POR_DIA', 0), env.NICHO_LIMITES, env.GERAL_LIMITES),
     telegram: {
       token: (env.TELEGRAM_BOT_TOKEN ?? '').trim(),
       chatId,
@@ -351,6 +379,10 @@ function lerConfigBase(env: Env): Config {
       buscasPorRodada: numero(env, 'SHOPEE_BUSCAS_POR_RODADA', 2),
       nichosPrioritarios: [],
       buscasDeNicho: 1,
+      categorias: [],
+      categoriasPorRodada: 3,
+      categoriasDeNicho: 1,
+      nichosAtivos: [],
     },
     ml: {
       ativo: ligado(env, 'ML_ATIVO', false),
@@ -377,6 +409,7 @@ function lerConfigBase(env: Env): Config {
       notaMinima: numero(env, 'NOTA_MINIMA', 4.5),
       pontosMinimos: numero(env, 'PONTOS_MINIMOS', 0),
       pontosPorNicho: {},
+      nichosAtivos: [],
       filaMinimaDoNicho: Math.max(0, numero(env, 'NICHO_FILA_MINIMA', 3)),
       vendasMinimas: numero(env, 'VENDAS_MINIMAS', 50),
       palavrasBloqueadas: lista(env.PALAVRAS_BLOQUEADAS ?? 'réplica,replica,usado,recondicionado,erótico'),

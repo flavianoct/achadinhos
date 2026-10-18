@@ -181,7 +181,7 @@ export function publicarControle(banco: Banco, config: Config, dados: DadosDaRod
   const convites = config.whatsapp.ativo ? convitesDeHoje(config, agora) : [];
   const mensagens = config.whatsapp.ativo
     ? [
-        ...banco.mensagensDoWhatsapp(HORAS_DO_WHATSAPP, agora).map((m) => ({ id: m.chave, criadoEm: m.criadoEm, loja: m.loja, categoria: m.categoria, texto: atualizarRodape(m.texto, config), imagem: m.imagem, link: m.link })),
+        ...banco.mensagensDoWhatsapp(HORAS_DO_WHATSAPP, agora).map((m) => ({ id: m.chave, criadoEm: m.criadoEm, loja: m.loja, categoria: m.categoria, soNicho: m.soNicho || undefined, texto: atualizarRodape(m.texto, config), imagem: m.imagem, link: m.link })),
         // Os convites para os canais (horários sorteados do dia): o enviador manda só texto, uma única vez cada (o id é fixo por convite).
         // `texto` é o do canal do WhatsApp (convida para o Telegram): é o que um enviador antigo manda a todos os destinos. O enviador novo usa
         // `textos` e manda o do grupo (os dois canais) para os grupos. Sem o link do Telegram não há convite no WhatsApp.

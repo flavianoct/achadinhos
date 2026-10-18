@@ -1,3 +1,4 @@
+import type { CategoriaDaShopee } from '../nichos.ts';
 import { createHash } from 'node:crypto';
 import type { Fonte, Oferta } from '../types.ts';
 
@@ -76,7 +77,7 @@ export const BUSCAS_POR_NICHO: Record<string, string[]> = {
   casa: ['air fryer', 'garrafa térmica', 'organizador', 'panela', 'luminária', 'ventilador', 'jogo de lençol'],
   games: ['cadeira gamer', 'mouse gamer', 'teclado gamer', 'headset gamer', 'controle ps4'],
   beleza: ['secador de cabelo', 'chapinha', 'perfume', 'skincare', 'kit maquiagem'],
-  moda: ['tênis', 'mochila', 'bolsa feminina', 'relógio masculino', 'óculos de sol'],
+  moda: ['tênis', 'mochila', 'bolsa feminina', 'relógio masculino', 'óculos de sol', 'relógio feminino', 'chinelo', 'tênis casual'],
   esporte: ['creatina', 'whey protein', 'halter', 'tapete yoga', 'garrafa academia'],
   pet: ['ração cachorro', 'cama para cachorro', 'arranhador para gato', 'coleira peitoral cachorro', 'comedouro bebedouro pet', 'brinquedo para cachorro'],
   bebe: ['carrinho de bebê', 'mamadeira', 'kit enxoval bebê', 'babá eletrônica', 'brinquedo educativo'],
@@ -84,8 +85,9 @@ export const BUSCAS_POR_NICHO: Record<string, string[]> = {
 };
 
 /** As buscas dos nichos intercaladas (a 1ª de cada nicho, depois a 2ª de cada...), para o rodízio visitar todos os nichos com a mesma frequência. */
-export function buscasIntercaladas(): string[] {
-  const nichos = Object.values(BUSCAS_POR_NICHO);
+export function buscasIntercaladas(soNichos: string[] = []): string[] {
+  const nichos = Object.entries(BUSCAS_POR_NICHO).filter(([n]) => !soNichos.length || soNichos.includes(n)).map(([, termos]) => termos);
+  if (!nichos.length) return [];
   const maior = Math.max(...nichos.map((n) => n.length));
   const lista: string[] = [];
   for (let i = 0; i < maior; i++) for (const termos of nichos) if (termos[i]) lista.push(termos[i]!);
@@ -105,10 +107,10 @@ export function buscasDoTurno(palavras: string[], porRodada: number, turno: numb
  * As buscas do turno. Com palavras do dono (SHOPEE_PALAVRAS ou TEMA), só elas, em rodízio. Sem elas: o rodízio de todos os nichos e,
  * além dele, `buscasDeNicho` buscas dos nichos que têm canal ou grupo próprio (em rodízio entre eles), para esses canais nunca ficarem sem oferta.
  */
-export function planoDeBuscas(palavrasDoDono: string[], porRodada: number, nichosPrioritarios: string[], buscasDeNicho: number, turno: number): string[] {
-  const base = buscasDoTurno(palavrasDoDono.length ? palavrasDoDono : BUSCAS_PADRAO, porRodada, turno);
+export function planoDeBuscas(palavrasDoDono: string[], porRodada: number, nichosPrioritarios: string[], buscasDeNicho: number, turno: number, nichosAtivos: string[] = []): string[] {
+  const base = buscasDoTurno(palavrasDoDono.length ? palavrasDoDono : nichosAtivos.length ? buscasIntercaladas(nichosAtivos) : BUSCAS_PADRAO, porRodada, turno);
   if (palavrasDoDono.length || buscasDeNicho <= 0) return base;
-  const nichos = nichosPrioritarios.filter((n) => BUSCAS_POR_NICHO[n]?.length);
+  const nichos = nichosPrioritarios.filter((n) => BUSCAS_POR_NICHO[n]?.length && (!nichosAtivos.length || nichosAtivos.includes(n)));
   const extras: string[] = [];
   for (let j = 0; j < buscasDeNicho && nichos.length; j++) {
     const passo = turno * buscasDeNicho + j;
@@ -117,6 +119,28 @@ export function planoDeBuscas(palavrasDoDono: string[], porRodada: number, nicho
     if (!base.includes(termo) && !extras.includes(termo)) extras.push(termo);
   }
   return [...base, ...extras];
+}
+
+/**
+ * As categorias da Shopee lidas neste turno (`productCatId`, os mais vendidos de cada uma). O rodízio intercala os nichos (a 1ª categoria de cada
+ * nicho, depois a 2ª...), para todos serem lidos com a mesma frequência, e os nichos com canal ou grupo próprio ganham `extras` categorias a mais por rodada.
+ */
+export function planoDeCategorias(categorias: CategoriaDaShopee[], porRodada: number, nichosPrioritarios: string[], extras: number, turno: number): CategoriaDaShopee[] {
+  if (!categorias.length || (porRodada <= 0 && extras <= 0)) return [];
+  const grupos = new Map<string, CategoriaDaShopee[]>();
+  for (const c of categorias) grupos.set(c.nicho, [...(grupos.get(c.nicho) ?? []), c]);
+  const maior = Math.max(...[...grupos.values()].map((g) => g.length));
+  const intercaladas: CategoriaDaShopee[] = [];
+  for (let i = 0; i < maior; i++) for (const g of grupos.values()) if (g[i]) intercaladas.push(g[i]!);
+  const n = Math.min(Math.max(0, porRodada), intercaladas.length);
+  const base = Array.from({ length: n }, (_, j) => intercaladas[(turno * n + j) % intercaladas.length]!);
+  const prioritarias = intercaladas.filter((c) => nichosPrioritarios.includes(c.nicho));
+  const adicionais: CategoriaDaShopee[] = [];
+  for (let j = 0; j < extras && prioritarias.length; j++) {
+    const c = prioritarias[(turno * extras + j) % prioritarias.length]!;
+    if (!base.some((b) => b.id === c.id) && !adicionais.some((b) => b.id === c.id)) adicionais.push(c);
+  }
+  return [...base, ...adicionais];
 }
 
 export class FonteShopee implements Fonte {
@@ -128,10 +152,14 @@ export class FonteShopee implements Fonte {
   private buscasPorRodada: number;
   private nichosPrioritarios: string[];
   private buscasDeNicho: number;
+  private categorias: CategoriaDaShopee[];
+  private categoriasPorRodada: number;
+  private categoriasDeNicho: number;
+  private nichosAtivos: string[];
   private agora: () => number;
   private fetchFn: Fetch;
 
-  constructor(opcoes: { appId: string; secret: string; palavras?: string[]; paginas?: number; buscasPorRodada?: number; nichosPrioritarios?: string[]; buscasDeNicho?: number; agora?: () => number }, fetchFn: Fetch = fetch) {
+  constructor(opcoes: { appId: string; secret: string; palavras?: string[]; paginas?: number; buscasPorRodada?: number; nichosPrioritarios?: string[]; buscasDeNicho?: number; categorias?: CategoriaDaShopee[]; categoriasPorRodada?: number; categoriasDeNicho?: number; nichosAtivos?: string[]; agora?: () => number }, fetchFn: Fetch = fetch) {
     this.appId = opcoes.appId;
     this.secret = opcoes.secret;
     this.palavras = opcoes.palavras ?? [];
@@ -139,6 +167,10 @@ export class FonteShopee implements Fonte {
     this.buscasPorRodada = opcoes.buscasPorRodada ?? 2;
     this.nichosPrioritarios = opcoes.nichosPrioritarios ?? [];
     this.buscasDeNicho = opcoes.buscasDeNicho ?? 0;
+    this.categorias = opcoes.categorias ?? [];
+    this.categoriasPorRodada = opcoes.categoriasPorRodada ?? 0;
+    this.categoriasDeNicho = opcoes.categoriasDeNicho ?? 0;
+    this.nichosAtivos = opcoes.nichosAtivos ?? [];
     this.agora = opcoes.agora ?? Date.now;
     this.fetchFn = fetchFn;
   }
@@ -180,15 +212,47 @@ export class FonteShopee implements Fonte {
       }
     };
 
+    const turno = Math.floor(this.agora() / (25 * 60_000));
+    // Com NICHOS_ATIVOS, o robô puxa só esses nichos: o ranking geral de afiliados mistura todos, então fica de fora.
+    const restrito = this.nichosAtivos.length > 0;
+    let ultimoErro: Error | undefined;
+
     // listType 2 = produtos com melhor desempenho no programa de afiliados.
-    for (let p = 1; p <= this.paginas; p++) {
-      const { itens, temMais } = await this.pagina(`listType: 2, page: ${p}, limit: 50`);
-      guardar(itens);
-      if (!temMais) break;
+    if (!restrito) {
+      for (let p = 1; p <= this.paginas; p++) {
+        const { itens, temMais } = await this.pagina(`listType: 2, page: ${p}, limit: 50`);
+        guardar(itens);
+        if (!temMais) break;
+      }
     }
+
+    // Por categoria (productCatId), ordenadas pelos mais vendidos (sortType 2): é o que separa a coleta por nicho.
+    const categorias = planoDeCategorias(this.categorias, this.categoriasPorRodada, this.nichosPrioritarios, this.categoriasDeNicho, turno);
+    const resumoDasCategorias: string[] = [];
+    const semResultado = new Set<string>();
+    for (const c of categorias) {
+      try {
+        const { itens } = await this.pagina(`productCatId: ${c.id}, sortType: 2, page: 1, limit: 50`);
+        guardar(itens);
+        resumoDasCategorias.push(`${c.nome}=${itens.length}`);
+        if (!itens.length) semResultado.add(c.nicho);
+      } catch (e) {
+        ultimoErro = e as Error;
+        semResultado.add(c.nicho);
+        resumoDasCategorias.push(`${c.nome}=erro`);
+        console.log(`[shopee] categoria "${c.nome}" (${c.id}) falhou: ${(e as Error).message}`);
+      }
+    }
+
     // Buscas por palavra-chave, ordenadas pelos mais vendidos (sortType 2).
     // Com buscas configuradas (ou tema), usa as configuradas em rodízio; sem nenhuma, a lista padrão. Falha de uma busca não derruba a rodada.
-    const buscas = planoDeBuscas(this.palavras, this.buscasPorRodada, this.nichosPrioritarios, this.buscasDeNicho, Math.floor(this.agora() / (25 * 60_000)));
+    const buscas = planoDeBuscas(this.palavras, this.buscasPorRodada, this.nichosPrioritarios, this.buscasDeNicho, turno, this.nichosAtivos);
+    // Plano B: categoria que veio vazia (ou o id não vale) é substituída por uma busca por palavra do mesmo nicho.
+    for (const nicho of semResultado) {
+      const termos = BUSCAS_POR_NICHO[nicho];
+      const termo = termos?.[turno % (termos?.length || 1)];
+      if (termo && !buscas.includes(termo)) buscas.push(termo);
+    }
     for (const palavra of buscas) {
       try {
         const { itens } = await this.pagina(`keyword: ${JSON.stringify(palavra)}, sortType: 2, page: 1, limit: 50`);
@@ -199,9 +263,10 @@ export class FonteShopee implements Fonte {
         break;
       }
     }
+    if (vistos.size === 0 && ultimoErro) throw ultimoErro;
     const lista = [...vistos.values()];
     // Resumo para o log da rodada: o que a API trouxe.
-    console.log(`[shopee] buscas: ${buscas.join(', ') || 'nenhuma'}; ofertas: ${lista.length}; com desconto: ${lista.filter((o) => o.desconto).length}; com nota: ${lista.filter((o) => o.nota).length}; com vendas: ${lista.filter((o) => o.vendas).length}`);
+    console.log(`[shopee] categorias: ${resumoDasCategorias.join(', ') || 'nenhuma'}; buscas: ${buscas.join(', ') || 'nenhuma'}; ofertas: ${lista.length}; com desconto: ${lista.filter((o) => o.desconto).length}; com nota: ${lista.filter((o) => o.nota).length}; com vendas: ${lista.filter((o) => o.vendas).length}`);
     return lista;
   }
 }
