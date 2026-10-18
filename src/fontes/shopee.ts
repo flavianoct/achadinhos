@@ -67,18 +67,56 @@ export function converterItemShopee(item: any): Oferta | undefined {
  * Buscas usadas em rodízio quando nenhuma é configurada (SHOPEE_PALAVRAS vazio e sem TEMA): sem elas a coleta só vê o topo do ranking
  * de afiliados, sempre os mesmos ~100 produtos (293 distintos em 4 dias). Uma ou duas por rodada trazem mais variedade a cada meia hora.
  */
-export const BUSCAS_PADRAO = [
-  'fone bluetooth', 'air fryer', 'tênis', 'smartwatch', 'caixa de som bluetooth', 'garrafa térmica', 'organizador', 'carregador',
-  'panela', 'mochila', 'luminária', 'ventilador', 'creatina', 'secador de cabelo', 'jogo de lençol', 'cadeira gamer',
-  // Pet: alimentam o grupo de pets (WHATSAPP_ROTAS=pet=...).
-  'ração cachorro', 'cama para cachorro', 'arranhador para gato', 'coleira peitoral cachorro', 'comedouro bebedouro pet', 'brinquedo para cachorro',
-];
+/**
+ * As buscas de cada nicho. Cada nicho tem as suas, para todos serem alimentados (e não só os que dominam o ranking de vendas).
+ * O dono pode trocar tudo por SHOPEE_PALAVRAS (ou TEMA).
+ */
+export const BUSCAS_POR_NICHO: Record<string, string[]> = {
+  tech: ['fone bluetooth', 'smartwatch', 'caixa de som bluetooth', 'carregador', 'power bank', 'suporte celular'],
+  casa: ['air fryer', 'garrafa térmica', 'organizador', 'panela', 'luminária', 'ventilador', 'jogo de lençol'],
+  games: ['cadeira gamer', 'mouse gamer', 'teclado gamer', 'headset gamer', 'controle ps4'],
+  beleza: ['secador de cabelo', 'chapinha', 'perfume', 'skincare', 'kit maquiagem'],
+  moda: ['tênis', 'mochila', 'bolsa feminina', 'relógio masculino', 'óculos de sol'],
+  esporte: ['creatina', 'whey protein', 'halter', 'tapete yoga', 'garrafa academia'],
+  pet: ['ração cachorro', 'cama para cachorro', 'arranhador para gato', 'coleira peitoral cachorro', 'comedouro bebedouro pet', 'brinquedo para cachorro'],
+  bebe: ['carrinho de bebê', 'mamadeira', 'kit enxoval bebê', 'babá eletrônica', 'brinquedo educativo'],
+  ferramentas: ['furadeira', 'parafusadeira', 'kit ferramentas', 'trena a laser', 'lanterna recarregável'],
+};
+
+/** As buscas dos nichos intercaladas (a 1ª de cada nicho, depois a 2ª de cada...), para o rodízio visitar todos os nichos com a mesma frequência. */
+export function buscasIntercaladas(): string[] {
+  const nichos = Object.values(BUSCAS_POR_NICHO);
+  const maior = Math.max(...nichos.map((n) => n.length));
+  const lista: string[] = [];
+  for (let i = 0; i < maior; i++) for (const termos of nichos) if (termos[i]) lista.push(termos[i]!);
+  return lista;
+}
+
+export const BUSCAS_PADRAO = buscasIntercaladas();
 
 /** Rodízio: quais buscas ler neste turno (o robô roda a cada ~30 minutos). Com `porRodada` 0, nenhuma. */
 export function buscasDoTurno(palavras: string[], porRodada: number, turno: number): string[] {
   if (porRodada <= 0 || palavras.length === 0) return [];
   const n = Math.min(porRodada, palavras.length);
   return Array.from({ length: n }, (_, j) => palavras[(turno * n + j) % palavras.length]!);
+}
+
+/**
+ * As buscas do turno. Com palavras do dono (SHOPEE_PALAVRAS ou TEMA), só elas, em rodízio. Sem elas: o rodízio de todos os nichos e,
+ * além dele, `buscasDeNicho` buscas dos nichos que têm canal ou grupo próprio (em rodízio entre eles), para esses canais nunca ficarem sem oferta.
+ */
+export function planoDeBuscas(palavrasDoDono: string[], porRodada: number, nichosPrioritarios: string[], buscasDeNicho: number, turno: number): string[] {
+  const base = buscasDoTurno(palavrasDoDono.length ? palavrasDoDono : BUSCAS_PADRAO, porRodada, turno);
+  if (palavrasDoDono.length || buscasDeNicho <= 0) return base;
+  const nichos = nichosPrioritarios.filter((n) => BUSCAS_POR_NICHO[n]?.length);
+  const extras: string[] = [];
+  for (let j = 0; j < buscasDeNicho && nichos.length; j++) {
+    const passo = turno * buscasDeNicho + j;
+    const termos = BUSCAS_POR_NICHO[nichos[passo % nichos.length]!]!;
+    const termo = termos[Math.floor(passo / nichos.length) % termos.length]!;
+    if (!base.includes(termo) && !extras.includes(termo)) extras.push(termo);
+  }
+  return [...base, ...extras];
 }
 
 export class FonteShopee implements Fonte {
@@ -88,15 +126,19 @@ export class FonteShopee implements Fonte {
   private palavras: string[];
   private paginas: number;
   private buscasPorRodada: number;
+  private nichosPrioritarios: string[];
+  private buscasDeNicho: number;
   private agora: () => number;
   private fetchFn: Fetch;
 
-  constructor(opcoes: { appId: string; secret: string; palavras?: string[]; paginas?: number; buscasPorRodada?: number; agora?: () => number }, fetchFn: Fetch = fetch) {
+  constructor(opcoes: { appId: string; secret: string; palavras?: string[]; paginas?: number; buscasPorRodada?: number; nichosPrioritarios?: string[]; buscasDeNicho?: number; agora?: () => number }, fetchFn: Fetch = fetch) {
     this.appId = opcoes.appId;
     this.secret = opcoes.secret;
     this.palavras = opcoes.palavras ?? [];
     this.paginas = Math.max(1, opcoes.paginas ?? 2);
     this.buscasPorRodada = opcoes.buscasPorRodada ?? 2;
+    this.nichosPrioritarios = opcoes.nichosPrioritarios ?? [];
+    this.buscasDeNicho = opcoes.buscasDeNicho ?? 0;
     this.agora = opcoes.agora ?? Date.now;
     this.fetchFn = fetchFn;
   }
@@ -146,7 +188,7 @@ export class FonteShopee implements Fonte {
     }
     // Buscas por palavra-chave, ordenadas pelos mais vendidos (sortType 2).
     // Com buscas configuradas (ou tema), usa as configuradas em rodízio; sem nenhuma, a lista padrão. Falha de uma busca não derruba a rodada.
-    const buscas = buscasDoTurno(this.palavras.length ? this.palavras : BUSCAS_PADRAO, this.buscasPorRodada, Math.floor(this.agora() / (25 * 60_000)));
+    const buscas = planoDeBuscas(this.palavras, this.buscasPorRodada, this.nichosPrioritarios, this.buscasDeNicho, Math.floor(this.agora() / (25 * 60_000)));
     for (const palavra of buscas) {
       try {
         const { itens } = await this.pagina(`keyword: ${JSON.stringify(palavra)}, sortType: 2, page: 1, limit: 50`);

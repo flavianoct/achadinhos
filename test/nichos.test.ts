@@ -38,7 +38,7 @@ test('rotas: lê categoria=canal, ignora o que é inválido e avisa', () => {
   assert.equal(r.avisos.length, 3);
   assert.match(r.avisos.join('\n'), /categoria "x" não existe/);
   assert.match(r.avisos.join('\n'), /canal "abc" de "casa"/);
-  assert.deepEqual(lerRotas('', false), { porCategoria: {}, tambemNoGeral: false, geralNichos: [], geralSem: [], limitePorDia: 0, limites: {}, avisos: [] });
+  assert.deepEqual(lerRotas('', false), { porCategoria: {}, tambemNoGeral: false, geralNichos: [], geralSem: [], limitePorDia: 0, limites: {}, minimos: {}, minimoPadrao: 0, avisos: [] });
 });
 
 test('rotas: nicho com canal vai só para ele; sem rota vai ao geral; "também no geral" manda aos dois', () => {
@@ -214,4 +214,78 @@ test('configurar: a página sai com a lista de nichos embutida e o painel tem o 
   assert.ok(!html.includes('/*NICHOS*/'));
   assert.match(html, /const NICHOS = \[\{"chave":"tech","nome":"Eletrônicos"/);
   assert.match(PAGINA_DO_PAINEL, /configurar\.html/);
+});
+
+// ───────────── cada nicho com a sua configuração ─────────────
+
+const GRUPO_DE_PETS = 'https://chat.whatsapp.com/KJi6FhpMfda0s0phA5W3Y3';
+
+test('nichos: cada nicho tem o seu corte de qualidade, e o nicho pequeno tem corte menor por padrão', async () => {
+  const { lerConfig } = await import('../src/config.ts');
+  const { pontosMinimosDoNicho } = await import('../src/rotas.ts');
+  const c = lerConfig({ PONTOS_MINIMOS: '58' });
+  assert.equal(pontosMinimosDoNicho('tech', c), 58, 'nicho grande usa o corte de todos');
+  assert.equal(pontosMinimosDoNicho('pet', c), 48);
+  assert.equal(pontosMinimosDoNicho('bebe', c), 48);
+  assert.equal(pontosMinimosDoNicho('games', c), 52);
+  // O dono troca tudo: só o que ele escrever vale (vazio = todos com o corte geral).
+  const dono = lerConfig({ PONTOS_MINIMOS: '58', NICHO_PONTOS_MINIMOS: 'pet=40,moda=65' });
+  assert.equal(pontosMinimosDoNicho('pet', dono), 40);
+  assert.equal(pontosMinimosDoNicho('moda', dono), 65);
+  assert.equal(pontosMinimosDoNicho('bebe', dono), 58);
+  assert.equal(pontosMinimosDoNicho('pet', lerConfig({ PONTOS_MINIMOS: '58', NICHO_PONTOS_MINIMOS: '' })), 58);
+  // Erro de digitação vira aviso, e não derruba nada.
+  const ruim = lerConfig({ NICHO_PONTOS_MINIMOS: 'xyz=3,pet=abc,moda=60' });
+  assert.equal(ruim.rotas.avisos.filter((a) => a.startsWith('NICHO_PONTOS_MINIMOS')).length, 2);
+  assert.equal(ruim.filtro.pontosPorNicho.moda, 60);
+});
+
+test('nichos: nicho com canal ou grupo próprio ganha mínimo diário, e o mínimo é distribuído ao longo do dia', async () => {
+  const { lerConfig, nichosComDestino } = await import('../src/config.ts');
+  const { minimoDoNicho, nichosAbaixoDaMeta, nichoTemDestinoProprio } = await import('../src/rotas.ts');
+  const c = lerConfig({ WHATSAPP_ROTAS: `pet=${GRUPO_DE_PETS}`, ROTAS_TELEGRAM: 'tech=@canaltech', HORA_INICIO: '8', HORA_FIM: '22' });
+  assert.deepEqual(nichosComDestino(c).sort(), ['pet', 'tech']);
+  assert.equal(nichoTemDestinoProprio('pet', c), true);
+  assert.equal(nichoTemDestinoProprio('moda', c), false);
+  assert.equal(minimoDoNicho('pet', c), 6, 'o padrão vale para quem tem destino próprio');
+  assert.equal(minimoDoNicho('moda', c), 0, 'sem destino próprio, sem mínimo');
+  const comMinimos = lerConfig({ WHATSAPP_ROTAS: `pet=${GRUPO_DE_PETS}`, NICHO_MINIMOS: 'pet=10,moda=14', HORA_INICIO: '8', HORA_FIM: '22' });
+  assert.equal(minimoDoNicho('pet', comMinimos), 10);
+  assert.equal(minimoDoNicho('moda', comMinimos), 14);
+  // Às 15h já passaram 8 das 14 horas: meta do pet = 6 (10 x 8/14, arredondado para cima), meta da moda = 8.
+  assert.deepEqual(nichosAbaixoDaMeta([{ categoria: 'moda', posts: 2 }], comMinimos, 15), ['moda', 'pet'], 'o mais atrasado vem primeiro');
+  assert.deepEqual(nichosAbaixoDaMeta([{ categoria: 'moda', posts: 8 }, { categoria: 'pet', posts: 6 }], comMinimos, 15), [], 'meta cumprida');
+  // De manhã a meta é pequena: o nicho não gasta o mínimo todo cedo.
+  assert.deepEqual(nichosAbaixoDaMeta([{ categoria: 'pet', posts: 1 }], comMinimos, 8), ['moda'], 'às 8h a meta é 1 post: o pet já cumpriu, a moda não');
+  assert.deepEqual(nichosAbaixoDaMeta([], comMinimos, 22), ['moda', 'pet'], 'no fim do dia a meta é o mínimo inteiro');
+});
+
+test('buscas: todos os nichos entram no rodízio da Shopee, e os nichos com grupo próprio ganham uma busca extra por rodada', async () => {
+  const { BUSCAS_POR_NICHO, BUSCAS_PADRAO, buscasIntercaladas, planoDeBuscas } = await import('../src/fontes/shopee.ts');
+  assert.deepEqual(Object.keys(BUSCAS_POR_NICHO).sort(), ['bebe', 'beleza', 'casa', 'esporte', 'ferramentas', 'games', 'moda', 'pet', 'tech']);
+  assert.deepEqual(buscasIntercaladas(), BUSCAS_PADRAO);
+  assert.equal(new Set(BUSCAS_PADRAO).size, BUSCAS_PADRAO.length, 'sem busca repetida');
+  // Num ciclo inteiro do rodízio, cada nicho é lido.
+  const vistas = new Set<string>();
+  for (let turno = 0; turno < Math.ceil(BUSCAS_PADRAO.length / 2); turno++) for (const b of planoDeBuscas([], 2, [], 0, turno)) vistas.add(b);
+  for (const [nicho, termos] of Object.entries(BUSCAS_POR_NICHO)) assert.ok(termos.some((t) => vistas.has(t)), `o nicho ${nicho} é lido no ciclo`);
+  // Com grupo de pets, todo turno traz uma busca de pet, e os termos de pet giram.
+  const dePet = new Set(BUSCAS_POR_NICHO.pet);
+  const termosDePet = new Set<string>();
+  for (let turno = 0; turno < 12; turno++) {
+    const plano = planoDeBuscas([], 2, ['pet'], 1, turno);
+    const achados = plano.filter((b) => dePet.has(b));
+    assert.ok(achados.length >= 1, `turno ${turno}: tem busca de pet`);
+    assert.equal(new Set(plano).size, plano.length, 'sem busca repetida no turno');
+    achados.forEach((a) => termosDePet.add(a));
+  }
+  assert.ok(termosDePet.size >= 4, 'os termos de pet giram');
+  // O dono manda: com SHOPEE_PALAVRAS, só as palavras dele.
+  assert.deepEqual(planoDeBuscas(['a', 'b', 'c'], 2, ['pet'], 1, 0), ['a', 'b']);
+});
+
+test('mercado livre: as categorias padrão cobrem todos os nichos, inclusive pet, bebê, moda e ferramentas', async () => {
+  const { lerConfig } = await import('../src/config.ts');
+  const ids = lerConfig({}).ml.categorias;
+  for (const [id, nicho] of [['MLB1071', 'pet'], ['MLB1384', 'bebê'], ['MLB1430', 'moda'], ['MLB263532', 'ferramentas']] as const) assert.ok(ids.includes(id), `${nicho} (${id})`);
 });

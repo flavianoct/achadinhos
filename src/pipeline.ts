@@ -7,7 +7,7 @@ import { categorizar, contemPalavra, normalizar } from './categoria.ts';
 import { avaliar } from './filtro.ts';
 import { melhorVendedor, mesmoTipoDeProduto, parecidoComAlgum } from './parecidos.ts';
 import { elegivelParaGuia, tipoDeGuia } from './guias.ts';
-import { destinosDaOferta, geralAceita, nichosNoLimite, temWhatsappDoNicho } from './rotas.ts';
+import { destinosDaOferta, geralAceita, nichosAbaixoDaMeta, nichosNoLimite, pontosMinimosDoNicho, temWhatsappDoNicho } from './rotas.ts';
 import { ErroTelegram, type Publicador } from './telegram.ts';
 import type { Fonte, OfertaAvaliada } from './types.ts';
 
@@ -77,7 +77,7 @@ export async function coletar(fontes: Fonte[], banco: Banco, config: Config, ago
 
       if (resultado.aprovada && !dentroDoTema(resultado.oferta.titulo, config)) {
         contar(oferta.loja, 'fora do tema');
-      } else if (resultado.aprovada && resultado.oferta.pontos < config.filtro.pontosMinimos) {
+      } else if (resultado.aprovada && resultado.oferta.pontos < pontosMinimosDoNicho(resultado.oferta.categoria, config)) {
         // Oferta aprovada mas fraca: não vai para os canais (continua no blog e nos guias), a não ser que a fila fique curta (abaixo).
         fracas.push(resultado.oferta);
       } else if (resultado.aprovada) {
@@ -92,16 +92,30 @@ export async function coletar(fontes: Fonte[], banco: Banco, config: Config, ago
 
   // Equilíbrio: o corte de qualidade nunca pode parar o robô. Se a fila ficou curta, entram as melhores das fracas até a FILA_MINIMA.
   fracas.sort((a, b) => b.pontos - a.pontos);
+  const resgatadas = new Set<OfertaAvaliada>();
+  const resgatar = (oferta: OfertaAvaliada) => {
+    banco.enfileirar(oferta, agora);
+    resumo.aprovadas++;
+    resgatadas.add(oferta);
+  };
   let vagas = Math.max(0, config.filtro.filaMinima - banco.tamanhoDaFila());
   for (const oferta of fracas) {
-    if (vagas > 0) {
-      banco.enfileirar(oferta, agora);
-      resumo.aprovadas++;
-      vagas--;
-    } else {
-      contar(oferta.loja, 'pontuação abaixo do mínimo');
+    if (vagas <= 0) break;
+    resgatar(oferta);
+    vagas--;
+  }
+  // E cada nicho com canal ou grupo próprio mantém um mínimo de ofertas na fila: sem isso o canal dele ficaria vazio sempre que o nicho
+  // tivesse pouca oferta boa no dia (nicho pequeno raramente ganha do ranking geral).
+  for (const nicho of config.shopee.nichosPrioritarios) {
+    let faltam = Math.max(0, config.filtro.filaMinimaDoNicho - banco.tamanhoDaFilaDoNicho(nicho));
+    for (const oferta of fracas) {
+      if (faltam <= 0) break;
+      if (oferta.categoria !== nicho || resgatadas.has(oferta)) continue;
+      resgatar(oferta);
+      faltam--;
     }
   }
+  for (const oferta of fracas) if (!resgatadas.has(oferta)) contar(oferta.loja, 'pontuação abaixo do mínimo');
   return resumo;
 }
 
@@ -130,10 +144,13 @@ export async function postarProxima(publicador: Publicador, banco: Banco, config
   // sai da fila e a próxima é tentada.
   let oferta: OfertaAvaliada | undefined;
   let destinos: string[] = [];
-  const cheios = nichosNoLimite(banco.postsPorCategoria(1, agora), config);
+  const postsHoje = banco.postsPorCategoria(1, agora);
+  const cheios = nichosNoLimite(postsHoje, config);
+  // Nicho com mínimo diário (NICHO_MINIMOS, ou o padrão dos nichos com canal próprio) que está atrás da meta de agora passa na frente do ranking geral.
+  const preferidos = nichosAbaixoDaMeta(postsHoje, config, hora).filter((n) => !cheios.includes(n));
   const recentes = config.ritmo.parecidosHoras > 0 ? banco.titulosPostados(config.ritmo.parecidosHoras, agora) : [];
   for (let tentativa = 0; tentativa < 200; tentativa++) {
-    oferta = banco.melhorDaFila(banco.ultimaLojaPostada(), cheios);
+    oferta = (preferidos.length ? banco.melhorDaFila(banco.ultimaLojaPostada(), cheios, preferidos) : undefined) ?? banco.melhorDaFila(banco.ultimaLojaPostada(), cheios);
     if (!oferta) break;
     // Outro anúncio do mesmo tipo de produto já saiu há pouco (ex.: 3 chapas de policarbonato de vendedores diferentes): sai da fila.
     if (parecidoComAlgum(oferta.titulo, recentes)) {
@@ -203,7 +220,9 @@ export async function postarProxima(publicador: Publicador, banco: Banco, config
   // A mesma oferta que saiu no Telegram também vira mensagem de WhatsApp (o enviador do PC é quem posta e escolhe os
   // grupos e canais pelo nicho dela).
   // O WhatsApp (chip do dono, sem API oficial) recebe só as melhores de cada rodada (WHATSAPP_POR_RODADA); o Telegram posta todas.
-  const cabeNoWhatsapp = config.whatsapp.porRodada <= 0 || banco.whatsappNosUltimosMinutos(20, agora) < config.whatsapp.porRodada;
+  // A cota do WhatsApp (WHATSAPP_POR_RODADA) é dos canais gerais. Nicho que o geral não aceita e que tem grupo próprio não concorre com ela: o ritmo dele já é controlado pelos mínimos e limites do nicho.
+  const soNoGrupoDoNicho = temWhatsappDoNicho(oferta.categoria, config) && !geralAceita(oferta.categoria, config);
+  const cabeNoWhatsapp = soNoGrupoDoNicho || config.whatsapp.porRodada <= 0 || banco.whatsappNosUltimosMinutos(20, agora) < config.whatsapp.porRodada;
   if (config.whatsapp.ativo && cabeNoWhatsapp) banco.guardarParaWhatsapp(oferta, montarMensagemWhatsapp(oferta, rodapeDoWhatsapp(config)), agora);
   if (config.social.ativo) banco.guardarParaSocial(oferta, agora);
   banco.removerDaFila(oferta.loja, oferta.idProduto);

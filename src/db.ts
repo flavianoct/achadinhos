@@ -342,14 +342,23 @@ export class Banco {
    * Melhor oferta da fila (maior pontuação), sem removê-la. Com `evitar`, prefere a melhor de outra loja: assim as lojas se alternam
    * em vez de uma (a que dá mais pontos) ocupar tudo. Se só houver ofertas da loja a evitar, usa a melhor delas.
    */
-  melhorDaFila(evitar?: Loja, semCategorias: string[] = []): OfertaAvaliada | undefined {
+  melhorDaFila(evitar?: Loja, semCategorias: string[] = [], soCategorias: string[] = []): OfertaAvaliada | undefined {
     const pegar = (sql: string, ...args: string[]) => this.db.prepare(sql).get(...args) as { dados: string } | undefined;
-    // Nichos que já bateram o limite do dia ficam de fora (continuam na fila para amanhã).
-    const filtro = semCategorias.length ? `COALESCE(json_extract(dados, '$.categoria'), 'geral') NOT IN (${semCategorias.map(() => '?').join(', ')})` : '1 = 1';
-    const base = `SELECT dados FROM fila WHERE ${filtro}`;
+    const categoria = `COALESCE(json_extract(dados, '$.categoria'), 'geral')`;
+    // Nichos que já bateram o limite do dia ficam de fora (continuam na fila para amanhã). Com `soCategorias`, só esses nichos concorrem.
+    const partes = ['1 = 1'];
+    if (semCategorias.length) partes.push(`${categoria} NOT IN (${semCategorias.map(() => '?').join(', ')})`);
+    if (soCategorias.length) partes.push(`${categoria} IN (${soCategorias.map(() => '?').join(', ')})`);
+    const base = `SELECT dados FROM fila WHERE ${partes.join(' AND ')}`;
+    const parametros = [...semCategorias, ...soCategorias];
     const ordem = 'ORDER BY pontos DESC, criado_em ASC LIMIT 1';
-    const linha = (evitar ? pegar(`${base} AND loja <> ? ${ordem}`, ...semCategorias, evitar) : undefined) ?? pegar(`${base} ${ordem}`, ...semCategorias);
+    const linha = (evitar ? pegar(`${base} AND loja <> ? ${ordem}`, ...parametros, evitar) : undefined) ?? pegar(`${base} ${ordem}`, ...parametros);
     return linha ? (JSON.parse(linha.dados) as OfertaAvaliada) : undefined;
+  }
+
+  /** Quantas ofertas do nicho estão na fila. */
+  tamanhoDaFilaDoNicho(categoria: string): number {
+    return Number((this.db.prepare(`SELECT COUNT(*) AS n FROM fila WHERE COALESCE(json_extract(dados, '$.categoria'), 'geral') = ?`).get(categoria) as { n: number }).n);
   }
 
   /** Loja da última oferta publicada no Instagram (feed ou story), para alternar as lojas lá também. */
