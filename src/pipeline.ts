@@ -7,7 +7,7 @@ import { categorizar, contemPalavra, normalizar } from './categoria.ts';
 import { avaliar } from './filtro.ts';
 import { melhorVendedor, mesmoTipoDeProduto, parecidoComAlgum } from './parecidos.ts';
 import { elegivelParaGuia, tipoDeGuia } from './guias.ts';
-import { destinosDaOferta, geralAceita, limiteNoGeral, nichosAbaixoDaMeta, nichosNoLimite, pontosMinimosDoNicho, temWhatsappDoNicho } from './rotas.ts';
+import { cotaDoGeralAgora, destinosDaOferta, geralAceita, limiteNoGeral, nichosAbaixoDaMeta, nichosNoLimite, pontosMinimosDoNicho, temWhatsappDoNicho } from './rotas.ts';
 import { ErroTelegram, type Publicador } from './telegram.ts';
 import type { Fonte, OfertaAvaliada } from './types.ts';
 
@@ -185,7 +185,7 @@ export async function postarProxima(publicador: Publicador, banco: Banco, config
     }
     // Nicho com canal ou grupo próprio que já usou a cota de hoje no geral (GERAL_LIMITES): o resto do dia vai só para o dele.
     const limiteGeral = limiteNoGeral(oferta.categoria, config);
-    geralCheio = limiteGeral > 0 && banco.postsNoGeralHoje(oferta.categoria, agora) >= limiteGeral;
+    geralCheio = limiteGeral > 0 && banco.postsNoGeralHoje(oferta.categoria, agora) >= cotaDoGeralAgora(limiteGeral, config, hora);
     destinos = destinosDaOferta(oferta.categoria, config, geralCheio);
     // Sem canal no Telegram, mas com grupo ou canal de WhatsApp do nicho: vai só para o WhatsApp.
     if (destinos.length || temWhatsappDoNicho(oferta.categoria, config)) break;

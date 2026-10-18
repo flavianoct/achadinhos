@@ -14,6 +14,17 @@ export function limiteNoGeral(categoria: string, config: Config): number {
 }
 
 /**
+ * Quantos anúncios do nicho o geral já pode ter recebido a esta hora: a cota do dia cresce ao longo do dia (como a meta dos mínimos),
+ * para os anúncios do nicho aparecerem no geral espalhados e não todos de manhã.
+ */
+export function cotaDoGeralAgora(limite: number, config: Config, hora: number): number {
+  const { horaInicio, horaFim } = config.ritmo;
+  const total = Math.max(1, horaFim - horaInicio);
+  const passou = Math.min(total, Math.max(1, hora - horaInicio + 1));
+  return Math.ceil((limite * passou) / total);
+}
+
+/**
  * Para onde vai uma oferta no Telegram: o canal do nicho dela, se houver rota; senão o canal geral,
  * se o filtro do geral aceitar o nicho. Com ROTAS_TAMBEM_NO_GERAL=1 a oferta de um nicho com rota também
  * sai no geral (se o filtro aceitar). Com `geralCheio` (o nicho já usou a cota de hoje no geral) ela vai só para o canal do nicho.

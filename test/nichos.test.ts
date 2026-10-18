@@ -429,3 +429,12 @@ test('enviador: mensagem "só do nicho" não vai para o destino geral, mas vai p
   assert.equal(destinoAceita({ jid: 'g' }, 'pet', {}, false), true);
   assert.equal(destinoAceita({ jid: 'p', nichos: ['pet'] }, 'pet', {}, true), true);
 });
+
+test('geral: a cota do nicho no geral cresce ao longo do dia, para os anúncios saírem espalhados', async () => {
+  const { cotaDoGeralAgora } = await import('../src/rotas.ts');
+  const c = lerConfig({ ...base, HORA_INICIO: '7', HORA_FIM: '23' });
+  assert.equal(cotaDoGeralAgora(2, c, 7), 1, 'de manhã, só um');
+  assert.equal(cotaDoGeralAgora(2, c, 12), 1);
+  assert.equal(cotaDoGeralAgora(2, c, 16), 2, 'à tarde, o segundo');
+  assert.equal(cotaDoGeralAgora(2, c, 22), 2, 'nunca passa do limite do dia');
+});
