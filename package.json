@@ -14,6 +14,7 @@
     "checar": "node --disable-warning=ExperimentalWarning src/index.ts --checar",
     "blog": "node --disable-warning=ExperimentalWarning src/index.ts --blog",
     "nuvem": "node --disable-warning=ExperimentalWarning src/index.ts --nuvem",
+    "banners-cupom": "node --disable-warning=ExperimentalWarning marca/gerar-banners-cupom.ts",
     "test": "node --disable-warning=ExperimentalWarning --test \"test/*.test.ts\""
   },
   "dependencies": {

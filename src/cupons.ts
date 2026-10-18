@@ -130,3 +130,11 @@ export function escolherCupom(cupons: Cupom[], ultimoPost: (chave: string) => nu
   });
   return candidatos[0]?.c;
 }
+
+/**
+ * O banner ilustrativo do cupom de cada loja: PNGs do repositório (marca/cupons, gerados por `npm run banners-cupom`), que o Telegram baixa
+ * direto do endereço público do GitHub. Se o arquivo não estiver lá (ainda não foi enviado, ou o repositório é outro), o cupom sai só em texto.
+ */
+export function urlDoBannerDoCupom(loja: Cupom['loja'], repositorio: string = process.env.GITHUB_REPOSITORY || 'flavianoct/achadinhos'): string {
+  return `https://raw.githubusercontent.com/${repositorio}/main/marca/cupons/cupom-${loja}.png`;
+}

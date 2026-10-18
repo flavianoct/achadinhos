@@ -526,3 +526,31 @@ ${faixaEntre(990, 190, 66)}
 ${aviso(1300, 26)}`);
   return [capa, todoDia, historico, filtro, chamada];
 }
+
+// ───────────────────────── Banner do cupom (1280x720) ─────────────────────────
+
+/** Cores de cada loja no banner do cupom: o ticket na cor da loja e o texto que contrasta com ela. */
+const CORES_DO_CUPOM = {
+  mercadolivre: { ticket: '#FFE600', texto: '#2D3277', loja: 'DO MERCADO LIVRE' },
+  shopee: { ticket: '#EE4D2D', texto: '#FFFFFF', loja: 'DA SHOPEE' },
+} as const;
+
+/**
+ * Banner ilustrativo que vai junto da mensagem do cupom: um ticket na cor da loja ("CUPOM DO MERCADO LIVRE", "CUPOM DA SHOPEE") e só.
+ * As regras e o valor do cupom ficam na legenda: a imagem só mostra, de longe, que é um cupom e de qual loja.
+ */
+export function svgDoBannerDoCupom(loja: keyof typeof CORES_DO_CUPOM): string {
+  const c = CORES_DO_CUPOM[loja];
+  const x = 190, y = 215, w = 900, h = 340, raio = 38, entalhe = 36, meio = y + h / 2;
+  const ticket = `M${x + raio},${y} H${x + w - raio} Q${x + w},${y} ${x + w},${y + raio} V${meio - entalhe} A${entalhe},${entalhe} 0 0 0 ${x + w},${meio + entalhe} V${y + h - raio} Q${x + w},${y + h} ${x + w - raio},${y + h} H${x + raio} Q${x},${y + h} ${x},${y + h - raio} V${meio + entalhe} A${entalhe},${entalhe} 0 0 0 ${x},${meio - entalhe} V${y + raio} Q${x},${y} ${x + raio},${y} Z`;
+  const divisor = x + 300;
+  const corpo = `${fundo(1280, 720)}
+${marca(640, 110, 40, 'centro')}
+<path d="${ticket}" fill="#000000" fill-opacity="0.35" transform="translate(0 14)"/>
+<path d="${ticket}" fill="${c.ticket}"/>
+<line x1="${divisor}" y1="${y + 26}" x2="${divisor}" y2="${y + h - 26}" stroke="${c.texto}" stroke-opacity="0.55" stroke-width="5" stroke-dasharray="14 12" stroke-linecap="round"/>
+${texto(x + 150, meio + 62, 200, c.texto, '%')}
+${texto(divisor + (x + w - divisor) / 2, meio - 4, 118, c.texto, 'CUPOM')}
+${texto(divisor + (x + w - divisor) / 2, meio + 78, 50, c.texto, c.loja)}`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" font-family="${FONTE}">\n${corpo}\n</svg>`;
+}
