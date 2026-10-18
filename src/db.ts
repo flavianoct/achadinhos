@@ -196,6 +196,9 @@ export class Banco {
     if (!colunas.some((c) => c.name === 'canal')) this.db.exec(`ALTER TABLE postados ADD COLUMN canal TEXT`);
     const colunasZap = this.db.prepare(`PRAGMA table_info(whatsapp_saida)`).all() as Array<{ name: string }>;
     if (!colunasZap.some((c) => c.name === 'categoria')) this.db.exec(`ALTER TABLE whatsapp_saida ADD COLUMN categoria TEXT`);
+    if (!colunasZap.some((c) => c.name === 'so_nicho')) this.db.exec(`ALTER TABLE whatsapp_saida ADD COLUMN so_nicho INTEGER`);
+    const colunasPostados = this.db.prepare(`PRAGMA table_info(postados)`).all() as Array<{ name: string }>;
+    if (!colunasPostados.some((c) => c.name === 'no_geral')) this.db.exec(`ALTER TABLE postados ADD COLUMN no_geral INTEGER`);
     // Bancos criados antes do Instagram não têm estas colunas.
     for (const coluna of ['imagem TEXT', 'ig_feed_em INTEGER', 'ig_story_em INTEGER']) {
       try {
@@ -238,10 +241,15 @@ export class Banco {
   }
 
   /** `canal` é o destino principal do post no Telegram (o canal do nicho ou o geral). */
-  registrarPost(o: OfertaAvaliada, agora: Date, canal?: string): void {
+  registrarPost(o: OfertaAvaliada, agora: Date, canal?: string, noGeral = true): void {
     this.db
-      .prepare(`INSERT INTO postados (loja, id_produto, titulo, categoria, preco, dia, postado_em, canal) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
-      .run(o.loja, o.idProduto, o.titulo, o.categoria, o.preco, diaDe(agora), agora.getTime(), canal ?? null);
+      .prepare(`INSERT INTO postados (loja, id_produto, titulo, categoria, preco, dia, postado_em, canal, no_geral) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(o.loja, o.idProduto, o.titulo, o.categoria, o.preco, diaDe(agora), agora.getTime(), canal ?? null, noGeral ? 1 : 0);
+  }
+
+  /** Quantos anúncios deste nicho já saíram hoje no canal geral (os de antes do limite existir contam como geral). */
+  postsNoGeralHoje(categoria: string, agora: Date): number {
+    return Number((this.db.prepare(`SELECT COUNT(*) AS n FROM postados WHERE dia = ? AND categoria = ? AND COALESCE(no_geral, 1) = 1`).get(diaDe(agora), categoria) as { n: number }).n);
   }
 
   /** Títulos postados nas últimas `horas` horas, para não repetir o mesmo tipo de produto. */
@@ -412,10 +420,10 @@ export class Banco {
   }
 
   /** Guarda a mensagem de WhatsApp de uma oferta já postada. O enviador do PC lê isto pelo arquivo whatsapp.json. */
-  guardarParaWhatsapp(o: OfertaAvaliada, texto: string, agora: Date): void {
+  guardarParaWhatsapp(o: OfertaAvaliada, texto: string, agora: Date, soNicho = false): void {
     this.db
-      .prepare(`INSERT OR REPLACE INTO whatsapp_saida (chave, loja, texto, imagem, link, criado_em, categoria) VALUES (?, ?, ?, ?, ?, ?, ?)`)
-      .run(`${o.loja}:${o.idProduto}:${agora.getTime()}`, o.loja, texto, o.imagem ?? null, o.link, agora.getTime(), o.categoria ?? null);
+      .prepare(`INSERT OR REPLACE INTO whatsapp_saida (chave, loja, texto, imagem, link, criado_em, categoria, so_nicho) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(`${o.loja}:${o.idProduto}:${agora.getTime()}`, o.loja, texto, o.imagem ?? null, o.link, agora.getTime(), o.categoria ?? null, soNicho ? 1 : 0);
   }
 
   /** Quantas ofertas entraram na fila do WhatsApp nos últimos minutos minutos (uma rodada posta tudo em poucos segundos; as rodadas ficam a ~27 min uma da outra). */
@@ -648,11 +656,11 @@ export class Banco {
   }
 
   /** Mensagens de WhatsApp criadas nas últimas `horas` horas, da mais antiga para a mais nova. */
-  mensagensDoWhatsapp(horas: number, agora: Date): Array<{ chave: string; loja: string; texto: string; imagem?: string; link: string; criadoEm: number; categoria: string }> {
+  mensagensDoWhatsapp(horas: number, agora: Date): Array<{ chave: string; loja: string; texto: string; imagem?: string; link: string; criadoEm: number; categoria: string; soNicho: boolean }> {
     const linhas = this.db
-      .prepare(`SELECT chave, loja, texto, imagem, link, criado_em, categoria FROM whatsapp_saida WHERE criado_em >= ? ORDER BY criado_em ASC`)
-      .all(agora.getTime() - horas * 3_600_000) as Array<{ chave: string; loja: string; texto: string; imagem: string | null; link: string; criado_em: number; categoria: string | null }>;
-    return linhas.map((l) => ({ chave: l.chave, loja: l.loja, texto: l.texto, imagem: l.imagem ?? undefined, link: l.link, criadoEm: l.criado_em, categoria: l.categoria ?? 'geral' }));
+      .prepare(`SELECT chave, loja, texto, imagem, link, criado_em, categoria, so_nicho FROM whatsapp_saida WHERE criado_em >= ? ORDER BY criado_em ASC`)
+      .all(agora.getTime() - horas * 3_600_000) as Array<{ chave: string; loja: string; texto: string; imagem: string | null; link: string; criado_em: number; categoria: string | null; so_nicho: number | null }>;
+    return linhas.map((l) => ({ chave: l.chave, loja: l.loja, texto: l.texto, imagem: l.imagem ?? undefined, link: l.link, criadoEm: l.criado_em, categoria: l.categoria ?? 'geral', soNicho: l.so_nicho === 1 }));
   }
 
   /** Guarda a última versão de uma oferta boa. O blog lê daqui. */

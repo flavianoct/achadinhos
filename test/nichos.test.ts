@@ -38,7 +38,7 @@ test('rotas: lê categoria=canal, ignora o que é inválido e avisa', () => {
   assert.equal(r.avisos.length, 3);
   assert.match(r.avisos.join('\n'), /categoria "x" não existe/);
   assert.match(r.avisos.join('\n'), /canal "abc" de "casa"/);
-  assert.deepEqual(lerRotas('', false), { porCategoria: {}, tambemNoGeral: false, geralNichos: [], geralSem: [], limitePorDia: 0, limites: {}, minimos: {}, minimoPadrao: 0, avisos: [] });
+  assert.deepEqual(lerRotas('', false), { porCategoria: {}, tambemNoGeral: false, geralNichos: [], geralSem: [], limitePorDia: 0, limites: {}, geralLimites: {}, minimos: {}, minimoPadrao: 0, avisos: [] });
 });
 
 test('rotas: nicho com canal vai só para ele; sem rota vai ao geral; "também no geral" manda aos dois', () => {
@@ -397,4 +397,35 @@ test('shopee: categoria vazia ou com erro é substituída por uma busca do mesmo
   assert.deepEqual((await new FonteShopee(opcoes, comErro).coletar()).map((o) => o.idProduto), ['8']);
   const tudoErro = (async () => new Response(JSON.stringify({ errors: [{ message: 'fora do ar', extensions: { code: 10000 } }] }), { status: 200 })) as typeof fetch;
   await assert.rejects(() => new FonteShopee(opcoes, tudoErro).coletar(), /Shopee/);
+});
+
+test('geral: um nicho com canal próprio manda ao geral só a cota do dia (GERAL_LIMITES); o resto vai só para o dele', async () => {
+  const banco = new Banco(':memory:');
+  const c = lerConfig({ ...base, ROTAS_TELEGRAM: 'pet=@canal_pet', ROTAS_TAMBEM_NO_GERAL: '1', GERAL_LIMITES: 'pet=2, inventado=3', PARECIDOS_HORAS: '0' });
+  assert.equal(c.rotas.geralLimites.pet, 2);
+  assert.match(c.rotas.avisos.join('\n'), /GERAL_LIMITES: nicho "inventado" não existe/);
+  const pub = new Falso();
+  for (const [id, t] of [['A', 'Cama para Cachorro Pet Lavável G'], ['B', 'Ração para Gatos Premium 10kg'], ['C', 'Coleira Antipulgas para Cachorro'], ['D', 'Arranhador para Gato Torre']]) banco.enfileirar(oferta(t!, id!), AGORA);
+  for (let i = 0; i < 4; i++) await postarProxima(pub, banco, c, AGORA);
+  assert.equal(pub.enviados.filter((e) => e.destino === '@canal_pet').length, 4, 'o canal de pets recebe todos');
+  assert.equal(pub.enviados.filter((e) => e.destino === '@geral_canal').length, 2, 'o geral recebe só dois');
+  assert.equal(banco.postsNoGeralHoje('pet', AGORA), 2);
+  // Sem a cota (0 ou sem a linha) o geral recebe todos.
+  assert.deepEqual(destinosDaOferta('pet', lerConfig({ ...base, ROTAS_TELEGRAM: 'pet=@canal_pet', ROTAS_TAMBEM_NO_GERAL: '1' })), ['@canal_pet', '@geral_canal']);
+  assert.deepEqual(destinosDaOferta('pet', c, true), ['@canal_pet']);
+  // Nicho sem destino próprio não tem cota: não há outro lugar para ele ir.
+  const sozinho = lerConfig({ ...base, GERAL_LIMITES: 'tech=1' });
+  banco.enfileirar(oferta('Smartphone Xiaomi Redmi 13', 'T1'), AGORA);
+  banco.enfileirar(oferta('Fone Bluetooth Sem Fio', 'T2'), AGORA);
+  const p2 = new Falso();
+  await postarProxima(p2, banco, sozinho, AGORA);
+  await postarProxima(p2, banco, sozinho, AGORA);
+  assert.equal(p2.enviados.filter((e) => e.destino === '@geral_canal' || e.destino === undefined).length, 2);
+});
+
+test('enviador: mensagem "só do nicho" não vai para o destino geral, mas vai para o grupo do nicho', async () => {
+  const { destinoAceita } = await import('../enviador/logica.mjs');
+  assert.equal(destinoAceita({ jid: 'g' }, 'pet', {}, true), false);
+  assert.equal(destinoAceita({ jid: 'g' }, 'pet', {}, false), true);
+  assert.equal(destinoAceita({ jid: 'p', nichos: ['pet'] }, 'pet', {}, true), true);
 });

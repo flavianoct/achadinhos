@@ -20,6 +20,8 @@ export interface Config {
     limitePorDia: number;
     /** Limite próprio de alguns nichos (NICHO_LIMITES=moda=5,tech=10); vale mais que o geral. */
     limites: Record<string, number>;
+    /** Quantos anúncios por dia o canal geral recebe de um nicho que tem canal ou grupo próprio (GERAL_LIMITES=pet=2); o resto vai só para o dele. */
+    geralLimites: Record<string, number>;
     /** Mínimo de posts por dia de cada nicho (NICHO_MINIMOS), distribuído ao longo do dia. Vale quando o nicho tem oferta na fila. */
     minimos: Record<string, number>;
     /** Mínimo diário dos nichos com canal ou grupo próprio que não têm mínimo definido (NICHO_MINIMO_PADRAO). */
@@ -260,8 +262,15 @@ export function salvarNoEnv(alteracoes: Record<string, string>, caminho = '.env'
 }
 
 /** Lê "categoria=@canal, categoria=-100123" do ajuste ROTAS_TELEGRAM. */
-export function lerRotas(texto: string | undefined, tambemNoGeral: boolean, geralNichos?: string, geralSem?: string, limitePorDia = 0, limites?: string): Config['rotas'] {
-  const rotas: Config['rotas'] = { porCategoria: {}, tambemNoGeral, geralNichos: [], geralSem: [], limitePorDia: Math.max(0, limitePorDia), limites: {}, minimos: {}, minimoPadrao: 0, avisos: [] };
+export function lerRotas(texto: string | undefined, tambemNoGeral: boolean, geralNichos?: string, geralSem?: string, limitePorDia = 0, limites?: string, geralLimites?: string): Config['rotas'] {
+  const rotas: Config['rotas'] = { porCategoria: {}, tambemNoGeral, geralNichos: [], geralSem: [], limitePorDia: Math.max(0, limitePorDia), limites: {}, geralLimites: {}, minimos: {}, minimoPadrao: 0, avisos: [] };
+  for (const item of lista(geralLimites)) {
+    const [nicho, valor] = item.split('=').map((x) => x.trim().toLowerCase());
+    const n = Number(valor);
+    if (!CATEGORIAS.includes(nicho ?? '')) rotas.avisos.push(`GERAL_LIMITES: nicho "${nicho}" não existe (use: ${CATEGORIAS.join(', ')}).`);
+    else if (!Number.isInteger(n) || n < 0) rotas.avisos.push(`GERAL_LIMITES: "${item}" precisa ser nicho=número (0 = sem limite).`);
+    else rotas.geralLimites[nicho!] = n;
+  }
   for (const item of lista(limites)) {
     const [nicho, valor] = item.split('=').map((x) => x.trim().toLowerCase());
     const n = Number(valor);
@@ -355,7 +364,7 @@ function lerConfigBase(env: Env): Config {
   // As palavras dos nichos valem para o classificador inteiro (filtro, painel, guias), por isso são aplicadas aqui.
   definirPalavrasDosNichos(lerPalavrasDosNichos(env));
   return {
-    rotas: lerRotas(env.ROTAS_TELEGRAM, ligado(env, 'ROTAS_TAMBEM_NO_GERAL', false), env.GERAL_NICHOS, env.GERAL_SEM_NICHOS, numero(env, 'NICHO_MAX_POR_DIA', 0), env.NICHO_LIMITES),
+    rotas: lerRotas(env.ROTAS_TELEGRAM, ligado(env, 'ROTAS_TAMBEM_NO_GERAL', false), env.GERAL_NICHOS, env.GERAL_SEM_NICHOS, numero(env, 'NICHO_MAX_POR_DIA', 0), env.NICHO_LIMITES, env.GERAL_LIMITES),
     telegram: {
       token: (env.TELEGRAM_BOT_TOKEN ?? '').trim(),
       chatId,
