@@ -24,7 +24,7 @@ const DIAS_PARA_DENUNCIAR_PRECO_DE = 14;
 /**
  * Decide se a oferta vale a pena e calcula a pontuação.
  * Aprova quando o desconto anunciado é bom OU quando o preço caiu contra o nosso próprio histórico.
- * Reprova "promoção falsa": desconto anunciado, mas o produto já esteve mais barato há pouco tempo.
+ * O que importa é a promoção do dia. Só reprova "já esteve mais barato" se PRECO_JA_MAIS_BARATO_REPROVA estiver ligado (padrão: desligado).
  */
 export function avaliar(o: Oferta, banco: Banco, config: Config, agora: Date): Avaliacao {
   const f = config.filtro;
@@ -56,7 +56,7 @@ export function avaliar(o: Oferta, banco: Banco, config: Config, agora: Date): A
   const historicoConfiavel = hist.menor !== undefined && hist.diasComDado >= DIAS_MINIMOS_DE_HISTORICO;
   const quedaHistorica = hist.menor !== undefined ? ((hist.menor - o.preco) / hist.menor) * 100 : undefined;
 
-  if (historicoConfiavel && o.preco > hist.menor! * 1.03) {
+  if (f.reprovarSeJaEsteveMaisBarato && historicoConfiavel && o.preco > hist.menor! * 1.03) {
     return nao('já esteve mais barato recentemente');
   }
 

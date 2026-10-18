@@ -453,7 +453,7 @@ export function legendaDoGrupo(d: DadosDoGrupo): string {
     `📲 Por que entrar no grupo ${nomeDaMarca()}? #publi`,
     '',
     `✅ ${d.achadosNaSemana} achados separados nos últimos 7 dias, direto no seu WhatsApp`,
-    `📉 ${d.diasDeHistorico} dias de histórico de preço: a gente avisa quando é o menor preço do mês, e o que já esteve mais barato fica de fora`,
+    `📉 ${d.diasDeHistorico} dias de histórico de preço: a gente avisa quando é o menor preço do mês`,
     `🔎 Só entra oferta com ${d.descontoMinimo}% de desconto ou mais (ou ${d.quedaMinima}% abaixo do próprio histórico), com nota e vendas conferidas`,
   ];
   if (d.bloqueadas.length) linhas.push(`🚫 Nada de ${d.bloqueadas.slice(0, 3).join(', ')}`);

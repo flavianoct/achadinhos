@@ -55,6 +55,8 @@ export interface Config {
     precoMaximo: number;
     notaMinima: number;
     vendasMinimas: number;
+    /** 1 = reprova a oferta que já esteve mais barato no último mês (PRECO_JA_MAIS_BARATO_REPROVA). Desligado: vale a promoção do dia, mesmo que o preço já tenha sido menor. */
+    reprovarSeJaEsteveMaisBarato: boolean;
     /** Vendas mínimas dos produtos da Shopee, que entra com os mais vendidos do momento (SHOPEE_VENDAS_MINIMAS; padrão: o mesmo de todos). */
     vendasMinimasShopee: number;
     /** Pontuação mínima para a oferta entrar na fila de postagem. 0 deixa tudo entrar (as fracas ficam só no blog). */
@@ -427,6 +429,7 @@ function lerConfigBase(env: Env): Config {
       nichosAtivos: [],
       filaMinimaDoNicho: Math.max(0, numero(env, 'NICHO_FILA_MINIMA', 3)),
       vendasMinimas: numero(env, 'VENDAS_MINIMAS', 50),
+      reprovarSeJaEsteveMaisBarato: ligado(env, 'PRECO_JA_MAIS_BARATO_REPROVA', false),
       vendasMinimasShopee: numero(env, 'SHOPEE_VENDAS_MINIMAS', numero(env, 'VENDAS_MINIMAS', 50)),
       palavrasBloqueadas: lista(env.PALAVRAS_BLOQUEADAS ?? 'réplica,replica,usado,recondicionado,erótico'),
       palavrasSemApelo: lista(env.PALAVRAS_SEM_APELO ?? PALAVRAS_SEM_APELO_PADRAO),
