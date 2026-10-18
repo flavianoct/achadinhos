@@ -381,6 +381,11 @@ export class Banco {
     return l?.loja;
   }
 
+  /** Lojas dos últimos `n` posts (do mais novo para o mais antigo), para manter a proporção entre as lojas. */
+  lojasDosUltimosPosts(n: number): Loja[] {
+    return (this.db.prepare(`SELECT loja FROM postados ORDER BY postado_em DESC, id DESC LIMIT ?`).all(n) as Array<{ loja: Loja }>).map((l) => l.loja);
+  }
+
   removerDaFila(loja: Loja, idProduto: string): void {
     this.db.prepare(`DELETE FROM fila WHERE loja = ? AND id_produto = ?`).run(loja, idProduto);
   }

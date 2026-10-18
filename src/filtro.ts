@@ -44,7 +44,7 @@ export function avaliar(o: Oferta, banco: Banco, config: Config, agora: Date): A
   if (semApelo) return nao(`sem apelo para o grupo: ${semApelo}`);
 
   if (o.nota !== undefined && o.nota > 0 && o.nota < f.notaMinima) return nao('nota baixa');
-  if (o.vendas !== undefined && o.vendas < f.vendasMinimas) return nao('poucas vendas');
+  if (o.vendas !== undefined && o.vendas < (o.loja === 'shopee' ? f.vendasMinimasShopee : f.vendasMinimas)) return nao('poucas vendas');
 
   let desconto = o.desconto;
   if ((desconto === undefined || desconto <= 0) && o.precoOriginal && o.precoOriginal > o.preco) {

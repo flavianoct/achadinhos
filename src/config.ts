@@ -55,6 +55,8 @@ export interface Config {
     precoMaximo: number;
     notaMinima: number;
     vendasMinimas: number;
+    /** Vendas mínimas dos produtos da Shopee, que entra com os mais vendidos do momento (SHOPEE_VENDAS_MINIMAS; padrão: o mesmo de todos). */
+    vendasMinimasShopee: number;
     /** Pontuação mínima para a oferta entrar na fila de postagem. 0 deixa tudo entrar (as fracas ficam só no blog). */
     pontosMinimos: number;
     /** Corte de pontuação próprio de alguns nichos (NICHO_PONTOS_MINIMOS=pet=48); vale mais que o de todos. Nicho pequeno tem menos oferta e precisa de um corte menor. */
@@ -80,6 +82,8 @@ export interface Config {
     parecidosHoras: number;
     /** Modo nuvem: quantas ofertas postar no Telegram a cada execução. */
     postsPorRodada: number;
+    /** Fatia desejada de cada loja nos posts (LOJA_PROPORCAO=mercadolivre=65,shopee=35). Vazio = as lojas se alternam. */
+    proporcaoDasLojas: Record<string, number>;
   };
   /** Cupons do Mercado Livre e da Amazon, cadastrados por você em cupons.json. */
   cupons: { ativo: boolean; arquivo: string; porDia: number; repetirDias: number; garimpo: boolean; lojas: string[]; bloquear: string[]; linkShopee: string; paginaShopee: string };
@@ -299,6 +303,17 @@ export function lerRotas(texto: string | undefined, tambemNoGeral: boolean, gera
   return rotas;
 }
 
+/** Lê "mercadolivre=65, shopee=35" do ajuste LOJA_PROPORCAO. Item inválido é ignorado. */
+export function lerProporcaoDasLojas(texto: string | undefined): Record<string, number> {
+  const mapa: Record<string, number> = {};
+  for (const item of lista(texto)) {
+    const [loja, valor] = item.split('=').map((x) => x.trim().toLowerCase());
+    const n = Number(valor);
+    if ((loja === 'mercadolivre' || loja === 'shopee') && Number.isFinite(n) && n > 0) mapa[loja] = n;
+  }
+  return mapa;
+}
+
 /** NICHO_PALAVRAS_<NICHO>=palavra,-palavra para cada nicho que tiver o ajuste. */
 export function lerPalavrasDosNichos(env: Env): Record<string, string[]> {
   const porNicho: Record<string, string[]> = {};
@@ -412,6 +427,7 @@ function lerConfigBase(env: Env): Config {
       nichosAtivos: [],
       filaMinimaDoNicho: Math.max(0, numero(env, 'NICHO_FILA_MINIMA', 3)),
       vendasMinimas: numero(env, 'VENDAS_MINIMAS', 50),
+      vendasMinimasShopee: numero(env, 'SHOPEE_VENDAS_MINIMAS', numero(env, 'VENDAS_MINIMAS', 50)),
       palavrasBloqueadas: lista(env.PALAVRAS_BLOQUEADAS ?? 'réplica,replica,usado,recondicionado,erótico'),
       palavrasSemApelo: lista(env.PALAVRAS_SEM_APELO ?? PALAVRAS_SEM_APELO_PADRAO),
       filaMinima: numero(env, 'FILA_MINIMA', 12),
@@ -425,6 +441,7 @@ function lerConfigBase(env: Env): Config {
       maxPostsPorDia: numero(env, 'MAX_POSTS_POR_DIA', 60),
       parecidosHoras: numero(env, 'PARECIDOS_HORAS', 24),
       postsPorRodada: numero(env, 'POSTS_POR_RODADA', 2),
+      proporcaoDasLojas: lerProporcaoDasLojas(env.LOJA_PROPORCAO),
     },
     vendas: { ativo: ligado(env, 'VENDAS_ATIVO', true), horasEntreLeituras: numero(env, 'VENDAS_HORAS', 3), dias: numero(env, 'VENDAS_DIAS', 30) },
     campanhas: { porDia: numero(env, 'CAMPANHAS_POR_DIA', 0), repetirDias: numero(env, 'CAMPANHAS_REPETIR_DIAS', 7) },

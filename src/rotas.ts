@@ -86,3 +86,21 @@ export function nichosAbaixoDaMeta(postsHoje: Array<{ categoria: string; posts: 
     .sort((a, b) => b.falta - a.falta)
     .map((n) => n.categoria);
 }
+
+/** Quantos posts recentes entram na conta da proporção entre as lojas. */
+const POSTS_NA_PROPORCAO = 20;
+
+/**
+ * Qual loja evitar no próximo post. Sem LOJA_PROPORCAO, a da última oferta postada (as lojas se alternam). Com a proporção, a loja
+ * que está acima da sua fatia nos últimos posts: assim o Mercado Livre (maior comissão) puxa a maior parte e a Shopee entra com a dela.
+ */
+export function lojaParaEvitar(recentes: string[], ultima: string | undefined, config: Config): string | undefined {
+  const alvo = config.ritmo.proporcaoDasLojas;
+  const lojas = Object.keys(alvo);
+  if (lojas.length < 2 || !recentes.length) return ultima;
+  const janela = recentes.slice(0, POSTS_NA_PROPORCAO);
+  const soma = lojas.reduce((t, l) => t + alvo[l]!, 0);
+  const excesso = lojas.map((l) => ({ l, dif: janela.filter((x) => x === l).length / janela.length - alvo[l]! / soma }));
+  excesso.sort((a, b) => b.dif - a.dif);
+  return excesso[0]!.dif > 0 ? excesso[0]!.l : excesso[excesso.length - 1]!.l === ultima ? undefined : ultima;
+}
