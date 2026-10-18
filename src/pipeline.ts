@@ -77,6 +77,9 @@ export async function coletar(fontes: Fonte[], banco: Banco, config: Config, ago
 
       if (resultado.aprovada && !dentroDoTema(resultado.oferta.titulo, config)) {
         contar(oferta.loja, 'fora do tema');
+      } else if (resultado.aprovada && config.filtro.nichosAtivos.length && !config.filtro.nichosAtivos.includes(resultado.oferta.categoria)) {
+        // Só os NICHOS_ATIVOS: o resto continua no blog, mas não vai para os canais.
+        contar(oferta.loja, 'fora dos nichos ativos');
       } else if (resultado.aprovada && resultado.oferta.pontos < pontosMinimosDoNicho(resultado.oferta.categoria, config)) {
         // Oferta aprovada mas fraca: não vai para os canais (continua no blog e nos guias), a não ser que a fila fique curta (abaixo).
         fracas.push(resultado.oferta);

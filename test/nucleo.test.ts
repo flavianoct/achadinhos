@@ -562,3 +562,16 @@ test('db: melhorDaFila com soCategorias só considera esses nichos, e tamanhoDaF
   assert.equal(banco.tamanhoDaFilaDoNicho('tech'), 1);
   assert.equal(banco.tamanhoDaFilaDoNicho('moda'), 0);
 });
+
+test('pipeline: com NICHOS_ATIVOS só o nicho escolhido entra na fila, e o resto é contado como fora dos nichos ativos', async () => {
+  const pet = oferta({ idProduto: 'PET1', titulo: 'Cama para Cachorro Pet Lavável G' });
+  const tech = oferta({ idProduto: 'TEC1', titulo: 'Fone Bluetooth Sem Fio Premium' });
+  const livre = new Banco(':memory:');
+  await coletar([fonteFixa([pet, tech])], livre, lerConfig({ PARECIDOS_HORAS: '0' }), dias(1));
+  assert.equal(livre.tamanhoDaFila(), 2, 'sem restrição, os dois');
+  const soPet = new Banco(':memory:');
+  const r = await coletar([fonteFixa([pet, tech])], soPet, lerConfig({ PARECIDOS_HORAS: '0', NICHOS_ATIVOS: 'pet' }), dias(1));
+  assert.equal(soPet.tamanhoDaFila(), 1);
+  assert.equal(soPet.tamanhoDaFilaDoNicho('pet'), 1);
+  assert.equal(r.reprovadasPorMotivo['fora dos nichos ativos'], 1);
+});

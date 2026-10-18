@@ -289,3 +289,112 @@ test('mercado livre: as categorias padrão cobrem todos os nichos, inclusive pet
   const ids = lerConfig({}).ml.categorias;
   for (const [id, nicho] of [['MLB1071', 'pet'], ['MLB1384', 'bebê'], ['MLB1430', 'moda'], ['MLB263532', 'ferramentas']] as const) assert.ok(ids.includes(id), `${nicho} (${id})`);
 });
+
+// ───────────── Shopee e Mercado Livre por categoria, organizados por nicho ─────────────
+
+test('nichos: cada nicho tem categorias na Shopee e no Mercado Livre, sem repetir categoria', async () => {
+  const { CATEGORIAS_SHOPEE, CATEGORIAS_ML, NICHOS_DAS_LOJAS, categoriasShopeeDosNichos, categoriasMlDosNichos } = await import('../src/nichos.ts');
+  for (const n of NICHOS_DAS_LOJAS) {
+    assert.ok(CATEGORIAS_SHOPEE[n]?.length, `${n}: tem categoria na Shopee`);
+    assert.ok(CATEGORIAS_ML[n]?.length, `${n}: tem categoria no Mercado Livre`);
+  }
+  assert.deepEqual(categoriasShopeeDosNichos(['pet']).map((c) => c.id), [11059991]);
+  const todas = categoriasShopeeDosNichos(NICHOS_DAS_LOJAS);
+  assert.equal(new Set(todas.map((c) => c.id)).size, todas.length, 'sem categoria repetida');
+  assert.equal(todas.find((c) => c.id === 11059983)!.nicho, 'casa', 'Home & Construction fica com o primeiro nicho que a cita');
+  assert.deepEqual(categoriasShopeeDosNichos(['ferramentas']).map((c) => c.id), [11059983], 'sozinho, o nicho ferramentas fica com ela');
+  assert.deepEqual(categoriasMlDosNichos(['pet', 'bebe']), ['MLB1071', 'MLB1384']);
+  assert.equal(categoriasMlDosNichos(NICHOS_DAS_LOJAS).length, 12);
+});
+
+test('nichos: NICHOS_ATIVOS escolhe os nichos que o robô puxa, nas duas lojas', async () => {
+  const { lerConfig } = await import('../src/config.ts');
+  const todos = lerConfig({});
+  assert.deepEqual(todos.filtro.nichosAtivos, []);
+  assert.equal(todos.shopee.categorias.length, 22, 'sem restrição, todas as categorias dos nichos');
+  assert.equal(todos.ml.categorias.length, 12);
+  const pet = lerConfig({ NICHOS_ATIVOS: 'pet' });
+  assert.deepEqual(pet.filtro.nichosAtivos, ['pet']);
+  assert.deepEqual(pet.shopee.categorias.map((c) => c.id), [11059991]);
+  assert.deepEqual(pet.ml.categorias, ['MLB1071']);
+  const dois = lerConfig({ NICHOS_ATIVOS: 'Pet, bebe' });
+  assert.deepEqual(dois.filtro.nichosAtivos, ['pet', 'bebe']);
+  assert.deepEqual(dois.ml.categorias, ['MLB1071', 'MLB1384']);
+  // A lista própria do dono para o Mercado Livre manda.
+  assert.deepEqual(lerConfig({ NICHOS_ATIVOS: 'pet', ML_CATEGORIAS: 'MLB1000' }).ml.categorias, ['MLB1000']);
+  // Nicho que não existe vira aviso e não derruba nada.
+  const ruim = lerConfig({ NICHOS_ATIVOS: 'pet,carros' });
+  assert.deepEqual(ruim.filtro.nichosAtivos, ['pet']);
+  assert.ok(ruim.rotas.avisos.some((a) => a.startsWith('NICHOS_ATIVOS') && a.includes('carros')));
+});
+
+test('shopee: o rodízio de categorias visita todos os nichos, e os nichos com grupo próprio ganham uma categoria extra', async () => {
+  const { planoDeCategorias } = await import('../src/fontes/shopee.ts');
+  const { categoriasShopeeDosNichos, NICHOS_DAS_LOJAS } = await import('../src/nichos.ts');
+  const todas = categoriasShopeeDosNichos(NICHOS_DAS_LOJAS);
+  const vistas = new Set<number>();
+  for (let turno = 0; turno < 8; turno++) for (const c of planoDeCategorias(todas, 3, [], 0, turno)) vistas.add(c.id);
+  assert.equal(vistas.size, todas.length, 'em um ciclo, todas as categorias foram lidas');
+  assert.equal(new Set(planoDeCategorias(todas, 3, [], 0, 0).map((c) => c.nicho)).size, 3, 'o rodízio intercala os nichos (não lê 3 de moda seguidas)');
+  for (let turno = 0; turno < 10; turno++) {
+    const plano = planoDeCategorias(todas, 3, ['pet'], 1, turno);
+    assert.ok(plano.some((c) => c.nicho === 'pet'), `turno ${turno}: a categoria de pets é lida`);
+    assert.equal(new Set(plano.map((c) => c.id)).size, plano.length, 'sem categoria repetida no turno');
+  }
+  assert.deepEqual(planoDeCategorias([], 3, ['pet'], 1, 0), []);
+  assert.deepEqual(planoDeCategorias(todas, 0, [], 0, 0), []);
+  assert.deepEqual(planoDeCategorias(categoriasShopeeDosNichos(['pet']), 3, ['pet'], 1, 5).map((c) => c.id), [11059991]);
+});
+
+const itemDaShopee = (id: number) => ({ itemId: id, productName: `Produto ${id}`, offerLink: `https://s/${id}`, priceMin: '50' });
+const respostaDaShopee = (nodes: unknown[]) => new Response(JSON.stringify({ data: { productOfferV2: { nodes, pageInfo: { hasNextPage: false } } } }), { status: 200 });
+
+test('shopee: lê por categoria (productCatId, mais vendidos) e, com NICHOS_ATIVOS, pula o ranking geral', async () => {
+  const { FonteShopee } = await import('../src/fontes/shopee.ts');
+  const { categoriasShopeeDosNichos } = await import('../src/nichos.ts');
+  const consultas: string[] = [];
+  const fetchFalso = (async (_url: any, init: any) => {
+    const q = JSON.parse(init.body).query as string;
+    consultas.push(q);
+    return respostaDaShopee(q.includes('productCatId: 11059991') ? [itemDaShopee(1), itemDaShopee(2)] : [itemDaShopee(3)]);
+  }) as typeof fetch;
+
+  const so = new FonteShopee({ appId: 'A', secret: 'S', categorias: categoriasShopeeDosNichos(['pet']), categoriasPorRodada: 1, nichosAtivos: ['pet'], buscasPorRodada: 0 }, fetchFalso);
+  const ofertas = await so.coletar();
+  assert.deepEqual(ofertas.map((o) => o.idProduto).sort(), ['1', '2']);
+  assert.ok(consultas.some((q) => q.includes('productCatId: 11059991') && q.includes('sortType: 2')), 'a categoria de pets, pelos mais vendidos');
+  assert.ok(!consultas.some((q) => q.includes('listType')), 'sem o ranking geral, que mistura todos os nichos');
+
+  consultas.length = 0;
+  const geral = new FonteShopee({ appId: 'A', secret: 'S', categorias: categoriasShopeeDosNichos(['pet']), categoriasPorRodada: 1, buscasPorRodada: 0 }, fetchFalso);
+  await geral.coletar();
+  assert.ok(consultas.some((q) => q.includes('listType: 2')), 'sem restrição, o ranking geral continua');
+  assert.ok(consultas.some((q) => q.includes('productCatId')), 'e as categorias também');
+});
+
+test('shopee: categoria vazia ou com erro é substituída por uma busca do mesmo nicho, e a rodada continua', async () => {
+  const { FonteShopee, BUSCAS_POR_NICHO } = await import('../src/fontes/shopee.ts');
+  const { categoriasShopeeDosNichos } = await import('../src/nichos.ts');
+  const opcoes = { appId: 'A', secret: 'S', categorias: categoriasShopeeDosNichos(['pet']), categoriasPorRodada: 1, nichosAtivos: ['pet'], buscasPorRodada: 0 };
+
+  const consultas: string[] = [];
+  const vazia = (async (_url: any, init: any) => {
+    const q = JSON.parse(init.body).query as string;
+    consultas.push(q);
+    return respostaDaShopee(q.includes('keyword') ? [itemDaShopee(7)] : []);
+  }) as typeof fetch;
+  const ofertas = await new FonteShopee(opcoes, vazia).coletar();
+  assert.deepEqual(ofertas.map((o) => o.idProduto), ['7']);
+  const busca = consultas.find((q) => q.includes('keyword'))!;
+  assert.ok(BUSCAS_POR_NICHO.pet!.some((t) => busca.includes(JSON.stringify(t))), 'a busca é de pet');
+
+  // Erro na categoria: segue para a busca. Se nada foi coletado, o erro sobe (para a rodada avisar que a Shopee falhou).
+  const comErro = (async (_url: any, init: any) => {
+    const q = JSON.parse(init.body).query as string;
+    if (q.includes('productCatId')) return new Response(JSON.stringify({ errors: [{ message: 'categoria inválida', extensions: { code: 10000 } }] }), { status: 200 });
+    return respostaDaShopee([itemDaShopee(8)]);
+  }) as typeof fetch;
+  assert.deepEqual((await new FonteShopee(opcoes, comErro).coletar()).map((o) => o.idProduto), ['8']);
+  const tudoErro = (async () => new Response(JSON.stringify({ errors: [{ message: 'fora do ar', extensions: { code: 10000 } }] }), { status: 200 })) as typeof fetch;
+  await assert.rejects(() => new FonteShopee(opcoes, tudoErro).coletar(), /Shopee/);
+});
