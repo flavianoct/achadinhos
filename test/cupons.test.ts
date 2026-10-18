@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { lerConfig } from '../src/config.ts';
-import { chaveDoCupom, cupomVigente, escolherCupom, lerCupons, montarMensagemCupom } from '../src/cupons.ts';
+import { readFileSync } from 'node:fs';
+import { chaveDoCupom, cupomVigente, escolherCupom, lerCupons, montarMensagemCupom, urlDoBannerDoCupom } from '../src/cupons.ts';
+import { svgDoBannerDoCupom } from '../src/moldes.ts';
+import { Telegram } from '../src/telegram.ts';
 import { Banco } from '../src/db.ts';
 import { postarProximoCupom } from '../src/pipeline.ts';
 import type { Cupom } from '../src/cupons.ts';
@@ -86,4 +89,73 @@ test('cupons: erro de envio não registra o cupom, desligado não posta', async 
   assert.equal(banco.cuponsNoDia(AGORA), 0);
   const off = lerConfig({ CUPONS_ATIVO: '0' });
   assert.deepEqual(await postarProximoCupom(new Falso(), banco, [ml], off, AGORA), { postou: false, motivo: 'desligado' });
+});
+
+// ───────────── banner do cupom ─────────────
+
+function telegramFalso(recusaDaFoto?: { status: number }) {
+  const chamadas: Array<{ metodo: string; corpo: any }> = [];
+  const f = (async (url: any, init: any) => {
+    const metodo = String(url).split('/').pop()!;
+    chamadas.push({ metodo, corpo: JSON.parse(init.body) });
+    if (metodo === 'sendPhoto' && recusaDaFoto) return new Response(JSON.stringify({ ok: false, description: 'wrong file identifier/HTTP URL specified' }), { status: recusaDaFoto.status });
+    return new Response(JSON.stringify({ ok: true, result: {} }), { status: 200 });
+  }) as typeof fetch;
+  return { telegram: new Telegram('token', '-1001234567890', f), chamadas };
+}
+
+test('cupom: o banner é um ticket na cor da loja, com o nome dela, sem valor nenhum', () => {
+  const ml = svgDoBannerDoCupom('mercadolivre');
+  const sp = svgDoBannerDoCupom('shopee');
+  for (const svg of [ml, sp]) {
+    assert.match(svg, /^<svg[^>]+width="1280" height="720"/);
+    assert.ok(svg.includes('>CUPOM<'));
+    assert.equal((svg.match(/>MATA</g) ?? []).length, 1, 'a marca aparece uma vez só');
+    assert.doesNotMatch(svg, /R\$|\d%/, 'o valor do cupom fica na legenda, nunca na imagem');
+  }
+  assert.ok(ml.includes('DO MERCADO LIVRE') && ml.includes('#FFE600'));
+  assert.ok(sp.includes('DA SHOPEE') && sp.includes('#EE4D2D'));
+  assert.ok(!ml.includes('SHOPEE') && !sp.includes('MERCADO'), 'cada banner cita só a sua loja');
+});
+
+test('cupom: os banners são arquivos do repositório e o endereço aponta para eles', () => {
+  assert.equal(urlDoBannerDoCupom('shopee', 'flavianoct/achadinhos'), 'https://raw.githubusercontent.com/flavianoct/achadinhos/main/marca/cupons/cupom-shopee.png');
+  assert.match(urlDoBannerDoCupom('mercadolivre', 'outro/repo'), /outro\/repo\/main\/marca\/cupons\/cupom-mercadolivre\.png$/);
+  for (const loja of ['mercadolivre', 'shopee']) {
+    const png = readFileSync(new URL(`../marca/cupons/cupom-${loja}.png`, import.meta.url));
+    assert.equal(png.readUInt32BE(16), 1280, `${loja}: largura`);
+    assert.equal(png.readUInt32BE(20), 720, `${loja}: altura`);
+  }
+});
+
+test('cupom: sai como foto com a mensagem na legenda e o botão de pegar o cupom', async () => {
+  const { telegram, chamadas } = telegramFalso();
+  await telegram.publicarCupom(ml);
+  assert.equal(chamadas.length, 1);
+  assert.equal(chamadas[0]!.metodo, 'sendPhoto');
+  const corpo = chamadas[0]!.corpo;
+  assert.match(corpo.photo, /marca\/cupons\/cupom-mercadolivre\.png$/);
+  assert.match(corpo.caption, /CUPOM MERCADO LIVRE/);
+  assert.match(corpo.caption, /ACHA30/);
+  assert.equal(corpo.reply_markup.inline_keyboard[0][0].url, ml.link);
+  await telegram.publicarCupom(shopee);
+  assert.match(chamadas[1]!.corpo.photo, /cupom-shopee\.png$/, 'cada loja com o seu banner');
+});
+
+test('cupom: se a foto for recusada, o cupom sai em texto e não se perde; erro de rede não duplica', async () => {
+  const recusada = telegramFalso({ status: 400 });
+  await recusada.telegram.publicarCupom(shopee);
+  assert.deepEqual(recusada.chamadas.map((c) => c.metodo), ['sendPhoto', 'sendMessage']);
+  assert.match(recusada.chamadas[1]!.corpo.text, /CUPOM SHOPEE/);
+  assert.equal(recusada.chamadas[1]!.corpo.reply_markup.inline_keyboard[0][0].url, shopee.link);
+
+  // Erro que não é definitivo (Telegram fora do ar): sobe para tentar de novo na rodada seguinte, sem mandar duas vezes.
+  const fora = telegramFalso({ status: 500 });
+  await assert.rejects(() => fora.telegram.publicarCupom(ml));
+  assert.deepEqual(fora.chamadas.map((c) => c.metodo), ['sendPhoto']);
+
+  // Mensagem comprida demais para legenda (mais de 1024 caracteres): vai direto em texto.
+  const comprido = telegramFalso();
+  await comprido.telegram.publicarCupom({ ...ml, detalhe: 'x'.repeat(1100) });
+  assert.deepEqual(comprido.chamadas.map((c) => c.metodo), ['sendMessage']);
 });

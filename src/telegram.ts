@@ -1,4 +1,4 @@
-import { montarMensagemCupom, type Cupom } from './cupons.ts';
+import { montarMensagemCupom, urlDoBannerDoCupom, type Cupom } from './cupons.ts';
 import { escaparHtml, montarMensagem } from './mensagem.ts';
 import type { OfertaAvaliada } from './types.ts';
 
@@ -84,13 +84,19 @@ export class Telegram implements Publicador {
   }
 
   async publicarCupom(c: Cupom): Promise<void> {
-    await this.chamar('sendMessage', {
-      chat_id: this.chatId,
-      text: montarMensagemCupom(c),
-      parse_mode: 'HTML',
-      reply_markup: { inline_keyboard: [[{ text: '🎟️ Pegar cupom', url: c.link }]] },
-      link_preview_options: { is_disabled: true },
-    });
+    const texto = montarMensagemCupom(c);
+    const reply_markup = { inline_keyboard: [[{ text: '🎟️ Pegar cupom', url: c.link }]] };
+    // Com o banner da loja: foto e a mesma mensagem na legenda (o Telegram aceita até 1024 caracteres). Se a foto for recusada (arquivo
+    // ainda fora do GitHub, por exemplo), o cupom sai como texto, como sempre saiu: o cupom nunca se perde por causa da imagem.
+    if (texto.length <= 1000) {
+      try {
+        await this.chamar('sendPhoto', { chat_id: this.chatId, photo: urlDoBannerDoCupom(c.loja), caption: texto, parse_mode: 'HTML', reply_markup });
+        return;
+      } catch (e) {
+        if (!(e instanceof ErroTelegram) || !e.permanente) throw e;
+      }
+    }
+    await this.chamar('sendMessage', { chat_id: this.chatId, text: texto, parse_mode: 'HTML', reply_markup, link_preview_options: { is_disabled: true } });
   }
 
   async publicarAviso(a: { texto: string; botao: string; url: string; imagem?: string }, destino: string = this.chatId): Promise<void> {
