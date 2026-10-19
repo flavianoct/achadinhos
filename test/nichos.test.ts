@@ -475,3 +475,25 @@ test('filtro: a Shopee exige mais vendas (SHOPEE_VENDAS_MINIMAS), o Mercado Livr
   assert.equal(avaliar({ ...o, vendas: 4000 }, banco, c, AGORA).aprovada, true);
   assert.equal(avaliar({ ...o, loja: 'mercadolivre', vendas: 400 }, banco, c, AGORA).aprovada, true);
 });
+
+test('nicho atrás do mínimo não tira as vagas do geral: o post só do grupo sai a mais e o limite do dia não conta', async () => {
+  const banco = new Banco(':memory:');
+  // pet tem grupo de WhatsApp, cota de 0 no geral hoje (GERAL_LIMITES=pet=1 e já usada) e mínimo alto: sempre passa na frente.
+  const c = lerConfig({ ...base, WHATSAPP_ATIVO: '1', WHATSAPP_ROTAS: 'pet=https://chat.whatsapp.com/KJi6FhpMfda0s0phA5W3Y3', GERAL_LIMITES: 'pet=1', NICHO_MINIMOS: 'pet=48', MAX_POSTS_POR_DIA: '2' });
+  const pub = new Falso();
+  banco.registrarPost({ ...oferta('Cama Macia Pet Tamanho G', 'JA'), categoria: 'pet' }, AGORA, '@geral_canal', true);
+  banco.enfileirar({ ...oferta('Ração para Cães 15kg', 'PET1'), pontos: 99 }, AGORA);
+  banco.enfileirar({ ...oferta('Coleira para Cães', 'PET2'), pontos: 98 }, AGORA);
+  banco.enfileirar(oferta('Air Fryer 4L', 'CASA'), AGORA);
+  // Sem restrição, o pet passa na frente e só vai para o grupo (sem Telegram).
+  const a = await postarProxima(pub, banco, c, AGORA);
+  assert.ok(a.postou && a.canais.length === 0 && a.oferta.categoria === 'pet');
+  // Pedindo só o que vale para o geral, o pet fica de fora e a casa sai no canal geral.
+  const b = await postarProxima(pub, banco, c, AGORA, undefined, true);
+  assert.ok(b.postou);
+  assert.deepEqual(pub.enviados, [{ id: 'CASA', destino: '@geral_canal' }]);
+  // O limite do dia (2) só conta o que foi para o geral: já tem 2 (a de antes e a casa), então para; o pet só-de-grupo não pesou.
+  assert.equal(banco.postsNoGeralNoDia(AGORA), 2);
+  assert.deepEqual(await postarProxima(pub, banco, c, AGORA), { postou: false, motivo: 'limite diário' });
+  assert.equal(banco.postsNoDia(AGORA), 3);
+});

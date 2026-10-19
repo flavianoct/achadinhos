@@ -142,14 +142,14 @@ export class Robo {
   }
 
   /** `forcar` ignora horário e limite diário (botão "postar agora" do painel). */
-  postarAgora(agora: Date = new Date(), forcar = false): Promise<ResultadoDoPost> {
+  postarAgora(agora: Date = new Date(), forcar = false, somenteGeral = false): Promise<ResultadoDoPost> {
     return this.emSerie(async () => {
       this.postEm = agora.getTime();
       if (!this.publicador) return { postou: false, motivo: 'erro', detalhe: 'Telegram não configurado' } as ResultadoDoPost;
       // Em data grande, o limite do dia sobe junto com os posts extras (uns 35 por extra, o número de rodadas do dia).
       const extra = forcar ? 0 : this.postsExtraDeHoje(agora);
       const config: Config = forcar ? { ...this.config, ritmo: { ...this.config.ritmo, horaInicio: 0, horaFim: 24, maxPostsPorDia: Number.MAX_SAFE_INTEGER } } : extra ? { ...this.config, ritmo: { ...this.config.ritmo, maxPostsPorDia: this.config.ritmo.maxPostsPorDia + extra * 35 } } : this.config;
-      const r = await postarProxima(this.publicador, this.banco, config, agora, this.descartes);
+      const r = await postarProxima(this.publicador, this.banco, config, agora, this.descartes, somenteGeral);
       if (r.postou) {
         const destino = Object.keys(this.config.rotas.porCategoria).length ? ` [${r.oferta.categoria} → ${r.canais.join(' + ')}]` : '';
         this.log(`postado: [${r.oferta.loja}] ${r.oferta.titulo.slice(0, 60)}${destino}`);

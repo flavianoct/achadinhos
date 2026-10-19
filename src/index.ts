@@ -115,15 +115,20 @@ async function modoNuvem(): Promise<void> {
     // Em data grande (10.10, Black Friday...), mais posts por rodada no Telegram (DATAS_POSTS_EXTRA).
     const postsDaRodada = robo.config.ritmo.postsPorRodada + robo.postsExtraDeHoje();
     if (postsDaRodada > robo.config.ritmo.postsPorRodada) dizer(`- Data grande hoje: ${postsDaRodada} posts nesta rodada (o normal são ${robo.config.ritmo.postsPorRodada}).`);
-    for (let i = 0; i < postsDaRodada; i++) {
+    // Cada rodada tem as suas vagas no canal geral. O post que só vai para o grupo de um nicho (a cota dele no geral acabou) não gasta vaga:
+    // sai a mais, até o mesmo tanto da rodada, e o geral segue recebendo mesmo quando um nicho está atrás do seu mínimo.
+    let soDeNicho = 0;
+    for (let i = 0; postados < postsDaRodada && i < postsDaRodada * 2; i++) {
       if (i > 0) await pausa(3000);
-      const r = await robo.postarAgora();
+      const r = await robo.postarAgora(undefined, false, soDeNicho >= postsDaRodada);
       if (!r.postou) {
         motivoDaParada = r.motivo === 'erro' ? `erro: ${r.detalhe}` : r.motivo;
         if (r.motivo === 'erro') process.exitCode = 1;
         break;
       }
-      postados++;
+      // Sem nenhum canal do Telegram, a oferta foi só para o grupo de WhatsApp do nicho.
+      if (r.canais.length) postados++;
+      else soDeNicho++;
       for (const aviso of r.avisos) dizer(`- **Aviso de roteamento:** ${aviso}`);
     }
     for (const aviso of [...robo.config.rotas.avisos, ...robo.config.whatsapp.avisos]) {
@@ -144,7 +149,7 @@ async function modoNuvem(): Promise<void> {
     rodada.parou = motivoDaParada;
     const d = robo.descartes;
     if (d.parecidosComPostados || d.perdeuParaMelhorVendedor) dizer(`- Fila: ${d.parecidosComPostados} ofertas tiradas por serem parecidas com algo postado nas últimas ${robo.config.ritmo.parecidosHoras} h e ${d.perdeuParaMelhorVendedor} por perderem para outro anúncio do mesmo tipo.`);
-    dizer(`- Telegram: ${postados} ofertas postadas${motivoDaParada ? ` (parou por: ${motivoDaParada})` : ''}. Na fila: ${robo.banco.tamanhoDaFila()}.`);
+    dizer(`- Telegram: ${postados} ofertas postadas${soDeNicho ? ` (e ${soDeNicho} só para grupos de nicho)` : ''}${motivoDaParada ? ` (parou por: ${motivoDaParada})` : ''}. Na fila: ${robo.banco.tamanhoDaFila()}.`);
 
     // Cupons do Mercado Livre e da Amazon, cadastrados em cupons.json (no máximo CUPONS_POR_DIA por dia).
     if (robo.config.cupons.ativo) {
