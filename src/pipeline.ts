@@ -3,11 +3,11 @@ import { horaDe, type Banco } from './db.ts';
 import { escaparHtml, montarMensagemWhatsapp, rodapeDoWhatsapp } from './mensagem.ts';
 import { escolherCampanha, type Campanha, type ItemVendido } from './shopee-extra.ts';
 import { chaveDoCupom, escolherCupom, type Cupom } from './cupons.ts';
-import { categorizar, contemPalavra, normalizar } from './categoria.ts';
+import { CATEGORIAS, categorizar, contemPalavra, normalizar } from './categoria.ts';
 import { avaliar } from './filtro.ts';
 import { melhorVendedor, mesmoTipoDeProduto, parecidoComAlgum } from './parecidos.ts';
 import { elegivelParaGuia, tipoDeGuia } from './guias.ts';
-import { cotaDoGeralAgora, destinosDaOferta, geralAceita, limiteNoGeral, lojaParaEvitar, nichosAbaixoDaMeta, nichosNoLimite, pontosMinimosDoNicho, temWhatsappDoNicho } from './rotas.ts';
+import { cotaDoGeralAgora, destinosDaOferta, geralAceita, limiteNoGeral, lojaParaEvitar, nichosAbaixoDaMeta, nichosNoLimite, nichoTemDestinoProprio, pontosMinimosDoNicho, temWhatsappDoNicho } from './rotas.ts';
 import { ErroTelegram, type Publicador } from './telegram.ts';
 import type { Fonte, Loja, OfertaAvaliada } from './types.ts';
 
@@ -145,11 +145,16 @@ export type ResultadoDoPost =
   | { postou: true; oferta: OfertaAvaliada; canais: string[]; avisos: string[] }
   | { postou: false; motivo: 'fora do horário' | 'limite diário' | 'fila vazia' | 'nichos no limite' | 'erro'; detalhe?: string };
 
-/** Posta a melhor oferta da fila, respeitando horário e limite diário. */
-export async function postarProxima(publicador: Publicador, banco: Banco, config: Config, agora: Date = new Date(), descartes?: Descartes): Promise<ResultadoDoPost> {
+/**
+ * Posta a melhor oferta da fila, respeitando horário e limite diário.
+ * Com `somenteGeral`, não escolhe oferta que só iria para o grupo de um nicho (a cota do nicho no geral já acabou): quem chama usa isso quando
+ * os posts só de nicho da rodada já bastaram, para o canal geral nunca ficar sem oferta por causa do mínimo de um nicho.
+ */
+export async function postarProxima(publicador: Publicador, banco: Banco, config: Config, agora: Date = new Date(), descartes?: Descartes, somenteGeral = false): Promise<ResultadoDoPost> {
   const hora = horaDe(agora);
   if (hora < config.ritmo.horaInicio || hora >= config.ritmo.horaFim) return { postou: false, motivo: 'fora do horário' };
-  if (banco.postsNoDia(agora) >= config.ritmo.maxPostsPorDia) return { postou: false, motivo: 'limite diário' };
+  // O post só do grupo de um nicho não gasta o limite do dia: ele é a mais, o geral segue com as suas vagas.
+  if (banco.postsNoGeralNoDia(agora) >= config.ritmo.maxPostsPorDia) return { postou: false, motivo: 'limite diário' };
 
   banco.limparFilaAntiga(HORAS_NA_FILA, agora);
   // Com tema ligado, o que está na fila fora do tema sai (a fila renasce a cada coleta).
@@ -161,6 +166,9 @@ export async function postarProxima(publicador: Publicador, banco: Banco, config
   let geralCheio = false;
   const postsHoje = banco.postsPorCategoria(1, agora);
   const cheios = nichosNoLimite(postsHoje, config);
+  // Nichos que só rendem post para o grupo deles nesta rodada (cota do geral cheia): ficam de fora quando `somenteGeral`.
+  const soDoGrupo = (n: string) => { const l = limiteNoGeral(n, config); return !geralAceita(n, config) || (l > 0 && banco.postsNoGeralHoje(n, agora) >= cotaDoGeralAgora(l, config, hora)); };
+  if (somenteGeral) for (const n of CATEGORIAS) if (!cheios.includes(n) && nichoTemDestinoProprio(n, config) && soDoGrupo(n)) cheios.push(n);
   // Nicho com mínimo diário (NICHO_MINIMOS, ou o padrão dos nichos com canal próprio) que está atrás da meta de agora passa na frente do ranking geral.
   const preferidos = nichosAbaixoDaMeta(postsHoje, config, hora).filter((n) => !cheios.includes(n));
   const recentes = config.ritmo.parecidosHoras > 0 ? banco.titulosPostados(config.ritmo.parecidosHoras, agora) : [];

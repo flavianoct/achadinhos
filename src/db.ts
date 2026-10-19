@@ -281,6 +281,12 @@ export class Banco {
     return linha.n;
   }
 
+  /** Posts do dia que valeram para o canal geral (o post só do grupo de um nicho não conta: ele não gasta as vagas do geral). */
+  postsNoGeralNoDia(agora: Date): number {
+    const linha = this.db.prepare(`SELECT COUNT(*) AS n FROM postados WHERE dia = ? AND COALESCE(no_geral, 1) = 1`).get(diaDe(agora)) as { n: number };
+    return linha.n;
+  }
+
   /** Categoria que o robô deu ao produto quando o postou (a mais recente), se postou. */
   categoriaPostada(loja: Loja, idProduto: string): string | undefined {
     const l = this.db.prepare(`SELECT categoria FROM postados WHERE loja = ? AND id_produto = ? ORDER BY postado_em DESC LIMIT 1`).get(loja, idProduto) as { categoria: string } | undefined;
