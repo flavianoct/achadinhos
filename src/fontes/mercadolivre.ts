@@ -135,12 +135,13 @@ export class FonteMercadoLivre implements Fonte {
   private intervaloMs: number;
   private agora: () => number;
   private fetchFn: Fetch;
-  private reserva?: { coletar(): Promise<Oferta[]>; buscar?(palavras: string[]): Promise<Oferta[]> };
+  private reserva?: { coletar(): Promise<Oferta[]>; buscar?(palavras: string[], rotulo?: string): Promise<Oferta[]> };
   private tema: string[];
+  private buscasDeNicho: (turno: number) => string[];
   private aviso?: string;
 
   constructor(
-    opcoes: { mattWord: string; mattTool: string; paginas?: number; categorias?: string[]; paginasDeCategoria?: number; intervaloMs?: number; agora?: () => number; reserva?: { coletar(): Promise<Oferta[]>; buscar?(palavras: string[]): Promise<Oferta[]> }; tema?: string[] },
+    opcoes: { mattWord: string; mattTool: string; paginas?: number; categorias?: string[]; paginasDeCategoria?: number; intervaloMs?: number; agora?: () => number; reserva?: { coletar(): Promise<Oferta[]>; buscar?(palavras: string[], rotulo?: string): Promise<Oferta[]> }; tema?: string[]; buscasDeNicho?: (turno: number) => string[] },
     fetchFn: Fetch = fetch,
   ) {
     this.mattWord = opcoes.mattWord;
@@ -153,6 +154,7 @@ export class FonteMercadoLivre implements Fonte {
     this.fetchFn = fetchFn;
     this.reserva = opcoes.reserva;
     this.tema = opcoes.tema ?? [];
+    this.buscasDeNicho = opcoes.buscasDeNicho ?? (() => []);
   }
 
   private async baixar(url: string): Promise<string> {
@@ -174,6 +176,28 @@ export class FonteMercadoLivre implements Fonte {
    */
   async coletar(): Promise<Oferta[]> {
     this.aviso = undefined;
+    const termos = this.tema.length || !this.reserva?.buscar ? [] : this.buscasDeNicho(Math.floor(this.agora() / TURNO_MS));
+    if (!termos.length) return this.coletarPrincipal();
+    // Os nichos com canal ou grupo próprio ganham buscas por palavra pela API, além do ranking das categorias: o ranking de um nicho pequeno
+    // (pet) traz poucos produtos e eles se repetem, e o grupo do nicho fica sem oferta nova.
+    let extras: Oferta[] = [];
+    try {
+      extras = await this.reserva!.buscar!(termos, 'busca de nicho');
+    } catch {
+      // A busca de nicho é um a mais: se falhar, vale só a coleta principal.
+    }
+    let principais: Oferta[];
+    try {
+      principais = await this.coletarPrincipal();
+    } catch (e) {
+      if (!extras.length) throw e;
+      principais = [];
+    }
+    const ids = new Set(principais.map((o) => o.idProduto));
+    return [...principais, ...extras.filter((o) => !ids.has(o.idProduto))];
+  }
+
+  private async coletarPrincipal(): Promise<Oferta[]> {
     // Com tema, tenta primeiro a busca por palavra pela API; se ela não trouxer nada, segue para a coleta normal (que o filtro do tema limpa depois).
     if (this.tema.length && this.reserva?.buscar) {
       try {

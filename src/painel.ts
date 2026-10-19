@@ -43,6 +43,7 @@ export const CAMPOS: Campo[] = [
   { grupo: 'Pinterest', chave: 'PINTEREST_VERIFICACAO', rotulo: 'Código de verificação do site', tipo: 'texto', padrao: '', ajuda: 'O content da meta tag p:domain_verify, para reivindicar o site e usar o feed RSS.' },
   { grupo: 'Pinterest', chave: 'PINTEREST_SANDBOX', rotulo: 'Usar o ambiente de testes', tipo: 'simnao', padrao: '0', ajuda: 'Ligue enquanto o app do Pinterest está só com acesso de teste.' },
   { grupo: 'Mercado Livre', chave: 'ML_API_CATEGORIAS_POR_RODADA', rotulo: 'Categorias lidas pela API por rodada', tipo: 'numero', padrao: '6', ajuda: 'A API lê as categorias abaixo e as subcategorias delas em rodízio; cada uma traz até 20 mais vendidos (2 pedidos por produto).' },
+  { grupo: 'Mercado Livre', chave: 'ML_BUSCAS_DE_NICHO', rotulo: 'Buscas de nicho por rodada', tipo: 'numero', padrao: '2', ajuda: 'Buscas por palavra pela API, só dos nichos com canal ou grupo próprio (ex.: pet), além do ranking das categorias.' },
   { grupo: 'Mercado Livre', chave: 'ML_CATEGORIAS', rotulo: 'Categorias do rodízio', tipo: 'texto', padrao: 'MLB1000,MLB1051,MLB1648,MLB5726,MLB1574,MLB1144,MLB1246,MLB1276', ajuda: 'IDs MLB separados por vírgula.' },
 
   { grupo: 'Amazon', chave: 'AMAZON_ATIVO', rotulo: 'Usar a Amazon', tipo: 'simnao', padrao: '0', ajuda: 'Ainda não coleta sozinha (depende da Creators API).' },

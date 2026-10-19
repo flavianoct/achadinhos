@@ -280,6 +280,8 @@ test('buscas: todos os nichos entram no rodízio da Shopee, e os nichos com grup
     achados.forEach((a) => termosDePet.add(a));
   }
   assert.ok(termosDePet.size >= 4, 'os termos de pet giram');
+  assert.ok(BUSCAS_POR_NICHO.pet!.length >= 20, 'pet tem buscas variadas (o grupo posta muito por dia)');
+  for (const t of BUSCAS_POR_NICHO.pet!) assert.equal(categorizar(t), 'pet', `a busca "${t}" traz produto de pet`);
   // O dono manda: com SHOPEE_PALAVRAS, só as palavras dele.
   assert.deepEqual(planoDeBuscas(['a', 'b', 'c'], 2, ['pet'], 1, 0), ['a', 'b']);
 });

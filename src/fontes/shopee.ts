@@ -79,7 +79,12 @@ export const BUSCAS_POR_NICHO: Record<string, string[]> = {
   beleza: ['secador de cabelo', 'chapinha', 'perfume', 'skincare', 'kit maquiagem'],
   moda: ['tênis', 'mochila', 'bolsa feminina', 'relógio masculino', 'óculos de sol', 'relógio feminino', 'chinelo', 'tênis casual'],
   esporte: ['creatina', 'whey protein', 'halter', 'tapete yoga', 'garrafa academia'],
-  pet: ['ração cachorro', 'cama para cachorro', 'arranhador para gato', 'coleira peitoral cachorro', 'comedouro bebedouro pet', 'brinquedo para cachorro'],
+  pet: [
+    'ração cachorro', 'cama para cachorro', 'arranhador para gato', 'coleira peitoral cachorro', 'comedouro bebedouro pet', 'brinquedo para cachorro',
+    'ração gato', 'areia para gato', 'tapete higiênico cachorro', 'petisco cachorro', 'fonte bebedouro gato', 'caixa de transporte pet',
+    'roupa para cachorro', 'casinha para cachorro', 'brinquedo para gato', 'escova para pet', 'shampoo pet', 'guia retrátil cachorro',
+    'sachê gato', 'cama para gato',
+  ],
   bebe: ['carrinho de bebê', 'mamadeira', 'kit enxoval bebê', 'babá eletrônica', 'brinquedo educativo'],
   ferramentas: ['furadeira', 'parafusadeira', 'kit ferramentas', 'trena a laser', 'lanterna recarregável'],
 };
