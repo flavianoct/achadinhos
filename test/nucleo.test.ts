@@ -448,6 +448,28 @@ test('equilíbrio: com a fila curta, as melhores das fracas entram (o corte nunc
   assert.equal(r2.aprovadas, 0);
 });
 
+test('equilíbrio: com LOJA_PROPORCAO, a loja sem vendas e nota (Mercado Livre) não some da fila cheia de Shopee', async () => {
+  // A API do Mercado Livre não informa vendas nem nota: as ofertas dele pontuam menos e ficavam todas abaixo de PONTOS_MINIMOS.
+  const ml = (id: string, desconto: number) => oferta({ loja: 'mercadolivre', idProduto: id, titulo: `Cabo HDMI 2.1 ${id}`, desconto, nota: undefined, vendas: undefined, maisVendido: true });
+  const cfg = (extra: Record<string, string>) => lerConfig({ PARECIDOS_HORAS: '0', PONTOS_MINIMOS: '58', FILA_MINIMA: '2', ...extra });
+  const encher = async (banco: Banco) => {
+    const shopee = ['1', '2', '3'].map((n) => oferta({ idProduto: `S${n}`, titulo: `Fone Bluetooth ${n}`, desconto: 60, nota: 4.9, vendas: 20_000, comissao: 0.15, freteGratis: true }));
+    await coletar([fonteFixa(shopee)], banco, cfg({}), dias(1));
+    assert.equal(banco.tamanhoDaFila(), 3, 'a fila já está acima da FILA_MINIMA, só com Shopee');
+  };
+  const antes = new Banco(':memory:');
+  await encher(antes);
+  await coletar([fonteFixa([ml('M1', 40), ml('M2', 30), ml('M3', 35)])], antes, cfg({}), dias(1));
+  assert.equal(antes.tamanhoDaFilaDaLoja('mercadolivre'), 0, 'sem a proporção, vale só o mínimo geral');
+
+  const banco = new Banco(':memory:');
+  await encher(banco);
+  const r = await coletar([fonteFixa([ml('M1', 40), ml('M2', 30), ml('M3', 35)])], banco, cfg({ LOJA_PROPORCAO: 'mercadolivre=65,shopee=35' }), dias(1));
+  assert.equal(banco.tamanhoDaFilaDaLoja('mercadolivre'), 2, 'o Mercado Livre mantém o mínimo dele na fila');
+  assert.deepEqual(banco.itensDaFila(10).filter((o) => o.loja === 'mercadolivre').map((o) => o.idProduto).sort(), ['M1', 'M3'], 'entram as melhores dele');
+  assert.equal(r.reprovadasPorLoja.mercadolivre?.['pontuação abaixo do mínimo'], 1);
+});
+
 test('apelo: produto de supermercado ou saúde de nicho não entra, mesmo vendendo muito', () => {
   const vende = { vendas: 80_000, nota: 4.9, desconto: 45 };
   for (const titulo of ['Fralda Geriátrica Adulto Confort Master Pants P/M 32 Unidades', 'Papel Higiênico Supra Folha Tripla 24 Rolos', 'Cotonete Hastes Flexíveis 150 Unidades', 'Detergente Líquido Neutro 500ml']) {

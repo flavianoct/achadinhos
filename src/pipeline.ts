@@ -107,6 +107,17 @@ export async function coletar(fontes: Fonte[], banco: Banco, config: Config, ago
     resgatar(oferta);
     vagas--;
   }
+  // Cada loja de LOJA_PROPORCAO também mantém o seu mínimo na fila. A pontuação favorece quem informa vendas e nota (a Shopee), e a API do
+  // Mercado Livre não dá nenhum dos dois: sem isto, a fila enchia só de Shopee, a válvula de cima nunca abria e o Mercado Livre sumia dos canais.
+  for (const loja of Object.keys(config.ritmo.proporcaoDasLojas) as Loja[]) {
+    let faltam = Math.max(0, config.filtro.filaMinima - banco.tamanhoDaFilaDaLoja(loja));
+    for (const oferta of fracas) {
+      if (faltam <= 0) break;
+      if (oferta.loja !== loja || resgatadas.has(oferta)) continue;
+      resgatar(oferta);
+      faltam--;
+    }
+  }
   // E cada nicho com canal ou grupo próprio mantém um mínimo de ofertas na fila: sem isso o canal dele ficaria vazio sempre que o nicho
   // tivesse pouca oferta boa no dia (nicho pequeno raramente ganha do ranking geral).
   for (const nicho of config.shopee.nichosPrioritarios) {

@@ -400,6 +400,11 @@ export class Banco {
     return (this.db.prepare(`SELECT COUNT(*) AS n FROM fila`).get() as { n: number }).n;
   }
 
+  /** Quantas ofertas da loja estão na fila. */
+  tamanhoDaFilaDaLoja(loja: Loja): number {
+    return Number((this.db.prepare(`SELECT COUNT(*) AS n FROM fila WHERE loja = ?`).get(loja) as { n: number }).n);
+  }
+
   itensDaFila(limite: number): OfertaAvaliada[] {
     const linhas = this.db.prepare(`SELECT dados FROM fila ORDER BY pontos DESC, criado_em ASC LIMIT ?`).all(limite) as Array<{ dados: string }>;
     return linhas.map((l) => JSON.parse(l.dados) as OfertaAvaliada);
