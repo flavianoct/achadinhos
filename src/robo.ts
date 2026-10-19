@@ -5,7 +5,7 @@ import { Banco, diaDe, horaDe } from './db.ts';
 import { FonteAmazon } from './fontes/amazon.ts';
 import { FonteMercadoLivre } from './fontes/mercadolivre.ts';
 import { FonteMercadoLivreApi } from './fontes/mercadolivre-api.ts';
-import { FonteShopee } from './fontes/shopee.ts';
+import { FonteShopee, planoDeBuscas } from './fontes/shopee.ts';
 import { convitesDeHoje } from './convite.ts';
 import { carregarCampanhas, chaveDaFase, fasesDevidas, grandesDeHoje, lembretesDoDono, lerDatas, textoDaData, textoDosMelhores, todasAsCampanhas } from './datas.ts';
 import { escolherParaCarrossel } from './carrossel.ts';
@@ -42,7 +42,9 @@ function fontesReais(config: Config): Fonte[] {
   if (config.shopee.ativo) fontes.push(new FonteShopee(config.shopee));
   if (config.ml.ativo) {
     const api = config.ml.clientId && config.ml.clientSecret ? new FonteMercadoLivreApi({ clientId: config.ml.clientId, clientSecret: config.ml.clientSecret, mattWord: config.ml.mattWord, mattTool: config.ml.mattTool, categorias: config.ml.categorias, porRodada: config.ml.apiCategoriasPorRodada }) : undefined;
-    fontes.push(new FonteMercadoLivre({ ...config.ml, reserva: api, tema: config.filtro.tema }));
+    // As mesmas buscas de nicho da Shopee, em rodízio, só dos nichos com canal ou grupo próprio.
+    const buscasDeNicho = (turno: number) => planoDeBuscas([], 0, config.shopee.nichosPrioritarios, config.ml.buscasDeNicho, turno, config.shopee.nichosAtivos);
+    fontes.push(new FonteMercadoLivre({ ...config.ml, reserva: api, tema: config.filtro.tema, buscasDeNicho }));
   }
   if (config.amazon.ativo) fontes.push(new FonteAmazon());
   return fontes;

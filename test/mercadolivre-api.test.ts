@@ -196,3 +196,28 @@ test('ML pela API: 429 (limite de requisições) para a coleta da rodada e guard
   assert.equal(ofertas.length, 1, 'o que veio antes do 429 não se perde');
   assert.equal(produtos, 1);
 });
+
+test('mercado livre: os nichos com grupo próprio ganham busca por palavra, somada ao ranking e sem repetir produto', async () => {
+  const oferta = (id: string, titulo: string) => ({ loja: 'mercadolivre' as const, idProduto: id, titulo, preco: 50, link: 'https://x' });
+  const pedidas: string[][] = [];
+  const reserva = {
+    coletar: async () => [oferta('MLB1', 'Smartphone'), oferta('MLB2', 'Ração Cachorro 15kg')],
+    buscar: async (palavras: string[]) => (pedidas.push(palavras), [oferta('MLB2', 'Ração Cachorro 15kg'), oferta('MLB3', 'Cama Para Cachorro')]),
+  };
+  const semPagina = (async () => { throw new Error('a página nem devia ser lida'); }) as unknown as typeof fetch;
+  const fonte = new FonteMercadoLivre({ mattWord: 'a', mattTool: '1', reserva, buscasDeNicho: () => ['ração cachorro', 'cama para cachorro'] }, semPagina);
+  assert.deepEqual((await fonte.coletar()).map((o) => o.idProduto), ['MLB1', 'MLB2', 'MLB3']);
+  assert.deepEqual(pedidas, [['ração cachorro', 'cama para cachorro']]);
+  // A busca falhou: vale só o ranking.
+  const quebrada = new FonteMercadoLivre({ mattWord: 'a', mattTool: '1', reserva: { ...reserva, buscar: async () => { throw new Error('403'); } }, buscasDeNicho: () => ['x'] }, semPagina);
+  assert.deepEqual((await quebrada.coletar()).map((o) => o.idProduto), ['MLB1', 'MLB2']);
+  // O ranking falhou (e a página também): a busca de nicho ainda entrega.
+  const soBusca = new FonteMercadoLivre({ mattWord: 'a', mattTool: '1', paginas: 1, intervaloMs: 0, reserva: { ...reserva, coletar: async () => { throw new Error('429'); } }, buscasDeNicho: () => ['x'] }, semPagina);
+  assert.deepEqual((await soBusca.coletar()).map((o) => o.idProduto), ['MLB2', 'MLB3']);
+});
+
+test('config: ML_BUSCAS_DE_NICHO vale 2 por padrão e 0 desliga', async () => {
+  const { lerConfig } = await import('../src/config.ts');
+  assert.equal(lerConfig({}).ml.buscasDeNicho, 2);
+  assert.equal(lerConfig({ ML_BUSCAS_DE_NICHO: '0' }).ml.buscasDeNicho, 0);
+});

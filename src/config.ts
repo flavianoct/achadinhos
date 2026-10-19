@@ -44,6 +44,8 @@ export interface Config {
     paginasDeCategoria: number;
     /** Quantas categorias (ou subcategorias) a API lê por rodada, em rodízio. Cada uma traz até 20 produtos mais vendidos. */
     apiCategoriasPorRodada: number;
+    /** Buscas por palavra pela API, por rodada, dos nichos com canal ou grupo próprio (ML_BUSCAS_DE_NICHO). 0 = nenhuma. */
+    buscasDeNicho: number;
   };
   amazon: { ativo: boolean; tag: string };
   filtro: {
@@ -412,6 +414,7 @@ function lerConfigBase(env: Env): Config {
       categorias: env.ML_CATEGORIAS === undefined ? ['MLB1000', 'MLB1051', 'MLB1648', 'MLB5726', 'MLB1574', 'MLB1144', 'MLB1246', 'MLB1276', 'MLB1071', 'MLB1384', 'MLB1430', 'MLB263532'] : lista(env.ML_CATEGORIAS).map((c) => c.toUpperCase()),
       paginasDeCategoria: numero(env, 'ML_PAGINAS_DE_CATEGORIA', 2),
       apiCategoriasPorRodada: numero(env, 'ML_API_CATEGORIAS_POR_RODADA', 6),
+      buscasDeNicho: Math.max(0, numero(env, 'ML_BUSCAS_DE_NICHO', 2)),
     },
     amazon: {
       ativo: ligado(env, 'AMAZON_ATIVO', false),

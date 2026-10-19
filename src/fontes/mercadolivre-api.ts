@@ -240,7 +240,7 @@ export class FonteMercadoLivreApi {
    * /sites/MLB/search responde 403 para o app) e monta a oferta de cada resultado. Se a API recusar a busca, o erro sobe e quem
    * chamou volta para a leitura normal da página de ofertas.
    */
-  async buscar(palavras: string[]): Promise<Oferta[]> {
+  async buscar(palavras: string[], rotulo = 'busca por tema'): Promise<Oferta[]> {
     if (!this.opcoes.clientId || !this.opcoes.clientSecret) throw new ErroApiML('faltam os Secrets ML_CLIENT_ID e ML_CLIENT_SECRET');
     const ofertas = new Map<string, Oferta>();
     const d = this.novoDiagnostico();
@@ -268,8 +268,8 @@ export class FonteMercadoLivreApi {
         }
       }
     }
-    console.log(`[ml-api] busca por tema: ${palavras.slice(0, 4).join(', ')}; ofertas: ${ofertas.size}; pedidos: ${this.pedidos}; falhas dos complementos: ${[...d.falhas].map(([k, n]) => `${k} x${n}`).join(', ') || 'nenhuma'}`);
-    if (ofertas.size === 0) throw new ErroApiML(`a busca por tema não trouxe anúncios${d.ultimoErro ? `: ${d.ultimoErro}` : ''}`);
+    console.log(`[ml-api] ${rotulo}: ${palavras.slice(0, 4).join(', ')}; ofertas: ${ofertas.size}; pedidos: ${this.pedidos}; falhas dos complementos: ${[...d.falhas].map(([k, n]) => `${k} x${n}`).join(', ') || 'nenhuma'}`);
+    if (ofertas.size === 0) throw new ErroApiML(`a ${rotulo} não trouxe anúncios${d.ultimoErro ? `: ${d.ultimoErro}` : ''}`);
     return [...ofertas.values()];
   }
 
