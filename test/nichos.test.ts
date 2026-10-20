@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { categorizar, nomeDoNicho, pontuarCategorias } from '../src/categoria.ts';
+import { categorizar, nomeDoNicho, normalizar, pontuarCategorias } from '../src/categoria.ts';
 import { lerConfig, lerRotas } from '../src/config.ts';
 import { Banco } from '../src/db.ts';
 import { montarNichos } from '../src/exportar.ts';
@@ -154,16 +154,16 @@ test('banco antigo sem a coluna "canal" é atualizado sem perder os posts', asyn
 });
 
 test('palavras dos nichos: NICHO_PALAVRAS_<NICHO> acrescenta palavras e "-palavra" tira', () => {
-  assert.equal(categorizar('Cropped Feminino Canelado'), 'geral');
+  assert.equal(categorizar('Kimono Feminino Canelado'), 'geral');
   assert.equal(categorizar('Relógio Masculino Aço'), 'moda');
-  lerConfig({ NICHO_PALAVRAS_MODA: 'cropped, -relogio', NICHO_PALAVRAS_TECH: 'Relógio' });
+  lerConfig({ NICHO_PALAVRAS_MODA: 'kimono, -relogio', NICHO_PALAVRAS_TECH: 'Relógio' });
   try {
-    assert.equal(categorizar('Cropped Feminino Canelado'), 'moda');
+    assert.equal(categorizar('Kimono Feminino Canelado'), 'moda');
     assert.equal(categorizar('Relógio Masculino Aço'), 'tech', 'relógio saiu de moda e entrou em tech, com acento ou sem');
   } finally {
     lerConfig({});
   }
-  assert.equal(categorizar('Cropped Feminino Canelado'), 'geral', 'sem o ajuste volta ao padrão');
+  assert.equal(categorizar('Kimono Feminino Canelado'), 'geral', 'sem o ajuste volta ao padrão');
 });
 
 test('limite por nicho: nicho no teto do dia fica na fila e a próxima de outro nicho sai', async () => {
@@ -282,6 +282,8 @@ test('buscas: todos os nichos entram no rodízio da Shopee, e os nichos com grup
   assert.ok(termosDePet.size >= 4, 'os termos de pet giram');
   assert.ok(BUSCAS_POR_NICHO.pet!.length >= 20, 'pet tem buscas variadas (o grupo posta muito por dia)');
   for (const t of BUSCAS_POR_NICHO.pet!) assert.equal(categorizar(t), 'pet', `a busca "${t}" traz produto de pet`);
+  for (const t of BUSCAS_POR_NICHO.moda!) assert.equal(categorizar(t), 'moda', `a busca "${t}" traz produto de moda`);
+  assert.ok(['camiseta', 'vestido', 'calca', 'bermuda', 'blusa'].every((r) => BUSCAS_POR_NICHO.moda!.some((t) => normalizar(t).includes(r))), 'moda busca roupa, não só calçado e acessório');
   // O dono manda: com SHOPEE_PALAVRAS, só as palavras dele.
   assert.deepEqual(planoDeBuscas(['a', 'b', 'c'], 2, ['pet'], 1, 0), ['a', 'b']);
 });
@@ -371,7 +373,7 @@ test('shopee: lê por categoria (productCatId, mais vendidos) e, com NICHOS_ATIV
   const geral = new FonteShopee({ appId: 'A', secret: 'S', categorias: categoriasShopeeDosNichos(['pet']), categoriasPorRodada: 1, buscasPorRodada: 0 }, fetchFalso);
   await geral.coletar();
   assert.ok(consultas.some((q) => q.includes('listType: 2')), 'sem restrição, o ranking geral continua');
-  assert.ok(consultas.some((q) => q.includes('productCatId')), 'e as categorias também');
+  assert.ok(consultas.some((q) => q.includes('productCatId:')), 'e as categorias também');
 });
 
 test('shopee: categoria vazia ou com erro é substituída por uma busca do mesmo nicho, e a rodada continua', async () => {
@@ -393,7 +395,7 @@ test('shopee: categoria vazia ou com erro é substituída por uma busca do mesmo
   // Erro na categoria: segue para a busca. Se nada foi coletado, o erro sobe (para a rodada avisar que a Shopee falhou).
   const comErro = (async (_url: any, init: any) => {
     const q = JSON.parse(init.body).query as string;
-    if (q.includes('productCatId')) return new Response(JSON.stringify({ errors: [{ message: 'categoria inválida', extensions: { code: 10000 } }] }), { status: 200 });
+    if (q.includes('productCatId:')) return new Response(JSON.stringify({ errors: [{ message: 'categoria inválida', extensions: { code: 10000 } }] }), { status: 200 });
     return respostaDaShopee([itemDaShopee(8)]);
   }) as typeof fetch;
   assert.deepEqual((await new FonteShopee(opcoes, comErro).coletar()).map((o) => o.idProduto), ['8']);
