@@ -1,6 +1,7 @@
 import type { CategoriaDaShopee } from '../nichos.ts';
 import { createHash } from 'node:crypto';
 import type { Fonte, Oferta } from '../types.ts';
+import { categorizar } from '../categoria.ts';
 
 type Fetch = typeof fetch;
 
@@ -17,7 +18,7 @@ const CAMPOS = `
   nodes {
     itemId productName offerLink productLink imageUrl
     priceMin priceMax priceDiscountRate sales ratingStar
-    commissionRate shopName
+    commissionRate shopName productCatIds
   }
   pageInfo { page limit hasNextPage }
 `;
@@ -77,7 +78,12 @@ export const BUSCAS_POR_NICHO: Record<string, string[]> = {
   casa: ['air fryer', 'garrafa térmica', 'organizador', 'panela', 'luminária', 'ventilador', 'jogo de lençol'],
   games: ['cadeira gamer', 'mouse gamer', 'teclado gamer', 'headset gamer', 'controle ps4'],
   beleza: ['secador de cabelo', 'chapinha', 'perfume', 'skincare', 'kit maquiagem'],
-  moda: ['tênis', 'mochila', 'bolsa feminina', 'relógio masculino', 'óculos de sol', 'relógio feminino', 'chinelo', 'tênis casual'],
+  // Roupa primeiro e intercalada com calçado e acessório: sem roupa na lista, o nicho só trazia tênis, bolsa, relógio e chinelo.
+  moda: [
+    'camiseta masculina', 'vestido feminino', 'tênis', 'calça jeans feminina', 'bermuda masculina', 'bolsa feminina', 'blusa feminina',
+    'saia', 'mochila', 'moletom', 'legging', 'relógio masculino', 'camisa polo', 'short feminino', 'óculos de sol', 'pijama',
+    'calça masculina', 'relógio feminino', 'cueca', 'cropped', 'chinelo', 'jaqueta', 'tênis casual',
+  ],
   esporte: ['creatina', 'whey protein', 'halter', 'tapete yoga', 'garrafa academia'],
   pet: [
     'ração cachorro', 'cama para cachorro', 'arranhador para gato', 'coleira peitoral cachorro', 'comedouro bebedouro pet', 'brinquedo para cachorro',
@@ -210,10 +216,19 @@ export class FonteShopee implements Fonte {
 
   async coletar(): Promise<Oferta[]> {
     const vistos = new Map<string, Oferta>();
+    // Id de categoria (o 1º de productCatIds) dos produtos de cada nicho, para conferir no log os ids certos de nichos.ts.
+    const idsPorNicho = new Map<string, Map<number, number>>();
     const guardar = (itens: any[]) => {
       for (const item of itens) {
         const o = converterItemShopee(item);
-        if (o && !vistos.has(o.idProduto)) vistos.set(o.idProduto, o);
+        if (!o || vistos.has(o.idProduto)) continue;
+        vistos.set(o.idProduto, o);
+        const id = Number(item.productCatIds?.[0]);
+        if (!id) continue;
+        const nicho = categorizar(o.titulo);
+        const ids = idsPorNicho.get(nicho) ?? new Map<number, number>();
+        ids.set(id, (ids.get(id) ?? 0) + 1);
+        idsPorNicho.set(nicho, ids);
       }
     };
 
@@ -290,6 +305,10 @@ export class FonteShopee implements Fonte {
     const lista = [...vistos.values()];
     // Resumo para o log da rodada: o que a API trouxe.
     console.log(`[shopee] categorias: ${resumoDasCategorias.join(', ') || 'nenhuma'}; buscas: ${buscas.join(', ') || 'nenhuma'}; ofertas: ${lista.length}; com desconto: ${lista.filter((o) => o.desconto).length}; com nota: ${lista.filter((o) => o.nota).length}; com vendas: ${lista.filter((o) => o.vendas).length}`);
+    if (idsPorNicho.size) {
+      const resumo = [...idsPorNicho].map(([nicho, ids]) => `${nicho}=${[...ids].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([id, n]) => `${id}x${n}`).join('/')}`);
+      console.log(`[shopee] ids de categoria por nicho: ${resumo.join(', ')}`);
+    }
     return lista;
   }
 }

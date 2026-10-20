@@ -21,7 +21,7 @@ const REGRAS: Array<[categoria: string, palavras: string[]]> = [
   ],
   ['beleza', ['perfume', 'maquiagem', 'batom', 'shampoo', 'creme', 'hidratante', 'secador', 'chapinha', 'barbeador', 'protetor solar', 'skincare', 'serum', 'esmalte', 'condicionador', 'sabonete', 'desodorante', 'rimel', 'base facial']],
   ['esporte', ['academia', 'halter', 'bicicleta', 'bike', 'corrida', 'whey', 'creatina', 'suplemento', 'yoga', 'futebol', 'chuteira', 'esteira', 'kettlebell', 'bola de futebol', 'luva de boxe', 'tapete de yoga']],
-  ['moda', ['tenis', 'camiseta', 'camisa', 'calca', 'vestido', 'bolsa', 'mochila', 'relogio', 'oculos', 'jaqueta', 'sandalia', 'meia', 'cueca', 'sutia', 'moletom', 'bermuda', 'blusa', 'chinelo', 'cinto', 'carteira', 'pijama', 'legging']],
+  ['moda', ['tenis', 'camiseta', 'camisa', 'calca', 'vestido', 'bolsa', 'mochila', 'relogio', 'oculos', 'jaqueta', 'sandalia', 'meia', 'cueca', 'sutia', 'moletom', 'bermuda', 'blusa', 'chinelo', 'cinto', 'carteira', 'pijama', 'legging', 'short', 'saia', 'cropped', 'regata', 'calcinha', 'biquini', 'casaco', 'macacao', 'jeans', 'polo']],
   ['ferramentas', ['furadeira', 'parafusadeira', 'ferramenta', 'chave de fenda', 'serra', 'trena', 'alicate']],
 ];
 
