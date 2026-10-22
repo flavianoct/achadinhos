@@ -154,16 +154,16 @@ test('banco antigo sem a coluna "canal" é atualizado sem perder os posts', asyn
 });
 
 test('palavras dos nichos: NICHO_PALAVRAS_<NICHO> acrescenta palavras e "-palavra" tira', () => {
-  assert.equal(categorizar('Cropped Feminino Canelado'), 'geral');
+  assert.equal(categorizar('Quimono Feminino Estampado'), 'geral');
   assert.equal(categorizar('Relógio Masculino Aço'), 'moda');
-  lerConfig({ NICHO_PALAVRAS_MODA: 'cropped, -relogio', NICHO_PALAVRAS_TECH: 'Relógio' });
+  lerConfig({ NICHO_PALAVRAS_MODA: 'quimono, -relogio', NICHO_PALAVRAS_TECH: 'Relógio' });
   try {
-    assert.equal(categorizar('Cropped Feminino Canelado'), 'moda');
+    assert.equal(categorizar('Quimono Feminino Estampado'), 'moda');
     assert.equal(categorizar('Relógio Masculino Aço'), 'tech', 'relógio saiu de moda e entrou em tech, com acento ou sem');
   } finally {
     lerConfig({});
   }
-  assert.equal(categorizar('Cropped Feminino Canelado'), 'geral', 'sem o ajuste volta ao padrão');
+  assert.equal(categorizar('Quimono Feminino Estampado'), 'geral', 'sem o ajuste volta ao padrão');
 });
 
 test('limite por nicho: nicho no teto do dia fica na fila e a próxima de outro nicho sai', async () => {
@@ -496,4 +496,46 @@ test('nicho atrás do mínimo não tira as vagas do geral: o post só do grupo s
   assert.equal(banco.postsNoGeralNoDia(AGORA), 2);
   assert.deepEqual(await postarProxima(pub, banco, c, AGORA), { postou: false, motivo: 'limite diário' });
   assert.equal(banco.postsNoDia(AGORA), 3);
+});
+
+test('categoria: produtos que caíam em "geral" agora vão para o nicho certo, sem confundir pet com casa nem perfume com roupa', async () => {
+  const { categorizar } = await import('../src/categoria.ts');
+  const casos: Array<[string, string]> = [
+    ['Gravata Masculina Premium Tradicional Padrinhos Casamento', 'moda'],
+    ['Boné Ny New York Masculino Unissex', 'moda'],
+    ['Mala de Bordo Rígida Bege para Viagem', 'moda'],
+    ['Prancha Alisadora de Cabelo Bivolt', 'beleza'],
+    ['Gloss Labial Hydra Cor 01', 'beleza'],
+    ['Bola de Vôlei Oficial Ultra Soft', 'esporte'],
+    ['Babador de Silicone Pega Migalhas', 'bebe'],
+    ['Nobreak Senoidal 1200VA Bivolt', 'tech'],
+    ['Cama Colchonete Almofada para Cachorro ou Gato Pet', 'pet'],
+    ['Gaiola Viveiro para Calopsitas e Periquito', 'pet'],
+    ['Kit Body Splash Masculino 2x200ml', 'beleza'],
+    ['Sanduicheira Grill 2 em 1 Elétrica, Mixto Quente e Outros Petiscos', 'casa'],
+    ['Kit 3 Pares Meias Esportivas', 'moda'],
+  ];
+  for (const [titulo, nicho] of casos) assert.equal(categorizar(titulo), nicho, titulo);
+});
+
+test('febre: o produto cujas vendas sobem mais por dia ganha pontos, e a Shopee ganha uma vez e meia', async () => {
+  const { avaliar } = await import('../src/filtro.ts');
+  const c = lerConfig({ ...base, VENDAS_MINIMAS: '50', SHOPEE_VENDAS_MINIMAS: '50' });
+  const dia = (n: number) => new Date(AGORA.getTime() - n * 86_400_000);
+  const banco = new Banco(':memory:');
+  const so = (loja: 'shopee' | 'mercadolivre', id: string, vendas: number) => ({ loja, idProduto: id, titulo: 'Fone Bluetooth Sem Fio Premium', preco: 80, precoOriginal: 200, link: 'https://s/f', vendas, nota: 4.8 });
+  // O mesmo produto tinha 1000 vendas há 4 dias; hoje tem 1400 (100 por dia). Outro está parado em 1000.
+  for (const id of ['QUENTE', 'PARADO']) banco.registrarVendas(so('shopee', id, 1000), dia(4));
+  banco.registrarVendas(so('mercadolivre', 'QUENTE', 1000), dia(4));
+  const quente = avaliar(so('shopee', 'QUENTE', 1400), banco, c, AGORA);
+  const parado = avaliar(so('shopee', 'PARADO', 1000), banco, c, AGORA);
+  const novo = avaliar(so('shopee', 'NOVO', 1400), banco, c, AGORA);
+  assert.ok(quente.aprovada && parado.aprovada && novo.aprovada);
+  assert.equal(quente.oferta.vendasPorDia, 100);
+  assert.equal(parado.oferta.vendasPorDia, 0);
+  assert.equal(novo.oferta.vendasPorDia, undefined, 'produto novo para o robô: sem histórico, sem bônus');
+  assert.ok(quente.oferta.pontos > parado.oferta.pontos + 10, 'a febre pesa na pontuação');
+  // O Mercado Livre também ganha, mas sem o peso extra da Shopee.
+  const ml = avaliar(so('mercadolivre', 'QUENTE', 1400), banco, c, AGORA);
+  assert.ok(ml.aprovada && ml.oferta.pontos < quente.oferta.pontos);
 });

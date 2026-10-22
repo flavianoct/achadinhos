@@ -55,6 +55,13 @@ export class Banco {
       );
       CREATE INDEX IF NOT EXISTS postados_produto ON postados (loja, id_produto, postado_em);
       CREATE INDEX IF NOT EXISTS postados_dia ON postados (dia);
+      CREATE TABLE IF NOT EXISTS vendas_por_dia (
+        loja TEXT NOT NULL,
+        id_produto TEXT NOT NULL,
+        dia TEXT NOT NULL,
+        vendas INTEGER NOT NULL,
+        PRIMARY KEY (loja, id_produto, dia)
+      );
       CREATE TABLE IF NOT EXISTS fila (
         loja TEXT NOT NULL,
         id_produto TEXT NOT NULL,
@@ -217,6 +224,27 @@ export class Banco {
          ON CONFLICT (loja, id_produto, dia) DO UPDATE SET preco = MIN(preco, excluded.preco)`,
       )
       .run(o.loja, o.idProduto, diaDe(agora), o.preco);
+  }
+
+  /** Guarda o total de vendas que a loja informa para o produto no dia: da diferença entre os dias sai a velocidade de vendas ("febre"). */
+  registrarVendas(o: Oferta, agora: Date): void {
+    if (!o.vendas || o.vendas <= 0) return;
+    this.db
+      .prepare(
+        `INSERT INTO vendas_por_dia (loja, id_produto, dia, vendas) VALUES (?, ?, ?, ?)
+         ON CONFLICT (loja, id_produto, dia) DO UPDATE SET vendas = MAX(vendas, excluded.vendas)`,
+      )
+      .run(o.loja, o.idProduto, diaDe(agora), Math.round(o.vendas));
+  }
+
+  /** Vendas por dia desde o registro mais antigo dos últimos `dias` (sem contar hoje), ou undefined se o produto é novo para o robô. */
+  vendasPorDia(loja: Loja, idProduto: string, vendasHoje: number, dias: number, agora: Date): number | undefined {
+    const antigo = this.db
+      .prepare(`SELECT vendas, dia FROM vendas_por_dia WHERE loja = ? AND id_produto = ? AND dia >= ? AND dia < ? ORDER BY dia ASC LIMIT 1`)
+      .get(loja, idProduto, diasAtras(agora, dias), diaDe(agora)) as { vendas: number; dia: string } | undefined;
+    if (!antigo) return undefined;
+    const passados = Math.max(1, Math.round((new Date(`${diaDe(agora)}T12:00:00-03:00`).getTime() - new Date(`${antigo.dia}T12:00:00-03:00`).getTime()) / 86_400_000));
+    return Math.max(0, (vendasHoje - antigo.vendas) / passados);
   }
 
   /**
@@ -795,6 +823,7 @@ export class Banco {
   limpar(agora: Date): void {
     const t = agora.getTime();
     this.db.prepare(`DELETE FROM precos WHERE dia < ?`).run(diasAtras(agora, 90));
+    this.db.prepare(`DELETE FROM vendas_por_dia WHERE dia < ?`).run(diasAtras(agora, 10));
     this.db.prepare(`DELETE FROM postados WHERE postado_em < ?`).run(t - 90 * 86_400_000);
     this.db.prepare(`DELETE FROM cupons_postados WHERE postado_em < ?`).run(t - 90 * 86_400_000);
     this.db.prepare(`DELETE FROM campanhas_postadas WHERE postado_em < ?`).run(t - 90 * 86_400_000);

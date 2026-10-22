@@ -20,6 +20,9 @@ const PESO_BASE_DO_DESCONTO = 0.7;
 const TETO_DA_COMISSAO = 0.2;
 /** Com pelo menos isto de histórico, um "de" que o produto nunca chegou perto de custar é tratado como inflado. */
 const DIAS_PARA_DENUNCIAR_PRECO_DE = 14;
+/** Janela para medir a velocidade de vendas, e o teto do bônus que ela dá na pontuação. */
+const DIAS_PARA_MEDIR_A_FEBRE = 7;
+const TETO_DO_BONUS_DE_FEBRE = 15;
 
 /**
  * Decide se a oferta vale a pena e calcula a pontuação.
@@ -87,6 +90,11 @@ export function avaliar(o: Oferta, banco: Banco, config: Config, agora: Date): A
   const caiuDeVerdade = hist.maior !== undefined && hist.maior >= o.preco * 1.05;
   const bonusMenorPreco = menorPrecoEmDias && caiuDeVerdade ? Math.min(TETO_DO_BONUS_MENOR_PRECO, Math.log2(menorPrecoEmDias) * 3) : 0;
 
+  // A "febre do momento": quantas vendas por dia o produto está fazendo (a diferença entre o total de vendas de hoje e o de dias atrás).
+  // Em escala log (10 por dia = 7 pontos, 100 = 14); na Shopee, que entra justamente com o que está estourado, vale uma vez e meia.
+  const vendasPorDia = o.vendas ? banco.vendasPorDia(o.loja, o.idProduto, o.vendas, DIAS_PARA_MEDIR_A_FEBRE, agora) : undefined;
+  const bonusDeFebre = vendasPorDia ? Math.min(TETO_DO_BONUS_DE_FEBRE, Math.log10(1 + vendasPorDia) * 7) * (o.loja === 'shopee' ? 1.5 : 1) : 0;
+
   // A comissão conta de verdade, nas duas formas: a porcentagem e o valor em reais por venda (3% de um produto de R$ 300 rende mais que
   // 13% de um de R$ 20). Os dois têm teto: campanhas de comissão extra (50%, 80%) não podem jogar para o topo um produto que quase ninguém compra.
   const comissaoConsiderada = Math.min(TETO_DA_COMISSAO, o.comissao ?? 0);
@@ -100,6 +108,7 @@ export function avaliar(o: Oferta, banco: Banco, config: Config, agora: Date): A
     bonusMenorPreco +
     Math.min(30, Math.max(0, quedaHistorica ?? 0) * 1.5) +
     bonusDeComissao +
+    bonusDeFebre +
     (o.nota ? (o.nota - 4) * 10 : 0) +
     // Vendas em escala log: 100 vendas = 12, 1 mil = 18, 10 mil = 24, 100 mil = 30.
     (o.vendas ? Math.log10(o.vendas + 1) * 6 : 0) +
@@ -114,6 +123,7 @@ export function avaliar(o: Oferta, banco: Banco, config: Config, agora: Date): A
     menorPrecoEmDias,
     quedaHistorica: quedaHistorica !== undefined ? Math.round(quedaHistorica * 10) / 10 : undefined,
     precoDe,
+    vendasPorDia: vendasPorDia !== undefined ? Math.round(vendasPorDia) : undefined,
   };
 
   // A oferta é boa, mas já saiu no canal há pouco: não volta para a fila, e continua valendo para o blog.

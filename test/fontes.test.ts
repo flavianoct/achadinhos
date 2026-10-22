@@ -53,8 +53,8 @@ test('shopee: pagina, remove duplicados e assina cada requisição com o corpo e
   const ofertas = await fonte.coletar();
 
   assert.deepEqual(ofertas.map((o) => o.idProduto), ['1', '2', '3', '9']);
-  assert.equal(chamadas.length, 3, 'para de paginar quando hasNextPage é falso');
-  assert.ok(JSON.parse(chamadas[2].corpo).query.includes('keyword: "fone \\"pro\\""'), 'palavra-chave com aspas é escapada');
+  assert.equal(chamadas.length, 4, 'ranking de afiliados (2 páginas: para quando hasNextPage é falso), mais vendidos e a busca');
+  assert.ok(JSON.parse(chamadas[3].corpo).query.includes('keyword: "fone \\"pro\\""'), 'palavra-chave com aspas é escapada');
   for (const c of chamadas) {
     const m = /^SHA256 Credential=A, Timestamp=(\d+), Signature=([0-9a-f]{64})$/.exec(c.auth);
     assert.ok(m, 'cabeçalho no formato esperado');
