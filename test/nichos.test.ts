@@ -539,3 +539,14 @@ test('febre: o produto cujas vendas sobem mais por dia ganha pontos, e a Shopee 
   const ml = avaliar(so('mercadolivre', 'QUENTE', 1400), banco, c, AGORA);
   assert.ok(ml.aprovada && ml.oferta.pontos < quente.oferta.pontos);
 });
+
+test('whatsapp: a cota por rodada é dos canais gerais, e as mensagens só do grupo de um nicho não a gastam', () => {
+  const banco = new Banco(':memory:');
+  const pet = { ...oferta('Cama para Cachorro Pet', 'W1'), link: 'https://s/w1' };
+  banco.guardarParaWhatsapp(pet, 'msg pet 1', AGORA, true);
+  banco.guardarParaWhatsapp({ ...pet, idProduto: 'W2' }, 'msg pet 2', AGORA, true);
+  assert.equal(banco.whatsappNosUltimosMinutos(20, AGORA), 0, 'duas só de pet não ocupam a vaga do geral');
+  banco.guardarParaWhatsapp({ ...pet, idProduto: 'W3' }, 'msg geral', AGORA, false);
+  assert.equal(banco.whatsappNosUltimosMinutos(20, AGORA), 1);
+  assert.equal(banco.mensagensDoWhatsapp(1, AGORA).filter((m) => m.soNicho).length, 2);
+});
