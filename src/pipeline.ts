@@ -65,7 +65,10 @@ export async function coletar(fontes: Fonte[], banco: Banco, config: Config, ago
     for (const oferta of ofertas) {
       const resultado = avaliar(oferta, banco, config, agora);
       // O preço entra no histórico mesmo quando a oferta é reprovada: é assim que detectamos quedas depois.
-      if (Number.isFinite(oferta.preco) && oferta.preco > 0 && oferta.idProduto) banco.registrarPreco(oferta, agora);
+      if (Number.isFinite(oferta.preco) && oferta.preco > 0 && oferta.idProduto) {
+        banco.registrarPreco(oferta, agora);
+        banco.registrarVendas(oferta, agora);
+      }
 
       // Os guias "Melhores X" usam todo produto de boa avaliação, mesmo sem desconto grande: guia é sobre qualidade, não só promoção.
       const tipo = tipoDeGuia(oferta.titulo);

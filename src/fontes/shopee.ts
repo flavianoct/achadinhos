@@ -231,6 +231,16 @@ export class FonteShopee implements Fonte {
       }
     }
 
+    // Os mais vendidos de toda a Shopee (sortType 2), sem filtro: a "febre do momento". Se a consulta sem filtro não for aceita, só anota no log.
+    if (!restrito) {
+      try {
+        const { itens } = await this.pagina(`sortType: 2, page: 1, limit: 50`);
+        guardar(itens);
+      } catch (e) {
+        console.log(`[shopee] mais vendidos falhou: ${(e as Error).message}`);
+      }
+    }
+
     // Por categoria (productCatId), ordenadas pelos mais vendidos (sortType 2): é o que separa a coleta por nicho.
     const categorias = planoDeCategorias(this.categorias, this.categoriasPorRodada, this.nichosPrioritarios, this.categoriasDeNicho, turno);
     const resumoDasCategorias: string[] = [];

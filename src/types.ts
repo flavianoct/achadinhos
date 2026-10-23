@@ -38,6 +38,8 @@ export interface OfertaAvaliada extends Oferta {
    * "inflado" (com 14 dias ou mais de histórico, nunca custou perto dele) ou "nao-confirmado" (histórico curto demais).
    */
   precoDe?: 'confirmado' | 'nao-confirmado' | 'inflado';
+  /** Quantas vendas por dia o produto fez desde que o robô o viu pela primeira vez (a "febre" do momento); só com pelo menos 1 dia de histórico. */
+  vendasPorDia?: number;
 }
 
 /** Toda loja implementa esta interface. */

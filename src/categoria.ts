@@ -25,6 +25,24 @@ const REGRAS: Array<[categoria: string, palavras: string[]]> = [
   ['ferramentas', ['furadeira', 'parafusadeira', 'ferramenta', 'chave de fenda', 'serra', 'trena', 'alicate']],
 ];
 
+/**
+ * Palavras a mais de cada nicho (produtos que caíam em "geral" e escondiam moda, beleza e outros nichos dos grupos).
+ * Ficam separadas da lista principal só para ser fácil acrescentar mais.
+ */
+const PALAVRAS_EXTRAS: Record<string, string[]> = {
+  pet: ['cao', 'gaiola', 'calopsita', 'periquito', 'passaro', 'viveiro', 'aquario', 'caixa de transporte', 'comedouro', 'bebedouro', 'tapete higienico', 'granulado', 'formula natural'],
+  bebe: ['babador', 'berco', 'enxoval', 'mordedor', 'pelucia', 'boneca', 'carrinho de bebe', 'cadeirinha', 'lenco umedecido', 'banheira', 'quebra-cabeca', 'lego', 'educativo'],
+  tech: ['hub usb', 'hd externo', 'nobreak', 'no break', 'estabilizador', 'pilha', 'bateria recarregavel', 'adaptador', 'projetor', 'tela de projecao', 'comunicador', 'radio comunicador', 'cartao de memoria', 'micro sd', 'pen drive', 'placa de video', 'processador', 'gabinete', 'tomada inteligente', 'drone', 'gopro', 'airpods', 'relogio inteligente', 'controle remoto'],
+  casa: ['almofada', 'futon', 'colchonete', 'chaleira', 'jarra', 'limpeza', 'vassoura', 'rodo', 'mop', 'balde', 'tapete', 'espelho', 'prateleira', 'varal', 'cabide', 'caneca', 'copo', 'marmita', 'faca', 'tabua', 'ralador', 'assadeira', 'umidificador', 'purificador', 'piscina', 'sofa', 'estante', 'armario', 'decoracao', 'quadro', 'vaso', 'travesseiros', 'alvejante', 'detergente'],
+  beleza: ['prancha', 'alisador', 'alisadora', 'modeladora', 'cacheadora', 'cilios', 'gloss', 'mascara facial', 'mascara capilar', 'depilador', 'escova secadora', 'cabelo', 'unha', 'corretivo', 'pincel', 'sombra', 'delineador', 'tonico', 'tintura', 'leave-in', 'oleo capilar', 'acido hialuronico', 'vitamina c', 'eye cream', 'cream', 'lip', 'maquina de cortar', 'aparador', 'body splash', 'colonia', 'kit capilar', 'finalizador', 'gel'],
+  esporte: ['bola', 'basquete', 'volei', 'boxe', 'muaythai', 'protetor bucal', 'corda de pular', 'faixa elastica', 'caneleira', 'shaker', 'patins', 'skate', 'natacao', 'barraca', 'camping', 'pesca', 'anilha', 'proteina', 'pre treino', 'joelheira', 'luva de academia', 'garrafa academia', 'squeeze'],
+  moda: ['short', 'saia', 'cropped', 'regata', 'camisola', 'biquini', 'maio', 'macacao', 'cardigan', 'casaco', 'blazer', 'jeans', 'bone', 'gorro', 'cachecol', 'gravata', 'mala', 'sapato', 'sapatilha', 'bota', 'tamanco', 'rasteirinha', 'slide', 'lingerie', 'calcinha', 'colete', 'polo', 'suspensorio', 'pulseira', 'colar', 'brinco', 'anel', 'bijuteria', 'tiara', 'lenco', 'pochete', 'necessaire', 'bolsa transversal', 'carteira masculina'],
+  ferramentas: ['talha', 'terminal', 'conector eletrico', 'pontas', 'bits', 'soquete', 'maleta de ferramentas', 'martelo', 'esmerilhadeira', 'lixadeira', 'compressor', 'solda', 'multimetro', 'fita isolante', 'refletor', 'holofote', 'lanterna', 'nivel', 'parafuso', 'broca', 'pulverizador', 'bomba submersa', 'mangueira', 'cadeado', 'fechadura', 'extensao eletrica', 'disco de corte', 'chave'],
+};
+
+/** Palavra de pet quase nunca é ambígua ("cachorro", "gato", "pet"), então vale em dobro contra as palavras de casa e moda do mesmo anúncio (cama colchonete almofada PARA CACHORRO). */
+const PESO_DO_NICHO: Record<string, number> = { pet: 2 };
+
 /** Minúsculas e sem acento, para comparar texto. */
 export function normalizar(texto: string): string {
   return texto
@@ -82,7 +100,8 @@ export function definirPalavrasDosNichos(porNicho: Record<string, string[]>): vo
 function regrasEmVigor(): Array<[string, string[]]> {
   const regras: Array<[string, string[]]> = REGRAS.map(([c, palavras]) => {
     const a = ajustes[c];
-    return [c, a ? [...palavras.filter((p) => !a.menos.includes(p)), ...a.mais] : palavras];
+    const todas = [...palavras, ...(PALAVRAS_EXTRAS[c] ?? [])];
+    return [c, a ? [...todas.filter((p) => !a.menos.includes(p)), ...a.mais] : todas];
   });
   // Palavras para "geral" não fazem sentido (é o que sobra); nicho fora da lista não existe.
   return regras;
@@ -97,7 +116,7 @@ export function pontuarCategorias(titulo: string): Array<{ categoria: string; po
     let pontos = 0;
     for (const p of palavras) {
       if (!contemPalavra(t, p)) continue;
-      pontos += contemPalavra(inicio, p) ? 2 : 1;
+      pontos += (contemPalavra(inicio, p) ? 2 : 1) * (PESO_DO_NICHO[categoria] ?? 1);
     }
     if (pontos > 0) resultado.push({ categoria, pontos });
   }

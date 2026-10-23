@@ -36,7 +36,7 @@ test('datas: dia e hora seguem o horário de Brasília', () => {
 // ───────────── categoria ─────────────
 
 test('categoria: casa por palavra inteira, sem acento, com plural', () => {
-  assert.equal(categorizar('Tapete Sala Peludo 2x1,5m'), 'geral'); // não pode virar "pet"
+  assert.equal(categorizar('Tapete Sala Peludo 2x1,5m'), 'casa'); // não pode virar "pet"
   assert.equal(categorizar('Ração para Cães Adultos 15kg'), 'pet');
   assert.equal(categorizar('Kit 3 Camisetas Básicas'), 'moda');
   assert.equal(categorizar('Smart TV 50" 4K'), 'tech');
