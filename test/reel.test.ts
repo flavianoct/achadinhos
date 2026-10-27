@@ -293,3 +293,53 @@ test('remotion: o vídeo vai para o caminho pedido mesmo quando ele é relativo 
   assert.match(fonte, /'Achados', destino,/, 'o Remotion recebe o caminho absoluto');
   assert.match(fonte, /existsSync\(destino\)/);
 });
+
+test('carrossel de achados: escolhe um nicho com 5 produtos bons, sem dois do mesmo tipo, com o fato real; legenda pede o número', async () => {
+  const { prepararAchados, gravarPngsDoCarrossel } = await import('../src/carrossel.ts');
+  const { legendaDoCarrossel, totalDeImagens, arquivosDoCarrossel } = await import('../src/social.ts');
+  const banco = new Banco(':memory:');
+  const nomes = ['Cama para Cachorro Lavável', 'Arranhador para Gato Torre', 'Coleira Peitoral Ajustável', 'Comedouro Lento Antiformiga', 'Fonte de Água para Gatos', 'Cama Pet Redonda Macia'];
+  nomes.forEach((t, i) => banco.guardarProduto({ ...produto(i + 1), idProduto: `PET${i}`, titulo: t, categoria: 'pet', vendas: 3000 }, new Date(AGORA.getTime() - i * 60_000)));
+  const config = lerConfig({ ...base, INSTAGRAM_HORARIOS_FEED: '12,20', REEL_REMOTION: '0', BLOG_PASTA: mkdtempSync(join(tmpdir(), 'car-')) });
+  assert.equal(await prepararAchados(banco, config, new Date('2026-10-03T12:00:00Z'), foto), false, '9h: cedo demais (só perto da primeira hora do feed)');
+  assert.equal(await prepararAchados(banco, config, AGORA, foto), true);
+  const pendente = banco.carrosselPendente(AGORA)!;
+  assert.match(pendente.chave, /^achados-2026-10-03-pet$/);
+  const dados = JSON.parse(pendente.dados);
+  assert.equal(dados.itens.length, 5);
+  assert.ok(!(dados.itens.map((it: any) => it.oferta.titulo) as string[]).includes('Cama Pet Redonda Macia') || !(dados.itens.map((it: any) => it.oferta.titulo) as string[]).includes('Cama para Cachorro Lavável'), 'duas camas não entram juntas');
+  assert.deepEqual(dados.capa, ['5 ACHADOS DE PET', 'PRA SALVAR AGORA']);
+  assert.equal(dados.fato, '+15 MIL VENDIDOS');
+  assert.equal(totalDeImagens(dados), 7);
+  const legenda = legendaDoCarrossel(dados, config, true);
+  assert.match(legenda, /Comenta o número \(1 a 5\) que eu te mando o link no direct/);
+  assert.match(legenda, /^1\. /m);
+  assert.doesNotMatch(legenda, /R\$/);
+  // Sem o Remotion (desligado aqui), sai o plano B: as 7 imagens.
+  assert.equal(await gravarPngsDoCarrossel(banco, config, AGORA), 7);
+  for (const a of arquivosDoCarrossel(pendente.chave, 7)) assert.ok(statSync(join(config.blog.pasta, 'social', a)).size > 1000, a);
+});
+
+test('carrossel de achados: quem comenta o número recebe o link daquele produto', async () => {
+  const banco = bancoComProdutos();
+  const config = lerConfig({ ...base, INSTAGRAM_HORARIOS_FEED: '', REEL_REMOTION: '0' });
+  const dados = { formato: 'achados', titulo: '3 achados', capa: ['3 ACHADOS DE CASA', 'PRA SALVAR AGORA'], fato: '', categoria: 'casa', itens: [1, 2, 3].map((n) => ({ oferta: produto(n), imagem: 'data:image/png;base64,AAAA' })), nomes: ['Nome um', '', 'Nome três'] };
+  banco.salvarCarrossel('achados-2026-10-03-casa', dados.titulo, JSON.stringify(dados), AGORA);
+  const chamadas: string[] = [];
+  const f = (async (url: string, init: any = {}) => {
+    const u = String(url);
+    chamadas.push(u + ' ' + (init.body ? String(init.body) : ''));
+    if ((init.method ?? 'GET') === 'HEAD') return new Response(null, { status: 200 });
+    if (u.includes('/media_publish')) return new Response(JSON.stringify({ id: 'car-1' }));
+    if (u.includes('/media')) return new Response(JSON.stringify({ id: 'cont-1' }));
+    if (u.includes('cont-1')) return new Response(JSON.stringify({ status_code: 'FINISHED' }));
+    return new Response(JSON.stringify({}));
+  }) as unknown as typeof fetch;
+  const r = await publicarNoInstagram(banco, config, AGORA, f, new Instagram('tok-secreto', '1789', f, 0));
+  assert.equal(r.feed >= 1, true, 'o carrossel ocupa a vaga do feed');
+  const midia = banco.midiasRecentesDoInstagram(7, AGORA).find((m) => m.mediaId === 'car-1')!;
+  const lista = JSON.parse(midia.link);
+  assert.equal(lista.length, 3);
+  assert.equal(lista[0].titulo, 'Nome um');
+  assert.equal(lista[2].link, produto(3).link);
+});

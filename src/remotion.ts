@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
@@ -177,5 +177,40 @@ export async function gravarComRemotion(itens: Array<{ oferta: OfertaAvaliada; i
   } finally {
     rmSync(tmp, { recursive: true, force: true });
     rmSync(caminhoDoAudio, { force: true });
+  }
+}
+
+export interface PropsDoCarrosselRemotion {
+  titulo: [string, string];
+  fato: string;
+  itens: ItemDoRemotion[];
+  comentaQuero: boolean;
+}
+
+/**
+ * Desenha as imagens do carrossel com o Remotion (composição "Carrossel": cada quadro é uma imagem) e grava em `pasta` com os nomes
+ * pedidos, na ordem. Devolve o motivo da falha, ou undefined se todas as imagens foram gravadas.
+ */
+export async function gravarCarrosselComRemotion(props: PropsDoCarrosselRemotion, pasta: string, nomes: string[], config: Config): Promise<string | undefined> {
+  if (!config.instagram.reelRemotion) return 'desligado (REEL_REMOTION=0)';
+  const remotion = remotionInstalado();
+  if (!remotion) return 'o Remotion não está instalado (npm ci em remotion/)';
+  const tmp = mkdtempSync(join(tmpdir(), 'carrossel-'));
+  try {
+    const arquivoDosProps = join(tmp, 'props.json');
+    writeFileSync(arquivoDosProps, JSON.stringify(props));
+    const saida = join(tmp, 'imagens');
+    await executar(process.execPath, [remotion.cli, 'render', 'src/index.ts', 'Carrossel', saida, '--sequence', '--image-format=png', `--props=${arquivoDosProps}`, '--log=error'], { cwd: remotion.pasta, timeout: 5 * 60_000, maxBuffer: 20_000_000 });
+    const quadros = readdirSync(saida)
+      .filter((a) => a.endsWith('.png'))
+      .sort((a, b) => Number(/(\d+)\.png$/.exec(a)?.[1] ?? 0) - Number(/(\d+)\.png$/.exec(b)?.[1] ?? 0));
+    if (quadros.length !== nomes.length) return `o Remotion gravou ${quadros.length} imagens, e o carrossel tem ${nomes.length}`;
+    quadros.forEach((q, i) => copyFileSync(join(saida, q), resolve(pasta, nomes[i]!)));
+    return undefined;
+  } catch (e) {
+    const erro = e as Error & { stderr?: string };
+    return `o Remotion falhou (${(erro.stderr || erro.message).toString().trim().slice(0, 300)})`;
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
   }
 }

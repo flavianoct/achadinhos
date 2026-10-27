@@ -4,7 +4,7 @@ import type { Config } from './config.ts';
 import type { Banco } from './db.ts';
 import { formatarVendas } from './mensagem.ts';
 import { normalizar } from './categoria.ts';
-import { CORES_DO_NICHO, MARCA, svgDaCapaDaDica, svgDaCapaDoDuelo, svgDoCompetidor, svgDoFechamentoDoDuelo, svgDoCriterio, svgDoFechamentoDaDica, svgDoFeed, svgDoStory, svgsDaApresentacao, type DadosDaApresentacao, type DadosDaArte, type TipoDeGancho } from './moldes.ts';
+import { CORES_DO_NICHO, esc, fundo, marca, MARCA, svgDaCapaDaDica, svgDaCapaDoDuelo, svgDoCompetidor, svgDoFechamentoDoDuelo, svgDoCriterio, svgDoFechamentoDaDica, svgDoFeed, svgDoStory, svgsDaApresentacao, type DadosDaApresentacao, type DadosDaArte, type TipoDeGancho } from './moldes.ts';
 import { semListaDeModelos } from './fontes/mercadolivre-api.ts';
 import type { OfertaAvaliada } from './types.ts';
 
@@ -387,7 +387,19 @@ export interface DadosDoDuelo {
 }
 
 /** Os carrosséis do perfil: a dica "Antes de comprar", o "A ou B?" e a apresentação do grupo (o "Top até R$" saiu: ele mostrava preço). */
-export type DadosDoCarrossel = DadosDaDica | DadosDoGrupo | DadosDoDuelo;
+/** Carrossel "N achados de [nicho]": capa, um produto por imagem e o fim pedindo o número. Os nomes curtos vêm da IA (ou do título). */
+export interface DadosDosAchados {
+  formato: 'achados';
+  titulo: string;
+  /** Título da capa em duas linhas e o fato real ("+12 MIL VENDIDOS"; vazio se não houver). */
+  capa: [string, string];
+  fato: string;
+  categoria: string;
+  itens: Array<{ oferta: OfertaAvaliada; imagem: string }>;
+  nomes?: string[];
+}
+
+export type DadosDoCarrossel = DadosDaDica | DadosDoGrupo | DadosDoDuelo | DadosDosAchados;
 
 /** As quatro imagens do "A ou B?": capa, A, B e o fechamento. */
 export function montarSvgsDoDuelo(d: DadosDoDuelo): string[] {
@@ -409,12 +421,14 @@ export function montarSvgsDoDuelo(d: DadosDoDuelo): string[] {
 
 /** As imagens do carrossel, na ordem (a primeira é a capa). */
 export function montarSvgsDoCarrossel(d: DadosDoCarrossel): string[] {
+  if (d.formato === 'achados') return montarSvgsDosAchados(d);
   if (d.formato === 'duelo') return montarSvgsDoDuelo(d);
   return d.formato === 'grupo' ? svgsDaApresentacao(d) : montarSvgsDaDica(d);
 }
 
 /** Quantas imagens o carrossel tem. O Instagram aceita no máximo 10. */
 export function totalDeImagens(d: DadosDoCarrossel): number {
+  if (d.formato === 'achados') return d.itens.length + 2;
   if (d.formato === 'duelo') return 4;
   if (d.formato === 'grupo') return svgsDaApresentacao(d).length;
   return 1 + d.criterios.length + (d.itens.length >= 2 ? 1 : 0);
@@ -526,8 +540,42 @@ export function legendaDoDuelo(d: DadosDoDuelo, config: Config): string {
   ].join('\n');
 }
 
+/**
+ * Plano B do carrossel de achados, sem o Remotion: capa simples, a arte do feed de cada produto e o fim com o pedido do número.
+ * O visual principal é o do Remotion (remotion/src/Carrossel.tsx).
+ */
+export function montarSvgsDosAchados(d: DadosDosAchados, comentaQuero = false): string[] {
+  const svg = (corpo: string) => `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350" font-family="Liberation Sans, DejaVu Sans, Arial, sans-serif">\n${fundo(1080, 1350, CORES_DO_NICHO[d.categoria] ?? CORES_DO_NICHO.geral)}\n${corpo}\n</svg>`;
+  const t = (y: number, tam: number, cor: string, s: string) => `<text x="540" y="${y}" font-size="${tam}" font-weight="700" fill="${cor}" text-anchor="middle">${esc(s)}</text>`;
+  const n = d.itens.length;
+  const numeros = d.itens.map((_, i) => i + 1).join(', ').replace(/, (\d+)$/, ' OU $1');
+  const capa = svg(`${marca(540, 110, 40, 'centro')}\n${t(330, 96, MARCA.branco, d.capa[0])}\n${t(450, 80, MARCA.amarelo, d.capa[1])}\n${d.fato ? t(600, 52, MARCA.branco, d.fato) : ''}\n${t(1180, 48, MARCA.amarelo, 'ARRASTA PRO LADO')}`);
+  const fim = svg(`${marca(540, 110, 40, 'centro')}\n${t(420, 84, MARCA.amarelo, 'QUAL VOCÊ LEVARIA?')}\n${t(620, 72, MARCA.branco, `COMENTA ${numeros}`)}\n${t(720, 40, MARCA.branco, comentaQuero ? 'QUE EU TE MANDO O LINK NO DIRECT' : 'OS LINKS ESTÃO NA BIO')}\n${t(900, 44, MARCA.amarelo, 'SALVA PRA NÃO PERDER')}`);
+  return [capa, ...d.itens.map((it) => montarSvgDoFeed(it.oferta, it.imagem, undefined, comentaQuero)), fim].slice(0, n + 2);
+}
+
+/** Legenda do carrossel de achados: o pedido do número logo no começo, os nomes numerados, salvar e compartilhar, o aviso de publi. */
+export function legendaDosAchados(d: DadosDosAchados, config: Config, comentaQuero = false): string {
+  const n = d.itens.length;
+  const nomes = d.itens.map((it, i) => (d.nomes?.[i] || tituloCompleto(it.oferta.titulo, 70)));
+  return [
+    `📌 ${d.titulo} #publi`,
+    comentaQuero ? `💬 Comenta o número (1 a ${n}) que eu te mando o link no direct` : `💬 Qual você levaria? Comenta o número 👇`,
+    '',
+    ...nomes.map((nome, i) => `${i + 1}. ${nome}`),
+    '',
+    '💾 Salva pra não perder e manda pra quem vai gostar',
+    comentaQuero ? '💰 O preço de agora vai junto com o link, no seu direct.' : '💰 O preço de agora está no link da bio.',
+    '',
+    'Publi: links de afiliado. Preços e estoque podem mudar a qualquer momento.',
+    '',
+    hashtagsDaCategoria(d.categoria).join(' '),
+  ].join('\n');
+}
+
 /** Legenda do carrossel, pelo formato. */
-export function legendaDoCarrossel(d: DadosDoCarrossel, config: Config): string {
+export function legendaDoCarrossel(d: DadosDoCarrossel, config: Config, comentaQuero = false): string {
+  if (d.formato === 'achados') return legendaDosAchados(d, config, comentaQuero);
   if (d.formato === 'duelo') return legendaDoDuelo(d, config);
   return d.formato === 'grupo' ? legendaDoGrupo(d) : legendaDaDica(d, config);
 }

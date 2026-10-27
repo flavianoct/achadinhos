@@ -5,7 +5,10 @@ import { diaDe, horaDe, type Banco } from './db.ts';
 import { EXPLICACOES_DOS_CRITERIOS } from './dicas.ts';
 import { TIPOS_DE_GUIA, tipoDeGuia } from './guias.ts';
 import { passaNoFiltroDoInstagram } from './instagram.ts';
-import { arquivosDoCarrossel, baixarImagemComoDataUri, montarSvgsDoCarrossel, nomeDaMarca, renderizarPng, type DadosDaDica, type DadosDoCarrossel, type DadosDoDuelo, type DadosDoGrupo, type Fetch } from './social.ts';
+import { arquivosDoCarrossel, baixarImagemComoDataUri, comentaQueroAtivo, montarSvgsDoCarrossel, montarSvgsDosAchados, nomeDaMarca, renderizarPng, type DadosDaDica, type DadosDoCarrossel, type DadosDoDuelo, type DadosDoGrupo, type DadosDosAchados, type Fetch } from './social.ts';
+import { formatarVendas } from './mensagem.ts';
+import { mesmoTipoDeProduto } from './parecidos.ts';
+import { gravarCarrosselComRemotion, nomesDaIa, propsDoRemotion } from './remotion.ts';
 import { dadosDaApresentacao } from './vitrine.ts';
 import type { OfertaAvaliada } from './types.ts';
 
@@ -55,8 +58,8 @@ export async function prepararCarrossel(banco: Banco, config: Config, agora: Dat
   // Uma vez por semana, nos dias escolhidos, o carrossel apresenta o grupo ("Por que entrar no grupo").
   if (ig.grupoDias.includes(diaDaSemana(agora)) && prepararApresentacao(banco, config, agora)) return true;
   if (ig.dicasDias.includes(diaDaSemana(agora)) && (await prepararDica(banco, config, agora, fetchFn))) return true;
-  if (ig.perguntaDias.includes(diaDaSemana(agora))) return prepararDuelo(banco, config, agora, fetchFn);
-  return false;
+  if (ig.perguntaDias.includes(diaDaSemana(agora)) && (await prepararDuelo(banco, config, agora, fetchFn))) return true;
+  return prepararAchados(banco, config, agora, fetchFn);
 }
 
 /** A apresentação do grupo não volta antes disso, mesmo que mais de um dia da semana esteja marcado. */
@@ -85,6 +88,24 @@ export async function gravarPngsDoCarrossel(banco: Banco, config: Config, agora:
   const dados = JSON.parse(pendente.dados) as DadosDoCarrossel;
   const pasta = join(config.blog.pasta, 'social');
   mkdirSync(pasta, { recursive: true });
+  if (dados.formato === 'achados') {
+    // O carrossel de achados é desenhado pelo Remotion; se não der, sai o plano B (capa simples e a arte do feed de cada produto).
+    const nomes = arquivosDoCarrossel(pendente.chave, dados.itens.length + 2);
+    const comentaQuero = comentaQueroAtivo(banco, config, agora);
+    const props = propsDoRemotion(dados.itens, comentaQuero, dados.nomes);
+    const motivo = await gravarCarrosselComRemotion({ titulo: dados.capa, fato: dados.fato, itens: props.itens, comentaQuero }, pasta, nomes, config);
+    if (!motivo) return nomes.length;
+    console.log(`[carrossel] imagens do Remotion não saíram (${motivo}); gravando o plano B.`);
+    const svgs = montarSvgsDosAchados(dados, comentaQuero);
+    let gravados = 0;
+    for (let i = 0; i < svgs.length; i++) {
+      const png = await renderizarPng(svgs[i]!, 1080);
+      if (!png) return gravados;
+      writeFileSync(join(pasta, nomes[i]!), png);
+      gravados++;
+    }
+    return gravados;
+  }
   // Carrossel de outro formato (o "Top" antigo, que mostrava preço) não é mais gravado.
   if (dados.formato !== 'dica' && dados.formato !== 'grupo' && dados.formato !== 'duelo') return 0;
   const svgs = montarSvgsDoCarrossel(dados);
@@ -97,6 +118,62 @@ export async function gravarPngsDoCarrossel(banco: Banco, config: Config, agora:
     gravados++;
   }
   return gravados;
+}
+
+/** Como o nicho aparece no título da capa ("5 ACHADOS DE PET"). */
+const NICHO_NA_CAPA: Record<string, string> = { tech: 'TECNOLOGIA', casa: 'CASA', games: 'GAMER', beleza: 'BELEZA', moda: 'MODA', esporte: 'ACADEMIA', pet: 'PET', bebe: 'BEBÊ', ferramentas: 'FERRAMENTAS' };
+/** Quantos produtos o carrossel de achados mostra, e por quantos dias um nicho espera para voltar. */
+const ITENS_DOS_ACHADOS = 5;
+const DIAS_SEM_REPETIR_NICHO = 3;
+
+/** Os melhores produtos do nicho que servem ao Instagram (bem avaliados, com foto e link seguro), sem dois do mesmo tipo. */
+export function produtosDosAchados(produtos: OfertaAvaliada[], config: Config, categoria?: string): OfertaAvaliada[] {
+  const escolhidos: OfertaAvaliada[] = [];
+  for (const o of produtos) {
+    if (categoria && o.categoria !== categoria) continue;
+    if (!/^https:\/\//i.test(o.link) || !/^https:\/\//i.test(o.imagem ?? '') || !passaNoFiltroDoInstagram(o, config.instagram)) continue;
+    if (escolhidos.some((e) => e.idProduto === o.idProduto || mesmoTipoDeProduto(e.titulo, o.titulo))) continue;
+    escolhidos.push(o);
+  }
+  return escolhidos;
+}
+
+/**
+ * Cria o carrossel "5 achados de [nicho]": o nicho do dia gira entre os que têm produtos bons suficientes e não saíram nos últimos dias
+ * (sem nenhum, um carrossel com os melhores de todos os nichos). Só nasce perto da primeira hora do feed, para os dados serem de agora.
+ * A IA escreve os nomes curtos uma vez, aqui.
+ */
+export async function prepararAchados(banco: Banco, config: Config, agora: Date, fetchFn: Fetch = fetch): Promise<boolean> {
+  const primeiraHora = Math.min(...(config.instagram.horariosFeed.length ? config.instagram.horariosFeed : [config.ritmo.horaInicio + 1]));
+  if (horaDe(agora) < primeiraHora - 1) return false;
+  const produtos = banco.melhoresProdutos({ horas: 48, limite: 400 }, agora);
+  const recentes = banco.carrosseisPublicadosRecentes(DIAS_SEM_REPETIR_NICHO, agora);
+  const candidatos = Object.keys(NICHO_NA_CAPA)
+    .filter((c) => !recentes.some((r) => r.startsWith('achados-') && r.endsWith(`-${c}`)))
+    .map((c) => ({ categoria: c, itens: produtosDosAchados(produtos, config, c) }))
+    .filter((c) => c.itens.length >= ITENS_DOS_ACHADOS);
+  // Gira entre os nichos possíveis pelo dia (o mesmo nicho não sai dias seguidos).
+  const escolhido = candidatos.length ? candidatos[Math.floor(agora.getTime() / DIA_MS) % candidatos.length]! : { categoria: 'geral', itens: produtosDosAchados(produtos, config) };
+  const itens: DadosDosAchados['itens'] = [];
+  for (const oferta of escolhido.itens) {
+    if (itens.length >= ITENS_DOS_ACHADOS) break;
+    const imagem = await baixarImagemComoDataUri(oferta.imagem, fetchFn);
+    if (imagem) itens.push({ oferta, imagem });
+  }
+  if (itens.length < 3) return false;
+  const rotulo = NICHO_NA_CAPA[escolhido.categoria] ?? 'HOJE';
+  const soma = itens.reduce((t, it) => t + (it.oferta.vendas ?? 0), 0);
+  const dados: DadosDosAchados = {
+    formato: 'achados',
+    titulo: `${itens.length} achados de ${rotulo.toLowerCase()} pra salvar`,
+    capa: [`${itens.length} ACHADOS DE ${rotulo}`, 'PRA SALVAR AGORA'],
+    fato: soma >= 1000 ? `+${formatarVendas(soma).toUpperCase()} VENDIDOS` : '',
+    categoria: escolhido.categoria,
+    itens,
+    nomes: await nomesDaIa(itens.map((it) => it.oferta.titulo), config, fetchFn),
+  };
+  banco.salvarCarrossel(`achados-${diaDe(agora)}-${escolhido.categoria}`, dados.titulo, JSON.stringify(dados), agora);
+  return true;
 }
 
 /** Dia da semana no horário de Brasília: 0 = domingo ... 6 = sábado. */
