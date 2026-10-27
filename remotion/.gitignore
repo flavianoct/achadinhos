@@ -3,3 +3,4 @@ out
 public/*.mp4
 produtos/*/*.mp4
 produtos/*/foto.*
+public/*.wav

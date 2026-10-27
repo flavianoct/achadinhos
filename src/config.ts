@@ -154,7 +154,7 @@ export interface Config {
   /** Arte de Story, legenda e roteiro de vídeo das ofertas postadas (aparecem no painel). */
   social: { ativo: boolean };
   /** Publicação automática no Instagram (conta profissional). Token e ID ficam nos Secrets. */
-  instagram: { ativo: boolean; token: string; userId: string; feedPorDia: number; storiesPorDia: number; intervaloFeedMin: number; intervaloStoryMin: number; notaMinima: number; vendasMinimas: number; palavrasBloqueadas: string[]; carrosselPorDia: number; carrosselItens: number; carrosselTetos: number[]; dicasDias: number[]; perguntaDias: number[]; horariosFeed: number[]; horariosStories: number[]; reelsPorDia: number; horariosReels: number[]; resumoHora: number; dataHora: number; grupoDias: number[]; tokenData: string; comentaQuero: boolean; palavrasDoComentario: string[]; respostasPorRodada: number };
+  instagram: { ativo: boolean; token: string; userId: string; feedPorDia: number; storiesPorDia: number; intervaloFeedMin: number; intervaloStoryMin: number; notaMinima: number; vendasMinimas: number; palavrasBloqueadas: string[]; carrosselPorDia: number; carrosselItens: number; carrosselTetos: number[]; dicasDias: number[]; perguntaDias: number[]; horariosFeed: number[]; horariosStories: number[]; reelsPorDia: number; horariosReels: number[]; resumoHora: number; dataHora: number; grupoDias: number[]; tokenData: string; comentaQuero: boolean; palavrasDoComentario: string[]; respostasPorRodada: number; reelRemotion: boolean };
   painel: { porta: number };
 }
 
@@ -546,6 +546,8 @@ function lerConfigBase(env: Env): Config {
       comentaQuero: ligado(env, 'INSTAGRAM_COMENTA_QUERO', true),
       palavrasDoComentario: lista(env.INSTAGRAM_PALAVRAS_DO_COMENTARIO ?? 'quero,eu quero,link,manda,me manda,qual o link,preco,quanto'),
       respostasPorRodada: numero(env, 'INSTAGRAM_RESPOSTAS_POR_RODADA', 25),
+      // Reel animado com o Remotion (pasta remotion/). Se ele não estiver instalado ou falhar, sai o Reel simples (ffmpeg).
+      reelRemotion: ligado(env, 'REEL_REMOTION', true),
     },
     painel: { porta: numero(env, 'PAINEL_PORTA', 3210) },
   };

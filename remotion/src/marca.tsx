@@ -13,7 +13,7 @@ export const MARCA = {
   aviso: 'Publi · link de afiliado · preço pode mudar',
 };
 
-export const FONTE = '"Arial Black", "Segoe UI Black", Impact, Arial, sans-serif';
+export const FONTE = '"Archivo Black", "Arial Black", "Segoe UI Black", Impact, Arial, sans-serif';
 
 /** Logo escrito em texto + raio (sem depender de arquivo de imagem). */
 export const Logo: React.FC<{ altura?: number }> = ({ altura = 64 }) => (

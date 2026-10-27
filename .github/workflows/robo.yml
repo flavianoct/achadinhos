@@ -26,7 +26,7 @@ concurrency:
 jobs:
   rodar:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     environment:
       name: github-pages
       url: ${{ steps.publicar.outputs.page_url }}
@@ -50,6 +50,21 @@ jobs:
             sudo apt-get -o DPkg::Lock::Timeout=60 install -y -qq --no-install-recommends ffmpeg
           fi
         continue-on-error: true
+
+      - name: Guardar a instalação do Remotion entre as rodadas
+        uses: actions/cache@v4
+        with:
+          path: remotion/node_modules
+          key: remotion-${{ runner.os }}-${{ hashFiles('remotion/package-lock.json') }}
+
+      - name: Instalar o Remotion (desenha o Reel animado)
+        # Com a instalação guardada, leva segundos. Se falhar ou passar de 6 minutos, o robô segue e monta o Reel simples (ffmpeg).
+        timeout-minutes: 6
+        continue-on-error: true
+        working-directory: remotion
+        run: |
+          if [ ! -f node_modules/@remotion/cli/remotion-cli.js ]; then npm ci --no-audit --no-fund; fi
+          npx remotion browser ensure
 
       - name: Instalar o conversor de imagens
         # Só o @resvg/resvg-js (arte de Story e feed em PNG). Se falhar, o robô segue sem as imagens do Instagram.

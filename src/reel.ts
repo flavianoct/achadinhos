@@ -10,6 +10,7 @@ import { estiloDaMusica, sintetizarEfeitos, sintetizarMusica, type Efeito } from
 import { CORES_DO_NICHO, esc, fundo, marca, MARCA } from './moldes.ts';
 import { formatarVendas } from './mensagem.ts';
 import { baixarImagemComoDataUri, comentaQueroAtivo, renderizarPng, seloDaOferta, temWhatsapp, tituloParaArte, type Fetch } from './social.ts';
+import { gravarComRemotion } from './remotion.ts';
 import type { OfertaAvaliada } from './types.ts';
 
 const executar = promisify(execFile);
@@ -340,7 +341,14 @@ export async function gravarReel(banco: Banco, config: Config, agora: Date): Pro
   const dados = JSON.parse(pendente.dados) as DadosDoReel;
   if (dados.formato !== 'reel' || !dados.itens?.length) return undefined;
   const n = dados.itens.length;
-  const svgs = [svgDoGancho(dados.itens), ...dados.itens.map((it, i) => svgDoItem(it, i, n)), svgDoFim(dados.itens, comentaQueroAtivo(banco, config, agora))];
+  const comentaQuero = comentaQueroAtivo(banco, config, agora);
+  // Primeiro o Reel animado (Remotion); se não der, o simples (ffmpeg), para o dia nunca ficar sem Reel.
+  const pasta = join(config.blog.pasta, 'social');
+  mkdirSync(pasta, { recursive: true });
+  const animado = await gravarComRemotion(dados.itens, pendente.chave, join(pasta, nomeDoArquivo(pendente.chave)), config, comentaQuero);
+  if (!animado) return undefined;
+  console.log(`[reel] Reel animado não saiu (${animado}); montando o Reel simples.`);
+  const svgs = [svgDoGancho(dados.itens), ...dados.itens.map((it, i) => svgDoItem(it, i, n)), svgDoFim(dados.itens, comentaQuero)];
   const duracoes = svgs.map((_, i) => (i === 0 ? DURACOES_DO_REEL.gancho : i === svgs.length - 1 ? DURACOES_DO_REEL.fim : DURACOES_DO_REEL.item));
-  return montarVideo({ svgs, duracoes, chave: pendente.chave, pasta: join(config.blog.pasta, 'social'), transicao: TRANSICAO_DO_REEL, zoom: 0.0016, efeitos: efeitosDoReel(duracoes) });
+  return montarVideo({ svgs, duracoes, chave: pendente.chave, pasta, transicao: TRANSICAO_DO_REEL, zoom: 0.0016, efeitos: efeitosDoReel(duracoes) });
 }
