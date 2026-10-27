@@ -258,9 +258,13 @@ export async function publicarNoInstagram(banco: Banco, config: Config, agora: D
       }
       if (todasNoAr) {
         try {
-          const id = await api.publicarCarrossel(urls, legendaDoCarrossel(dados, config));
+          const id = await api.publicarCarrossel(urls, legendaDoCarrossel(dados, config, comentaQuero));
           banco.marcarCarrosselPublicado(carrossel.chave, agora);
-          if (id) banco.registrarMidiaDoInstagram(id, 'carrossel', dados.titulo, paginaDaBio(config), agora);
+          if (id) {
+            // Carrossel de achados: o "comenta 3" leva ao produto 3. Os outros formatos levam à página da bio.
+            const produtos = dados.formato === 'achados' ? dados.itens.map((it, i) => ({ titulo: dados.nomes?.[i] || it.oferta.titulo, link: it.oferta.link })) : undefined;
+            banco.registrarMidiaDoInstagram(id, 'carrossel', dados.titulo, produtos ? JSON.stringify(produtos) : paginaDaBio(config), agora);
+          }
           resumo.feed++;
           await pausa(2000);
         } catch (e) {
