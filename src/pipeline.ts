@@ -2,7 +2,7 @@ import type { Config } from './config.ts';
 import { horaDe, type Banco } from './db.ts';
 import { escaparHtml, montarMensagemWhatsapp, rodapeDoWhatsapp } from './mensagem.ts';
 import { escolherCampanha, type Campanha, type ItemVendido } from './shopee-extra.ts';
-import { chaveDoCupom, escolherCupom, type Cupom } from './cupons.ts';
+import { chaveDoCupom, escolherCupom, montarMensagemCupomWhatsapp, urlDoBannerDoCupom, type Cupom } from './cupons.ts';
 import { CATEGORIAS, categorizar, contemPalavra, normalizar } from './categoria.ts';
 import { avaliar } from './filtro.ts';
 import { melhorVendedor, mesmoTipoDeProduto, parecidoComAlgum } from './parecidos.ts';
@@ -279,6 +279,8 @@ export async function postarProximoCupom(publicador: Publicador, banco: Banco, c
     return { postou: false, motivo: 'erro', detalhe: (e as Error).message };
   }
   banco.registrarCupom(chaveDoCupom(cupom), agora);
+  // O cupom também vai para os grupos e canais gerais do WhatsApp, com o banner da loja.
+  if (config.whatsapp.ativo) banco.guardarMensagemParaWhatsapp({ chave: `cupom:${chaveDoCupom(cupom)}:${agora.getTime()}`, loja: cupom.loja, texto: montarMensagemCupomWhatsapp(cupom, agora), link: cupom.link, imagem: urlDoBannerDoCupom(cupom.loja) }, agora);
   return { postou: true, cupom };
 }
 

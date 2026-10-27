@@ -20,6 +20,9 @@ test('garimpo: lê os cupons de dentro da página e avisa quando ela mudou de fo
   const lidos = lerPaginaDeCupons(pagina([site({}), site({ couponCode: 'PROMO20', couponVerified: true })]), 'mercadolivre')!;
   assert.equal(lidos.length, 2);
   assert.deepEqual([lidos[0]!.validoAte, lidos[0]!.publicadoEm, lidos[0]!.aprovado, lidos[1]!.verificado, lidos[1]!.codigo], ['2026-10-31', '2026-10-08', true, true, 'PROMO20']);
+  // Hoje o site marca a verificação com a data dela (e null quando ninguém verificou).
+  const comData = lerPaginaDeCupons(pagina([site({ couponCode: 'VERIF10', couponVerified: '2026-10-07T15:30:48-0300' }), site({ couponCode: 'NADA10', couponVerified: null })]), 'mercadolivre')!;
+  assert.deepEqual(comData.map((c) => c.verificado), [true, false]);
   assert.equal(lerPaginaDeCupons('<html>nada</html>', 'shopee'), undefined, 'sem o bloco de dados');
   assert.equal(lerPaginaDeCupons('<script id="__NEXT_DATA__">{lixo</script>', 'shopee'), undefined, 'JSON quebrado');
   assert.equal(lerPaginaDeCupons('<script id="__NEXT_DATA__">{"props":{}}</script>', 'shopee'), undefined, 'a lista sumiu');
@@ -34,7 +37,9 @@ test('garimpo: cupom com código só passa se o site verificou; cupom de ativar 
   const { cupons } = filtrarCuponsConfiaveis(
     [
       bruto({ codigo: 'ESFRIOU20', verificado: true, titulo: 'Use ESFRIOU20 e ganhe 20% OFF' }), // ok: código de verdade e verificado
-      bruto({ codigo: 'DISNEY20', verificado: false, titulo: 'Disney 20% OFF' }), // código sem verificação
+      bruto({ codigo: 'DISNEY20', verificado: false, publicadoEm: '2026-09-20', titulo: 'Disney 20% OFF' }), // código sem verificação e antigo
+      bruto({ codigo: 'NOVO30', verificado: false, publicadoEm: '2026-10-08', titulo: 'Cupom novo 30% OFF' }), // ok: sem verificação, mas saiu ontem e tem validade
+      bruto({ codigo: 'SEMDATA30', verificado: false, publicadoEm: '2026-10-09', validoAte: undefined, titulo: 'Cupom 30% OFF sem data' }), // novo, mas sem validade
       bruto({ codigo: 'DESCONTO', verificado: true, titulo: '10% OFF em tudo' }), // código genérico, mesmo verificado
       bruto({ codigo: '', validoAte: '2026-11-04', titulo: 'R$ 90 OFF acima de R$ 500' }), // ativar na página, com data
       bruto({ codigo: '', validoAte: undefined, titulo: 'R$ 40 OFF em compras' }), // ativar na página, sem data
@@ -45,10 +50,11 @@ test('garimpo: cupom com código só passa se o site verificou; cupom de ativar 
     AGORA,
     opcoes,
   );
-  assert.deepEqual(cupons.map((c) => c.titulo), ['Use ESFRIOU20 e ganhe 20% OFF', 'R$ 90 OFF acima de R$ 500']);
-  assert.equal(cupons[0]!.codigo, 'ESFRIOU20');
-  assert.equal(cupons[1]!.codigo, undefined, 'cupom de ativar sai sem código');
-  assert.equal(cupons[1]!.validoAte, '2026-11-04');
+  assert.deepEqual(cupons.map((c) => c.titulo).sort(), ['Cupom novo 30% OFF', 'R$ 90 OFF acima de R$ 500', 'Use ESFRIOU20 e ganhe 20% OFF']);
+  assert.equal(cupons.find((c) => c.titulo.startsWith('Use'))!.codigo, 'ESFRIOU20');
+  const ativar = cupons.find((c) => c.titulo.startsWith('R$ 90'))!;
+  assert.equal(ativar.codigo, undefined, 'cupom de ativar sai sem código');
+  assert.equal(ativar.validoAte, '2026-11-04');
 });
 
 test('garimpo: cashback não é cupom, e cada loja entra só com os mais recentes (sem encher o canal)', () => {
@@ -146,4 +152,19 @@ test('garimpo: CUPONS_LOJAS=mercadolivre deixa a Shopee de fora (nem busca a pá
   assert.equal(r.cupons.length, 1);
   assert.deepEqual(r.avisos, []);
   assert.ok(chamadas.every((c) => c.includes('promobit') && c.includes('mercado-livre')), 'nenhuma chamada à Shopee');
+});
+
+test('cupons: o cupom postado também vai para o WhatsApp, com o banner da loja e a formatação do WhatsApp', async () => {
+  const { Banco } = await import('../src/db.ts');
+  const { postarProximoCupom } = await import('../src/pipeline.ts');
+  const banco = new Banco(':memory:');
+  const config = lerConfig({ TELEGRAM_BOT_TOKEN: '1:a', TELEGRAM_CHAT_ID: '@x', HORA_INICIO: '0', HORA_FIM: '24', CUPONS_ATIVO: '1', WHATSAPP_ATIVO: '1' });
+  const cupom = { loja: 'shopee' as const, titulo: 'R$ 60 OFF acima de R$ 300', link: 'https://s.shopee.com.br/abc', validoAte: '2026-10-31' };
+  const r = await postarProximoCupom({ publicar: async () => {}, publicarCupom: async () => {} } as any, banco, [cupom], config, AGORA);
+  assert.ok(r.postou);
+  const [m] = banco.mensagensDoWhatsapp(1, AGORA);
+  assert.ok(m, 'foi para a fila do WhatsApp');
+  assert.match(m!.texto, /^🎟️ \*CUPOM SHOPEE\*/);
+  assert.ok(m!.texto.includes('https://s.shopee.com.br/abc') && !m!.texto.includes('<b>'), 'link solto e sem HTML do Telegram');
+  assert.match(m!.imagem ?? '', /marca\/cupons\/cupom-shopee\.png$/);
 });

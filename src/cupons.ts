@@ -138,3 +138,23 @@ export function escolherCupom(cupons: Cupom[], ultimoPost: (chave: string) => nu
 export function urlDoBannerDoCupom(loja: Cupom['loja'], repositorio: string = process.env.GITHUB_REPOSITORY || 'flavianoct/achadinhos'): string {
   return `https://raw.githubusercontent.com/${repositorio}/main/marca/cupons/cupom-${loja}.png`;
 }
+
+/** O cupom no WhatsApp: a mesma mensagem, na formatação do WhatsApp (*negrito*), com o link solto. */
+export function montarMensagemCupomWhatsapp(c: Cupom, agora: Date = new Date()): string {
+  const linhas: string[] = [];
+  linhas.push(`🎟️ *CUPOM ${NOME_DA_LOJA[c.loja].toUpperCase()}*`);
+  linhas.push('');
+  linhas.push(`💥 *${c.titulo.replace(/[*_~]/g, '')}*`);
+  if (c.codigo) linhas.push(`🔑 Código: *${c.codigo}*`);
+  else linhas.push('🔑 Sem código: é só ativar o cupom na página.');
+  if (c.detalhe) linhas.push(`📌 ${c.detalhe}`);
+  if (c.validoAte) {
+    const dias = diasParaVencer(c, agora);
+    linhas.push(dias === 0 ? '⏰ *Vence hoje!*' : `⏰ Válido até ${dataBr(c.validoAte)}`);
+  }
+  linhas.push('');
+  linhas.push(`👉 ${c.link}`);
+  linhas.push('');
+  linhas.push('_Cupom sujeito a regras e a disponibilidade da loja._');
+  return linhas.join('\n');
+}

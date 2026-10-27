@@ -73,7 +73,8 @@ export function lerPaginaDeCupons(html: string, loja: Loja): CupomBruto[] | unde
     instrucoes: limpar(c?.couponInstructions),
     validoAte: dia(c?.couponUntil),
     publicadoEm: dia(c?.couponPublished),
-    verificado: c?.couponVerified === true || c?.couponVerified === 1,
+    // O site marcava "verificado" como sim/não; hoje marca com a data da verificação (e vazio quando ninguém verificou).
+    verificado: c?.couponVerified === true || c?.couponVerified === 1 || (typeof c?.couponVerified === 'string' && /^\d{4}-\d{2}-\d{2}/.test(c.couponVerified)),
     aprovado: String(c?.couponStatusName ?? '').toUpperCase() === 'APPROVED',
   }));
 }
@@ -93,6 +94,14 @@ export function tituloDoGarimpo(titulo: string): string {
   return t.charAt(0).toUpperCase() + t.slice(1);
 }
 
+/** Um cupom com código e sem verificação só entra se saiu há até tantos dias. */
+const DIAS_DE_CUPOM_NOVO = 2;
+
+/** Dias entre duas datas AAAA-MM-DD. */
+function diasEntre(de: string, ate: string): number {
+  return Math.round((Date.parse(`${ate}T12:00:00Z`) - Date.parse(`${de}T12:00:00Z`)) / 86_400_000);
+}
+
 function motivoDeRejeicao(c: CupomBruto, hoje: string): string | undefined {
   if (!c.aprovado) return 'não aprovado pelo site';
   if (!c.titulo || !BENEFICIO.test(c.titulo)) return 'sem benefício concreto no título';
@@ -100,9 +109,13 @@ function motivoDeRejeicao(c: CupomBruto, hoje: string): string | undefined {
   if (c.validoAte && c.validoAte < hoje) return 'vencido';
   const comCodigo = c.codigo !== '' && /[A-Za-z0-9]{4,}/.test(c.codigo) && !/\s/.test(c.codigo);
   if (comCodigo) {
-    // Cupom com código: só vale o que o site marcou como verificado e que não tem cara de código inventado.
+    // Cupom com código: vale o que o site verificou ou o que acabou de sair (até 2 dias) com validade em vigor, sem cara de código inventado.
+    // Cupom recém-lançado quase sempre funciona; os de uso limitado ("até 1.000 cupons") levam o aviso nas regras da mensagem.
     if (!codigoPlausivel(c.codigo)) return 'código genérico';
-    if (!c.verificado) return 'código não verificado';
+    if (c.verificado) return undefined;
+    const novo = c.publicadoEm !== undefined && diasEntre(c.publicadoEm, hoje) <= DIAS_DE_CUPOM_NOVO;
+    if (!novo) return 'código não verificado e não é novo';
+    if (!c.validoAte) return 'código novo, mas sem validade';
     return undefined;
   }
   // Cupom de "ativar na página": sem data de validade não dá para saber se ainda vale.
