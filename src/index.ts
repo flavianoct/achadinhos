@@ -5,7 +5,7 @@ import { iniciarPainel } from './painel.ts';
 import { Robo } from './robo.ts';
 import { publicarControle, type DadosDaRodada } from './exportar.ts';
 import { gravarPngsDoCarrossel, prepararCarrossel } from './carrossel.ts';
-import { publicarNoInstagram } from './instagram.ts';
+import { publicarNoInstagram, responderComentarios } from './instagram.ts';
 import { type Alerta, chaveDoAviso } from './alertas.ts';
 import { gravarPins, prepararPins, publicarNoPinterest } from './pinterest.ts';
 import { gravarQuiz, prepararQuiz } from './quiz.ts';
@@ -216,6 +216,13 @@ async function modoNuvem(): Promise<void> {
       avisar(chaveDoAviso('instagram', a), a, /recusou|token|venceu|faltam os secrets/i.test(a) ? 'erro' : 'aviso');
     }
     rodada.instagram = ig;
+    // "Comenta QUERO": quem comentou recebe o link no direct.
+    const comentarios = await responderComentarios(robo.banco, robo.config, new Date());
+    if (robo.config.instagram.ativo && robo.config.instagram.comentaQuero) dizer(`- Instagram, comenta QUERO: ${comentarios.lidos} comentários lidos, ${comentarios.respondidos} links mandados no direct.`);
+    for (const a of comentarios.avisos) {
+      dizer(`- Aviso do Instagram: ${a}`);
+      avisar(chaveDoAviso('instagram', a), a, 'aviso');
+    }
     // Pinterest: pins novos do dia, imagens/planilha/feed/galeria no site e, com token e quadro, publicação pela API.
     try {
       const novos = await prepararPins(robo.banco, robo.config, new Date());

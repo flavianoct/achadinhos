@@ -55,6 +55,18 @@ export class Banco {
       );
       CREATE INDEX IF NOT EXISTS postados_produto ON postados (loja, id_produto, postado_em);
       CREATE INDEX IF NOT EXISTS postados_dia ON postados (dia);
+      CREATE TABLE IF NOT EXISTS instagram_midias (
+        media_id TEXT PRIMARY KEY,
+        tipo TEXT NOT NULL,
+        titulo TEXT NOT NULL,
+        link TEXT NOT NULL,
+        publicado_em INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS instagram_respostas (
+        comment_id TEXT PRIMARY KEY,
+        respondido_em INTEGER NOT NULL,
+        ok INTEGER NOT NULL
+      );
       CREATE TABLE IF NOT EXISTS vendas_por_dia (
         loja TEXT NOT NULL,
         id_produto TEXT NOT NULL,
@@ -783,6 +795,30 @@ export class Banco {
   }
 
   /** Texto guardado sob a chave, desde que tenha sido escrito há no máximo `validadeEmDias`. */
+  /** Guarda o post publicado no Instagram e o link que vai no direct de quem comentar "QUERO" nele. */
+  registrarMidiaDoInstagram(mediaId: string, tipo: string, titulo: string, link: string, agora: Date): void {
+    this.db.prepare(`INSERT OR REPLACE INTO instagram_midias (media_id, tipo, titulo, link, publicado_em) VALUES (?, ?, ?, ?, ?)`).run(mediaId, tipo, titulo, link, agora.getTime());
+  }
+
+  /** Posts publicados nos últimos `dias` (o Instagram só deixa responder no direct comentários de até 7 dias), do mais novo ao mais antigo. */
+  midiasRecentesDoInstagram(dias: number, agora: Date): Array<{ mediaId: string; tipo: string; titulo: string; link: string }> {
+    return (this.db.prepare(`SELECT media_id, tipo, titulo, link FROM instagram_midias WHERE publicado_em >= ? ORDER BY publicado_em DESC`).all(agora.getTime() - dias * 86_400_000) as Array<{ media_id: string; tipo: string; titulo: string; link: string }>).map((l) => ({ mediaId: l.media_id, tipo: l.tipo, titulo: l.titulo, link: l.link }));
+  }
+
+  comentarioRespondido(commentId: string): boolean {
+    return Boolean(this.db.prepare(`SELECT 1 FROM instagram_respostas WHERE comment_id = ?`).get(commentId));
+  }
+
+  /** Marca o comentário como tratado (respondido ou não, para nunca mandar duas vezes nem insistir num que o Instagram recusou). */
+  marcarComentario(commentId: string, ok: boolean, agora: Date): void {
+    this.db.prepare(`INSERT OR REPLACE INTO instagram_respostas (comment_id, respondido_em, ok) VALUES (?, ?, ?)`).run(commentId, agora.getTime(), ok ? 1 : 0);
+  }
+
+  /** Quantos links o robô mandou no direct nos últimos `dias`. */
+  respostasNoDirect(dias: number, agora: Date): number {
+    return Number((this.db.prepare(`SELECT COUNT(*) AS n FROM instagram_respostas WHERE ok = 1 AND respondido_em >= ?`).get(agora.getTime() - dias * 86_400_000) as { n: number }).n);
+  }
+
   textoSalvo(chave: string, validadeEmDias: number, agora: Date): string | undefined {
     const linha = this.db.prepare(`SELECT texto FROM textos WHERE chave = ? AND criado_em >= ?`).get(chave, agora.getTime() - validadeEmDias * 86_400_000) as { texto: string } | undefined;
     return linha?.texto;
@@ -824,6 +860,8 @@ export class Banco {
     const t = agora.getTime();
     this.db.prepare(`DELETE FROM precos WHERE dia < ?`).run(diasAtras(agora, 90));
     this.db.prepare(`DELETE FROM vendas_por_dia WHERE dia < ?`).run(diasAtras(agora, 10));
+    this.db.prepare(`DELETE FROM instagram_midias WHERE publicado_em < ?`).run(t - 14 * 86_400_000);
+    this.db.prepare(`DELETE FROM instagram_respostas WHERE respondido_em < ?`).run(t - 30 * 86_400_000);
     this.db.prepare(`DELETE FROM postados WHERE postado_em < ?`).run(t - 90 * 86_400_000);
     this.db.prepare(`DELETE FROM cupons_postados WHERE postado_em < ?`).run(t - 90 * 86_400_000);
     this.db.prepare(`DELETE FROM campanhas_postadas WHERE postado_em < ?`).run(t - 90 * 86_400_000);

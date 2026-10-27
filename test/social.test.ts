@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { lerConfig } from '../src/config.ts';
-import { GATILHOS_DE_EXCLUSIVIDADE, GATILHOS_DE_URGENCIA, baixarImagemComoDataUri, descontoConfiavel, ganchoDaOferta, hashtagsDaCategoria, montarGancho, montarLegenda, montarRoteiro, montarSvgDoFeed, montarSvgDoStory, nomeDoCanal, perguntaDaArte, quebrarTexto, tituloParaArte } from '../src/social.ts';
-import { linhasDaPergunta, MARCA } from '../src/moldes.ts';
+import { GATILHOS_DE_EXCLUSIVIDADE, GATILHOS_DE_URGENCIA, baixarImagemComoDataUri, descontoConfiavel, ganchoDaOferta, hashtagsDaCategoria, montarGancho, montarLegenda, montarRoteiro, montarSvgDoFeed, montarSvgDoStory, nomeDoCanal, perguntaDaArte, quebrarTexto, seloDaOferta, tituloParaArte } from '../src/social.ts';
+import { CORES_DO_NICHO, linhasDaPergunta, MARCA } from '../src/moldes.ts';
 import type { OfertaAvaliada } from '../src/types.ts';
 
 const config = lerConfig({ BLOG_TELEGRAM: 'https://t.me/topfera_achadinhos' });
@@ -107,32 +107,48 @@ test('social: a pergunta da arte é "CAIU MESMO?" só com histórico; senão, um
   assert.deepEqual(linhasDaPergunta('QUANTO CUSTA AGORA?'), ['QUANTO CUSTA', 'AGORA?']);
 });
 
-test('moldes: toda arte é válida, enxuta, sem preço em reais, com a pergunta, o link da bio, o aviso de publi e o título escapado', () => {
+test('moldes: toda arte é válida, sem preço em reais, com a prova real, a chamada, o aviso de publi e o título escapado', () => {
   const categorias = ['tech', 'casa', 'beleza', 'moda', 'esporte', 'games', 'bebe', 'ferramentas', 'pet', 'geral', 'inexistente'];
   for (const categoria of categorias) {
     for (let i = 0; i < 6; i++) {
       const o = { ...oferta, categoria, idProduto: `P${i}`, menorPrecoEmDias: i % 2 ? 9 : undefined, precoDe: i === 4 ? ('inflado' as const) : undefined };
-      for (const [svg, w, h] of [[montarSvgDoStory(o, 'data:image/png;base64,AAAA'), 1080, 1920], [montarSvgDoFeed(o, 'data:image/png;base64,AAAA'), 1080, 1350]] as const) {
-        assert.match(svg, new RegExp(`^<svg[^>]+width="${w}" height="${h}"`));
-        assert.doesNotMatch(svg, /R\$|34,41|80,00|\d%/, 'nenhum valor na arte');
-        assert.equal((svg.match(/>MATA</g) ?? []).length, 1, 'a marca aparece uma vez só');
-        assert.ok(svg.includes('VEJA NO LINK DA BIO'), 'leva ao link da bio');
-        assert.equal((svg.match(/>\?</g) ?? []).length, 1, 'a etiqueta de preço com "?" aparece uma vez (o valor nunca aparece)');
-        assert.ok(svg.includes('Publi · link de afiliado'), 'aviso de publi');
-        assert.ok(/CAIU MESMO\?|QUANTO CUSTA AGORA|ADIVINHA O PREÇO|QUANTO VOCÊ PAGARIA/.test(svg), 'a pergunta de curiosidade');
-        assert.ok(!svg.includes('<INMA>') && svg.includes('&lt;INMA&gt;'), 'título escapado');
-        assert.equal(svg.includes('MENOR PREÇO'), i % 2 === 1, 'selo só com histórico confirmado');
-        assert.ok(!svg.includes('ACHADINHOS DO DIA'), 'a marca antiga saiu');
-        // Enxuta: o produto é o herói. Nada de adesivos, estrelas, nota, vendas nem faixa grande do grupo.
-        assert.ok(!svg.includes('<polygon') && !/vendidos|Frete grátis|\b4,8\b/.test(svg), 'sem estatísticas na arte');
-        assert.ok(!svg.includes(MARCA.faixa), 'sem o bloco grande do grupo');
-        assert.ok(!GATILHOS_DE_URGENCIA.some((g) => svg.includes(`>${g}<`)) && !GATILHOS_DE_EXCLUSIVIDADE.some((g) => svg.includes(`>${g}<`)), 'sem adesivos sobre o produto');
-        assert.ok((svg.match(/<text /g) ?? []).length <= 10, 'poucos textos na arte');
+      for (const comentaQuero of [false, true]) {
+        for (const [svg, w, h] of [[montarSvgDoStory(o, 'data:image/png;base64,AAAA', config, comentaQuero), 1080, 1920], [montarSvgDoFeed(o, 'data:image/png;base64,AAAA', config, comentaQuero), 1080, 1350]] as const) {
+          assert.match(svg, new RegExp(`^<svg[^>]+width="${w}" height="${h}"`));
+          assert.doesNotMatch(svg, /R\$|34,41|80,00/, 'nenhum valor em reais na arte');
+          assert.equal((svg.match(/>MATA</g) ?? []).length, 1, 'a marca aparece uma vez só');
+          assert.ok(svg.includes('Publi · link de afiliado'), 'aviso de publi');
+          assert.ok(!svg.includes('<INMA>') && svg.includes('&lt;INMA&gt;'), 'título escapado');
+          assert.equal(svg.includes('MENOR PREÇO'), i % 2 === 1, 'selo de menor preço só com histórico confirmado');
+          assert.ok(/5 mil vendidos/.test(svg) && svg.includes('Frete grátis'), 'a prova real (vendidos, frete) aparece');
+          if (comentaQuero) assert.ok(svg.includes('COMENTA &quot;QUERO&quot;') && svg.includes('NO DIRECT'), 'a chamada do comenta QUERO');
+          else assert.ok(svg.includes('VEJA NO LINK DA BIO'), 'sem o comenta QUERO, leva ao link da bio');
+          assert.ok(!GATILHOS_DE_URGENCIA.some((g) => svg.includes(`>${g}<`)) && !GATILHOS_DE_EXCLUSIVIDADE.some((g) => svg.includes(`>${g}<`)), 'sem adesivos de gatilho sobre o produto');
+          assert.ok((svg.match(/<text /g) ?? []).length <= 12, 'poucos textos na arte');
+        }
       }
     }
   }
-  // O mesmo produto sai sempre igual (um só layout, sem sorteio).
+  // Cada nicho com a sua cor de destaque.
+  assert.ok(montarSvgDoFeed({ ...oferta, categoria: 'pet' }, undefined).includes(CORES_DO_NICHO.pet!));
+  assert.ok(montarSvgDoFeed({ ...oferta, categoria: 'moda' }, undefined).includes(CORES_DO_NICHO.moda!));
+  // O mesmo produto sai sempre igual.
   assert.equal(montarSvgDoStory(oferta, undefined), montarSvgDoStory({ ...oferta }, undefined));
+});
+
+test('moldes: o selo da foto só diz o que é verdade: % só com o preço "de" confirmado, menor preço só com histórico, "EM ALTA" com a febre', () => {
+  const base = { ...oferta, menorPrecoEmDias: undefined, maisVendido: false, vendasPorDia: undefined, desconto: 45, precoOriginal: 200, preco: 110 };
+  assert.deepEqual(seloDaOferta({ ...base, precoDe: 'confirmado' }), { texto: '-45%', tipo: 'desconto' });
+  assert.equal(seloDaOferta({ ...base, precoDe: 'nao-confirmado' }), undefined, 'desconto sem prova não vira selo');
+  assert.equal(seloDaOferta({ ...base, precoDe: 'inflado' }), undefined, '"de" inflado nunca');
+  assert.equal(seloDaOferta({ ...base, precoDe: 'confirmado', desconto: 10, precoOriginal: 120 })?.tipo, undefined, 'desconto pequeno não vira selo');
+  assert.deepEqual(seloDaOferta({ ...base, menorPrecoEmDias: 20 }), { texto: 'MENOR PREÇO', tipo: 'historico' });
+  assert.deepEqual(seloDaOferta({ ...base, vendasPorDia: 80 }), { texto: 'EM ALTA', tipo: 'febre' });
+  assert.deepEqual(seloDaOferta({ ...base, maisVendido: true }), { texto: 'EM ALTA', tipo: 'febre' });
+  // Na arte: com selo, sem a etiqueta "?"; sem selo, a etiqueta "?" faz a curiosidade.
+  const comSelo = montarSvgDoFeed({ ...base, precoDe: 'confirmado' }, undefined);
+  assert.ok(comSelo.includes('>-45%<') && comSelo.includes('>OFF<') && !comSelo.includes('>?<'));
+  assert.ok(montarSvgDoFeed(base, undefined).includes('>?<'));
 });
 
 test('moldes: a pergunta cabe numa linha, para qualquer das perguntas', () => {
@@ -162,10 +178,10 @@ test('moldes: no Story, o logo, o selo, a pergunta e o aviso ficam na área segu
   for (const t of ['HOJE NO GRUPO', 'ENTRE NO GRUPO', 'É GRÁTIS · LINK NA BIO']) for (const y of ys(resumo, t)) assert.ok(y > STORY_TOPO_SEGURO && y < STORY_BASE_SEGURA, `${t} em y ${y}`);
 });
 
-test('moldes: o título, de uma ou de duas linhas, fica sempre acima da pergunta', () => {
+test('moldes: o título, de uma ou de duas linhas, fica sempre acima da prova e da chamada', () => {
   const casos = [oferta, { ...oferta, precoDe: 'inflado' as const }, { ...oferta, titulo: 'Fone', precoDe: 'inflado' as const }, { ...oferta, titulo: 'Fone Bluetooth Sem Fio Cancelamento de Ruído Ativo Bateria 30h Compatível', menorPrecoEmDias: 9 }];
   for (const o of casos) {
-    for (const [svg, yBotao, tamanho] of [[montarSvgDoStory(o, undefined), 1470, 52], [montarSvgDoFeed(o, undefined), 1130, 46]] as const) {
+    for (const [svg, yBotao, tamanho] of [[montarSvgDoStory(o, undefined), 1400, 52], [montarSvgDoFeed(o, undefined), 1080, 44]] as const) {
       const linhas = [...svg.matchAll(new RegExp(`<text x="540" y="([\\d.]+)" font-size="${tamanho}"[^>]*fill="#ffffff"`, 'g'))].map((m) => Number(m[1]));
       assert.ok(linhas.length >= 1 && linhas.length <= 2, 'o título tem uma ou duas linhas');
       assert.ok(Math.max(...linhas) < yBotao - 10, `o título (y ${Math.max(...linhas)}) fica acima da pergunta (y ${yBotao})`);
@@ -188,7 +204,7 @@ test('social: arte do Story é um SVG válido de 1080x1920, com texto escapado e
   assert.ok(!svg.includes('<INMA>'));
   assert.ok(svg.includes('data:image/png;base64,AAAA'));
   assert.doesNotMatch(svg, /R\$|34,41/, 'o preço não vai na arte');
-  assert.doesNotMatch(svg, /Frete grátis|vendidos/, 'sem estatísticas na arte');
+  assert.match(svg, /Frete grátis/, 'a prova real vai na arte');
   const semFoto =montarSvgDoStory({ ...oferta, precoOriginal: undefined, desconto: undefined, freteGratis: false }, undefined, config);
   assert.ok(!semFoto.includes('<image'));
   assert.ok(!semFoto.includes('line-through'));
@@ -230,4 +246,63 @@ test('social: lista de modelos do título (iPhone X 11 12 13 14...) sai da legen
   const l = montarLegenda({ ...oferta, titulo: 'Fone Bluetooth Compatível Com Iphone X Xr 11 12 13 14 15 16 17 Pro Max Sem Fio' }, config);
   assert.ok(!/11 12 13 14/.test(l) && l.includes('Fone Bluetooth Compatível Com Iphone X'));
   assert.ok(montarLegenda({ ...oferta, titulo: 'Galaxy S24 Ultra 512GB 5G' }, config).includes('Galaxy S24 Ultra 512GB 5G'));
+});
+test('comenta QUERO: quem pede recebe o link no direct uma vez só, e a legenda e a arte do feed chamam para comentar', async () => {
+  const { responderComentarios, mensagemDoDirect, ErroInstagram } = await import('../src/instagram.ts');
+  const { Banco } = await import('../src/db.ts');
+  const c = lerConfig({ INSTAGRAM_ATIVO: '1', INSTAGRAM_TOKEN: 't', INSTAGRAM_USER_ID: 'u', BLOG_URL: 'https://site', BLOG_WHATSAPP: 'https://chat.whatsapp.com/ABC' });
+  const agora = new Date('2026-10-27T15:00:00Z');
+  const banco = new Banco(':memory:');
+  banco.registrarMidiaDoInstagram('M1', 'feed', 'Fone Bluetooth Sem Fio', 'https://meli.la/abc', agora);
+  const directs: Array<{ id: string; texto: string }> = [];
+  const publicas: string[] = [];
+  const falso: any = {
+    comentarios: async () => [
+      { id: 'C1', texto: 'QUERO!!' },
+      { id: 'C2', texto: 'que lindo' },
+      { id: 'C3', texto: 'eu quero o link 🙏' },
+      { id: 'C4', texto: 'Quero' },
+    ],
+    mandarNoDirect: async (id: string, texto: string) => {
+      if (id === 'C4') throw new ErroInstagram('Instagram recusou (400/10/2534022): fora da janela', true);
+      directs.push({ id, texto });
+    },
+    responderComentario: async (id: string) => void publicas.push(id),
+  };
+  const r = await responderComentarios(banco, c, agora, fetch, falso);
+  assert.deepEqual(directs.map((d) => d.id), ['C1', 'C3'], 'só quem pediu; o que o Instagram recusou fica para trás sem derrubar o resto');
+  assert.deepEqual(publicas, ['C1', 'C3'], 'responde em público que mandou no direct');
+  assert.equal(r.respondidos, 2);
+  assert.ok(directs[0]!.texto.includes('https://meli.la/abc') && directs[0]!.texto.includes('afiliado') && directs[0]!.texto.includes('chat.whatsapp.com/ABC'));
+  // Na rodada seguinte, ninguém recebe de novo.
+  directs.length = 0;
+  await responderComentarios(banco, c, agora, fetch, falso);
+  assert.equal(directs.length, 0);
+  assert.equal(banco.respostasNoDirect(1, agora), 2);
+
+  // Sem permissão no token: desliga o comenta QUERO por 3 dias e a legenda volta para o link da bio.
+  const semPermissao: any = { comentarios: async () => { throw new ErroInstagram('Instagram recusou (403/200): permissão', true); } };
+  const b2 = new Banco(':memory:');
+  b2.registrarMidiaDoInstagram('M2', 'feed', 'Fone', 'https://x', agora);
+  const r2 = await responderComentarios(b2, c, agora, fetch, semPermissao);
+  assert.match(r2.avisos[0]!, /instagram_business_manage_comments/);
+  const { comentaQueroAtivo } = await import('../src/social.ts');
+  assert.equal(comentaQueroAtivo(b2, c, agora), false);
+  assert.equal(comentaQueroAtivo(b2, c, new Date(agora.getTime() + 10 * 86_400_000)), false, 'com o mesmo token, continua desligado');
+  assert.equal(comentaQueroAtivo(b2, lerConfig({ INSTAGRAM_ATIVO: '1', INSTAGRAM_TOKEN: 'token-novo-com-permissao', INSTAGRAM_USER_ID: 'u' }), agora), true, 'token novo: tenta de novo');
+
+  // App sem acesso para mandar direct ao público: 3 recusas seguidas, nenhum entregue, desliga.
+  const semAcesso: any = { comentarios: async () => ['A', 'B', 'C', 'D'].map((id) => ({ id, texto: 'quero' })), mandarNoDirect: async () => { throw new Error('(#3) Application does not have the capability'); }, responderComentario: async () => {} };
+  const b3 = new Banco(':memory:');
+  b3.registrarMidiaDoInstagram('M3', 'feed', 'Fone', 'https://x', agora);
+  const r3 = await responderComentarios(b3, c, agora, fetch, semAcesso);
+  assert.match(r3.avisos[0]!, /acesso avançado/);
+  assert.equal(comentaQueroAtivo(b3, c, agora), false);
+
+  // Legenda: a chamada logo na 2ª linha, e o preço "vai no direct".
+  const legenda = montarLegenda(oferta, config, true).split('\n');
+  assert.equal(legenda[1], '💬 Comenta QUERO que eu te mando o link no direct');
+  assert.ok(legenda.some((l) => l.includes('vai junto com o link, no seu direct')));
+  assert.ok(!montarLegenda(oferta, config, false).includes('Comenta QUERO'));
+  assert.doesNotMatch(mensagemDoDirect('x'.repeat(200), 'https://l', c), /x{81}/, 'título comprido é encurtado');
 });

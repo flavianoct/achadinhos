@@ -4,7 +4,7 @@ import type { Config } from './config.ts';
 import type { Banco } from './db.ts';
 import { formatarVendas } from './mensagem.ts';
 import { normalizar } from './categoria.ts';
-import { MARCA, svgDaCapaDaDica, svgDaCapaDoDuelo, svgDoCompetidor, svgDoFechamentoDoDuelo, svgDoCriterio, svgDoFechamentoDaDica, svgDoFeed, svgDoStory, svgsDaApresentacao, type DadosDaApresentacao, type DadosDaArte, type TipoDeGancho } from './moldes.ts';
+import { CORES_DO_NICHO, MARCA, svgDaCapaDaDica, svgDaCapaDoDuelo, svgDoCompetidor, svgDoFechamentoDoDuelo, svgDoCriterio, svgDoFechamentoDaDica, svgDoFeed, svgDoStory, svgsDaApresentacao, type DadosDaApresentacao, type DadosDaArte, type TipoDeGancho } from './moldes.ts';
 import { semListaDeModelos } from './fontes/mercadolivre-api.ts';
 import type { OfertaAvaliada } from './types.ts';
 
@@ -226,24 +226,27 @@ export function provaDaOferta(o: OfertaAvaliada): string | undefined {
   return partes.length ? `✅ ${partes.join(' · ')}` : undefined;
 }
 
-export function montarLegenda(o: OfertaAvaliada, config: Config): string {
+export function montarLegenda(o: OfertaAvaliada, config: Config, comentaQuero = false): string {
   const linhas: string[] = [];
   const quem = PARA_QUEM[o.categoria] ?? PARA_QUEM.geral!;
   const grupo = temWhatsapp(config);
   // A primeira linha é o que aparece antes do "mais": gancho e aviso de publicidade já ali.
   linhas.push(`${montarGancho(o)} #publi`);
+  // A chamada logo na segunda linha (antes do "mais"): é ela que gera o comentário, e o comentário é o que mais leva o post longe.
+  if (comentaQuero) linhas.push('💬 Comenta QUERO que eu te mando o link no direct');
   linhas.push(tituloCompleto(o.titulo));
   linhas.push('');
   linhas.push(`🎯 ${quem[escolha(`q${o.idProduto}`, quem.length)]}`);
   const prova = provaDaOferta(o);
   if (prova) linhas.push(prova);
   linhas.push('');
-  linhas.push(PERGUNTAS_DA_LEGENDA[escolha(`p${o.idProduto}`, PERGUNTAS_DA_LEGENDA.length)]!);
+  if (!comentaQuero) linhas.push(PERGUNTAS_DA_LEGENDA[escolha(`p${o.idProduto}`, PERGUNTAS_DA_LEGENDA.length)]!);
   linhas.push('💾 Salva o post pra achar depois');
   linhas.push('');
   // O preço em reais não vai na imagem nem na legenda: quem quer saber entra no grupo.
   // Sem grupo de WhatsApp configurado, não promete grupo: manda para o link da bio (blog).
-  linhas.push(grupo ? '💰 O preço de agora está no grupo (link na bio)' : '💰 O preço de agora está no link da bio');
+  if (comentaQuero) linhas.push('💰 O preço de agora vai junto com o link, no seu direct');
+  else linhas.push(grupo ? '💰 O preço de agora está no grupo (link na bio)' : '💰 O preço de agora está no link da bio');
   linhas.push(grupo ? '⏳ Achado assim some rápido: quem está no grupo vê primeiro' : '⏳ Achado assim some rápido: corre ver na bio');
   linhas.push(`👉 Todas as ofertas no blog, link na bio: ${enderecoDoBlog(config)}`);
   if (grupo) linhas.push(`📲 No grupo ${nomeDaMarca()} chegam achados assim todo dia, com o preço de agora e o histórico conferido. Entrar é grátis: link na bio.`);
@@ -287,9 +290,45 @@ export function quebrarTexto(texto: string, largura: number, maxLinhas: number):
 }
 
 /** Dados da arte que os moldes (moldes.ts) usam. Nada aqui é valor em reais. */
-function dadosDaArte(o: OfertaAvaliada, imagem: string | undefined, larguraDoTitulo: number): DadosDaArte {
+/** Chave do aviso "o token do Instagram não tem permissão para ler comentários ou mandar direct": enquanto valer, o "comenta QUERO" fica desligado. */
+export const CHAVE_DIRECT_BLOQUEADO = 'instagram:direct-bloqueado';
+
+/** Final do token, para saber se o bloqueio do direct é do token atual (um token novo, com as permissões, libera de novo sozinho). */
+export function marcaDoToken(token: string): string {
+  return token.slice(-10);
+}
+
+/**
+ * O "comenta QUERO" está valendo? Ligado no ajuste e sem o Instagram ter recusado comentários ou direct com o token atual. Quando recusa,
+ * fica desligado até o token mudar: a arte e a legenda nunca prometem um direct que não vai chegar.
+ */
+export function comentaQueroAtivo(banco: Banco, config: Config, agora: Date): boolean {
+  if (!config.instagram.comentaQuero) return false;
+  const bloqueio = banco.textoSalvo(CHAVE_DIRECT_BLOQUEADO, 60, agora);
+  return !bloqueio || !bloqueio.startsWith(`${marcaDoToken(config.instagram.token)}|`);
+}
+
+/** Vendas por dia a partir das quais o produto ganha o selo "EM ALTA" (a febre medida pelo robô). */
+const VENDAS_POR_DIA_EM_ALTA = 30;
+
+/**
+ * O selo da foto, só com o que é verdade: o desconto em % quando o nosso histórico confirma o preço "de" (o produto já custou aquilo),
+ * o menor preço provado pelo histórico, ou a febre (vendas por dia medidas pelo robô, ou o selo de mais vendido da própria loja).
+ */
+export function seloDaOferta(o: OfertaAvaliada): DadosDaArte['selo'] {
+  const desconto = o.precoDe === 'confirmado' ? descontoParaArte(o) : 0;
+  if (desconto >= 15) return { texto: `-${desconto}%`, tipo: 'desconto' };
+  if (o.menorPrecoEmDias) return { texto: 'MENOR PREÇO', tipo: 'historico' };
+  if ((o.vendasPorDia ?? 0) >= VENDAS_POR_DIA_EM_ALTA || o.maisVendido) return { texto: 'EM ALTA', tipo: 'febre' };
+  return undefined;
+}
+
+function dadosDaArte(o: OfertaAvaliada, imagem: string | undefined, larguraDoTitulo: number, comentaQuero = false): DadosDaArte {
   const g = ganchoDaOferta(o);
   return {
+    cor: CORES_DO_NICHO[o.categoria] ?? CORES_DO_NICHO.geral,
+    selo: seloDaOferta(o),
+    chamada: comentaQuero ? { linha: 'COMENTA "QUERO"', apoio: 'QUE EU TE MANDO O LINK NO DIRECT' } : undefined,
     titulo: tituloParaArte(o.titulo, larguraDoTitulo),
     desconto: 0,
     gatilho: gatilhoDaArte(o),
@@ -306,13 +345,13 @@ function dadosDaArte(o: OfertaAvaliada, imagem: string | undefined, larguraDoTit
 }
 
 /** Arte do Story, 1080x1920, em SVG. A imagem do produto vai embutida (data URI) para o painel virar PNG no navegador. */
-export function montarSvgDoStory(o: OfertaAvaliada, imagem: string | undefined, _config?: Config): string {
-  return svgDoStory(dadosDaArte(o, imagem, 32));
+export function montarSvgDoStory(o: OfertaAvaliada, imagem: string | undefined, _config?: Config, comentaQuero = false): string {
+  return svgDoStory(dadosDaArte(o, imagem, 32, comentaQuero));
 }
 
 /** Versão 4:5 (1080x1350) para o feed: o feed do Instagram não aceita imagem em pé 9:16. */
-export function montarSvgDoFeed(o: OfertaAvaliada, imagem: string | undefined, _config?: Config): string {
-  return svgDoFeed(dadosDaArte(o, imagem, 33));
+export function montarSvgDoFeed(o: OfertaAvaliada, imagem: string | undefined, _config?: Config, comentaQuero = false): string {
+  return svgDoFeed(dadosDaArte(o, imagem, 33, comentaQuero));
 }
 
 
@@ -520,13 +559,14 @@ export async function gravarPngs(banco: Banco, config: Config, agora: Date): Pro
   const pasta = join(config.blog.pasta, 'social');
   mkdirSync(pasta, { recursive: true });
   let gravados = 0;
+  const comentaQuero = comentaQueroAtivo(banco, config, agora);
   for (const l of banco.socialRecentes(HORAS_DO_SOCIAL, MAXIMO_DE_ARTES, agora)) {
     if (!l.svg) continue;
     const oferta = JSON.parse(l.dados) as OfertaAvaliada;
     const foto = await imagemParaPng(l.imagem);
     const story = await renderizarPng(montarSvgDoStory(oferta, foto, config), 1080);
     if (!story) return { gravados, semConversor: true };
-    const feed = await renderizarPng(montarSvgDoFeed(oferta, foto, config), 1080);
+    const feed = await renderizarPng(montarSvgDoFeed(oferta, foto, config, comentaQuero), 1080);
     writeFileSync(join(pasta, arquivoDaArte(l.chave, 'story')), story);
     gravados++;
     if (feed) {
