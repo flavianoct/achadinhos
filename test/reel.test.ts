@@ -133,7 +133,7 @@ test('reel: monta o mp4 vertical com o ffmpeg', { skip: !temFfmpeg && 'ffmpeg n�
 
 test('reel: dois por dia, cada um na sua janela, depois que o anterior saiu e com produtos diferentes', async () => {
   const banco = bancoComProdutos();
-  const config = lerConfig({ ...base, INSTAGRAM_REELS_POR_DIA: '2', INSTAGRAM_HORARIOS_REELS: '12,19' });
+  const config = lerConfig({ ...base, INSTAGRAM_REELS_POR_DIA: '2', INSTAGRAM_HORARIOS_REELS: '12,19', INSTAGRAM_DESTAQUE_NICHOS: '' });
   assert.equal(await prepararReel(banco, config, AGORA, foto), true, '12h: o primeiro');
   assert.equal(await prepararReel(banco, config, AGORA, foto), false, 'o primeiro ainda não saiu');
   const primeiro = banco.reelPendente(AGORA)!;
@@ -342,4 +342,37 @@ test('carrossel de achados: quem comenta o número recebe o link daquele produto
   assert.equal(lista.length, 3);
   assert.equal(lista[0].titulo, 'Nome um');
   assert.equal(lista[2].link, produto(3).link);
+});
+
+test('destaque: o 2º Reel do dia é um produto de moda ou beleza só, com "comenta EU QUERO", sem repetir o produto na semana', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { QUADROS_DO_DESTAQUE, efeitosDoDestaque } = await import('../src/remotion.ts');
+  const { legendaDoDestaque, svgsDoDestaque } = await import('../src/reel.ts');
+  const tsx = readFileSync(new URL('../remotion/src/Destaque.tsx', import.meta.url), 'utf8');
+  const m = /QUADROS_DO_DESTAQUE = \{ gancho: (\d+), detalhe: (\d+), fim: (\d+) \}/.exec(tsx)!;
+  assert.deepEqual({ gancho: Number(m[1]), detalhe: Number(m[2]), fim: Number(m[3]) }, QUADROS_DO_DESTAQUE, 'o áudio e o vídeo usam os mesmos tempos');
+  assert.equal(efeitosDoDestaque().filter((e) => e.tipo === 'whoosh').length, 4);
+
+  const banco = bancoComProdutos();
+  const config = lerConfig({ ...base, INSTAGRAM_REELS_POR_DIA: '3', INSTAGRAM_HORARIOS_REELS: '' });
+  assert.equal(await prepararReel(banco, config, AGORA, foto), true, 'o 1º: 3 achados');
+  banco.marcarReelPublicado(banco.reelPendente(AGORA)!.chave, AGORA);
+  assert.equal(await prepararReel(banco, config, AGORA, foto), true, 'o 2º: o destaque');
+  const dados = JSON.parse(banco.reelPendente(AGORA)!.dados);
+  assert.equal(dados.formato, 'destaque');
+  assert.equal(dados.item.oferta.categoria, 'beleza', 'só moda ou beleza');
+  const legenda = legendaDoDestaque(dados, config, true);
+  assert.match(legenda, /Comenta EU QUERO que eu te mando o link no direct/);
+  assert.doesNotMatch(legenda, /R\$/);
+  const svgs = svgsDoDestaque(dados, true);
+  assert.equal(svgs.length, 2);
+  assert.ok(svgs[1]!.includes('COMENTA &quot;EU QUERO&quot;'));
+  // O mesmo produto não volta a ser destaque na semana.
+  banco.marcarReelPublicado(banco.reelPendente(AGORA)!.chave, AGORA);
+  const outroDia = new Date(AGORA.getTime() + 86_400_000);
+  const { prepararDestaque } = await import('../src/reel.ts');
+  for (let i = 0; i < 12; i++) banco.guardarProduto({ ...produto(i + 1), categoria: 'casa' }, outroDia);
+  await prepararDestaque(banco, config, outroDia, foto);
+  const novo = banco.reelPendente(outroDia);
+  if (novo) assert.notEqual(JSON.parse(novo.dados).item?.oferta.idProduto, dados.item.oferta.idProduto);
 });

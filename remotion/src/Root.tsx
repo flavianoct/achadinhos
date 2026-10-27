@@ -2,6 +2,7 @@ import React from 'react';
 import { Composition } from 'remotion';
 import { Achados, ACHADOS_FPS, duracaoDosAchados, type PropsDosAchados } from './Achados';
 import { Carrossel, imagensDoCarrossel, type PropsDoCarrossel } from './Carrossel';
+import { Destaque, DESTAQUE_FPS, duracaoDoDestaque, type PropsDoDestaque } from './Destaque';
 import { duracaoDoReel, Reel, REEL_FPS, type PropsDoReel } from './Reel';
 import { duracaoDoTikTok, TikTok, TIKTOK_FPS, type PropsDoTikTok } from './TikTok';
 
@@ -35,8 +36,12 @@ const carrossel: PropsDoCarrossel = {
   comentaQuero: true,
 };
 
+/** Exemplo do Reel de destaque (um produto só) para o editor visual. */
+const destaque: PropsDoDestaque = { nome: ['Vestido Midi', 'Canelado'], imagem: 'https://placehold.co/600x800/png', fato: '2,3 MIL VENDIDOS', provas: ['★ 4,9', '2,3 mil vendidos', 'Frete grátis'], cor: '#E11D48', comentaQuero: true };
+
 export const Root: React.FC = () => (
   <>
+    <Composition id="Destaque" component={Destaque} durationInFrames={duracaoDoDestaque()} fps={DESTAQUE_FPS} width={1080} height={1920} defaultProps={destaque} />
     <Composition
       id="Carrossel"
       component={Carrossel}

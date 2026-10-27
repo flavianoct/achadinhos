@@ -9,8 +9,9 @@ import { diaDe, horaDe, type Banco } from './db.ts';
 import { estiloDaMusica, sintetizarEfeitos, sintetizarMusica, type Efeito } from './musica.ts';
 import { CORES_DO_NICHO, esc, fundo, marca, MARCA } from './moldes.ts';
 import { formatarVendas } from './mensagem.ts';
-import { baixarImagemComoDataUri, comentaQueroAtivo, renderizarPng, seloDaOferta, temWhatsapp, tituloParaArte, type Fetch } from './social.ts';
-import { gravarComRemotion } from './remotion.ts';
+import { baixarImagemComoDataUri, comentaQueroAtivo, hashtagsDaCategoria, renderizarPng, seloDaOferta, temWhatsapp, tituloParaArte, type Fetch } from './social.ts';
+import { gravarComRemotion, gravarDestaqueComRemotion, nomesDaIa } from './remotion.ts';
+import { passaNoFiltroDoInstagram } from './instagram.ts';
 import { linhaPorDia, numerosDoGrupo } from './grupo.ts';
 import type { OfertaAvaliada } from './types.ts';
 
@@ -21,6 +22,15 @@ export interface DadosDoReel {
   formato: 'reel';
   titulo: string;
   itens: Array<{ oferta: OfertaAvaliada; imagem: string }>;
+}
+
+/** Reel de destaque: um produto só (moda e beleza vendem pelo olho), em detalhes, com "comenta EU QUERO" no fim. */
+export interface DadosDoDestaque {
+  formato: 'destaque';
+  titulo: string;
+  item: { oferta: OfertaAvaliada; imagem: string };
+  /** Nome curto escrito pela IA (vazio: o título da loja). */
+  nome?: string;
 }
 
 const ITENS_DO_REEL = 3;
@@ -64,6 +74,8 @@ export async function prepararReel(banco: Banco, config: Config, agora: Date, fe
   const janelas = [...ig.horariosReels].sort((a, b) => a - b);
   if (janelas.length > 0 && hora < (janelas[Math.min(jaCriados, janelas.length - 1)] as number) - 1) return false;
 
+  // O 2º Reel do dia é o destaque (um produto de moda ou beleza), quando há um bom; senão, o Reel de 3 achados.
+  if (jaCriados === 1 && (await prepararDestaque(banco, config, agora, fetchFn))) return true;
   // Usa a mesma escolha do carrossel (qualidade, foto e variedade de categorias), com o teto de preço do dia.
   const config3 = { ...config, instagram: { ...ig, carrosselItens: ITENS_DO_REEL } };
   const escolha = escolherParaCarrossel(banco.melhoresProdutos({ horas: 36, limite: 150 }, agora), config3, agora);
@@ -80,6 +92,57 @@ export async function prepararReel(banco: Banco, config: Config, agora: Date, fe
   const dados: DadosDoReel = { formato: 'reel', titulo, itens };
   banco.salvarReel(jaCriados === 0 ? `reel-${diaDe(agora)}` : `reel-${diaDe(agora)}-${jaCriados + 1}`, titulo, JSON.stringify(dados), agora);
   return true;
+}
+
+/** Um produto não volta a ser destaque antes disso. */
+const DIAS_SEM_REPETIR_DESTAQUE = 7;
+
+/**
+ * Cria o Reel de destaque: o melhor produto dos nichos de destaque (INSTAGRAM_DESTAQUE_NICHOS, padrão moda e beleza) que passa no filtro do
+ * Instagram, tem foto e não foi destaque nos últimos 7 dias. A IA escreve o nome curto. Devolve true se criou.
+ */
+export async function prepararDestaque(banco: Banco, config: Config, agora: Date, fetchFn: Fetch = fetch): Promise<boolean> {
+  const nichos = config.instagram.destaqueNichos;
+  if (!nichos.length) return false;
+  const jaCriados = banco.reelsCriadosNoDia(agora);
+  for (const oferta of banco.melhoresProdutos({ horas: 36, limite: 300 }, agora)) {
+    if (!nichos.includes(oferta.categoria) || !/^https:\/\//i.test(oferta.link) || !/^https:\/\//i.test(oferta.imagem ?? '') || !passaNoFiltroDoInstagram(oferta, config.instagram)) continue;
+    if (banco.textoSalvo(`destaque:${oferta.loja}:${oferta.idProduto}`, DIAS_SEM_REPETIR_DESTAQUE, agora)) continue;
+    const imagem = await baixarImagemComoDataUri(oferta.imagem, fetchFn);
+    if (!imagem) continue;
+    const nome = (await nomesDaIa([oferta.titulo], config, fetchFn))?.[0] || undefined;
+    const dados: DadosDoDestaque = { formato: 'destaque', titulo: nome || oferta.titulo, item: { oferta, imagem }, ...(nome ? { nome } : {}) };
+    banco.salvarReel(`reel-${diaDe(agora)}-${jaCriados + 1}`, dados.titulo, JSON.stringify(dados), agora);
+    banco.salvarTexto(`destaque:${oferta.loja}:${oferta.idProduto}`, diaDe(agora), agora);
+    return true;
+  }
+  return false;
+}
+
+/** Legenda do destaque: o pedido do comentário logo no começo, as provas e o aviso de publi. Nunca preço em reais. */
+export function legendaDoDestaque(d: DadosDoDestaque, config: Config, comentaQuero = false, ontem?: string): string {
+  const o = d.item.oferta;
+  const provas = [o.nota && o.nota >= 4 ? `⭐ nota ${o.nota.toFixed(1).replace('.', ',')}` : '', o.vendas && o.vendas >= 100 ? `${formatarVendas(o.vendas)} vendidos` : '', o.freteGratis ? 'frete grátis' : ''].filter(Boolean).join(' · ');
+  return [
+    `✨ ${d.nome || o.titulo.split(/\s+/).slice(0, 8).join(' ')} #publi`,
+    comentaQuero ? '💬 Comenta EU QUERO que eu te mando o link no direct' : '💬 Gostou? O link está na bio',
+    '',
+    ...(provas ? [`✅ ${provas}`, ''] : []),
+    comentaQuero ? '💰 O preço de agora vai junto com o link, no seu direct.' : '💰 O preço de agora está no link da bio.',
+    'Salva para não perder e manda para quem vai gostar 💾',
+    ...(ontem ? [ontem] : []),
+    '',
+    'Publi: link de afiliado. Preço e estoque podem mudar a qualquer momento.',
+    '',
+    hashtagsDaCategoria(o.categoria).join(' '),
+  ].join('\n');
+}
+
+/** Plano B do destaque (sem o Remotion): a tela do produto e a tela do pedido de comentário. */
+export function svgsDoDestaque(d: DadosDoDestaque, comentaQuero: boolean): string[] {
+  const chamada = comentaQuero ? ['COMENTA "EU QUERO"', 'QUE EU TE MANDO O LINK NO DIRECT'] : ['LINK NA BIO', 'PRA VER O PREÇO DE AGORA'];
+  const fim = moldura(`${logo(330)}\n<image href="${d.item.imagem}" x="140" y="420" width="800" height="800" preserveAspectRatio="xMidYMid meet"/>\n${texto(1370, esc(chamada[0]!), tamanhoQueCabe(chamada[0]!, 96), MARCA.amarelo, 900)}\n${texto(1450, esc(chamada[1]!), tamanhoQueCabe(chamada[1]!, 42), MARCA.branco, 700)}`);
+  return [svgDoItem({ oferta: d.item.oferta, imagem: d.item.imagem }, 0, 1), fim];
 }
 
 const fonte = 'font-family="Liberation Sans,DejaVu Sans,Arial,Helvetica,sans-serif"';
@@ -340,7 +403,17 @@ export async function gravarReel(banco: Banco, config: Config, agora: Date): Pro
   if (!config.social.ativo || !config.instagram.ativo || config.instagram.reelsPorDia <= 0) return undefined;
   const pendente = banco.reelPendente(agora);
   if (!pendente) return undefined;
-  const dados = JSON.parse(pendente.dados) as DadosDoReel;
+  const lido = JSON.parse(pendente.dados) as DadosDoReel | DadosDoDestaque;
+  if (lido.formato === 'destaque') {
+    const pasta = join(config.blog.pasta, 'social');
+    mkdirSync(pasta, { recursive: true });
+    const comentaQuero = comentaQueroAtivo(banco, config, agora);
+    const animado = await gravarDestaqueComRemotion(lido.item, lido.nome, pendente.chave, join(pasta, nomeDoArquivo(pendente.chave)), config, comentaQuero);
+    if (!animado) return undefined;
+    console.log(`[reel] destaque animado não saiu (${animado}); montando o simples.`);
+    return montarVideo({ svgs: svgsDoDestaque(lido, comentaQuero), duracoes: [6, 3.5], chave: pendente.chave, pasta, transicao: TRANSICAO_DO_REEL, zoom: 0.0016 });
+  }
+  const dados = lido;
   if (dados.formato !== 'reel' || !dados.itens?.length) return undefined;
   const n = dados.itens.length;
   const comentaQuero = comentaQueroAtivo(banco, config, agora);
