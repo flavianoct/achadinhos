@@ -5,7 +5,7 @@ import { diaDe, horaDe } from './db.ts';
 import { CHAVE_DIRECT_BLOQUEADO, HORAS_DO_SOCIAL, comentaQueroAtivo, marcaDoToken, arquivoDaArte, arquivosDoCarrossel, legendaDoCarrossel, montarLegenda, totalDeImagens, type DadosDoCarrossel, type Fetch } from './social.ts';
 import { Telegram } from './telegram.ts';
 import { legendaDoQuiz, legendaParaTikTokEShorts, type DadosDoQuiz } from './quiz.ts';
-import { arquivoDoReel, legendaDoReel, type DadosDoReel } from './reel.ts';
+import { arquivoDoReel, legendaDoDestaque, legendaDoReel, type DadosDoDestaque, type DadosDoReel } from './reel.ts';
 import { linhaDeChegada, linhaDeOntem, numerosDoGrupo } from './grupo.ts';
 import type { OfertaAvaliada } from './types.ts';
 import { campanhaDeHoje, carregarCampanhas } from './datas.ts';
@@ -284,13 +284,16 @@ export async function publicarNoInstagram(banco: Banco, config: Config, agora: D
       const video = `${config.blog.url}/social/${arquivoDoReel(reel.chave)}`;
       if (await noAr(video)) {
         try {
-          const dadosDoReel = JSON.parse(reel.dados) as DadosDoReel | DadosDoQuiz;
-          const id = await api.publicarReel(video, dadosDoReel.formato === 'quiz' ? legendaDoQuiz(dadosDoReel, config) : legendaDoReel(dadosDoReel, config, comentaQuero, ontem));
+          const dadosDoReel = JSON.parse(reel.dados) as DadosDoReel | DadosDoQuiz | DadosDoDestaque;
+          const legenda = dadosDoReel.formato === 'quiz' ? legendaDoQuiz(dadosDoReel, config) : dadosDoReel.formato === 'destaque' ? legendaDoDestaque(dadosDoReel, config, comentaQuero, ontem) : legendaDoReel(dadosDoReel, config, comentaQuero, ontem);
+          const id = await api.publicarReel(video, legenda);
           banco.marcarReelPublicado(reel.chave, agora);
           if (id) {
             // Reel de produtos: guarda o nome e o link de cada um, na ordem (o "comenta 2" leva ao produto 2). O quiz leva à página da bio.
             const produtos = dadosDoReel.formato === 'reel' ? dadosDoReel.itens.map((it) => ({ titulo: it.oferta.titulo, link: it.oferta.link })) : undefined;
-            banco.registrarMidiaDoInstagram(id, 'reel', dadosDoReel.titulo, produtos ? JSON.stringify(produtos) : paginaDaBio(config), agora);
+            // Destaque: um produto só, o "eu quero" leva direto a ele.
+            const link = dadosDoReel.formato === 'destaque' ? dadosDoReel.item.oferta.link : produtos ? JSON.stringify(produtos) : paginaDaBio(config);
+            banco.registrarMidiaDoInstagram(id, 'reel', dadosDoReel.titulo, link, agora);
           }
           resumo.reels++;
           await pausa(2000);

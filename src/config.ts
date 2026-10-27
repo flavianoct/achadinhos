@@ -154,7 +154,7 @@ export interface Config {
   /** Arte de Story, legenda e roteiro de vídeo das ofertas postadas (aparecem no painel). */
   social: { ativo: boolean };
   /** Publicação automática no Instagram (conta profissional). Token e ID ficam nos Secrets. */
-  instagram: { ativo: boolean; token: string; userId: string; feedPorDia: number; storiesPorDia: number; intervaloFeedMin: number; intervaloStoryMin: number; notaMinima: number; vendasMinimas: number; palavrasBloqueadas: string[]; carrosselPorDia: number; carrosselItens: number; carrosselTetos: number[]; dicasDias: number[]; perguntaDias: number[]; horariosFeed: number[]; horariosStories: number[]; reelsPorDia: number; horariosReels: number[]; resumoHora: number; dataHora: number; grupoDias: number[]; tokenData: string; comentaQuero: boolean; palavrasDoComentario: string[]; respostasPorRodada: number; reelRemotion: boolean };
+  instagram: { ativo: boolean; token: string; userId: string; feedPorDia: number; storiesPorDia: number; intervaloFeedMin: number; intervaloStoryMin: number; notaMinima: number; vendasMinimas: number; palavrasBloqueadas: string[]; carrosselPorDia: number; carrosselItens: number; carrosselTetos: number[]; dicasDias: number[]; perguntaDias: number[]; horariosFeed: number[]; horariosStories: number[]; reelsPorDia: number; horariosReels: number[]; resumoHora: number; dataHora: number; grupoDias: number[]; tokenData: string; comentaQuero: boolean; palavrasDoComentario: string[]; respostasPorRodada: number; reelRemotion: boolean; destaqueNichos: string[] };
   painel: { porta: number };
 }
 
@@ -548,6 +548,8 @@ function lerConfigBase(env: Env): Config {
       respostasPorRodada: numero(env, 'INSTAGRAM_RESPOSTAS_POR_RODADA', 25),
       // Reel animado com o Remotion (pasta remotion/). Se ele não estiver instalado ou falhar, sai o Reel simples (ffmpeg).
       reelRemotion: ligado(env, 'REEL_REMOTION', true),
+      // Reel de destaque (um produto só, "comenta EU QUERO"): os nichos que vendem pelo olho. Ocupa o 2º Reel do dia. Vazio = nunca.
+      destaqueNichos: lista(env.INSTAGRAM_DESTAQUE_NICHOS === undefined ? 'moda,beleza' : env.INSTAGRAM_DESTAQUE_NICHOS).map((n) => n.toLowerCase()),
     },
     painel: { porta: numero(env, 'PAINEL_PORTA', 3210) },
   };
