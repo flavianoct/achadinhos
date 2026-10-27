@@ -41,7 +41,7 @@ const destaque: PropsDoDestaque = { nome: ['Vestido Midi', 'Canelado'], imagem: 
 
 export const Root: React.FC = () => (
   <>
-    <Composition id="Destaque" component={Destaque} durationInFrames={duracaoDoDestaque()} fps={DESTAQUE_FPS} width={1080} height={1920} defaultProps={destaque} />
+    <Composition id="Destaque" component={Destaque} durationInFrames={duracaoDoDestaque(destaque)} fps={DESTAQUE_FPS} width={1080} height={1920} defaultProps={destaque} calculateMetadata={({ props }) => ({ durationInFrames: duracaoDoDestaque(props) })} />
     <Composition
       id="Carrossel"
       component={Carrossel}

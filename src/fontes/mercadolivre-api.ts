@@ -281,7 +281,11 @@ export class FonteMercadoLivreApi {
     if (vencedor?.condition && vencedor.condition !== 'new') return undefined;
     const original = Number(vencedor?.original_price);
     const precoOriginal = Number.isFinite(original) && original > preco ? original : undefined;
-    const foto = String(p?.pictures?.[0]?.url ?? p?.pictures?.[0]?.secure_url ?? '').replace(/^http:/, 'https:');
+    const fotos = (Array.isArray(p?.pictures) ? p.pictures : [])
+      .map((f: any) => String(f?.url ?? f?.secure_url ?? '').replace(/^http:/, 'https:'))
+      .filter((u: string) => /^https:\/\//.test(u))
+      .slice(0, 8);
+    const foto = fotos[0] ?? '';
     const permalink = /^https:\/\//.test(String(p?.permalink ?? '')) ? String(p.permalink) : `https://www.mercadolivre.com.br/p/${idProduto}`;
     return {
       loja: 'mercadolivre',
@@ -292,6 +296,7 @@ export class FonteMercadoLivreApi {
       precoOriginal,
       desconto: precoOriginal ? Math.round((1 - preco / precoOriginal) * 100) : undefined,
       imagem: foto || undefined,
+      ...(fotos.length > 1 ? { fotos } : {}),
       link: linkAfiliadoML(permalink, this.opcoes.mattWord, this.opcoes.mattTool),
       freteGratis: vencedor?.shipping?.free_shipping ? true : undefined,
       maisVendido: true,

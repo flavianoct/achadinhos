@@ -9,7 +9,7 @@ import { diaDe, horaDe, type Banco } from './db.ts';
 import { estiloDaMusica, sintetizarEfeitos, sintetizarMusica, type Efeito } from './musica.ts';
 import { CORES_DO_NICHO, esc, fundo, marca, MARCA } from './moldes.ts';
 import { formatarVendas } from './mensagem.ts';
-import { baixarImagemComoDataUri, comentaQueroAtivo, hashtagsDaCategoria, renderizarPng, seloDaOferta, temWhatsapp, tituloParaArte, type Fetch } from './social.ts';
+import { baixarImagemComoDataUri, comentaQueroAtivo, hashtagsDaCategoria, reduzirFoto, renderizarPng, seloDaOferta, temWhatsapp, tituloParaArte, type Fetch } from './social.ts';
 import { gravarComRemotion, gravarDestaqueComRemotion, nomesDaIa } from './remotion.ts';
 import { passaNoFiltroDoInstagram } from './instagram.ts';
 import { linhaPorDia, numerosDoGrupo } from './grupo.ts';
@@ -28,7 +28,7 @@ export interface DadosDoReel {
 export interface DadosDoDestaque {
   formato: 'destaque';
   titulo: string;
-  item: { oferta: OfertaAvaliada; imagem: string };
+  item: { oferta: OfertaAvaliada; imagem: string; fotos?: string[] };
   /** Nome curto escrito pela IA (vazio: o título da loja). */
   nome?: string;
 }
@@ -74,8 +74,8 @@ export async function prepararReel(banco: Banco, config: Config, agora: Date, fe
   const janelas = [...ig.horariosReels].sort((a, b) => a - b);
   if (janelas.length > 0 && hora < (janelas[Math.min(jaCriados, janelas.length - 1)] as number) - 1) return false;
 
-  // O 2º Reel do dia é o destaque (um produto de moda ou beleza), quando há um bom; senão, o Reel de 3 achados.
-  if (jaCriados === 1 && (await prepararDestaque(banco, config, agora, fetchFn))) return true;
+  // Os Reels de destaque (um produto só, de preferência com várias fotos) vêm primeiro no dia; sem produto bom, sai o Reel de 3 achados.
+  if (jaCriados < ig.reelsDeDestaque && (await prepararDestaque(banco, config, agora, fetchFn))) return true;
   // Usa a mesma escolha do carrossel (qualidade, foto e variedade de categorias), com o teto de preço do dia.
   const config3 = { ...config, instagram: { ...ig, carrosselItens: ITENS_DO_REEL } };
   const escolha = escolherParaCarrossel(banco.melhoresProdutos({ horas: 36, limite: 150 }, agora), config3, agora);
@@ -105,13 +105,23 @@ export async function prepararDestaque(banco: Banco, config: Config, agora: Date
   const nichos = config.instagram.destaqueNichos;
   if (!nichos.length) return false;
   const jaCriados = banco.reelsCriadosNoDia(agora);
-  for (const oferta of banco.melhoresProdutos({ horas: 36, limite: 300 }, agora)) {
-    if (!nichos.includes(oferta.categoria) || !/^https:\/\//i.test(oferta.link) || !/^https:\/\//i.test(oferta.imagem ?? '') || !passaNoFiltroDoInstagram(oferta, config.instagram)) continue;
+  const todos = nichos.includes('todos');
+  // Primeiro os produtos com 3 fotos ou mais (viram galeria), na ordem da pontuação; depois os de uma foto só.
+  const produtos = banco.melhoresProdutos({ horas: 36, limite: 300 }, agora);
+  const ordem = [...produtos.filter((o) => (o.fotos?.length ?? 0) >= 3), ...produtos.filter((o) => (o.fotos?.length ?? 0) < 3)];
+  for (const oferta of ordem) {
+    if ((!todos && !nichos.includes(oferta.categoria)) || !/^https:\/\//i.test(oferta.link) || !/^https:\/\//i.test(oferta.imagem ?? '') || !passaNoFiltroDoInstagram(oferta, config.instagram)) continue;
     if (banco.textoSalvo(`destaque:${oferta.loja}:${oferta.idProduto}`, DIAS_SEM_REPETIR_DESTAQUE, agora)) continue;
-    const imagem = await baixarImagemComoDataUri(oferta.imagem, fetchFn);
+    const imagem = await reduzirFoto(await baixarImagemComoDataUri(oferta.imagem, fetchFn), 1080, 86);
     if (!imagem) continue;
+    // As outras fotos do anúncio (frente, costas, detalhe, outras cores), reduzidas: com 3 ou mais, o Reel vira galeria.
+    const fotos: string[] = [imagem];
+    for (const url of (oferta.fotos ?? []).slice(1, 7)) {
+      const f = await reduzirFoto(await baixarImagemComoDataUri(url, fetchFn), 1080, 86);
+      if (f) fotos.push(f);
+    }
     const nome = (await nomesDaIa([oferta.titulo], config, fetchFn))?.[0] || undefined;
-    const dados: DadosDoDestaque = { formato: 'destaque', titulo: nome || oferta.titulo, item: { oferta, imagem }, ...(nome ? { nome } : {}) };
+    const dados: DadosDoDestaque = { formato: 'destaque', titulo: nome || oferta.titulo, item: { oferta, imagem, ...(fotos.length >= 3 ? { fotos } : {}) }, ...(nome ? { nome } : {}) };
     banco.salvarReel(`reel-${diaDe(agora)}-${jaCriados + 1}`, dados.titulo, JSON.stringify(dados), agora);
     banco.salvarTexto(`destaque:${oferta.loja}:${oferta.idProduto}`, diaDe(agora), agora);
     return true;

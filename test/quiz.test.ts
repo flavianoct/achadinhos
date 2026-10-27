@@ -16,7 +16,7 @@ import type { OfertaAvaliada } from '../src/types.ts';
 const AGORA = new Date('2026-10-12T15:00:00Z');
 const base = {
   INSTAGRAM_ATIVO: '1', INSTAGRAM_TOKEN: 't', INSTAGRAM_USER_ID: '1', BLOG_URL: 'https://fulano.github.io/achadinhos', HORA_INICIO: '8', HORA_FIM: '23',
-  INSTAGRAM_HORARIOS_FEED: '', INSTAGRAM_HORARIOS_STORIES: '', INSTAGRAM_HORARIOS_REELS: '', INSTAGRAM_REELS_POR_DIA: '2', QUIZ_ATIVO: '1',
+  INSTAGRAM_HORARIOS_FEED: '', INSTAGRAM_HORARIOS_STORIES: '', INSTAGRAM_HORARIOS_REELS: '', INSTAGRAM_REELS_POR_DIA: '2', QUIZ_ATIVO: '1', INSTAGRAM_REELS_DE_DESTAQUE: '0',
 };
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==', 'base64');
 const foto = (async () => new Response(png, { status: 200, headers: { 'content-type': 'image/png' } })) as unknown as typeof fetch;

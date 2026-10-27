@@ -53,7 +53,8 @@ export function converterCartaoML(cartao: any, mattWord: string, mattTool: strin
   const nota = Number(String(rotulos[0]?.label?.text ?? '').replace(',', '.'));
   const vendas = lerVendas(rotulos[1]?.label?.text) ?? lerVendas(avaliacao?.alt_text);
 
-  const fotoId: string | undefined = cartao.pictures?.pictures?.[0]?.id;
+  const fotoIds: string[] = (Array.isArray(cartao.pictures?.pictures) ? cartao.pictures.pictures : []).map((f: any) => f?.id).filter((id: unknown): id is string => typeof id === 'string' && /^[\w-]+$/.test(id)).slice(0, 8);
+  const fotoId: string | undefined = fotoIds[0];
   const loja: string | undefined = componente(cartao, 'seller')?.seller?.values?.find((v: any) => v?.key === 'label')?.label?.text;
   const frete = JSON.stringify(componente(cartao, 'shipping_v2') ?? '');
 
@@ -66,6 +67,7 @@ export function converterCartaoML(cartao: any, mattWord: string, mattTool: strin
     precoOriginal,
     desconto,
     imagem: fotoId ? `https://http2.mlstatic.com/D_Q_NP_2X_${fotoId}-AB.webp` : undefined,
+    ...(fotoIds.length > 1 ? { fotos: fotoIds.map((f) => `https://http2.mlstatic.com/D_Q_NP_2X_${f}-AB.webp`) } : {}),
     link: linkAfiliadoML(url, mattWord, mattTool),
     nota: Number.isFinite(nota) && nota > 0 && nota <= 5 ? nota : undefined,
     vendas,

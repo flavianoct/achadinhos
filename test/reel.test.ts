@@ -13,7 +13,7 @@ import type { OfertaAvaliada } from '../src/types.ts';
 
 // 12h em Brasília
 const AGORA = new Date('2026-10-03T15:00:00Z');
-const base = { INSTAGRAM_ATIVO: '1', INSTAGRAM_TOKEN: 'tok-secreto', INSTAGRAM_USER_ID: '1789', BLOG_URL: 'https://fulano.github.io/achadinhos', HORA_INICIO: '8', HORA_FIM: '23', INSTAGRAM_HORARIOS_FEED: '', INSTAGRAM_HORARIOS_STORIES: '', INSTAGRAM_HORARIOS_REELS: '' };
+const base = { INSTAGRAM_ATIVO: '1', INSTAGRAM_TOKEN: 'tok-secreto', INSTAGRAM_USER_ID: '1789', BLOG_URL: 'https://fulano.github.io/achadinhos', HORA_INICIO: '8', HORA_FIM: '23', INSTAGRAM_HORARIOS_FEED: '', INSTAGRAM_HORARIOS_STORIES: '', INSTAGRAM_HORARIOS_REELS: '', INSTAGRAM_REELS_DE_DESTAQUE: '0' };
 
 const produto = (n: number): OfertaAvaliada => ({
   loja: 'mercadolivre', idProduto: `MLB${n}`, titulo: `Produto Bom Numero ${n} Com Nome Longo Para Testar Legenda`, preco: 20 + n, link: `https://www.mercadolivre.com.br/p/MLB${n}`,
@@ -344,7 +344,7 @@ test('carrossel de achados: quem comenta o número recebe o link daquele produto
   assert.equal(lista[2].link, produto(3).link);
 });
 
-test('destaque: o 2º Reel do dia é um produto de moda ou beleza só, com "comenta EU QUERO", sem repetir o produto na semana', async () => {
+test('destaque: o Reel de destaque é um produto só (dos nichos escolhidos), com "comenta EU QUERO", sem repetir o produto na semana', async () => {
   const { readFileSync } = await import('node:fs');
   const { QUADROS_DO_DESTAQUE, efeitosDoDestaque } = await import('../src/remotion.ts');
   const { legendaDoDestaque, svgsDoDestaque } = await import('../src/reel.ts');
@@ -354,10 +354,8 @@ test('destaque: o 2º Reel do dia é um produto de moda ou beleza só, com "come
   assert.equal(efeitosDoDestaque().filter((e) => e.tipo === 'whoosh').length, 4);
 
   const banco = bancoComProdutos();
-  const config = lerConfig({ ...base, INSTAGRAM_REELS_POR_DIA: '3', INSTAGRAM_HORARIOS_REELS: '' });
-  assert.equal(await prepararReel(banco, config, AGORA, foto), true, 'o 1º: 3 achados');
-  banco.marcarReelPublicado(banco.reelPendente(AGORA)!.chave, AGORA);
-  assert.equal(await prepararReel(banco, config, AGORA, foto), true, 'o 2º: o destaque');
+  const config = lerConfig({ ...base, INSTAGRAM_REELS_POR_DIA: '3', INSTAGRAM_HORARIOS_REELS: '', INSTAGRAM_REELS_DE_DESTAQUE: '1', INSTAGRAM_DESTAQUE_NICHOS: 'moda,beleza' });
+  assert.equal(await prepararReel(banco, config, AGORA, foto), true, 'o 1º: o destaque');
   const dados = JSON.parse(banco.reelPendente(AGORA)!.dados);
   assert.equal(dados.formato, 'destaque');
   assert.equal(dados.item.oferta.categoria, 'beleza', 'só moda ou beleza');
@@ -375,4 +373,22 @@ test('destaque: o 2º Reel do dia é um produto de moda ou beleza só, com "come
   await prepararDestaque(banco, config, outroDia, foto);
   const novo = banco.reelPendente(outroDia);
   if (novo) assert.notEqual(JSON.parse(novo.dados).item?.oferta.idProduto, dados.item.oferta.idProduto);
+});
+
+test('galeria: o destaque prefere o produto com várias fotos do anúncio e guarda as fotos; o áudio acompanha cada foto', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { QUADROS_DA_GALERIA, efeitosDoDestaque } = await import('../src/remotion.ts');
+  const { prepararDestaque } = await import('../src/reel.ts');
+  const tsx = readFileSync(new URL('../remotion/src/Destaque.tsx', import.meta.url), 'utf8');
+  const m = /QUADROS_DA_GALERIA = \{ gancho: (\d+), foto: (\d+), fim: (\d+) \}/.exec(tsx)!;
+  assert.deepEqual({ gancho: Number(m[1]), foto: Number(m[2]), fim: Number(m[3]) }, QUADROS_DA_GALERIA);
+  assert.equal(efeitosDoDestaque(5).filter((e) => e.tipo === 'pop').length, 1 + 5, 'um pop no gancho e um por foto');
+  const banco = new Banco(':memory:');
+  banco.guardarProduto({ ...produto(1), pontos: 99 }, AGORA);
+  banco.guardarProduto({ ...produto(2), pontos: 50, fotos: [1, 2, 3, 4].map((n) => `https://http2.mlstatic.com/f${n}.png`) }, AGORA);
+  const config = lerConfig({ ...base, INSTAGRAM_REELS_DE_DESTAQUE: '3' });
+  assert.equal(await prepararDestaque(banco, config, AGORA, foto), true);
+  const dados = JSON.parse(banco.reelPendente(AGORA)!.dados);
+  assert.equal(dados.item.oferta.idProduto, 'MLB2', 'o de várias fotos vem antes, mesmo com menos pontos');
+  assert.equal(dados.item.fotos.length, 4);
 });
