@@ -3,11 +3,13 @@ import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
+import { pedirAoGemini } from './blog.ts';
+import { normalizar } from './categoria.ts';
 import type { Config } from './config.ts';
 import { formatarVendas } from './mensagem.ts';
 import { CORES_DO_NICHO } from './moldes.ts';
 import { estiloDaMusica, sintetizarEfeitos, sintetizarMusica, type Efeito } from './musica.ts';
-import { seloDaOferta, tituloParaArte } from './social.ts';
+import { seloDaOferta, tituloParaArte, type Fetch } from './social.ts';
 import type { OfertaAvaliada } from './types.ts';
 
 const executar = promisify(execFile);
@@ -53,13 +55,13 @@ export function fatoDoGancho(o: OfertaAvaliada): string {
 }
 
 /** Os dados do vídeo. Os itens chegam em ordem de ranking (o primeiro é o nº 1); a contagem do vídeo os mostra do último ao primeiro. */
-export function propsDoRemotion(itens: Array<{ oferta: OfertaAvaliada; imagem: string }>, comentaQuero: boolean): PropsDoRemotion {
+export function propsDoRemotion(itens: Array<{ oferta: OfertaAvaliada; imagem: string }>, comentaQuero: boolean, nomesDaIa?: string[]): PropsDoRemotion {
   const n1 = itens[0]!.oferta;
   // "O Nº 1 É O MAIS VENDIDO" só quando é verdade; senão, a promessa é só ver o nº 1.
   const maisVendido = (n1.vendas ?? 0) > 0 && itens.every((it) => (it.oferta.vendas ?? 0) <= (n1.vendas ?? 0));
   return {
-    itens: itens.map(({ oferta, imagem }) => ({
-      nome: tituloParaArte(oferta.titulo, 22, 2),
+    itens: itens.map(({ oferta, imagem }, i) => ({
+      nome: tituloParaArte(nomesDaIa?.[i] || oferta.titulo, 22, 2),
       imagem,
       selo: seloDaOferta(oferta),
       provas: provasDoProduto(oferta),
@@ -69,6 +71,49 @@ export function propsDoRemotion(itens: Array<{ oferta: OfertaAvaliada; imagem: s
     promessa: maisVendido ? 'O Nº 1 É O MAIS VENDIDO' : 'ESPERA O Nº 1',
     comentaQuero,
   };
+}
+
+/** Palavras que o nome curto não pode ter: preço, desconto e promessa são assunto dos dados, não da IA. */
+const PROIBIDAS_NO_NOME = /r\$|%|\b(melhor|melhores|barato|barata|baratissimo|promo|promocao|oferta|desconto|gratis|frete|mais vendido|imperdivel|top|incrivel|perfeito|garantido|original)\b/;
+
+/**
+ * O nome curto que a IA escreveu serve? Até 40 letras, sem preço nem promessa, e com pelo menos uma palavra do título de verdade
+ * (para a IA não trocar o produto por outro).
+ */
+export function nomeDaIaServe(nome: string, tituloOriginal: string): boolean {
+  const n = normalizar(nome.trim());
+  if (!n || n.length > 40 || n.length < 4 || PROIBIDAS_NO_NOME.test(n)) return false;
+  const doTitulo = new Set(normalizar(tituloOriginal).split(/[^a-z0-9]+/).filter((p) => p.length >= 4));
+  return n.split(/[^a-z0-9]+/).some((p) => doTitulo.has(p));
+}
+
+/**
+ * Pede à IA do robô (Gemini) um nome curto e claro para cada produto do Reel ("Secador profissional Taiff" em vez do título enorme da loja).
+ * Devolve só os nomes que passam na conferência (os outros ficam vazios e o vídeo usa o título cortado). Sem IA ou com erro, devolve undefined.
+ */
+export async function nomesDaIa(titulos: string[], config: Config, fetchFn: Fetch = fetch): Promise<string[] | undefined> {
+  const b = config.blog;
+  if (b.ia !== 'gemini' || !b.geminiChave || !titulos.length) return undefined;
+  const prompt = [
+    'Para cada produto abaixo, escreva um nome curto para aparecer em letras grandes num vídeo de ofertas.',
+    'Regras: até 32 caracteres; diga o que o produto é e, se ajudar, a marca ou o detalhe que chama a atenção; português do Brasil;',
+    'sem preço, sem porcentagem, sem "melhor", "barato", "promoção", "oferta", "frete", "imperdível" ou qualquer promessa; não invente nada que não esteja no nome.',
+    'Responda só com um JSON assim: {"nomes": ["...", "..."]}, na mesma ordem.',
+    '',
+    ...titulos.map((t, i) => `${i + 1}. ${t}`),
+  ].join('\n');
+  for (const modelo of [b.geminiModelo, b.geminiReserva].filter(Boolean)) {
+    try {
+      const resposta = await pedirAoGemini(b.geminiChave, modelo, prompt, fetchFn);
+      const json = /\{[\s\S]*\}/.exec(resposta)?.[0];
+      const nomes = json ? (JSON.parse(json) as { nomes?: unknown }).nomes : undefined;
+      if (!Array.isArray(nomes)) continue;
+      return titulos.map((t, i) => (typeof nomes[i] === 'string' && nomeDaIaServe(nomes[i] as string, t) ? (nomes[i] as string).trim() : ''));
+    } catch {
+      // Tenta o modelo reserva; sem nenhum, o vídeo usa os títulos cortados.
+    }
+  }
+  return undefined;
 }
 
 /** Os efeitos no tempo das cenas: pop no carimbo do gancho, whoosh em cada corte, pop no carimbo de cada produto e ding no fim. */
@@ -107,7 +152,7 @@ export function remotionInstalado(raiz = process.cwd()): { pasta: string; cli: s
 }
 
 /** Desenha o Reel com o Remotion e grava em `saida`. Devolve o motivo da falha, ou undefined se o vídeo foi gravado. */
-export async function gravarComRemotion(itens: Array<{ oferta: OfertaAvaliada; imagem: string }>, chave: string, saida: string, config: Config, comentaQuero: boolean): Promise<string | undefined> {
+export async function gravarComRemotion(itens: Array<{ oferta: OfertaAvaliada; imagem: string }>, chave: string, saida: string, config: Config, comentaQuero: boolean, fetchFn: Fetch = fetch): Promise<string | undefined> {
   if (!config.instagram.reelRemotion) return 'desligado (REEL_REMOTION=0)';
   const remotion = remotionInstalado();
   if (!remotion) return 'o Remotion não está instalado (npm ci em remotion/)';
@@ -116,7 +161,9 @@ export async function gravarComRemotion(itens: Array<{ oferta: OfertaAvaliada; i
   const audio = `reel-audio-${chave.replace(/[^a-z0-9-]/gi, '')}.wav`;
   const caminhoDoAudio = join(remotion.pasta, 'public', audio);
   try {
-    const props: PropsDoRemotion = { ...propsDoRemotion(itens, comentaQuero), audio };
+    const nomes = await nomesDaIa(itens.map((it) => it.oferta.titulo), config, fetchFn);
+    if (nomes) console.log(`[reel] nomes da IA: ${nomes.map((n) => n || '(título da loja)').join(' | ')}`);
+    const props: PropsDoRemotion = { ...propsDoRemotion(itens, comentaQuero, nomes), audio };
     writeFileSync(caminhoDoAudio, audioDoRemotion(itens.length, chave));
     const arquivoDosProps = join(tmp, 'props.json');
     writeFileSync(arquivoDosProps, JSON.stringify(props));

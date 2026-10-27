@@ -263,3 +263,25 @@ test('remotion: desligado ou sem instalação, devolve o motivo (o robô cai par
   assert.match((await gravarComRemotion(itens, 'reel-x', 'x.mp4', lerConfig({ ...base, REEL_REMOTION: '0' }), true))!, /desligado/);
   assert.equal(remotionInstalado(tmpdir()), undefined, 'pasta sem o Remotion');
 });
+
+test('remotion: a IA escreve o nome curto de cada produto, e o robô só aceita o que é curto, sem promessa e do produto certo', async () => {
+  const { nomesDaIa, nomeDaIaServe, propsDoRemotion } = await import('../src/remotion.ts');
+  const titulos = ['Taiff Black Ion Secador De Cabelo Profissional 2000w Cor Preto', 'Bola Voadora Mágica Interativa Disco Voador Brinquedo', 'Fone Bluetooth Sem Fio TWS'];
+  assert.equal(nomeDaIaServe('Secador profissional Taiff', titulos[0]!), true);
+  assert.equal(nomeDaIaServe('Secador com 40% de desconto', titulos[0]!), false, 'nada de %');
+  assert.equal(nomeDaIaServe('O melhor secador do Brasil', titulos[0]!), false, 'nada de promessa');
+  assert.equal(nomeDaIaServe('Air Fryer 5 litros', titulos[0]!), false, 'outro produto');
+  assert.equal(nomeDaIaServe('x'.repeat(41), titulos[0]!), false, 'comprido demais');
+
+  const config = lerConfig({ ...base, BLOG_IA: 'gemini', GEMINI_API_KEY: 'chave' });
+  const resposta = (conteudo: string) => (async () => new Response(JSON.stringify({ choices: [{ message: { content: conteudo } }] }), { status: 200 })) as unknown as typeof fetch;
+  const nomes = await nomesDaIa(titulos, config, resposta('```json\n{"nomes": ["Secador profissional Taiff", "Bola mágica que vira disco", "Fone barato e bom"]}\n```'));
+  assert.deepEqual(nomes, ['Secador profissional Taiff', 'Bola mágica que vira disco', ''], 'o terceiro tinha "barato": fica com o título da loja');
+  assert.equal(await nomesDaIa(titulos, lerConfig(base), resposta('{}')), undefined, 'sem IA configurada, nada muda');
+  assert.equal(await nomesDaIa(titulos, config, (async () => new Response('erro', { status: 401 })) as unknown as typeof fetch), undefined, 'IA fora do ar: usa os títulos');
+
+  const itens = titulos.map((t, i) => ({ oferta: { ...produto(i + 1), titulo: t }, imagem: 'data:image/png;base64,AAAA' }));
+  const props = propsDoRemotion(itens, true, nomes);
+  assert.deepEqual(props.itens[0]!.nome, ['Secador profissional', 'Taiff']);
+  assert.ok(props.itens[2]!.nome.join(' ').startsWith('Fone Bluetooth'), 'sem nome da IA, o título cortado');
+});
