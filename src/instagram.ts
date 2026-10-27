@@ -278,9 +278,13 @@ export async function publicarNoInstagram(banco: Banco, config: Config, agora: D
       if (await noAr(video)) {
         try {
           const dadosDoReel = JSON.parse(reel.dados) as DadosDoReel | DadosDoQuiz;
-          const id = await api.publicarReel(video, dadosDoReel.formato === 'quiz' ? legendaDoQuiz(dadosDoReel, config) : legendaDoReel(dadosDoReel, config));
+          const id = await api.publicarReel(video, dadosDoReel.formato === 'quiz' ? legendaDoQuiz(dadosDoReel, config) : legendaDoReel(dadosDoReel, config, comentaQuero));
           banco.marcarReelPublicado(reel.chave, agora);
-          if (id) banco.registrarMidiaDoInstagram(id, 'reel', dadosDoReel.titulo, paginaDaBio(config), agora);
+          if (id) {
+            // Reel de produtos: guarda o nome e o link de cada um, na ordem (o "comenta 2" leva ao produto 2). O quiz leva à página da bio.
+            const produtos = dadosDoReel.formato === 'reel' ? dadosDoReel.itens.map((it) => ({ titulo: it.oferta.titulo, link: it.oferta.link })) : undefined;
+            banco.registrarMidiaDoInstagram(id, 'reel', dadosDoReel.titulo, produtos ? JSON.stringify(produtos) : paginaDaBio(config), agora);
+          }
           resumo.reels++;
           await pausa(2000);
           if (dadosDoReel.formato === 'quiz' && config.quiz.enviarPara && config.telegram.token) {
@@ -365,6 +369,37 @@ export function mensagemDoDirect(titulo: string, link: string, config: Config): 
   return linhas.join('\n');
 }
 
+/** Produtos de um Reel guardados como lista ([{titulo, link}]), ou undefined se o post leva a um link só. */
+function produtosDoPost(link: string): Array<{ titulo: string; link: string }> | undefined {
+  if (!link.startsWith('[')) return undefined;
+  try {
+    const lista = JSON.parse(link) as Array<{ titulo: string; link: string }>;
+    return Array.isArray(lista) && lista.length ? lista : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * A mensagem do direct para um comentário, ou undefined se o comentário não pediu nada. No Reel de produtos, o número comentado ("2",
+ * "quero o 3") leva ao link daquele produto; "quero" sem número leva aos links de todos. Nos outros posts, uma das palavras leva ao link do post.
+ */
+export function mensagemParaOComentario(texto: string, midia: { titulo: string; link: string }, palavras: string[], config: Config): string | undefined {
+  const produtos = produtosDoPost(midia.link);
+  const pediu = palavras.some((p) => contemPalavra(texto, p));
+  if (!produtos) return pediu ? mensagemDoDirect(midia.titulo, midia.link, config) : undefined;
+  const numeros = [...new Set([...texto.matchAll(/(?:^|[^0-9])([1-9])(?![0-9])/g)].map((m) => Number(m[1])).filter((n) => n >= 1 && n <= produtos.length))];
+  const escolhidos = numeros.length ? numeros.map((n) => produtos[n - 1]!) : pediu ? produtos : [];
+  if (!escolhidos.length) return undefined;
+  if (escolhidos.length === 1) return mensagemDoDirect(escolhidos[0]!.titulo, escolhidos[0]!.link, config);
+  const curto = (t: string) => (t.length > 60 ? `${t.slice(0, 60).replace(/\s+\S*$/, '')}…` : t);
+  const linhas = ['Oi! Aqui estão os links que você pediu 👇', ''];
+  for (const p of escolhidos) linhas.push(`${produtos.indexOf(p) + 1}. ${curto(p.titulo)}`, `👉 ${p.link}`, '');
+  linhas.push('O preço pode mudar a qualquer momento. Links de afiliado: comprando por eles você ajuda o perfil sem pagar nada a mais.');
+  if (config.blog.whatsappLink) linhas.push('', `📲 Quer receber achados assim todo dia? Entra no grupo: ${config.blog.whatsappLink}`);
+  return linhas.join('\n');
+}
+
 const RESPOSTAS_PUBLICAS = ['Te mandei no direct! 📩', 'Mandei o link no seu direct 📩', 'Enviado! Olha o seu direct 📩', 'Prontinho, link no direct 📩'];
 
 /**
@@ -392,9 +427,10 @@ export async function responderComentarios(banco: Banco, config: Config, agora: 
         resumo.lidos++;
         if (banco.comentarioRespondido(c.id)) continue;
         const texto = normalizar(c.texto);
-        if (!palavras.some((p) => contemPalavra(texto, p))) continue;
+        const mensagem = mensagemParaOComentario(texto, midia, palavras, config);
+        if (!mensagem) continue;
         try {
-          await api.mandarNoDirect(c.id, mensagemDoDirect(midia.titulo, midia.link, config));
+          await api.mandarNoDirect(c.id, mensagem);
         } catch (e) {
           if (e instanceof ErroInstagram && e.fatal && !ERROS_DO_COMENTARIO.test(e.message)) throw e;
           // Só aquele comentário não deu (passou de 7 dias, a pessoa bloqueou mensagens): marca para não insistir.

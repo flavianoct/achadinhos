@@ -50,8 +50,8 @@ test('reel: cria um por dia com 3 produtos bons e a legenda não traz preço', a
   const dados = JSON.parse(pendente.dados) as DadosDoReel;
   assert.equal(dados.itens.length, 3);
   const legenda = legendaDoReel(dados, config);
-  assert.match(legenda, /Caiu mesmo\? 3 achados de hoje/);
-  assert.match(legenda, /O preço de agora está no grupo/);
+  assert.match(legenda, /Qual você levaria\? 3 achados de hoje/);
+  assert.match(legenda, /O preço de agora está no link da bio/);
   assert.match(legenda, /Publi:/);
   assert.ok(!/R\$/.test(legenda), 'o preço não vai na legenda: fica no grupo');
   assert.equal(await prepararReel(bancoComProdutos(), lerConfig({ ...base, INSTAGRAM_REELS_POR_DIA: '0' }), AGORA, foto), false, 'desligado');
@@ -90,7 +90,7 @@ test('reel: publica como REELS com o vídeo do site, só quando o vídeo está n
   assert.equal(r.reels, 1);
   const criar = chamadas.find((c) => c.metodo === 'POST' && c.url.endsWith('/1789/media') && c.corpo.get('media_type') === 'REELS')!;
   assert.match(criar.corpo.get('video_url')!, /^https:\/\/fulano\.github\.io\/achadinhos\/social\/reel-2026-10-03\.mp4$/);
-  assert.match(criar.corpo.get('caption')!, /Caiu mesmo\? 3 achados de hoje/);
+  assert.match(criar.corpo.get('caption')!, /Qual você levaria\? 3 achados de hoje/);
   assert.equal(banco.reelsPublicadosNoDia(AGORA), 1);
 
   r = await publicarNoInstagram(banco, lerConfig(base), AGORA, f, cliente);
@@ -169,4 +169,71 @@ test('música: cada estilo é válido e soa diferente; Reels seguidos (e os dois
   for (let i = 1; i < chaves.length; i++) assert.notEqual(estiloDaMusica(chaves[i]!), estiloDaMusica(chaves[i - 1]!), `${chaves[i - 1]} e ${chaves[i]}`);
   assert.equal(estiloDaMusica('reel-2026-10-09'), estiloDaMusica('reel-2026-10-09'));
   assert.ok(estiloDaMusica('qualquer-coisa') >= 0 && estiloDaMusica('qualquer-coisa') < ESTILOS_DE_MUSICA);
+});
+
+test('reel: o primeiro quadro já mostra os produtos, cada produto tem número, barra e prova, e o fim repete o começo pedindo o número', async () => {
+  const { svgDoGancho, svgDoItem, svgDoFim, DURACOES_DO_REEL, TRANSICAO_DO_REEL } = await import('../src/reel.ts');
+  const itens = [1, 2, 3].map((n) => ({ oferta: { ...produto(n), maisVendido: n === 2, freteGratis: true }, imagem: 'data:image/png;base64,AAAA' }));
+  const gancho = svgDoGancho(itens);
+  assert.equal((gancho.match(/<image /g) ?? []).length, 3, 'o gancho mostra os 3 produtos (nada de tela só de texto)');
+  assert.ok(gancho.includes('QUAL VOCÊ LEVARIA?') && gancho.includes('1, 2 OU 3?'));
+  assert.ok(gancho.includes('O QUE TÁ TODO MUNDO COMPRANDO'), 'a prova do gancho vem dos dados (um deles é mais vendido)');
+  const fim = svgDoFim(itens, true);
+  assert.equal((fim.match(/<image /g) ?? []).length, 3, 'o fim é igual ao começo: o vídeo emenda num loop');
+  assert.ok(fim.includes('COMENTA 1, 2 OU 3') && fim.includes('NO DIRECT'));
+  assert.ok(svgDoFim(itens, false).includes('NA BIO'), 'sem o comenta QUERO, o link fica na bio');
+  for (let i = 0; i < 3; i++) {
+    const svg = svgDoItem(itens[i]!, i, 3);
+    assert.match(svg, /^<svg[^>]+width="1080" height="1920"/);
+    assert.ok(svg.includes(`>${i + 1}<`), 'o número do produto');
+    assert.equal((svg.match(/fill-opacity="1"/g) ?? []).length, i + 1, 'a barra de progresso preenche até o produto atual');
+    assert.ok(svg.includes('vendidos') && svg.includes('Frete grátis'), 'a prova real');
+    assert.doesNotMatch(svg, /R\$/, 'nunca preço em reais');
+  }
+  assert.ok(svgDoItem(itens[1]!, 1, 3).includes('EM ALTA'));
+  // Toda tela precisa virar imagem de verdade (um SVG inválido derrubaria o vídeo inteiro).
+  const { renderizarPng } = await import('../src/social.ts');
+  for (const svg of [gancho, fim, ...itens.map((it, i) => svgDoItem(it, i, 3))]) assert.ok(await renderizarPng(svg, 200), 'a tela vira PNG');
+  // Nenhuma linha de texto passa da largura da tela (a conta de largura: letras × 0,72 × tamanho).
+  for (const svg of [gancho, fim, ...itens.map((it, i) => svgDoItem(it, i, 3))]) for (const m of svg.matchAll(/font-size="(\d+)"[^>]*>([^<]+)</g)) assert.ok(Number(m[1]) * m[2]!.length * 0.72 <= 950, `"${m[2]}" cabe na tela`);
+  const total = DURACOES_DO_REEL.gancho + 3 * DURACOES_DO_REEL.item + DURACOES_DO_REEL.fim - 4 * TRANSICAO_DO_REEL.duracao;
+  assert.ok(total <= 12, `Reel curto (${total.toFixed(1)} s): mais gente assiste até o fim`);
+});
+
+test('reel: quem comenta o número recebe o link daquele produto; "quero" sem número recebe todos', async () => {
+  const { mensagemParaOComentario } = await import('../src/instagram.ts');
+  const { normalizar } = await import('../src/categoria.ts');
+  const config = lerConfig(base);
+  const palavras = config.instagram.palavrasDoComentario.map(normalizar);
+  const midia = { titulo: 'Qual você levaria?', link: JSON.stringify([1, 2, 3].map((n) => ({ titulo: `Produto ${n}`, link: `https://l/${n}` }))) };
+  const m = (t: string) => mensagemParaOComentario(normalizar(t), midia, palavras, config);
+  assert.ok(m('2')!.includes('https://l/2') && !m('2')!.includes('https://l/1'));
+  assert.ok(m('quero o 3 🙏')!.includes('https://l/3'));
+  const varios = m('1 e 3')!;
+  assert.ok(varios.includes('https://l/1') && varios.includes('https://l/3') && !varios.includes('https://l/2'));
+  const todos = m('QUERO')!;
+  assert.ok(['1', '2', '3'].every((n) => todos.includes(`https://l/${n}`)));
+  assert.equal(m('lindo demais'), undefined, 'comentário sem pedido não recebe nada');
+  assert.equal(m('10/10'), undefined, 'número fora da lista não conta');
+  // Post de um produto só: precisa de uma das palavras.
+  const um = { titulo: 'Fone', link: 'https://l/f' };
+  assert.ok(mensagemParaOComentario('quero', um, palavras, config)!.includes('https://l/f'));
+  assert.equal(mensagemParaOComentario('2', um, palavras, config), undefined);
+});
+
+test('reel: os efeitos acompanham a imagem: whoosh em cada troca, pop em cada produto e ding no fim, todos audíveis', async () => {
+  const { efeitosDoReel, DURACOES_DO_REEL } = await import('../src/reel.ts');
+  const { sintetizarEfeitos } = await import('../src/musica.ts');
+  const duracoes = [DURACOES_DO_REEL.gancho, DURACOES_DO_REEL.item, DURACOES_DO_REEL.item, DURACOES_DO_REEL.item, DURACOES_DO_REEL.fim];
+  const efeitos = efeitosDoReel(duracoes);
+  assert.equal(efeitos.filter((e) => e.tipo === 'whoosh').length, 4, 'uma troca entre cada tela');
+  assert.equal(efeitos.filter((e) => e.tipo === 'pop').length, 3, 'um por produto');
+  assert.equal(efeitos.filter((e) => e.tipo === 'ding').length, 1);
+  assert.ok(efeitos.every((e, i) => i === 0 || e.t >= efeitos[i - 1]!.t), 'em ordem');
+  for (const tipo of ['whoosh', 'pop'] as const) {
+    const wav = sintetizarEfeitos(1, [{ t: 0.1, tipo }]);
+    let pico = 0;
+    for (let i = 44; i < wav.length; i += 2) pico = Math.max(pico, Math.abs(wav.readInt16LE(i)));
+    assert.ok(pico > 3000 && pico < 32767, `${tipo} audível e sem estourar`);
+  }
 });
