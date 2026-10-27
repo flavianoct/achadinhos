@@ -93,7 +93,7 @@ const Palavras: React.FC<{ texto: string; y: number; tamanho: number; cor: strin
       {texto.split(' ').map((p, i) => {
         const s = spring({ frame: frame - inicio - i * passo, fps, config: { damping: 10, stiffness: 220 } });
         return (
-          <span key={i} style={{ display: 'inline-block', margin: '0 0.14em', transform: `translateY(${(1 - s) * tamanho * 0.7}px) scale(${0.6 + s * 0.4})`, opacity: Math.min(1, s * 1.8) }}>
+          <span key={i} style={{ display: 'inline-block', margin: '0 0.24em', transform: `translateY(${(1 - s) * tamanho * 0.7}px) scale(${0.6 + s * 0.4})`, opacity: Math.min(1, s * 1.8) }}>
             {p}
           </span>
         );
