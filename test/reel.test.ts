@@ -237,3 +237,29 @@ test('reel: os efeitos acompanham a imagem: whoosh em cada troca, pop em cada pr
     assert.ok(pico > 3000 && pico < 32767, `${tipo} audível e sem estourar`);
   }
 });
+
+test('remotion: os tempos do robô batem com os do vídeo, e os dados só dizem o que é verdade (nunca preço em reais)', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { QUADROS_DO_REMOTION, propsDoRemotion, efeitosDoRemotion, fatoDoGancho, duracaoDoRemotion } = await import('../src/remotion.ts');
+  const tsx = readFileSync(new URL('../remotion/src/Achados.tsx', import.meta.url), 'utf8');
+  const m = /QUADROS = \{ gancho: (\d+), item: (\d+), fim: (\d+) \}/.exec(tsx)!;
+  assert.deepEqual({ gancho: Number(m[1]), item: Number(m[2]), fim: Number(m[3]) }, QUADROS_DO_REMOTION, 'o áudio e o vídeo usam os mesmos tempos');
+  const itens = [1, 2, 3].map((n) => ({ oferta: { ...produto(n), vendas: n === 1 ? 9000 : 2000, freteGratis: true }, imagem: 'data:image/png;base64,AAAA' }));
+  const props = propsDoRemotion(itens, true);
+  assert.equal(props.promessa, 'O Nº 1 É O MAIS VENDIDO', 'o nº 1 vende mais que os outros: pode dizer');
+  assert.equal(propsDoRemotion([itens[1]!, itens[0]!, itens[2]!], true).promessa, 'ESPERA O Nº 1', 'se não é verdade, não diz');
+  assert.equal(props.fato, '9 MIL VENDIDOS');
+  assert.equal(fatoDoGancho({ ...produto(1), precoDe: 'confirmado', desconto: 41, precoOriginal: 100, preco: 59 }), '-41% OFF');
+  assert.ok(props.itens.every((it) => it.provas.includes('Frete grátis') && it.nome.length <= 2));
+  assert.doesNotMatch(JSON.stringify({ ...props, itens: props.itens.map((it) => ({ ...it, imagem: '' })) }), /R\$/);
+  const ef = efeitosDoRemotion(3);
+  assert.equal(ef.filter((e) => e.tipo === 'whoosh').length, 4);
+  assert.ok(ef.every((e) => e.t >= 0 && e.t < duracaoDoRemotion(3)));
+});
+
+test('remotion: desligado ou sem instalação, devolve o motivo (o robô cai para o Reel simples)', async () => {
+  const { gravarComRemotion, remotionInstalado } = await import('../src/remotion.ts');
+  const itens = [{ oferta: produto(1), imagem: 'data:image/png;base64,AAAA' }];
+  assert.match((await gravarComRemotion(itens, 'reel-x', 'x.mp4', lerConfig({ ...base, REEL_REMOTION: '0' }), true))!, /desligado/);
+  assert.equal(remotionInstalado(tmpdir()), undefined, 'pasta sem o Remotion');
+});
