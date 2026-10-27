@@ -1,7 +1,8 @@
 /**
  * Trilha de fundo dos Reels, criada aqui mesmo (sintetizada em código): não usa gravação de ninguém,
- * então não tem direito autoral de terceiros. É uma batida leve (bumbo, chimbal, palma, baixo e melodia) em vários estilos:
- * muda o andamento, os acordes e o timbre da melodia, e cada Reel usa um deles.
+ * então não tem direito autoral de terceiros. É uma batida pop atual: bumbo forte desde o primeiro segundo (quem abre o Reel
+ * decide em um segundo se fica), grave longo tipo 808, acordes de fundo, melodia dedilhada com filtro, chimbal em semicolcheias,
+ * palma nos tempos 2 e 4, e o resto da música "respirando" a cada bumbo. Vários estilos: muda o andamento, os acordes e o timbre.
  */
 const TAXA = 44_100;
 
@@ -94,50 +95,75 @@ function empacotarWav(dados: Buffer): Buffer {
 export function sintetizarMusica(segundos: number, estilo = 0): Buffer {
   const e = ESTILOS[((Math.floor(estilo) % ESTILOS.length) + ESTILOS.length) % ESTILOS.length]!;
   const BATIDA = 60 / e.bpm;
-  const BAIXO = e.acordes.map((a) => hz(a.raiz) / 2);
-  const ARPEJO = e.acordes.map((a) => arpejo(a.raiz, a.menor));
+  const SEMI = BATIDA / 4;
+  const GRAVE = e.acordes.map((a) => hz(a.raiz) / 4);
+  const ARPEJO = e.acordes.map((a) => arpejo(a.raiz + 12, a.menor));
+  const ACORDE = e.acordes.map((a) => [a.raiz, a.raiz + (a.menor ? 3 : 4), a.raiz + 7].map((n) => hz(n + 12)));
   const total = Math.round(segundos * TAXA);
   const dados = Buffer.alloc(total * 4);
   const fade = Math.min(1.2, segundos / 4);
+  let filtro = 0; // estado do filtro passa-baixa da melodia
+  let anterior = 0; // ruído anterior, para o chimbal soar agudo (passa-alta simples)
   for (let i = 0; i < total; i++) {
     const t = i / TAXA;
     const beat = Math.floor(t / BATIDA);
-    const x = t - beat * BATIDA; // tempo desde o início da batida
+    const x = t - beat * BATIDA; // tempo desde a batida
     const compasso = Math.floor(beat / 4) % 4;
-    const meia = t / (BATIDA / 2);
-    const y = (meia - Math.floor(meia)) * (BATIDA / 2); // tempo desde o início da colcheia
-    const passo = Math.floor(meia) % 8;
+    const semi = Math.floor(t / SEMI);
+    const xs = t - semi * SEMI; // tempo desde a semicolcheia
+    const meia = Math.floor(t / (BATIDA / 2));
+    const y = t - meia * (BATIDA / 2); // tempo desde a colcheia
 
-    // Bumbo em toda batida: seno que cai de agudo para grave.
-    const bumbo = Math.sin(2 * Math.PI * (48 * x + 70 * (1 - Math.exp(-35 * x)) / 35)) * Math.exp(-7 * x) * 0.9;
-    // Palma nas batidas 2 e 4.
-    const palma = beat % 2 === 1 ? ruido(i) * Math.exp(-22 * x) * e.palma : 0;
-    // Chimbal nos contratempos.
-    const contra = (t + BATIDA / 2) % BATIDA;
-    const chimbal = ruido(i + 7) * Math.exp(-80 * contra) * e.chimbal;
-    // Baixo: uma nota por batida, com seno e um toque de harmônico.
-    const fb = BAIXO[compasso]!;
-    const baixo = (Math.sin(2 * Math.PI * fb * t) * 0.6 + Math.sin(2 * Math.PI * fb * 2 * t) * 0.15) * Math.exp(-2.2 * x) * 0.5;
-    // Melodia em colcheias, no timbre do estilo.
-    const fa = ARPEJO[compasso]![passo]!;
-    const melodia = forma(e.onda, (fa * t) % 1) * Math.exp(-9 * y) * e.melodia;
+    // Bumbo em toda batida, com ataque de clique e corpo grave.
+    const bumbo = Math.sin(2 * Math.PI * (46 * x + (110 * (1 - Math.exp(-32 * x))) / 32)) * Math.exp(-6.5 * x) * 0.95 + ruido(i) * Math.exp(-400 * x) * 0.25;
+    // A música "respira": tudo menos o bumbo abaixa logo depois de cada batida e volta (o bombeado da música pop).
+    const respiro = 1 - 0.55 * Math.exp(-9 * x);
+    // Palma nos tempos 2 e 4: ruído com um tom curto por baixo.
+    const palma = beat % 2 === 1 ? (ruido(i + 3) * 0.75 + Math.sin(2 * Math.PI * 190 * x) * 0.25) * Math.exp(-20 * x) * e.palma * 1.4 : 0;
+    // Chimbal em semicolcheias, mais forte nos contratempos.
+    const brilho = ruido(i + 7) - anterior;
+    anterior = ruido(i + 7);
+    const chimbal = brilho * Math.exp(-95 * xs) * (semi % 2 ? 1 : 0.55) * e.chimbal * 1.6;
+    // Grave tipo 808: nota longa nos tempos 1 e 3, levemente saturada.
+    const x2 = t - Math.floor(t / (BATIDA * 2)) * BATIDA * 2;
+    const fg = GRAVE[compasso]!;
+    const grave = Math.tanh(Math.sin(2 * Math.PI * fg * t) * 1.8) * Math.exp(-1.1 * x2) * 0.42;
+    // Acordes de fundo: notas um pouco desafinadas entre si (dá largura), entrando devagar a cada compasso.
+    const xc = t - Math.floor(t / (BATIDA * 4)) * BATIDA * 4;
+    let fundoL = 0;
+    let fundoR = 0;
+    for (const f of ACORDE[compasso]!) {
+      fundoL += Math.sin(2 * Math.PI * f * 1.003 * t);
+      fundoR += Math.sin(2 * Math.PI * f * 0.997 * t);
+    }
+    const envFundo = Math.min(1, xc / 0.25) * 0.05;
+    // Melodia dedilhada em colcheias: duas ondas desafinadas e um filtro que fecha (o som de "pluck").
+    const fa = ARPEJO[compasso]![Math.floor(t / (BATIDA / 2)) % 8]!;
+    const bruto = (forma(e.onda, (fa * t) % 1) + forma(e.onda, (fa * 1.006 * t) % 1)) * 0.5;
+    const corte = 500 + 5200 * Math.exp(-14 * y);
+    filtro += (1 - Math.exp((-2 * Math.PI * corte) / TAXA)) * (bruto - filtro);
+    const melodia = filtro * Math.exp(-6 * y) * e.melodia * 1.5;
 
-    let v = (bumbo + palma + chimbal + baixo + melodia) * 0.55;
-    const entrada = Math.min(1, t / 0.3);
-    const saida = Math.min(1, (segundos - t) / fade);
-    v *= Math.max(0, Math.min(entrada, saida));
-    v = Math.tanh(v * 1.4); // segura picos sem estourar
-    const amostra = Math.max(-1, Math.min(1, v)) * 32767;
-    dados.writeInt16LE(Math.round(amostra), i * 4);
-    dados.writeInt16LE(Math.round(amostra), i * 4 + 2);
+    const meio = bumbo * 0.85 + (palma + grave + melodia) * respiro;
+    let l = meio + chimbal * 0.8 + fundoL * envFundo * respiro;
+    let r = meio + chimbal * 1.1 + fundoR * envFundo * respiro;
+    // Começa cheia (sem entrada lenta) e termina com fade.
+    const nivel = Math.max(0, Math.min(Math.min(1, t / 0.02), (segundos - t) / fade)) * 0.6;
+    l = Math.tanh(l * nivel * 1.5);
+    r = Math.tanh(r * nivel * 1.5);
+    dados.writeInt16LE(Math.round(Math.max(-1, Math.min(1, l)) * 32767), i * 4);
+    dados.writeInt16LE(Math.round(Math.max(-1, Math.min(1, r)) * 32767), i * 4 + 2);
   }
   return empacotarWav(dados);
 }
 
-/** Um efeito sonoro do quiz, em segundos desde o início do vídeo: o tique e o taque da contagem e o "ding" da revelação. */
+/**
+ * Um efeito sonoro, em segundos desde o início do vídeo: o tique e o taque da contagem e o "ding" da revelação (quiz), o "whoosh"
+ * da troca de tela e o "pop" do número do produto aparecendo (Reel).
+ */
 export interface Efeito {
   t: number;
-  tipo: 'tic' | 'tac' | 'ding';
+  tipo: 'tic' | 'tac' | 'ding' | 'whoosh' | 'pop';
 }
 
 /**
@@ -149,12 +175,21 @@ export function sintetizarEfeitos(segundos: number, eventos: Efeito[]): Buffer {
   const mix = new Float32Array(total);
   for (const ev of eventos) {
     const inicio = Math.round(ev.t * TAXA);
-    const duracao = ev.tipo === 'ding' ? 1.1 : 0.09;
+    const duracao = ev.tipo === 'ding' ? 1.1 : ev.tipo === 'whoosh' ? 0.4 : ev.tipo === 'pop' ? 0.14 : 0.09;
+    let passa = 0;
     const n = Math.round(duracao * TAXA);
     for (let k = 0; k < n && inicio + k < total; k++) {
       const x = k / TAXA;
       let v: number;
-      if (ev.tipo === 'ding') {
+      if (ev.tipo === 'whoosh') {
+        // Ruído que sobe e desce, com o filtro abrindo: o "vuuush" da tela deslizando.
+        const corte = 300 + 6000 * Math.sin(Math.PI * Math.min(1, x / 0.4));
+        passa += (1 - Math.exp((-2 * Math.PI * corte) / TAXA)) * (ruido(k + 11) - passa);
+        v = passa * Math.sin(Math.PI * Math.min(1, x / 0.4)) * 0.7;
+      } else if (ev.tipo === 'pop') {
+        // Bolha curta: tom que cai de agudo para médio.
+        v = Math.sin(2 * Math.PI * (520 * x + (900 * (1 - Math.exp(-40 * x))) / 40)) * Math.exp(-28 * x) * 0.55;
+      } else if (ev.tipo === 'ding') {
         v = (Math.sin(2 * Math.PI * 1318.5 * x) * 0.6 + Math.sin(2 * Math.PI * 1975.5 * x) * 0.3 + Math.sin(2 * Math.PI * 2637 * x) * 0.1) * Math.exp(-4.2 * x) * 0.55;
       } else {
         const f = ev.tipo === 'tic' ? 1800 : 1250;
