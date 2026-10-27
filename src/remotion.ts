@@ -220,9 +220,25 @@ export async function gravarCarrosselComRemotion(props: PropsDoCarrosselRemotion
 
 /** Quadros do Reel de destaque (um produto). Precisam ser os mesmos de QUADROS_DO_DESTAQUE em remotion/src/Destaque.tsx (um teste confere). */
 export const QUADROS_DO_DESTAQUE = { gancho: 45, detalhe: 50, fim: 105 };
+/** Galeria (3 fotos ou mais): os mesmos de QUADROS_DA_GALERIA em remotion/src/Destaque.tsx. */
+export const QUADROS_DA_GALERIA = { gancho: 40, foto: 20, fim: 90 };
+export const MAXIMO_DE_FOTOS = 7;
 
 /** Os efeitos do destaque: pop no carimbo do fato, whoosh em cada corte, pop em cada prova e ding no pedido de comentário. */
-export function efeitosDoDestaque(): Efeito[] {
+export function efeitosDoDestaque(fotos = 0): Efeito[] {
+  if (fotos >= 3) {
+    // Galeria: um "pop" a cada foto (no ritmo da batida), o whoosh antes do pedido e o ding nele.
+    const g = QUADROS_DA_GALERIA;
+    const cenas = [g.gancho, ...Array(Math.min(fotos, MAXIMO_DE_FOTOS)).fill(g.foto), g.fim].map((n) => n / FPS);
+    const efeitos: Efeito[] = [{ t: 0.3, tipo: 'pop' }];
+    let t = 0;
+    cenas.forEach((d, i) => {
+      if (i > 0 && i < cenas.length - 1) efeitos.push({ t: Math.max(0, t - 0.05), tipo: 'pop' });
+      if (i === cenas.length - 1) efeitos.push({ t: Math.max(0, t - 0.12), tipo: 'whoosh' }, { t: t + 0.3, tipo: 'ding' });
+      t += d;
+    });
+    return efeitos;
+  }
   const q = QUADROS_DO_DESTAQUE;
   const cenas = [q.gancho, q.detalhe, q.detalhe, q.detalhe, q.fim].map((n) => n / FPS);
   const efeitos: Efeito[] = [{ t: 0.3, tipo: 'pop' }];
@@ -237,7 +253,7 @@ export function efeitosDoDestaque(): Efeito[] {
 }
 
 /** Desenha o Reel de destaque (composição "Destaque") e grava em `saida`. Devolve o motivo da falha, ou undefined se gravou. */
-export async function gravarDestaqueComRemotion(item: { oferta: OfertaAvaliada; imagem: string }, nome: string | undefined, chave: string, saida: string, config: Config, comentaQuero: boolean): Promise<string | undefined> {
+export async function gravarDestaqueComRemotion(item: { oferta: OfertaAvaliada; imagem: string; fotos?: string[] }, nome: string | undefined, chave: string, saida: string, config: Config, comentaQuero: boolean): Promise<string | undefined> {
   if (!config.instagram.reelRemotion) return 'desligado (REEL_REMOTION=0)';
   const remotion = remotionInstalado();
   if (!remotion) return 'o Remotion não está instalado (npm ci em remotion/)';
@@ -246,10 +262,12 @@ export async function gravarDestaqueComRemotion(item: { oferta: OfertaAvaliada; 
   const audio = `reel-audio-${chave.replace(/[^a-z0-9-]/gi, '')}.wav`;
   const caminhoDoAudio = join(remotion.pasta, 'public', audio);
   try {
+    const fotos = item.fotos && item.fotos.length >= 3 ? item.fotos.slice(0, MAXIMO_DE_FOTOS) : undefined;
     const q = QUADROS_DO_DESTAQUE;
-    const total = (q.gancho + 3 * q.detalhe + q.fim) / FPS;
+    const g = QUADROS_DA_GALERIA;
+    const total = (fotos ? g.gancho + fotos.length * g.foto + g.fim : q.gancho + 3 * q.detalhe + q.fim) / FPS;
     const musica = sintetizarMusica(total, estiloDaMusica(chave));
-    const efeitos = sintetizarEfeitos(total, efeitosDoDestaque());
+    const efeitos = sintetizarEfeitos(total, efeitosDoDestaque(fotos?.length ?? 0));
     const mix = Buffer.from(musica);
     for (let i = 44; i < Math.min(musica.length, efeitos.length); i += 2) mix.writeInt16LE(Math.max(-32767, Math.min(32767, musica.readInt16LE(i) + efeitos.readInt16LE(i))), i);
     writeFileSync(caminhoDoAudio, mix);
@@ -262,6 +280,7 @@ export async function gravarDestaqueComRemotion(item: { oferta: OfertaAvaliada; 
       cor: CORES_DO_NICHO[o.categoria] ?? CORES_DO_NICHO.geral!,
       comentaQuero,
       audio,
+      ...(fotos ? { fotos } : {}),
     };
     const arquivoDosProps = join(tmp, 'props.json');
     writeFileSync(arquivoDosProps, JSON.stringify(props));

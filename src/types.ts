@@ -13,6 +13,8 @@ export interface Oferta {
   /** Desconto anunciado pela loja, em % (0 a 100). */
   desconto?: number;
   imagem?: string;
+  /** Todas as fotos do anúncio (a primeira é `imagem`), quando a loja informa: frente, costas, detalhe, outras cores. Até 8. */
+  fotos?: string[];
   /** Link já com o seu código de afiliado. */
   link: string;
   nota?: number;
