@@ -631,7 +631,8 @@ export async function gravarPngs(banco: Banco, config: Config, agora: Date): Pro
   return { gravados, semConversor: false };
 }
 
-const LIMITE_DA_IMAGEM = 400_000;
+/** Foto maior que isso não é baixada. As da Shopee passam de 700 KB: com o limite antigo (400 KB) elas sumiam da arte. A foto é reduzida logo depois. */
+const LIMITE_DA_IMAGEM = 6_000_000;
 
 /**
  * O conversor de PNG (resvg) não lê WebP, o formato das fotos do Mercado Livre: a foto sumia da arte do Instagram.
@@ -695,6 +696,12 @@ export async function prepararSocial(banco: Banco, config: Config, agora: Date, 
     const imagem = await reduzirFoto(await baixarImagemComoDataUri(oferta.imagem, fetchFn));
     banco.salvarArteSocial(linha.chave, montarSvgDoStory(oferta, undefined, config), imagem);
     feitas++;
+  }
+  // A foto que não veio numa rodada (a loja demorou, a conexão caiu) é tentada de novo nas seguintes: arte sem foto não vai para o Instagram.
+  for (const linha of banco.socialSemFoto(MAXIMO_DE_ARTES, HORAS_DO_SOCIAL, agora)) {
+    const oferta = JSON.parse(linha.dados) as OfertaAvaliada;
+    const imagem = await reduzirFoto(await baixarImagemComoDataUri(oferta.imagem, fetchFn));
+    if (imagem) banco.salvarFotoSocial(linha.chave, imagem);
   }
   return feitas;
 }
