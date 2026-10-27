@@ -513,6 +513,17 @@ export class Banco {
       .all(agora.getTime() - horas * 3_600_000, limite) as Array<{ chave: string; dados: string }>;
   }
 
+  /** Ofertas que já têm arte mas ficaram sem a foto (para tentar baixar de novo). */
+  socialSemFoto(limite: number, horas: number, agora: Date): Array<{ chave: string; dados: string }> {
+    return this.db
+      .prepare(`SELECT chave, dados FROM social_saida WHERE svg IS NOT NULL AND imagem IS NULL AND criado_em >= ? ORDER BY criado_em DESC LIMIT ?`)
+      .all(agora.getTime() - horas * 3_600_000, limite) as Array<{ chave: string; dados: string }>;
+  }
+
+  salvarFotoSocial(chave: string, imagem: string): void {
+    this.db.prepare(`UPDATE social_saida SET imagem = ? WHERE chave = ?`).run(imagem, chave);
+  }
+
   salvarArteSocial(chave: string, svg: string, imagem?: string): void {
     this.db.prepare(`UPDATE social_saida SET svg = ?, imagem = ? WHERE chave = ?`).run(svg, imagem ?? null, chave);
   }

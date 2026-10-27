@@ -39,6 +39,8 @@ async function bancoComOfertas() {
   banco.guardarParaSocial(oferta('A', 5), new Date(AGORA.getTime() - 60_000));
   banco.guardarParaSocial(oferta('B', 9), new Date(AGORA.getTime() - 120_000));
   await prepararSocial(banco, config, AGORA, (async () => new Response(null, { status: 404 })) as typeof fetch);
+  // A foto que a loja não entregou (404 acima) volta numa rodada seguinte: aqui ela chega, e só então a arte pode ir para o Instagram.
+  for (const l of banco.socialRecentes(12, 10, AGORA)) banco.salvarFotoSocial(l.chave, 'data:image/png;base64,AAAA');
   return { banco, config };
 }
 
@@ -238,4 +240,19 @@ test('instagram: produto dos mais vendidos da loja passa mesmo sem nota e vendas
   assert.equal(passaNoFiltroDoInstagram({ ...semDados, maisVendido: true }, ig), true);
   assert.equal(passaNoFiltroDoInstagram({ ...semDados, maisVendido: true, titulo: 'Fone Genérico Bluetooth' }, ig), false);
   assert.equal(passaNoFiltroDoInstagram({ ...semDados, maisVendido: true, nota: 4.1 }, ig), false, 'nota informada e baixa continua barrando');
+});
+test('instagram: arte sem a foto do produto não é publicada; a foto é tentada de novo e, quando chega, a arte sai', async () => {
+  const banco = new Banco(':memory:');
+  const config = lerConfig(base);
+  banco.guardarParaSocial({ ...oferta('A', 5), imagem: 'https://cf.shopee.com.br/file/foto-grande' }, new Date(AGORA.getTime() - 60_000));
+  await prepararSocial(banco, config, AGORA, (async () => new Response(null, { status: 503 })) as typeof fetch);
+  const { f } = apiFalsa();
+  let r = await publicarNoInstagram(banco, config, AGORA, f, new Instagram('tok', '1789', f, 0));
+  assert.equal(r.feed + r.stories, 0, 'sem foto, nada sai');
+  // Foto grande (700 KB, como as da Shopee): antes passava do limite e sumia da arte.
+  const grande = Buffer.alloc(700_000, 1);
+  await prepararSocial(banco, config, AGORA, (async () => new Response(grande, { status: 200, headers: { 'content-type': 'image/jpeg' } })) as typeof fetch);
+  assert.ok(banco.socialRecentes(12, 5, AGORA)[0]!.imagem, 'a foto veio na nova tentativa');
+  r = await publicarNoInstagram(banco, config, AGORA, f, new Instagram('tok', '1789', f, 0));
+  assert.ok(r.feed + r.stories >= 1, 'com a foto, a arte sai');
 });
