@@ -482,6 +482,13 @@ export class Banco {
       .run(`${o.loja}:${o.idProduto}:${agora.getTime()}`, o.loja, texto, o.imagem ?? null, o.link, agora.getTime(), o.categoria ?? null, soNicho ? 1 : 0);
   }
 
+  /** Guarda uma mensagem pronta (o cupom do dia, por exemplo) para o enviador do WhatsApp mandar aos grupos e canais gerais. */
+  guardarMensagemParaWhatsapp(m: { chave: string; loja: string; texto: string; link: string; imagem?: string }, agora: Date): void {
+    this.db
+      .prepare(`INSERT OR REPLACE INTO whatsapp_saida (chave, loja, texto, imagem, link, criado_em, categoria, so_nicho) VALUES (?, ?, ?, ?, ?, ?, 'geral', 0)`)
+      .run(m.chave, m.loja, m.texto, m.imagem ?? null, m.link, agora.getTime());
+  }
+
   /** Quantas ofertas dos canais gerais entraram na fila do WhatsApp nos últimos minutos (as que são só do grupo de um nicho não gastam a cota do geral) (uma rodada posta tudo em poucos segundos; as rodadas ficam a ~27 min uma da outra). */
   whatsappNosUltimosMinutos(minutos: number, agora: Date): number {
     return (this.db.prepare(`SELECT COUNT(*) AS n FROM whatsapp_saida WHERE criado_em >= ? AND COALESCE(so_nicho, 0) = 0`).get(agora.getTime() - minutos * 60_000) as { n: number }).n;
