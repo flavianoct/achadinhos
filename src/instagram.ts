@@ -2,7 +2,7 @@ import { contemPalavra, normalizar } from './categoria.ts';
 import type { Config } from './config.ts';
 import type { Banco } from './db.ts';
 import { diaDe, horaDe } from './db.ts';
-import { HORAS_DO_SOCIAL, arquivoDaArte, arquivosDoCarrossel, legendaDoCarrossel, montarLegenda, totalDeImagens, type DadosDoCarrossel, type Fetch } from './social.ts';
+import { CHAVE_DIRECT_BLOQUEADO, HORAS_DO_SOCIAL, comentaQueroAtivo, marcaDoToken, arquivoDaArte, arquivosDoCarrossel, legendaDoCarrossel, montarLegenda, totalDeImagens, type DadosDoCarrossel, type Fetch } from './social.ts';
 import { Telegram } from './telegram.ts';
 import { legendaDoQuiz, legendaParaTikTokEShorts, type DadosDoQuiz } from './quiz.ts';
 import { arquivoDoReel, legendaDoReel, type DadosDoReel } from './reel.ts';
@@ -115,6 +115,22 @@ export class Instagram {
     return this.publicar({ media_type: 'REELS', video_url: urlDoVideo, caption: legenda, share_to_feed: 'true' }, 60);
   }
 
+  /** Comentários de um post (só os de primeiro nível; as respostas não entram). */
+  async comentarios(mediaId: string): Promise<Array<{ id: string; texto: string; usuario?: string }>> {
+    const r = await this.chamar('GET', `${mediaId}/comments`, { fields: 'id,text,username', limit: '50' });
+    return ((r.data ?? []) as any[]).map((c) => ({ id: String(c.id), texto: String(c.text ?? ''), usuario: c.username }));
+  }
+
+  /** Resposta privada a um comentário: a mensagem chega no direct de quem comentou (o Instagram aceita uma por comentário, em até 7 dias). */
+  async mandarNoDirect(commentId: string, texto: string): Promise<void> {
+    await this.chamar('POST', `${this.userId}/messages`, { recipient: JSON.stringify({ comment_id: commentId }), message: JSON.stringify({ text: texto }) });
+  }
+
+  /** Resposta pública ao comentário ("te mandei no direct"), que mostra para quem passa que funciona. */
+  async responderComentario(commentId: string, texto: string): Promise<void> {
+    await this.chamar('POST', `${commentId}/replies`, { message: texto });
+  }
+
   /** Story pela API não aceita legenda nem adesivos. */
   publicarStory(urlDaImagem: string): Promise<string> {
     return this.publicar({ image_url: urlDaImagem, media_type: 'STORIES' });
@@ -194,6 +210,7 @@ export async function publicarNoInstagram(banco: Banco, config: Config, agora: D
   if (hora < config.ritmo.horaInicio || hora >= config.ritmo.horaFim) return resumo;
 
   const api = cliente ?? new Instagram(ig.token, ig.userId, fetchFn);
+  const comentaQuero = comentaQueroAtivo(banco, config, agora);
   const todos = banco
     .socialRecentes(HORAS_DO_SOCIAL, 50, agora)
     .map((l) => ({ ...l, oferta: JSON.parse(l.dados) as OfertaAvaliada }));
@@ -241,8 +258,9 @@ export async function publicarNoInstagram(banco: Banco, config: Config, agora: D
       }
       if (todasNoAr) {
         try {
-          await api.publicarCarrossel(urls, legendaDoCarrossel(dados, config));
+          const id = await api.publicarCarrossel(urls, legendaDoCarrossel(dados, config));
           banco.marcarCarrosselPublicado(carrossel.chave, agora);
+          if (id) banco.registrarMidiaDoInstagram(id, 'carrossel', dados.titulo, paginaDaBio(config), agora);
           resumo.feed++;
           await pausa(2000);
         } catch (e) {
@@ -260,8 +278,9 @@ export async function publicarNoInstagram(banco: Banco, config: Config, agora: D
       if (await noAr(video)) {
         try {
           const dadosDoReel = JSON.parse(reel.dados) as DadosDoReel | DadosDoQuiz;
-          await api.publicarReel(video, dadosDoReel.formato === 'quiz' ? legendaDoQuiz(dadosDoReel, config) : legendaDoReel(dadosDoReel, config));
+          const id = await api.publicarReel(video, dadosDoReel.formato === 'quiz' ? legendaDoQuiz(dadosDoReel, config) : legendaDoReel(dadosDoReel, config));
           banco.marcarReelPublicado(reel.chave, agora);
+          if (id) banco.registrarMidiaDoInstagram(id, 'reel', dadosDoReel.titulo, paginaDaBio(config), agora);
           resumo.reels++;
           await pausa(2000);
           if (dadosDoReel.formato === 'quiz' && config.quiz.enviarPara && config.telegram.token) {
@@ -303,8 +322,9 @@ export async function publicarNoInstagram(banco: Banco, config: Config, agora: D
     }
     for (const c of candidatos) {
       if (!c.igFeedEm && podePublicar('feed') && (await noAr(url(c.chave, 'feed')))) {
-        await etapa('post do feed', () => api.publicarFoto(url(c.chave, 'feed'), montarLegenda(c.oferta, config)));
+        const id = await etapa('post do feed', () => api.publicarFoto(url(c.chave, 'feed'), montarLegenda(c.oferta, config, comentaQuero)));
         banco.marcarInstagram(c.chave, 'feed', agora);
+        if (id) banco.registrarMidiaDoInstagram(id, 'feed', c.oferta.titulo, c.oferta.link, agora);
         resumo.feed++;
         await pausa(2000);
       }
@@ -320,5 +340,89 @@ export async function publicarNoInstagram(banco: Banco, config: Config, agora: D
     resumo.avisos.push((e as Error).message);
   }
   if (esperando && !resumo.feed && !resumo.stories) resumo.avisos.push(`Instagram: ${esperando} imagens ainda não estão no ar; saem na próxima rodada.`);
+  return resumo;
+}
+
+/** Página com todas as ofertas do dia (link da bio): é o link do direct para carrossel e Reel, que mostram vários produtos. */
+function paginaDaBio(config: Config): string {
+  return `${config.blog.url.replace(/\/+$/, '')}/bio.html`;
+}
+
+/** Código do Instagram para "fora da janela permitida" ou "pessoa indisponível": vale só para aquele comentário, não para a conta. */
+const ERROS_DO_COMENTARIO = /2534022|2018278|551\b|2018001/;
+
+export interface ResumoDosComentarios {
+  lidos: number;
+  respondidos: number;
+  avisos: string[];
+}
+
+/** Mensagem do direct: o link do produto (que leva ao preço de agora), o aviso de afiliado e o convite para o grupo. */
+export function mensagemDoDirect(titulo: string, link: string, config: Config): string {
+  const curto = titulo.length > 80 ? `${titulo.slice(0, 80).replace(/\s+\S*$/, '')}…` : titulo;
+  const linhas = ['Oi! Aqui está o link que você pediu 👇', '', `🛒 ${curto}`, `👉 ${link}`, '', 'O preço pode mudar a qualquer momento. Link de afiliado: comprando por ele você ajuda o perfil sem pagar nada a mais.'];
+  if (config.blog.whatsappLink) linhas.push('', `📲 Quer receber achados assim todo dia? Entra no grupo: ${config.blog.whatsappLink}`);
+  return linhas.join('\n');
+}
+
+const RESPOSTAS_PUBLICAS = ['Te mandei no direct! 📩', 'Mandei o link no seu direct 📩', 'Enviado! Olha o seu direct 📩', 'Prontinho, link no direct 📩'];
+
+/**
+ * "Comenta QUERO": lê os comentários dos posts dos últimos 7 dias e, a quem comentou uma das palavras, manda o link no direct e responde
+ * o comentário ("te mandei no direct"). Cada comentário é tratado uma vez só. Se o token não tiver as permissões de comentários e mensagens
+ * (ou o app não puder mandar direct ao público), desliga o "comenta QUERO" até o token mudar e avisa como resolver.
+ */
+export async function responderComentarios(banco: Banco, config: Config, agora: Date, fetchFn: Fetch = fetch, cliente?: Instagram): Promise<ResumoDosComentarios> {
+  const resumo: ResumoDosComentarios = { lidos: 0, respondidos: 0, avisos: [] };
+  const ig = config.instagram;
+  if (!ig.ativo || !ig.token || !ig.userId || !comentaQueroAtivo(banco, config, agora)) return resumo;
+  const api = cliente ?? new Instagram(ig.token, ig.userId, fetchFn);
+  const palavras = ig.palavrasDoComentario.map(normalizar);
+  let falhas = 0;
+  const bloquear = (motivo: string, como: string) => {
+    banco.salvarTexto(CHAVE_DIRECT_BLOQUEADO, `${marcaDoToken(ig.token)}|${motivo}`, agora);
+    resumo.avisos.push(`O "comenta QUERO" foi desligado (as artes e legendas voltam para o link da bio): ${motivo}. ${como}`);
+  };
+  try {
+    for (const midia of banco.midiasRecentesDoInstagram(7, agora)) {
+      if (resumo.respondidos >= ig.respostasPorRodada) break;
+      const comentarios = await api.comentarios(midia.mediaId);
+      for (const c of comentarios) {
+        if (resumo.respondidos >= ig.respostasPorRodada) break;
+        resumo.lidos++;
+        if (banco.comentarioRespondido(c.id)) continue;
+        const texto = normalizar(c.texto);
+        if (!palavras.some((p) => contemPalavra(texto, p))) continue;
+        try {
+          await api.mandarNoDirect(c.id, mensagemDoDirect(midia.titulo, midia.link, config));
+        } catch (e) {
+          if (e instanceof ErroInstagram && e.fatal && !ERROS_DO_COMENTARIO.test(e.message)) throw e;
+          // Só aquele comentário não deu (passou de 7 dias, a pessoa bloqueou mensagens): marca para não insistir.
+          banco.marcarComentario(c.id, false, agora);
+          // Várias falhas seguidas sem nenhum direct entregue: não é a pessoa, é o app (sem a aprovação da Meta para mandar mensagens).
+          if (++falhas >= 3 && resumo.respondidos === 0 && banco.respostasNoDirect(7, agora) === 0) {
+            bloquear(`o Instagram recusou o direct em ${falhas} comentários seguidos (${(e as Error).message})`, 'O app precisa do acesso avançado à permissão instagram_business_manage_messages (revisão do app na Meta). Depois, gere um token novo e atualize o Secret INSTAGRAM_TOKEN: o robô volta a tentar sozinho.');
+            return resumo;
+          }
+          continue;
+        }
+        banco.marcarComentario(c.id, true, agora);
+        resumo.respondidos++;
+        try {
+          await api.responderComentario(c.id, RESPOSTAS_PUBLICAS[resumo.respondidos % RESPOSTAS_PUBLICAS.length]!);
+        } catch {
+          // A resposta pública é um extra: se falhar, o link já foi no direct.
+        }
+        await pausa(1500);
+      }
+    }
+  } catch (e) {
+    const mensagem = (e as Error).message;
+    if (e instanceof ErroInstagram && e.fatal) {
+      bloquear(`o token do Instagram não deixa ler comentários ou mandar direct (${mensagem})`, 'Gere um token novo com as permissões instagram_business_manage_comments e instagram_business_manage_messages e atualize o Secret INSTAGRAM_TOKEN: o robô volta a tentar sozinho.');
+    } else {
+      resumo.avisos.push(`Instagram, comentários: ${mensagem}`);
+    }
+  }
   return resumo;
 }

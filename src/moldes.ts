@@ -1,7 +1,9 @@
 /**
  * Moldes das artes do Instagram, na marca Mata Preço.
- * Regra do formato: a arte NUNCA mostra preço em reais. A pergunta ("CAIU MESMO?") chama a atenção, o produto aparece,
- * e a faixa de baixo manda quem quer o preço para o grupo (link na bio). Um só visual para todos os assuntos.
+ * Regra do formato: a arte NUNCA mostra preço em reais (o preço muda a toda hora; um valor velho na imagem seria propaganda enganosa).
+ * O que chama a atenção é o que é verdade por mais tempo: o produto grande, o selo (desconto em % só quando o nosso histórico confirma o
+ * preço "de", menor preço, em alta), a prova real (nota, vendidos, frete) e a chamada "comenta QUERO", que leva o link e o preço ao direct.
+ * Cada nicho tem a sua cor, para o perfil não parecer um catálogo.
  * Para mudar o visual da marca, mexa só em MARCA, abaixo.
  */
 
@@ -55,7 +57,27 @@ export interface DadosDaArte {
   /** Nota e vendas já formatadas ("4,8" e "2 mil"), para mostrar a prova social no próprio card. */
   nota?: string;
   vendas?: string;
+  /** Cor de destaque do nicho (o brilho do fundo). */
+  cor?: string;
+  /** Selo do canto da foto: desconto confirmado ("-45%"), menor preço ou "EM ALTA". Sem selo, a etiqueta "?" faz a curiosidade. */
+  selo?: { texto: string; tipo: 'desconto' | 'historico' | 'febre' };
+  /** Chamada do pé da arte: a linha grande e a linha pequena ("COMENTA "QUERO"" / "QUE EU TE MANDO O LINK NO DIRECT"). */
+  chamada?: { linha: string; apoio: string };
 }
+
+/** Cor de cada nicho no brilho do fundo da arte. */
+export const CORES_DO_NICHO: Record<string, string> = {
+  tech: '#2563EB',
+  casa: '#059669',
+  games: '#7C3AED',
+  beleza: '#DB2777',
+  moda: '#E11D48',
+  esporte: '#16A34A',
+  pet: '#EA580C',
+  bebe: '#0EA5E9',
+  ferramentas: '#D97706',
+  geral: '#E10600',
+};
 
 const FONTE = 'Liberation Sans, DejaVu Sans, Arial, Helvetica, sans-serif';
 
@@ -72,8 +94,8 @@ function pilula(cx: number, y: number, h: number, largura: number, cor: string, 
   return `<rect x="${cx - largura / 2}" y="${y}" width="${largura}" height="${h}" rx="${h / 2}" fill="${cor}"${opacidade < 1 ? ` fill-opacity="${opacidade}"` : ''}/>\n${texto(cx, y + h * 0.7, tamanho, cor === MARCA.amarelo ? MARCA.f1 : MARCA.branco, rotulo)}`;
 }
 
-export const fundo = (largura: number, altura: number) =>
-  `<defs><radialGradient id="brilho" cx="0.85" cy="0" r="0.9"><stop offset="0" stop-color="${MARCA.vermelho}" stop-opacity="0.55"/><stop offset="1" stop-color="${MARCA.vermelho}" stop-opacity="0"/></radialGradient></defs>
+export const fundo = (largura: number, altura: number, cor: string = MARCA.vermelho) =>
+  `<defs><radialGradient id="brilho" cx="0.85" cy="0" r="0.9"><stop offset="0" stop-color="${cor}" stop-opacity="0.6"/><stop offset="1" stop-color="${cor}" stop-opacity="0"/></radialGradient></defs>
 <rect width="${largura}" height="${altura}" fill="${MARCA.f1}"/>
 <rect width="${largura}" height="${Math.round(altura * 0.5)}" fill="url(#brilho)"/>`;
 
@@ -221,29 +243,41 @@ ${texto(-26, 26, 76, MARCA.f1, '?')}
 </g>`;
 }
 
-function arteDoProduto(d: DadosDaArte, g: { largura: number; altura: number; yLogo: number; yFoto: number; hFoto: number; passoDoTitulo: number; tamanhoDoTitulo: number; yPergunta: number; tamanhoDaPergunta: number; yAviso: number; escalaDaEtiqueta: number }): string {
+/** Selo do canto da foto. Desconto: um círculo vermelho grande ("-45%" / "OFF"). Menor preço e em alta: uma pílula. */
+function seloDaFoto(d: DadosDaArte, xDir: number, yTopo: number): string {
+  if (!d.selo) return '';
+  if (d.selo.tipo === 'desconto') {
+    const cx = xDir - 92;
+    const cy = yTopo + 92;
+    return `<g transform="rotate(-8 ${cx} ${cy})"><circle cx="${cx}" cy="${cy + 6}" r="104" fill="#A80400"/><circle cx="${cx}" cy="${cy}" r="104" fill="${MARCA.vermelho}"/>${texto(cx, cy + 12, 70, MARCA.branco, d.selo.texto)}${texto(cx, cy + 52, 30, MARCA.amarelo, 'OFF', ' letter-spacing="3"')}</g>`;
+  }
+  const cor = d.selo.tipo === 'historico' ? MARCA.amarelo : MARCA.vermelho;
+  const l = larguraDaPilula(d.selo.texto, 30, 200, 360);
+  return pilula(xDir - l / 2 - 10, yTopo - 30, 64, l, cor, 30, d.selo.texto);
+}
+
+function arteDoProduto(d: DadosDaArte, g: { largura: number; altura: number; yLogo: number; yFoto: number; hFoto: number; passoDoTitulo: number; tamanhoDoTitulo: number; yApoio: number; tamanhoDoApoio: number; yChamada: number; tamanhoDaChamada: number; yAviso: number; escalaDaEtiqueta: number }): string {
   const xCartao = 60;
   const lCartao = 960;
   const yTitulo = g.yFoto + g.hFoto + 24 + g.tamanhoDoTitulo;
-  // A pergunta encolhe se for comprida, para sempre caber folgada.
-  const tamanhoDaPergunta = Math.min(g.tamanhoDaPergunta, Math.floor(860 / (d.pergunta.length * 0.7)));
-  // Só o selo que o histórico prova ("MENOR PREÇO"), pequeno e no canto do cartão, fora do produto.
-  const selo = d.ganchoTipo === 'historico' ? pilula(xCartao + lCartao - 130, g.yFoto - 30, 60, larguraDaPilula(d.ganchoCurto, 28, 200, 330), MARCA.amarelo, 28, d.ganchoCurto) : '';
-  return `${fundo(g.largura, g.altura)}
+  const chamada = d.chamada ?? { linha: d.pergunta, apoio: 'VEJA NO LINK DA BIO' };
+  // A chamada encolhe se for comprida, para sempre caber folgada.
+  const tamanhoDaChamada = Math.min(g.tamanhoDaChamada, Math.floor(860 / (chamada.linha.length * 0.7)));
+  return `${fundo(g.largura, g.altura, d.cor)}
 ${marca(g.largura / 2, g.yLogo, 40, 'centro')}
 <rect x="${xCartao}" y="${g.yFoto}" width="${lCartao}" height="${g.hFoto}" rx="48" fill="${MARCA.branco}"/>
 ${foto(d, xCartao + 30, g.yFoto + 30, lCartao - 60, g.hFoto - 60, 56)}
-${etiquetaDePreco(xCartao + lCartao - 30 - 104 * g.escalaDaEtiqueta, g.yFoto + g.hFoto - 96, g.escalaDaEtiqueta)}
-${selo}
+${d.selo ? seloDaFoto(d, xCartao + lCartao, g.yFoto) : etiquetaDePreco(xCartao + lCartao - 30 - 104 * g.escalaDaEtiqueta, g.yFoto + g.hFoto - 96, g.escalaDaEtiqueta)}
 ${linhasDoTitulo(d, 540, yTitulo, g.passoDoTitulo, g.tamanhoDoTitulo, MARCA.branco)}
-${texto(540, g.yPergunta, tamanhoDaPergunta, MARCA.amarelo, d.pergunta, ' font-style="italic"')}
-${texto(540, g.yPergunta + Math.round(tamanhoDaPergunta * 0.78), 28, MARCA.branco, 'VEJA NO LINK DA BIO', ' letter-spacing="4"')}
+${apoio(d, 540, g.yApoio, g.tamanhoDoApoio)}
+${texto(540, g.yChamada, tamanhoDaChamada, MARCA.amarelo, chamada.linha, ' font-style="italic"')}
+${texto(540, g.yChamada + Math.round(tamanhoDaChamada * 0.78), 26, MARCA.branco, chamada.apoio, ' letter-spacing="3"')}
 ${aviso(g.yAviso, 22)}`;
 }
 
 /** Story 1080x1920. A marca da plataforma tira o topo (até 250) e o pé (de 1650 em diante). */
 export function svgDoStory(d: DadosDaArte): string {
-  const corpo = arteDoProduto(d, { largura: 1080, altura: 1920, yLogo: 290, yFoto: 370, hFoto: 880, passoDoTitulo: 62, tamanhoDoTitulo: 52, yPergunta: 1520, tamanhoDaPergunta: 70, yAviso: 1640, escalaDaEtiqueta: 1.25 });
+  const corpo = arteDoProduto(d, { largura: 1080, altura: 1920, yLogo: 290, yFoto: 370, hFoto: 850, passoDoTitulo: 62, tamanhoDoTitulo: 52, yApoio: 1430, tamanhoDoApoio: 34, yChamada: 1525, tamanhoDaChamada: 70, yAviso: 1640, escalaDaEtiqueta: 1.25 });
   return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920" font-family="${FONTE}">
 ${corpo}
 </svg>`;
@@ -252,7 +286,7 @@ ${corpo}
 // ───────────────────────── Feed 1080x1350 ─────────────────────────
 
 export function svgDoFeed(d: DadosDaArte): string {
-  const corpo = arteDoProduto(d, { largura: 1080, altura: 1350, yLogo: 92, yFoto: 140, hFoto: 800, passoDoTitulo: 56, tamanhoDoTitulo: 46, yPergunta: 1190, tamanhoDaPergunta: 58, yAviso: 1312, escalaDaEtiqueta: 1.1 });
+  const corpo = arteDoProduto(d, { largura: 1080, altura: 1350, yLogo: 92, yFoto: 140, hFoto: 770, passoDoTitulo: 54, tamanhoDoTitulo: 44, yApoio: 1100, tamanhoDoApoio: 30, yChamada: 1192, tamanhoDaChamada: 58, yAviso: 1312, escalaDaEtiqueta: 1.1 });
   return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350" font-family="${FONTE}">
 ${corpo}
 </svg>`;
