@@ -9,6 +9,7 @@ import { arquivosDoCarrossel, baixarImagemComoDataUri, comentaQueroAtivo, montar
 import { formatarVendas } from './mensagem.ts';
 import { mesmoTipoDeProduto } from './parecidos.ts';
 import { gravarCarrosselComRemotion, nomesDaIa, propsDoRemotion } from './remotion.ts';
+import { linhaPorDia, numerosDoGrupo } from './grupo.ts';
 import { dadosDaApresentacao } from './vitrine.ts';
 import type { OfertaAvaliada } from './types.ts';
 
@@ -93,7 +94,8 @@ export async function gravarPngsDoCarrossel(banco: Banco, config: Config, agora:
     const nomes = arquivosDoCarrossel(pendente.chave, dados.itens.length + 2);
     const comentaQuero = comentaQueroAtivo(banco, config, agora);
     const props = propsDoRemotion(dados.itens, comentaQuero, dados.nomes);
-    const motivo = await gravarCarrosselComRemotion({ titulo: dados.capa, fato: dados.fato, itens: props.itens, comentaQuero }, pasta, nomes, config);
+    const grupo = linhaPorDia(numerosDoGrupo(banco, agora));
+    const motivo = await gravarCarrosselComRemotion({ titulo: dados.capa, fato: dados.fato, itens: props.itens, comentaQuero, ...(grupo ? { grupo } : {}) }, pasta, nomes, config);
     if (!motivo) return nomes.length;
     console.log(`[carrossel] imagens do Remotion não saíram (${motivo}); gravando o plano B.`);
     const svgs = montarSvgsDosAchados(dados, comentaQuero);

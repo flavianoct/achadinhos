@@ -22,6 +22,8 @@ export type PropsDoCarrossel = {
   fato: string;
   itens: ItemDoCarrossel[];
   comentaQuero: boolean;
+  /** "+80 ACHADOS POR DIA NO GRUPO", no fim do carrossel. */
+  grupo?: string;
 };
 
 export const imagensDoCarrossel = (n: number) => n + 2;
@@ -167,6 +169,7 @@ const Fim: React.FC<{ p: PropsDoCarrossel }> = ({ p }) => {
           <Salvar tamanho={50} /> SALVA PRA NÃO PERDER
         </div>
       </div>
+      {p.grupo ? <Linha y={1170} tamanho={caber(p.grupo, 40)} cor={MARCA.amarelo}>{p.grupo}</Linha> : null}
       <div style={{ position: 'absolute', bottom: 34, left: 0, right: 0, textAlign: 'center', color: MARCA.suave, fontFamily: 'Arial, sans-serif', fontWeight: 700, fontSize: 24 }}>{MARCA.aviso}</div>
     </AbsoluteFill>
   );

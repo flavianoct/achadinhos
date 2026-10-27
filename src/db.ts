@@ -482,6 +482,12 @@ export class Banco {
       .run(`${o.loja}:${o.idProduto}:${agora.getTime()}`, o.loja, texto, o.imagem ?? null, o.link, agora.getTime(), o.categoria ?? null, soNicho ? 1 : 0);
   }
 
+  /** Quando a oferta entrou na fila do grupo do WhatsApp (a primeira vez), ou undefined se ela não foi para o WhatsApp. */
+  horaNoWhatsapp(loja: string, idProduto: string): number | undefined {
+    const l = this.db.prepare(`SELECT MIN(criado_em) AS t FROM whatsapp_saida WHERE chave LIKE ?`).get(`${loja}:${idProduto}:%`) as { t: number | null } | undefined;
+    return l?.t ?? undefined;
+  }
+
   /** Guarda uma mensagem pronta (o cupom do dia, por exemplo) para o enviador do WhatsApp mandar aos grupos e canais gerais. */
   guardarMensagemParaWhatsapp(m: { chave: string; loja: string; texto: string; link: string; imagem?: string }, agora: Date): void {
     this.db
