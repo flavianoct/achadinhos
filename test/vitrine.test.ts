@@ -79,7 +79,7 @@ test('vitrine: a apresentação usa as regras de verdade do filtro e sem palavra
   assert.deepEqual(palavrasParaMostrar(['réplica', 'replica', 'usado', 'recondicionado', 'erótico']), ['réplica', 'usado', 'recondicionado']);
 });
 
-test('vitrine: o Story "Hoje no grupo" é gravado a partir de uma hora antes e publicado uma vez por dia, na hora do resumo', async (t) => {
+test('vitrine: o Story da manhã "Ontem no grupo" é gravado a partir de uma hora antes e publicado uma vez por dia, na hora do resumo', async (t) => {
   try {
     await import('@resvg/resvg-js');
   } catch {
@@ -87,7 +87,8 @@ test('vitrine: o Story "Hoje no grupo" é gravado a partir de uma hora antes e p
   }
   const dir = mkdtempSync(join(tmpdir(), 'vitrine-'));
   const cfg = lerConfig({ ...base, BLOG_PASTA: dir, INSTAGRAM_RESUMO_HORA: '21' });
-  const banco = bancoComPostsDoDia(5);
+  // Os achados de ontem (o Story conta o que o grupo recebeu no dia anterior).
+  const banco = bancoComPostsDoDia(5, new Date(AGORA.getTime() - 86_400_000));
   const as19 = new Date('2026-10-05T22:00:00Z');
   assert.equal(await gravarResumoDoDia(banco, cfg, as19), false, '19h: cedo demais');
   assert.equal(await gravarResumoDoDia(banco, cfg, AGORA), true);

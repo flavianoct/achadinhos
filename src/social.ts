@@ -2,6 +2,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Config } from './config.ts';
 import type { Banco } from './db.ts';
+import { linhaPorDia, numerosDoGrupo } from './grupo.ts';
 import { formatarVendas } from './mensagem.ts';
 import { normalizar } from './categoria.ts';
 import { CORES_DO_NICHO, esc, fundo, marca, MARCA, svgDaCapaDaDica, svgDaCapaDoDuelo, svgDoCompetidor, svgDoFechamentoDoDuelo, svgDoCriterio, svgDoFechamentoDaDica, svgDoFeed, svgDoStory, svgsDaApresentacao, type DadosDaApresentacao, type DadosDaArte, type TipoDeGancho } from './moldes.ts';
@@ -226,15 +227,16 @@ export function provaDaOferta(o: OfertaAvaliada): string | undefined {
   return partes.length ? `✅ ${partes.join(' · ')}` : undefined;
 }
 
-export function montarLegenda(o: OfertaAvaliada, config: Config, comentaQuero = false): string {
+export function montarLegenda(o: OfertaAvaliada, config: Config, comentaQuero = false, grupo: { chegada?: string; ontem?: string } = {}): string {
   const linhas: string[] = [];
   const quem = PARA_QUEM[o.categoria] ?? PARA_QUEM.geral!;
-  const grupo = temWhatsapp(config);
+  const temGrupo = temWhatsapp(config);
   // A primeira linha é o que aparece antes do "mais": gancho e aviso de publicidade já ali.
   linhas.push(`${montarGancho(o)} #publi`);
   // A chamada logo na segunda linha (antes do "mais"): é ela que gera o comentário, e o comentário é o que mais leva o post longe.
   if (comentaQuero) linhas.push('💬 Comenta QUERO que eu te mando o link no direct');
   linhas.push(tituloCompleto(o.titulo));
+  if (grupo.chegada) linhas.push(grupo.chegada);
   linhas.push('');
   linhas.push(`🎯 ${quem[escolha(`q${o.idProduto}`, quem.length)]}`);
   const prova = provaDaOferta(o);
@@ -246,10 +248,11 @@ export function montarLegenda(o: OfertaAvaliada, config: Config, comentaQuero = 
   // O preço em reais não vai na imagem nem na legenda: quem quer saber entra no grupo.
   // Sem grupo de WhatsApp configurado, não promete grupo: manda para o link da bio (blog).
   if (comentaQuero) linhas.push('💰 O preço de agora vai junto com o link, no seu direct');
-  else linhas.push(grupo ? '💰 O preço de agora está no grupo (link na bio)' : '💰 O preço de agora está no link da bio');
-  linhas.push(grupo ? '⏳ Achado assim some rápido: quem está no grupo vê primeiro' : '⏳ Achado assim some rápido: corre ver na bio');
+  else linhas.push(temGrupo ? '💰 O preço de agora está no grupo (link na bio)' : '💰 O preço de agora está no link da bio');
+  linhas.push(temGrupo ? '⏳ Achado assim some rápido: quem está no grupo vê primeiro' : '⏳ Achado assim some rápido: corre ver na bio');
   linhas.push(`👉 Todas as ofertas no blog, link na bio: ${enderecoDoBlog(config)}`);
-  if (grupo) linhas.push(`📲 No grupo ${nomeDaMarca()} chegam achados assim todo dia, com o preço de agora e o histórico conferido. Entrar é grátis: link na bio.`);
+  if (grupo.ontem) linhas.push(grupo.ontem);
+  else if (temGrupo) linhas.push(`📲 No grupo ${nomeDaMarca()} chegam achados assim todo dia, com o preço de agora e o histórico conferido. Entrar é grátis: link na bio.`);
   linhas.push('');
   linhas.push('Publi: link de afiliado. O preço pode mudar a qualquer momento.');
   linhas.push('');
@@ -323,12 +326,13 @@ export function seloDaOferta(o: OfertaAvaliada): DadosDaArte['selo'] {
   return undefined;
 }
 
-function dadosDaArte(o: OfertaAvaliada, imagem: string | undefined, larguraDoTitulo: number, comentaQuero = false): DadosDaArte {
+function dadosDaArte(o: OfertaAvaliada, imagem: string | undefined, larguraDoTitulo: number, comentaQuero = false, grupo?: string): DadosDaArte {
   const g = ganchoDaOferta(o);
   return {
     cor: CORES_DO_NICHO[o.categoria] ?? CORES_DO_NICHO.geral,
     selo: seloDaOferta(o),
     chamada: comentaQuero ? { linha: 'COMENTA "QUERO"', apoio: 'QUE EU TE MANDO O LINK NO DIRECT' } : undefined,
+    grupo,
     titulo: tituloParaArte(o.titulo, larguraDoTitulo),
     desconto: 0,
     gatilho: gatilhoDaArte(o),
@@ -345,13 +349,13 @@ function dadosDaArte(o: OfertaAvaliada, imagem: string | undefined, larguraDoTit
 }
 
 /** Arte do Story, 1080x1920, em SVG. A imagem do produto vai embutida (data URI) para o painel virar PNG no navegador. */
-export function montarSvgDoStory(o: OfertaAvaliada, imagem: string | undefined, _config?: Config, comentaQuero = false): string {
-  return svgDoStory(dadosDaArte(o, imagem, 32, comentaQuero));
+export function montarSvgDoStory(o: OfertaAvaliada, imagem: string | undefined, _config?: Config, comentaQuero = false, grupo?: string): string {
+  return svgDoStory(dadosDaArte(o, imagem, 32, comentaQuero, grupo));
 }
 
 /** Versão 4:5 (1080x1350) para o feed: o feed do Instagram não aceita imagem em pé 9:16. */
-export function montarSvgDoFeed(o: OfertaAvaliada, imagem: string | undefined, _config?: Config, comentaQuero = false): string {
-  return svgDoFeed(dadosDaArte(o, imagem, 33, comentaQuero));
+export function montarSvgDoFeed(o: OfertaAvaliada, imagem: string | undefined, _config?: Config, comentaQuero = false, grupo?: string): string {
+  return svgDoFeed(dadosDaArte(o, imagem, 33, comentaQuero, grupo));
 }
 
 
@@ -555,7 +559,7 @@ export function montarSvgsDosAchados(d: DadosDosAchados, comentaQuero = false): 
 }
 
 /** Legenda do carrossel de achados: o pedido do número logo no começo, os nomes numerados, salvar e compartilhar, o aviso de publi. */
-export function legendaDosAchados(d: DadosDosAchados, config: Config, comentaQuero = false): string {
+export function legendaDosAchados(d: DadosDosAchados, config: Config, comentaQuero = false, ontem?: string): string {
   const n = d.itens.length;
   const nomes = d.itens.map((it, i) => (d.nomes?.[i] || tituloCompleto(it.oferta.titulo, 70)));
   return [
@@ -566,6 +570,7 @@ export function legendaDosAchados(d: DadosDosAchados, config: Config, comentaQue
     '',
     '💾 Salva pra não perder e manda pra quem vai gostar',
     comentaQuero ? '💰 O preço de agora vai junto com o link, no seu direct.' : '💰 O preço de agora está no link da bio.',
+    ...(ontem ? [ontem] : []),
     '',
     'Publi: links de afiliado. Preços e estoque podem mudar a qualquer momento.',
     '',
@@ -574,8 +579,8 @@ export function legendaDosAchados(d: DadosDosAchados, config: Config, comentaQue
 }
 
 /** Legenda do carrossel, pelo formato. */
-export function legendaDoCarrossel(d: DadosDoCarrossel, config: Config, comentaQuero = false): string {
-  if (d.formato === 'achados') return legendaDosAchados(d, config, comentaQuero);
+export function legendaDoCarrossel(d: DadosDoCarrossel, config: Config, comentaQuero = false, ontem?: string): string {
+  if (d.formato === 'achados') return legendaDosAchados(d, config, comentaQuero, ontem);
   if (d.formato === 'duelo') return legendaDoDuelo(d, config);
   return d.formato === 'grupo' ? legendaDoGrupo(d) : legendaDaDica(d, config);
 }
@@ -608,13 +613,14 @@ export async function gravarPngs(banco: Banco, config: Config, agora: Date): Pro
   mkdirSync(pasta, { recursive: true });
   let gravados = 0;
   const comentaQuero = comentaQueroAtivo(banco, config, agora);
+  const grupo = linhaPorDia(numerosDoGrupo(banco, agora));
   for (const l of banco.socialRecentes(HORAS_DO_SOCIAL, MAXIMO_DE_ARTES, agora)) {
     if (!l.svg) continue;
     const oferta = JSON.parse(l.dados) as OfertaAvaliada;
     const foto = await imagemParaPng(l.imagem);
-    const story = await renderizarPng(montarSvgDoStory(oferta, foto, config), 1080);
+    const story = await renderizarPng(montarSvgDoStory(oferta, foto, config, false, grupo), 1080);
     if (!story) return { gravados, semConversor: true };
-    const feed = await renderizarPng(montarSvgDoFeed(oferta, foto, config, comentaQuero), 1080);
+    const feed = await renderizarPng(montarSvgDoFeed(oferta, foto, config, comentaQuero, grupo), 1080);
     writeFileSync(join(pasta, arquivoDaArte(l.chave, 'story')), story);
     gravados++;
     if (feed) {

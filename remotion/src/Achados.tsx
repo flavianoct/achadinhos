@@ -36,6 +36,8 @@ export type PropsDosAchados = {
   promessa: string;
   comentaQuero: boolean;
   audio?: string;
+  /** "+80 ACHADOS POR DIA NO GRUPO": o que o grupo entrega, no fim do vídeo. */
+  grupo?: string;
 };
 
 export const duracaoDosAchados = (n: number) => QUADROS.gancho + n * QUADROS.item + QUADROS.fim;
@@ -252,6 +254,7 @@ const Fim: React.FC<{ props: PropsDosAchados }> = ({ props }) => {
       })}
       <Linha y={1260} tamanho={caber(chamada, 104)} cor={MARCA.amarelo} italico style={{ transform: `scale(${pulso})`, WebkitTextStroke: `3px ${MARCA.fundo}` }}>{chamada}</Linha>
       <Palavras texto={apoio} y={1390} tamanho={caber(apoio, 44)} cor="#fff" inicio={10} passo={2} />
+      {props.grupo ? <Linha y={1480} tamanho={caber(props.grupo, 40)} cor={MARCA.amarelo} style={{ opacity: interpolate(frame, [16, 24], [0, 1], travar) }}>{props.grupo}</Linha> : null}
       <Flash />
     </AbsoluteFill>
   );

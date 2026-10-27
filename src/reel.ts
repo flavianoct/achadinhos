@@ -11,6 +11,7 @@ import { CORES_DO_NICHO, esc, fundo, marca, MARCA } from './moldes.ts';
 import { formatarVendas } from './mensagem.ts';
 import { baixarImagemComoDataUri, comentaQueroAtivo, renderizarPng, seloDaOferta, temWhatsapp, tituloParaArte, type Fetch } from './social.ts';
 import { gravarComRemotion } from './remotion.ts';
+import { linhaPorDia, numerosDoGrupo } from './grupo.ts';
 import type { OfertaAvaliada } from './types.ts';
 
 const executar = promisify(execFile);
@@ -193,7 +194,7 @@ ${textoSvg(540, 1630, 24, MARCA.suave, 'Publi · link de afiliado · preço pode
 }
 
 /** Legenda do Reel: a escolha e o pedido de comentário logo no começo, os nomes numerados, o aviso de publi. Nunca preço em reais. */
-export function legendaDoReel(dados: DadosDoReel, config: Config, comentaQuero = false): string {
+export function legendaDoReel(dados: DadosDoReel, config: Config, comentaQuero = false, ontem?: string): string {
   const curto = (t: string) => t.split(/\s+/).slice(0, 7).join(' ').replace(/[,;:-]+$/, '');
   const linhas = dados.itens.map((it, i) => `${i + 1}. ${curto(it.oferta.titulo)}`);
   const numeros = dados.itens.map((_, i) => i + 1).join(', ').replace(/, (\d+)$/, ' ou $1');
@@ -206,6 +207,7 @@ export function legendaDoReel(dados: DadosDoReel, config: Config, comentaQuero =
     '',
     comentaQuero ? '💰 O preço de agora vai junto com o link, no seu direct.' : '💰 O preço de agora está no link da bio.',
     `Salva para não perder e manda para quem vai gostar 💾${telegram}${temWhatsapp(config) ? '\n💬 Também no WhatsApp: canal e grupo, link na bio' : ''}`,
+    ...(ontem ? [ontem] : []),
     '',
     'Publi: links de afiliado. Preços e estoque podem mudar a qualquer momento.',
     '',
@@ -345,7 +347,7 @@ export async function gravarReel(banco: Banco, config: Config, agora: Date): Pro
   // Primeiro o Reel animado (Remotion); se não der, o simples (ffmpeg), para o dia nunca ficar sem Reel.
   const pasta = join(config.blog.pasta, 'social');
   mkdirSync(pasta, { recursive: true });
-  const animado = await gravarComRemotion(dados.itens, pendente.chave, join(pasta, nomeDoArquivo(pendente.chave)), config, comentaQuero);
+  const animado = await gravarComRemotion(dados.itens, pendente.chave, join(pasta, nomeDoArquivo(pendente.chave)), config, comentaQuero, fetch, linhaPorDia(numerosDoGrupo(banco, agora)));
   if (!animado) return undefined;
   console.log(`[reel] Reel animado não saiu (${animado}); montando o Reel simples.`);
   const svgs = [svgDoGancho(dados.itens), ...dados.itens.map((it, i) => svgDoItem(it, i, n)), svgDoFim(dados.itens, comentaQuero)];

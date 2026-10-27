@@ -6,6 +6,7 @@ import { CHAVE_DIRECT_BLOQUEADO, HORAS_DO_SOCIAL, comentaQueroAtivo, marcaDoToke
 import { Telegram } from './telegram.ts';
 import { legendaDoQuiz, legendaParaTikTokEShorts, type DadosDoQuiz } from './quiz.ts';
 import { arquivoDoReel, legendaDoReel, type DadosDoReel } from './reel.ts';
+import { linhaDeChegada, linhaDeOntem, numerosDoGrupo } from './grupo.ts';
 import type { OfertaAvaliada } from './types.ts';
 import { campanhaDeHoje, carregarCampanhas } from './datas.ts';
 import { arquivoDaData, arquivoDoResumo, chaveDaDataPublicada, chaveDoResumoPublicado } from './vitrine.ts';
@@ -211,6 +212,7 @@ export async function publicarNoInstagram(banco: Banco, config: Config, agora: D
 
   const api = cliente ?? new Instagram(ig.token, ig.userId, fetchFn);
   const comentaQuero = comentaQueroAtivo(banco, config, agora);
+  const ontem = linhaDeOntem(numerosDoGrupo(banco, agora));
   const todos = banco
     .socialRecentes(HORAS_DO_SOCIAL, 50, agora)
     .map((l) => ({ ...l, oferta: JSON.parse(l.dados) as OfertaAvaliada }));
@@ -258,7 +260,7 @@ export async function publicarNoInstagram(banco: Banco, config: Config, agora: D
       }
       if (todasNoAr) {
         try {
-          const id = await api.publicarCarrossel(urls, legendaDoCarrossel(dados, config, comentaQuero));
+          const id = await api.publicarCarrossel(urls, legendaDoCarrossel(dados, config, comentaQuero, ontem));
           banco.marcarCarrosselPublicado(carrossel.chave, agora);
           if (id) {
             // Carrossel de achados: o "comenta 3" leva ao produto 3. Os outros formatos levam à página da bio.
@@ -282,7 +284,7 @@ export async function publicarNoInstagram(banco: Banco, config: Config, agora: D
       if (await noAr(video)) {
         try {
           const dadosDoReel = JSON.parse(reel.dados) as DadosDoReel | DadosDoQuiz;
-          const id = await api.publicarReel(video, dadosDoReel.formato === 'quiz' ? legendaDoQuiz(dadosDoReel, config) : legendaDoReel(dadosDoReel, config, comentaQuero));
+          const id = await api.publicarReel(video, dadosDoReel.formato === 'quiz' ? legendaDoQuiz(dadosDoReel, config) : legendaDoReel(dadosDoReel, config, comentaQuero, ontem));
           banco.marcarReelPublicado(reel.chave, agora);
           if (id) {
             // Reel de produtos: guarda o nome e o link de cada um, na ordem (o "comenta 2" leva ao produto 2). O quiz leva à página da bio.
@@ -330,7 +332,7 @@ export async function publicarNoInstagram(banco: Banco, config: Config, agora: D
     }
     for (const c of candidatos) {
       if (!c.igFeedEm && podePublicar('feed') && (await noAr(url(c.chave, 'feed')))) {
-        const id = await etapa('post do feed', () => api.publicarFoto(url(c.chave, 'feed'), montarLegenda(c.oferta, config, comentaQuero)));
+        const id = await etapa('post do feed', () => api.publicarFoto(url(c.chave, 'feed'), montarLegenda(c.oferta, config, comentaQuero, { chegada: linhaDeChegada(banco, c.oferta, agora), ontem })));
         banco.marcarInstagram(c.chave, 'feed', agora);
         if (id) banco.registrarMidiaDoInstagram(id, 'feed', c.oferta.titulo, c.oferta.link, agora);
         resumo.feed++;

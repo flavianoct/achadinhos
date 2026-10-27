@@ -63,6 +63,8 @@ export interface DadosDaArte {
   selo?: { texto: string; tipo: 'desconto' | 'historico' | 'febre' };
   /** Chamada do pé da arte: a linha grande e a linha pequena ("COMENTA "QUERO"" / "QUE EU TE MANDO O LINK NO DIRECT"). */
   chamada?: { linha: string; apoio: string };
+  /** O que o grupo entrega ("+80 ACHADOS POR DIA NO GRUPO"), para a linha pequena da chamada sem o comenta QUERO. */
+  grupo?: string;
 }
 
 /** Cor de cada nicho no brilho do fundo da arte. */
@@ -256,28 +258,51 @@ function seloDaFoto(d: DadosDaArte, xDir: number, yTopo: number): string {
   return pilula(xDir - l / 2 - 10, yTopo - 30, 64, l, cor, 30, d.selo.texto);
 }
 
-function arteDoProduto(d: DadosDaArte, g: { largura: number; altura: number; yLogo: number; yFoto: number; hFoto: number; passoDoTitulo: number; tamanhoDoTitulo: number; yApoio: number; tamanhoDoApoio: number; yChamada: number; tamanhoDaChamada: number; yAviso: number; escalaDaEtiqueta: number }): string {
-  const xCartao = 60;
-  const lCartao = 960;
-  const yTitulo = g.yFoto + g.hFoto + 24 + g.tamanhoDoTitulo;
-  const chamada = d.chamada ?? { linha: d.pergunta, apoio: 'VEJA NO LINK DA BIO' };
-  // A chamada encolhe se for comprida, para sempre caber folgada.
-  const tamanhoDaChamada = Math.min(g.tamanhoDaChamada, Math.floor(860 / (chamada.linha.length * 0.7)));
+/** Logo pequeno numa pílula escura, no canto da foto (a foto é branca: o logo solto sumiria). */
+function logoNaFoto(x: number, y: number): string {
+  const altura = 26;
+  const l = Math.round(larguraDoLogo(Math.round(altura * 1.7)) + 36);
+  return `<rect x="${x}" y="${y}" width="${l}" height="64" rx="32" fill="${MARCA.f1}" fill-opacity="0.88"/>\n${marca(x + 18, y + 45, altura, 'esquerda')}`;
+}
+
+/** A prova real ("★ 4,8 · 2 mil vendidos · Frete grátis") numa pílula escura, no canto de baixo da foto. */
+function provaNaFoto(d: DadosDaArte, x: number, yBase: number, tamanho: number): string {
+  const partes = [d.nota ?? '', d.vendas ? `${d.vendas} vendidos` : '', d.freteGratis ? 'Frete grátis' : ''].filter(Boolean);
+  if (!partes.length) return '';
+  const linha = partes.join(' · ');
+  const comEstrela = Boolean(d.nota);
+  const l = Math.round(linha.length * tamanho * 0.58 + (comEstrela ? tamanho * 1.3 : 0) + 56);
+  const h = Math.round(tamanho * 1.9);
+  const x0 = x + 28 + (comEstrela ? tamanho * 1.3 : 0);
+  return `<rect x="${x}" y="${yBase - h}" width="${l}" height="${h}" rx="${h / 2}" fill="${MARCA.f1}" fill-opacity="0.88"/>
+${comEstrela ? estrela(x + 28 + tamanho * 0.55, yBase - h / 2, tamanho * 0.55) : ''}<text x="${x0.toFixed(1)}" y="${(yBase - h / 2 + tamanho * 0.36).toFixed(1)}" font-size="${tamanho}" font-weight="700" fill="${MARCA.branco}" text-anchor="start">${esc(linha)}</text>`;
+}
+
+/**
+ * Arte do produto com o PRODUTO EM PRIMEIRO PLANO: a foto ocupa a parte de cima inteira, de ponta a ponta (sem cartão, sem margem
+ * dupla), com o selo e a prova pequenos por cima; embaixo, só o nome curto e UMA chamada. Pouca coisa competindo com o produto: quem
+ * passa o dedo entende em meio segundo o que é e por que vale olhar. Nunca preço em reais.
+ */
+function arteDoProduto(d: DadosDaArte, g: { largura: number; altura: number; yFoto: number; hFoto: number; margemFoto: number; yLogo: number; ySelo: number; passoDoTitulo: number; tamanhoDoTitulo: number; yChamada: number; tamanhoDaChamada: number; yAviso: number; tamanhoDaProva: number }): string {
+  const yTitulo = g.yFoto + g.hFoto + 30 + g.tamanhoDoTitulo;
+  const chamada = d.chamada ?? { linha: 'LINK NA BIO', apoio: d.grupo ?? 'VEJA O PREÇO DE AGORA' };
+  const tamanhoDaChamada = Math.min(g.tamanhoDaChamada, Math.floor(900 / (chamada.linha.length * 0.7)));
+  const tamanhoDoApoio = Math.min(28, Math.floor(980 / (chamada.apoio.length * 0.72)));
   return `${fundo(g.largura, g.altura, d.cor)}
-${marca(g.largura / 2, g.yLogo, 40, 'centro')}
-<rect x="${xCartao}" y="${g.yFoto}" width="${lCartao}" height="${g.hFoto}" rx="48" fill="${MARCA.branco}"/>
-${foto(d, xCartao + 30, g.yFoto + 30, lCartao - 60, g.hFoto - 60, 56)}
-${d.selo ? seloDaFoto(d, xCartao + lCartao, g.yFoto) : etiquetaDePreco(xCartao + lCartao - 30 - 104 * g.escalaDaEtiqueta, g.yFoto + g.hFoto - 96, g.escalaDaEtiqueta)}
+<rect x="0" y="${g.yFoto}" width="${g.largura}" height="${g.hFoto}" fill="${MARCA.branco}"/>
+${foto(d, g.margemFoto, g.yFoto + g.margemFoto, g.largura - 2 * g.margemFoto, g.hFoto - 2 * g.margemFoto, 56)}
+${logoNaFoto(28, g.yLogo)}
+${seloDaFoto(d, g.largura - 16, g.ySelo)}
+${provaNaFoto(d, 28, g.yFoto + g.hFoto - 26, g.tamanhoDaProva)}
 ${linhasDoTitulo(d, 540, yTitulo, g.passoDoTitulo, g.tamanhoDoTitulo, MARCA.branco)}
-${apoio(d, 540, g.yApoio, g.tamanhoDoApoio)}
 ${texto(540, g.yChamada, tamanhoDaChamada, MARCA.amarelo, chamada.linha, ' font-style="italic"')}
-${texto(540, g.yChamada + Math.round(tamanhoDaChamada * 0.78), 26, MARCA.branco, chamada.apoio, ' letter-spacing="3"')}
+${texto(540, g.yChamada + Math.round(tamanhoDaChamada * 0.8), tamanhoDoApoio, MARCA.branco, chamada.apoio, ' letter-spacing="2"')}
 ${aviso(g.yAviso, 22)}`;
 }
 
-/** Story 1080x1920. A marca da plataforma tira o topo (até 250) e o pé (de 1650 em diante). */
+/** Story 1080x1920. O Instagram cobre o topo (até 250) e o pé (de 1650 em diante): o que importa fica entre os dois. */
 export function svgDoStory(d: DadosDaArte): string {
-  const corpo = arteDoProduto(d, { largura: 1080, altura: 1920, yLogo: 290, yFoto: 370, hFoto: 850, passoDoTitulo: 62, tamanhoDoTitulo: 52, yApoio: 1430, tamanhoDoApoio: 34, yChamada: 1525, tamanhoDaChamada: 70, yAviso: 1640, escalaDaEtiqueta: 1.25 });
+  const corpo = arteDoProduto(d, { largura: 1080, altura: 1920, yFoto: 0, hFoto: 1250, margemFoto: 50, yLogo: 270, ySelo: 300, passoDoTitulo: 64, tamanhoDoTitulo: 54, yChamada: 1505, tamanhoDaChamada: 76, yAviso: 1630, tamanhoDaProva: 32 });
   return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920" font-family="${FONTE}">
 ${corpo}
 </svg>`;
@@ -286,7 +311,7 @@ ${corpo}
 // ───────────────────────── Feed 1080x1350 ─────────────────────────
 
 export function svgDoFeed(d: DadosDaArte): string {
-  const corpo = arteDoProduto(d, { largura: 1080, altura: 1350, yLogo: 92, yFoto: 140, hFoto: 770, passoDoTitulo: 54, tamanhoDoTitulo: 44, yApoio: 1100, tamanhoDoApoio: 30, yChamada: 1192, tamanhoDaChamada: 58, yAviso: 1312, escalaDaEtiqueta: 1.1 });
+  const corpo = arteDoProduto(d, { largura: 1080, altura: 1350, yFoto: 0, hFoto: 900, margemFoto: 40, yLogo: 28, ySelo: 70, passoDoTitulo: 56, tamanhoDoTitulo: 46, yChamada: 1180, tamanhoDaChamada: 64, yAviso: 1318, tamanhoDaProva: 28 });
   return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350" font-family="${FONTE}">
 ${corpo}
 </svg>`;
@@ -587,4 +612,45 @@ ${texto(x + 150, meio + 62, 200, c.texto, '%')}
 ${texto(divisor + (x + w - divisor) / 2, meio - 4, 118, c.texto, 'CUPOM')}
 ${texto(divisor + (x + w - divisor) / 2, meio + 78, 50, c.texto, c.loja)}`;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" font-family="${FONTE}">\n${corpo}\n</svg>`;
+}
+
+// ───────────────────────── Story "O que você perdeu ontem" (1080x1920) ─────────────────────────
+
+export interface DadosDoQueVocePerdeu {
+  /** Quantos achados o grupo recebeu ontem. */
+  achados: number;
+  /** Quantos estavam no menor preço do histórico do robô. */
+  noMenorPreco: number;
+  /** Até 3 fotos (data URI) dos achados de ontem. */
+  fotos: string[];
+}
+
+/**
+ * Story da manhã: o que o grupo recebeu ontem, com números de verdade e as fotos dos achados (o produto em primeiro plano), para quem
+ * está fora sentir o que perdeu. Nunca preço em reais nem "exclusivo": as ofertas são públicas; o grupo ganha por chegar antes e por volume.
+ */
+export function svgDoQueVocePerdeu(d: DadosDoQueVocePerdeu): string {
+  const fotos = d.fotos.slice(0, 3);
+  const n = Math.max(1, fotos.length);
+  const gap = 20;
+  const w = Math.floor((1000 - gap * (n - 1)) / n);
+  const h = Math.round(w * 1.25);
+  const cartoes = fotos
+    .map((f, i) => {
+      const x = 40 + i * (w + gap);
+      return `<rect x="${x}" y="720" width="${w}" height="${h}" rx="28" fill="${MARCA.branco}"/>\n<image href="${f}" x="${x + 14}" y="734" width="${w - 28}" height="${h - 28}" preserveAspectRatio="xMidYMid meet"/>`;
+    })
+    .join('\n');
+  const y = 720 + h;
+  const chips = [d.noMenorPreco > 0 ? `${d.noMenorPreco} NO MENOR PREÇO DO MÊS` : '', 'CHEGAM NA HORA, DIRETO NO CELULAR'].filter(Boolean);
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920" font-family="${FONTE}">
+${fundo(1080, 1920)}
+${marca(540, 330, 40, 'centro')}
+${texto(540, 470, 60, MARCA.branco, 'ONTEM NO GRUPO:')}
+${texto(540, 640, Math.min(170, Math.floor(960 / (`${d.achados} ACHADOS`.length * 0.78))), MARCA.amarelo, `${d.achados} ACHADOS`, ' font-style="italic"')}
+${cartoes}
+${chips.map((c, i) => texto(540, y + 90 + i * 64, 40, i === 0 ? MARCA.amarelo : MARCA.branco, c)).join('\n')}
+${texto(540, y + 90 + chips.length * 64 + 80, 66, MARCA.branco, 'NÃO PERCA OS DE HOJE', ' font-style="italic"')}
+${texto(540, y + 90 + chips.length * 64 + 140, 36, MARCA.amarelo, 'ENTRA NO GRUPO · É GRÁTIS · LINK NA BIO')}
+</svg>`;
 }

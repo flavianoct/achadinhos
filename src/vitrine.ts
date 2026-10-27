@@ -4,8 +4,9 @@ import { nomeDoNicho, normalizar } from './categoria.ts';
 import type { Config } from './config.ts';
 import { diaDe, horaDe, type Banco } from './db.ts';
 import { campanhaDeHoje, carregarCampanhas, type Campanha } from './datas.ts';
-import { svgDaDataEspecial, svgDoResumoDoDia, type DadosDaApresentacao, type DadosDoResumo } from './moldes.ts';
-import { descontoParaArte, renderizarPng } from './social.ts';
+import { svgDaDataEspecial, svgDoQueVocePerdeu, svgDoResumoDoDia, type DadosDaApresentacao, type DadosDoResumo } from './moldes.ts';
+import { numerosDoGrupo } from './grupo.ts';
+import { descontoParaArte, imagemParaPng, renderizarPng } from './social.ts';
 import type { OfertaAvaliada } from './types.ts';
 
 /**
@@ -91,13 +92,25 @@ export function arquivoDoResumo(agora: Date): string {
  * Grava em blog/social/ o Story "Hoje no grupo", a partir de uma hora antes da hora do resumo (assim ele já está no ar
  * quando chega a hora de publicar). Como o site é refeito a cada rodada, o arquivo é refeito também, com os números do momento.
  */
+/**
+ * Grava em blog/social/ o Story da manhã "Ontem no grupo: N achados", com as fotos dos achados de ontem, a partir de uma hora antes da hora
+ * dele (INSTAGRAM_RESUMO_HORA). Usa o mesmo arquivo e a mesma publicação do antigo "Hoje no grupo".
+ */
 export async function gravarResumoDoDia(banco: Banco, config: Config, agora: Date): Promise<boolean> {
   const ig = config.instagram;
   if (!config.social.ativo || !ig.ativo || ig.resumoHora <= 0) return false;
   if (horaDe(agora) < ig.resumoHora - 1) return false;
-  const dados = dadosDoResumo(banco, agora);
-  if (!dados) return false;
-  const png = await renderizarPng(svgDoResumoDoDia(dados), 1080);
+  const numeros = numerosDoGrupo(banco, agora);
+  if (numeros.ontem < MINIMO_DE_ACHADOS_NO_DIA) return false;
+  const diaDeOntem = diaDe(new Date(agora.getTime() - 86_400_000));
+  const fotos: string[] = [];
+  for (const l of banco.socialRecentes(72, 300, agora)) {
+    if (fotos.length >= 3) break;
+    if (diaDe(new Date(l.criadoEm)) !== diaDeOntem || !l.imagem) continue;
+    const png = await imagemParaPng(l.imagem);
+    if (png) fotos.push(png);
+  }
+  const png = await renderizarPng(svgDoQueVocePerdeu({ achados: numeros.ontem, noMenorPreco: numeros.noMenorPrecoOntem, fotos }), 1080);
   if (!png) return false;
   const pasta = join(config.blog.pasta, 'social');
   mkdirSync(pasta, { recursive: true });

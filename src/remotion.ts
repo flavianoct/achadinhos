@@ -37,6 +37,8 @@ export interface PropsDoRemotion {
   promessa: string;
   comentaQuero: boolean;
   audio?: string;
+  /** "+80 ACHADOS POR DIA NO GRUPO" (o fim do vídeo); vazio, não aparece. */
+  grupo?: string;
 }
 
 /** Provas reais do produto, uma por chip. */
@@ -152,7 +154,7 @@ export function remotionInstalado(raiz = process.cwd()): { pasta: string; cli: s
 }
 
 /** Desenha o Reel com o Remotion e grava em `saida`. Devolve o motivo da falha, ou undefined se o vídeo foi gravado. */
-export async function gravarComRemotion(itens: Array<{ oferta: OfertaAvaliada; imagem: string }>, chave: string, saida: string, config: Config, comentaQuero: boolean, fetchFn: Fetch = fetch): Promise<string | undefined> {
+export async function gravarComRemotion(itens: Array<{ oferta: OfertaAvaliada; imagem: string }>, chave: string, saida: string, config: Config, comentaQuero: boolean, fetchFn: Fetch = fetch, grupo?: string): Promise<string | undefined> {
   if (!config.instagram.reelRemotion) return 'desligado (REEL_REMOTION=0)';
   const remotion = remotionInstalado();
   if (!remotion) return 'o Remotion não está instalado (npm ci em remotion/)';
@@ -165,7 +167,7 @@ export async function gravarComRemotion(itens: Array<{ oferta: OfertaAvaliada; i
   try {
     const nomes = await nomesDaIa(itens.map((it) => it.oferta.titulo), config, fetchFn);
     if (nomes) console.log(`[reel] nomes da IA: ${nomes.map((n) => n || '(título da loja)').join(' | ')}`);
-    const props: PropsDoRemotion = { ...propsDoRemotion(itens, comentaQuero, nomes), audio };
+    const props: PropsDoRemotion = { ...propsDoRemotion(itens, comentaQuero, nomes), audio, ...(grupo ? { grupo } : {}) };
     writeFileSync(caminhoDoAudio, audioDoRemotion(itens.length, chave));
     const arquivoDosProps = join(tmp, 'props.json');
     writeFileSync(arquivoDosProps, JSON.stringify(props));
@@ -185,6 +187,7 @@ export interface PropsDoCarrosselRemotion {
   fato: string;
   itens: ItemDoRemotion[];
   comentaQuero: boolean;
+  grupo?: string;
 }
 
 /**
