@@ -285,3 +285,11 @@ test('remotion: a IA escreve o nome curto de cada produto, e o robô só aceita 
   assert.deepEqual(props.itens[0]!.nome, ['Secador profissional', 'Taiff']);
   assert.ok(props.itens[2]!.nome.join(' ').startsWith('Fone Bluetooth'), 'sem nome da IA, o título cortado');
 });
+
+test('remotion: o vídeo vai para o caminho pedido mesmo quando ele é relativo (o Remotion roda dentro de remotion/)', async () => {
+  const { readFileSync } = await import('node:fs');
+  const fonte = readFileSync(new URL('../src/remotion.ts', import.meta.url), 'utf8');
+  assert.match(fonte, /const destino = resolve\(saida\)/);
+  assert.match(fonte, /'Achados', destino,/, 'o Remotion recebe o caminho absoluto');
+  assert.match(fonte, /existsSync\(destino\)/);
+});

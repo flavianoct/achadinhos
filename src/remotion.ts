@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { pedirAoGemini } from './blog.ts';
 import { normalizar } from './categoria.ts';
@@ -156,6 +156,8 @@ export async function gravarComRemotion(itens: Array<{ oferta: OfertaAvaliada; i
   if (!config.instagram.reelRemotion) return 'desligado (REEL_REMOTION=0)';
   const remotion = remotionInstalado();
   if (!remotion) return 'o Remotion não está instalado (npm ci em remotion/)';
+  // Caminho absoluto: o Remotion roda dentro da pasta remotion/, e um caminho relativo (blog/social/...) iria parar lá dentro.
+  const destino = resolve(saida);
   const tmp = mkdtempSync(join(tmpdir(), 'remotion-'));
   // O áudio vai para a pasta public do projeto (é de lá que o Remotion lê os arquivos), com nome único, e sai no fim.
   const audio = `reel-audio-${chave.replace(/[^a-z0-9-]/gi, '')}.wav`;
@@ -167,8 +169,8 @@ export async function gravarComRemotion(itens: Array<{ oferta: OfertaAvaliada; i
     writeFileSync(caminhoDoAudio, audioDoRemotion(itens.length, chave));
     const arquivoDosProps = join(tmp, 'props.json');
     writeFileSync(arquivoDosProps, JSON.stringify(props));
-    await executar(process.execPath, [remotion.cli, 'render', 'src/index.ts', 'Achados', saida, `--props=${arquivoDosProps}`, '--log=error'], { cwd: remotion.pasta, timeout: 6 * 60_000, maxBuffer: 20_000_000 });
-    return existsSync(saida) ? undefined : 'o Remotion terminou sem gravar o vídeo';
+    await executar(process.execPath, [remotion.cli, 'render', 'src/index.ts', 'Achados', destino, `--props=${arquivoDosProps}`, '--log=error'], { cwd: remotion.pasta, timeout: 6 * 60_000, maxBuffer: 20_000_000 });
+    return existsSync(destino) ? undefined : 'o Remotion terminou sem gravar o vídeo';
   } catch (e) {
     const erro = e as Error & { stderr?: string };
     return `o Remotion falhou (${(erro.stderr || erro.message).toString().trim().slice(0, 300)})`;
