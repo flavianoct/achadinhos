@@ -154,7 +154,7 @@ export interface Config {
   /** Arte de Story, legenda e roteiro de vídeo das ofertas postadas (aparecem no painel). */
   social: { ativo: boolean };
   /** Publicação automática no Instagram (conta profissional). Token e ID ficam nos Secrets. */
-  instagram: { ativo: boolean; token: string; userId: string; feedPorDia: number; storiesPorDia: number; intervaloFeedMin: number; intervaloStoryMin: number; notaMinima: number; vendasMinimas: number; palavrasBloqueadas: string[]; carrosselPorDia: number; carrosselItens: number; carrosselTetos: number[]; dicasDias: number[]; perguntaDias: number[]; horariosFeed: number[]; horariosStories: number[]; reelsPorDia: number; horariosReels: number[]; resumoHora: number; dataHora: number; grupoDias: number[]; tokenData: string; comentaQuero: boolean; palavrasDoComentario: string[]; respostasPorRodada: number; reelRemotion: boolean; destaqueNichos: string[]; reelsDeDestaque: number };
+  instagram: { ativo: boolean; token: string; userId: string; feedPorDia: number; storiesPorDia: number; intervaloFeedMin: number; intervaloStoryMin: number; notaMinima: number; vendasMinimas: number; palavrasBloqueadas: string[]; carrosselPorDia: number; carrosselItens: number; carrosselTetos: number[]; dicasDias: number[]; perguntaDias: number[]; horariosFeed: number[]; horariosStories: number[]; reelsPorDia: number; horariosReels: number[]; resumoHora: number; dataHora: number; grupoDias: number[]; tokenData: string; comentaQuero: boolean; palavrasDoComentario: string[]; respostasPorRodada: number; reelRemotion: boolean; destaqueNichos: string[]; reelsDeDestaque: number; destaquePrefere: string[] };
   painel: { porta: number };
 }
 
@@ -357,7 +357,8 @@ export function lerConfig(env: Env = process.env): Config {
   c.filtro.pontosPorNicho = mapaPorNicho(env.NICHO_PONTOS_MINIMOS ?? PONTOS_POR_NICHO_PADRAO, 'NICHO_PONTOS_MINIMOS', c.rotas.avisos);
   c.rotas.minimos = mapaPorNicho(env.NICHO_MINIMOS, 'NICHO_MINIMOS', c.rotas.avisos);
   c.rotas.minimoPadrao = Math.max(0, numero(env, 'NICHO_MINIMO_PADRAO', 6));
-  c.shopee.nichosPrioritarios = nichosComDestino(c);
+  // Moda entra nas buscas de toda rodada quando há roupa feminina para o Reel de destaque.
+  c.shopee.nichosPrioritarios = [...new Set([...nichosComDestino(c), ...(c.instagram.destaquePrefere.length ? ['moda'] : [])])];
   c.shopee.buscasDeNicho = Math.max(0, numero(env, 'SHOPEE_BUSCAS_DE_NICHO', 1));
   // NICHOS_ATIVOS: o robô puxa só esses nichos (vazio = todos). Vale para a Shopee (categorias e buscas) e para o Mercado Livre (categorias).
   const ativos = lista(env.NICHOS_ATIVOS)
@@ -552,6 +553,8 @@ function lerConfigBase(env: Env): Config {
       destaqueNichos: lista(env.INSTAGRAM_DESTAQUE_NICHOS === undefined ? 'todos' : env.INSTAGRAM_DESTAQUE_NICHOS).map((n) => n.toLowerCase()),
       // Quantos dos Reels do dia são de destaque (um produto só). Os outros são de 3 achados.
       reelsDeDestaque: numero(env, 'INSTAGRAM_REELS_DE_DESTAQUE', 3),
+      // Palavras do título que ganham a vez no Reel de destaque (roupa feminina vende pelo olho). Vazio = sem preferência.
+      destaquePrefere: lista(env.INSTAGRAM_DESTAQUE_PREFERE === undefined ? 'vestido,saia,conjunto feminino,blusa feminina,cropped,macacao feminino,biquini,body feminino' : env.INSTAGRAM_DESTAQUE_PREFERE).map((p) => p.toLowerCase()),
     },
     painel: { porta: numero(env, 'PAINEL_PORTA', 3210) },
   };

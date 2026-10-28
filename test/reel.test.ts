@@ -392,3 +392,20 @@ test('galeria: o destaque prefere o produto com várias fotos do anúncio e guar
   assert.equal(dados.item.oferta.idProduto, 'MLB2', 'o de várias fotos vem antes, mesmo com menos pontos');
   assert.equal(dados.item.fotos.length, 4);
 });
+
+test('roupa feminina: o destaque escolhe vestido antes de outros produtos, e a moda entra nas buscas de toda rodada', async () => {
+  const { prepararDestaque } = await import('../src/reel.ts');
+  const banco = new Banco(':memory:');
+  banco.guardarProduto({ ...produto(1), categoria: 'moda', titulo: 'Mochila Executiva Notebook', pontos: 99 }, AGORA);
+  banco.guardarProduto({ ...produto(2), categoria: 'moda', titulo: 'Vestido Midi Feminino Alcinha', pontos: 40 }, AGORA);
+  const config = lerConfig({ ...base, INSTAGRAM_REELS_DE_DESTAQUE: '3' });
+  assert.ok(config.shopee.nichosPrioritarios.includes('moda'));
+  assert.equal(await prepararDestaque(banco, config, AGORA, foto), true);
+  assert.equal(JSON.parse(banco.reelPendente(AGORA)!.dados).item.oferta.idProduto, 'MLB2', 'o vestido vem antes, mesmo com menos pontos');
+  const semPreferencia = lerConfig({ ...base, INSTAGRAM_REELS_DE_DESTAQUE: '3', INSTAGRAM_DESTAQUE_PREFERE: '' });
+  const b2 = new Banco(':memory:');
+  b2.guardarProduto({ ...produto(1), categoria: 'moda', titulo: 'Mochila Executiva Notebook', pontos: 99 }, AGORA);
+  b2.guardarProduto({ ...produto(2), categoria: 'moda', titulo: 'Vestido Midi Feminino Alcinha', pontos: 40 }, AGORA);
+  await prepararDestaque(b2, semPreferencia, AGORA, foto);
+  assert.equal(JSON.parse(b2.reelPendente(AGORA)!.dados).item.oferta.idProduto, 'MLB1', 'sem preferência, vale a pontuação');
+});

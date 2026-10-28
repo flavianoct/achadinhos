@@ -77,7 +77,8 @@ export const BUSCAS_POR_NICHO: Record<string, string[]> = {
   casa: ['air fryer', 'garrafa térmica', 'organizador', 'panela', 'luminária', 'ventilador', 'jogo de lençol'],
   games: ['cadeira gamer', 'mouse gamer', 'teclado gamer', 'headset gamer', 'controle ps4'],
   beleza: ['secador de cabelo', 'chapinha', 'perfume', 'skincare', 'kit maquiagem'],
-  moda: ['tênis', 'mochila', 'bolsa feminina', 'relógio masculino', 'óculos de sol', 'relógio feminino', 'chinelo', 'tênis casual'],
+  // Roupa feminina primeiro: é o que mais vende pelo olho e rende Reel de galeria (vestido, conjunto, saia, blusa).
+  moda: ['vestido midi', 'vestido longo', 'conjunto feminino', 'saia midi', 'blusa feminina', 'macacão feminino', 'vestido de festa', 'bolsa feminina', 'tênis casual', 'óculos de sol', 'relógio feminino', 'mochila'],
   esporte: ['creatina', 'whey protein', 'halter', 'tapete yoga', 'garrafa academia'],
   pet: [
     'ração cachorro', 'cama para cachorro', 'arranhador para gato', 'coleira peitoral cachorro', 'comedouro bebedouro pet', 'brinquedo para cachorro',

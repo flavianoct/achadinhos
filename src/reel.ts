@@ -9,6 +9,7 @@ import { diaDe, horaDe, type Banco } from './db.ts';
 import { estiloDaMusica, sintetizarEfeitos, sintetizarMusica, type Efeito } from './musica.ts';
 import { CORES_DO_NICHO, esc, fundo, marca, MARCA } from './moldes.ts';
 import { formatarVendas } from './mensagem.ts';
+import { contemPalavra, normalizar } from './categoria.ts';
 import { baixarImagemComoDataUri, comentaQueroAtivo, hashtagsDaCategoria, reduzirFoto, renderizarPng, seloDaOferta, temWhatsapp, tituloParaArte, type Fetch } from './social.ts';
 import { gravarComRemotion, gravarDestaqueComRemotion, nomesDaIa } from './remotion.ts';
 import { passaNoFiltroDoInstagram } from './instagram.ts';
@@ -108,7 +109,15 @@ export async function prepararDestaque(banco: Banco, config: Config, agora: Date
   const todos = nichos.includes('todos');
   // Primeiro os produtos com 3 fotos ou mais (viram galeria), na ordem da pontuação; depois os de uma foto só.
   const produtos = banco.melhoresProdutos({ horas: 36, limite: 300 }, agora);
-  const ordem = [...produtos.filter((o) => (o.fotos?.length ?? 0) >= 3), ...produtos.filter((o) => (o.fotos?.length ?? 0) < 3)];
+  // Ordem: roupa feminina com várias fotos, roupa feminina, os outros com várias fotos e, por fim, os demais.
+  const roupa = (o: OfertaAvaliada) => config.instagram.destaquePrefere.some((p) => contemPalavra(normalizar(o.titulo), normalizar(p)));
+  const galeria = (o: OfertaAvaliada) => (o.fotos?.length ?? 0) >= 3;
+  const ordem = [
+    ...produtos.filter((o) => roupa(o) && galeria(o)),
+    ...produtos.filter((o) => roupa(o) && !galeria(o)),
+    ...produtos.filter((o) => !roupa(o) && galeria(o)),
+    ...produtos.filter((o) => !roupa(o) && !galeria(o)),
+  ];
   for (const oferta of ordem) {
     if ((!todos && !nichos.includes(oferta.categoria)) || !/^https:\/\//i.test(oferta.link) || !/^https:\/\//i.test(oferta.imagem ?? '') || !passaNoFiltroDoInstagram(oferta, config.instagram)) continue;
     if (banco.textoSalvo(`destaque:${oferta.loja}:${oferta.idProduto}`, DIAS_SEM_REPETIR_DESTAQUE, agora)) continue;
