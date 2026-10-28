@@ -301,3 +301,18 @@ test('comenta QUERO: quem pede recebe o link no direct uma vez só, e a legenda 
   assert.ok(!montarLegenda(oferta, config, false).includes('Comenta QUERO'));
   assert.doesNotMatch(mensagemDoDirect('x'.repeat(200), 'https://l', c), /x{81}/, 'título comprido é encurtado');
 });
+
+test('comenta QUERO: se o Instagram diz que o post tem comentários e o app não recebe nenhum, avisa o motivo', async () => {
+  const { responderComentarios } = await import('../src/instagram.ts');
+  const { Banco } = await import('../src/db.ts');
+  const c = lerConfig({ INSTAGRAM_ATIVO: '1', INSTAGRAM_TOKEN: 't', INSTAGRAM_USER_ID: 'u', BLOG_URL: 'https://site' });
+  const agora = new Date('2026-10-27T15:00:00Z');
+  const banco = new Banco(':memory:');
+  banco.registrarMidiaDoInstagram('M1', 'feed', 'Fone', 'https://x', agora);
+  const falso: any = { comentarios: async () => [], contagemDeComentarios: async () => 4 };
+  const r = await responderComentarios(banco, c, agora, fetch, falso);
+  assert.equal(r.lidos, 0);
+  assert.match(r.avisos.join(' '), /4 comentário\(s\) que o app não recebeu.*modo de desenvolvimento/);
+  const semNada: any = { comentarios: async () => [], contagemDeComentarios: async () => 0 };
+  assert.deepEqual((await responderComentarios(banco, c, agora, fetch, semNada)).avisos, [], 'sem comentários de verdade, sem aviso');
+});
