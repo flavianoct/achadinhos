@@ -169,3 +169,20 @@ test('convite: o Telegram recebe cada convite do dia uma vez só, em texto simpl
   assert.notEqual(enviados[0]!.text.replace(/^[^,]+,/, ''), enviados[1]!.text.replace(/^[^,]+,/, ''));
   robo.fechar();
 });
+
+
+test('convite: leva também ao grupo de nicho (pet), com o nome e uma frase variada, e sem mudar o resto do convite', async () => {
+  const { textoDoConvite, linhasDosNichos } = await import('../src/convite.ts');
+  const c = lerConfig({ TELEGRAM_BOT_TOKEN: '1:a', TELEGRAM_CHAT_ID: '@x', BLOG_TELEGRAM: 'https://t.me/canal', BLOG_WHATSAPP: 'https://whatsapp.com/channel/ABC', WHATSAPP_ROTAS: 'pet=https://chat.whatsapp.com/KJi6FhpMfda0s0phA5W3Y3' });
+  const frases = new Set<string>();
+  for (let v = 0; v < 8; v++) {
+    const t = textoDoConvite(c, v, 10, 'telegram');
+    assert.ok(t.includes('https://chat.whatsapp.com/KJi6FhpMfda0s0phA5W3Y3') && /Grupo de Pet/.test(t) && /pet/i.test(t));
+    assert.ok(t.includes('https://whatsapp.com/channel/ABC'), 'o canal do WhatsApp continua no convite do Telegram');
+    assert.ok(!t.includes('https://t.me/canal'), 'o Telegram não convida para ele mesmo');
+    frases.add(linhasDosNichos(c, v)[0]!);
+  }
+  assert.ok(frases.size >= 3, 'a frase do convite varia');
+  const semGrupo = lerConfig({ TELEGRAM_BOT_TOKEN: '1:a', TELEGRAM_CHAT_ID: '@x', BLOG_TELEGRAM: 'https://t.me/canal', BLOG_WHATSAPP: 'https://whatsapp.com/channel/ABC' });
+  assert.ok(!/Grupo de/.test(textoDoConvite(semGrupo, 0, 10, 'telegram')), 'sem grupo de nicho, o convite não muda');
+});
