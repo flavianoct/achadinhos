@@ -409,3 +409,16 @@ test('roupa feminina: o destaque escolhe vestido antes de outros produtos, e a m
   await prepararDestaque(b2, semPreferencia, AGORA, foto);
   assert.equal(JSON.parse(b2.reelPendente(AGORA)!.dados).item.oferta.idProduto, 'MLB1', 'sem preferência, vale a pontuação');
 });
+
+test('roupa feminina: só o primeiro Reel do dia é de roupa (INSTAGRAM_REELS_DE_ROUPA=1); os seguintes dão a vez a outros produtos', async () => {
+  const { prepararDestaque } = await import('../src/reel.ts');
+  const banco = new Banco(':memory:');
+  banco.guardarProduto({ ...produto(1), categoria: 'casa', titulo: 'Air Fryer 5L Digital', pontos: 60 }, AGORA);
+  banco.guardarProduto({ ...produto(2), categoria: 'moda', titulo: 'Vestido Midi Feminino Alcinha', pontos: 90 }, AGORA);
+  const config = lerConfig({ ...base, INSTAGRAM_REELS_DE_DESTAQUE: '3', INSTAGRAM_REELS_DE_ROUPA: '1' });
+  assert.equal(await prepararDestaque(banco, config, AGORA, foto), true);
+  assert.equal(JSON.parse(banco.reelPendente(AGORA)!.dados).item.oferta.idProduto, 'MLB2', 'o 1º do dia: o vestido');
+  banco.marcarReelPublicado(banco.reelPendente(AGORA)!.chave, AGORA);
+  assert.equal(await prepararDestaque(banco, config, AGORA, foto), true);
+  assert.equal(JSON.parse(banco.reelPendente(AGORA)!.dados).item.oferta.idProduto, 'MLB1', 'o 2º: outro produto, mesmo com o vestido com mais pontos');
+});

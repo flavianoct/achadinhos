@@ -112,12 +112,15 @@ export async function prepararDestaque(banco: Banco, config: Config, agora: Date
   // Ordem: roupa feminina com várias fotos, roupa feminina, os outros com várias fotos e, por fim, os demais.
   const roupa = (o: OfertaAvaliada) => config.instagram.destaquePrefere.some((p) => contemPalavra(normalizar(o.titulo), normalizar(p)));
   const galeria = (o: OfertaAvaliada) => (o.fotos?.length ?? 0) >= 3;
-  const ordem = [
-    ...produtos.filter((o) => roupa(o) && galeria(o)),
-    ...produtos.filter((o) => roupa(o) && !galeria(o)),
-    ...produtos.filter((o) => !roupa(o) && galeria(o)),
-    ...produtos.filter((o) => !roupa(o) && !galeria(o)),
+  // Os primeiros Reels do dia (INSTAGRAM_REELS_DE_ROUPA) são de roupa; os seguintes dão a vez aos outros produtos (a roupa fica por último).
+  const vezDaRoupa = jaCriados < config.instagram.reelsDeRoupa;
+  const grupos = [
+    produtos.filter((o) => roupa(o) && galeria(o)),
+    produtos.filter((o) => roupa(o) && !galeria(o)),
+    produtos.filter((o) => !roupa(o) && galeria(o)),
+    produtos.filter((o) => !roupa(o) && !galeria(o)),
   ];
+  const ordem = vezDaRoupa ? grupos.flat() : [...grupos[2]!, ...grupos[3]!, ...grupos[0]!, ...grupos[1]!];
   for (const oferta of ordem) {
     if ((!todos && !nichos.includes(oferta.categoria)) || !/^https:\/\//i.test(oferta.link) || !/^https:\/\//i.test(oferta.imagem ?? '') || !passaNoFiltroDoInstagram(oferta, config.instagram)) continue;
     if (banco.textoSalvo(`destaque:${oferta.loja}:${oferta.idProduto}`, DIAS_SEM_REPETIR_DESTAQUE, agora)) continue;
