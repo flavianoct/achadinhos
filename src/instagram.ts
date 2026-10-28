@@ -122,6 +122,14 @@ export class Instagram {
     return ((r.data ?? []) as any[]).map((c) => ({ id: String(c.id), texto: String(c.text ?? ''), usuario: c.username }));
   }
 
+  private usuarioCache?: string;
+
+  /** O @ da própria conta (para o robô não responder aos comentários que ele mesmo faz). */
+  async meuUsuario(): Promise<string | undefined> {
+    if (this.usuarioCache === undefined) this.usuarioCache = String((await this.chamar('GET', this.userId, { fields: 'username' })).username ?? '').toLowerCase();
+    return this.usuarioCache || undefined;
+  }
+
   /** Quantos comentários o Instagram diz que o post tem (inclui os que o app não pode ler), ou undefined se não informou. */
   async contagemDeComentarios(mediaId: string): Promise<number | undefined> {
     const r = await this.chamar('GET', mediaId, { fields: 'comments_count' });
@@ -432,6 +440,7 @@ export async function responderComentarios(banco: Banco, config: Config, agora: 
   const palavras = ig.palavrasDoComentario.map(normalizar);
   let falhas = 0;
   let escondidos = 0;
+  const eu = await api.meuUsuario?.().catch(() => undefined);
   const bloquear = (motivo: string, como: string) => {
     banco.salvarTexto(CHAVE_DIRECT_BLOQUEADO, `${marcaDoToken(ig.token)}|${motivo}`, agora);
     resumo.avisos.push(`O "comenta QUERO" foi desligado (as artes e legendas voltam para o link da bio): ${motivo}. ${como}`);
@@ -448,15 +457,21 @@ export async function responderComentarios(banco: Banco, config: Config, agora: 
         if (resumo.respondidos >= ig.respostasPorRodada) break;
         resumo.lidos++;
         if (banco.comentarioRespondido(c.id)) continue;
+        // Comentário da própria conta (a resposta pública do robô tem a palavra "link"): nunca responde a si mesmo.
+        if (eu && c.usuario?.toLowerCase() === eu) continue;
         const texto = normalizar(c.texto);
         const mensagem = mensagemParaOComentario(texto, midia, palavras, config);
         if (!mensagem) continue;
+        // Anota ANTES de mandar: se a rodada cair no meio, o mesmo comentário não recebe o direct de novo na seguinte.
+        banco.marcarComentario(c.id, false, agora);
         try {
           await api.mandarNoDirect(c.id, mensagem);
         } catch (e) {
-          if (e instanceof ErroInstagram && e.fatal && !ERROS_DO_COMENTARIO.test(e.message)) throw e;
-          // Só aquele comentário não deu (passou de 7 dias, a pessoa bloqueou mensagens): marca para não insistir.
-          banco.marcarComentario(c.id, false, agora);
+          if (e instanceof ErroInstagram && e.fatal && !ERROS_DO_COMENTARIO.test(e.message)) {
+            banco.esquecerComentario(c.id);
+            throw e;
+          }
+          // Só aquele comentário não deu (passou de 7 dias, a pessoa bloqueou mensagens): já está anotado para não insistir.
           // Várias falhas seguidas sem nenhum direct entregue: não é a pessoa, é o app (sem a aprovação da Meta para mandar mensagens).
           if (++falhas >= 3 && resumo.respondidos === 0 && banco.respostasNoDirect(7, agora) === 0) {
             bloquear(`o Instagram recusou o direct em ${falhas} comentários seguidos (${(e as Error).message})`, 'O app precisa do acesso avançado à permissão instagram_business_manage_messages (revisão do app na Meta). Depois, gere um token novo e atualize o Secret INSTAGRAM_TOKEN: o robô volta a tentar sozinho.');

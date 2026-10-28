@@ -838,6 +838,11 @@ export class Banco {
     this.db.prepare(`INSERT OR REPLACE INTO instagram_respostas (comment_id, respondido_em, ok) VALUES (?, ?, ?)`).run(commentId, agora.getTime(), ok ? 1 : 0);
   }
 
+  /** Tira a anotação de um comentário (o direct não chegou a sair por um problema do app, não do comentário: ele pode ser tentado de novo). */
+  esquecerComentario(commentId: string): void {
+    this.db.prepare(`DELETE FROM instagram_respostas WHERE comment_id = ?`).run(commentId);
+  }
+
   /** Quantos links o robô mandou no direct nos últimos `dias`. */
   respostasNoDirect(dias: number, agora: Date): number {
     return Number((this.db.prepare(`SELECT COUNT(*) AS n FROM instagram_respostas WHERE ok = 1 AND respondido_em >= ?`).get(agora.getTime() - dias * 86_400_000) as { n: number }).n);

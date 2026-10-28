@@ -316,3 +316,30 @@ test('comenta QUERO: se o Instagram diz que o post tem comentários e o app não
   const semNada: any = { comentarios: async () => [], contagemDeComentarios: async () => 0 };
   assert.deepEqual((await responderComentarios(banco, c, agora, fetch, semNada)).avisos, [], 'sem comentários de verdade, sem aviso');
 });
+
+test('comenta QUERO: nunca manda o direct duas vezes ao mesmo comentário (nem se a rodada cair) e nunca responde à própria conta', async () => {
+  const { responderComentarios } = await import('../src/instagram.ts');
+  const { Banco } = await import('../src/db.ts');
+  const c = lerConfig({ INSTAGRAM_ATIVO: '1', INSTAGRAM_TOKEN: 't', INSTAGRAM_USER_ID: 'u', BLOG_URL: 'https://site' });
+  const agora = new Date('2026-10-28T15:00:00Z');
+  const banco = new Banco(':memory:');
+  banco.registrarMidiaDoInstagram('M1', 'feed', 'Fone', 'https://l/f', agora);
+  const directs: string[] = [];
+  const falso: any = {
+    meuUsuario: async () => 'mataprecooficial',
+    comentarios: async () => [{ id: 'C1', texto: 'quero', usuario: 'ana' }, { id: 'C2', texto: 'Mandei o link no seu direct 📩', usuario: 'MataPrecoOficial' }],
+    mandarNoDirect: async (id: string) => void directs.push(id),
+    responderComentario: async () => {},
+  };
+  await responderComentarios(banco, c, agora, fetch, falso);
+  assert.deepEqual(directs, ['C1'], 'o comentário da própria conta não recebe nada');
+  // A rodada cai logo depois de mandar (a anotação "enviado" não chegou a ser gravada): na seguinte, o comentário continua marcado e não recebe de novo.
+  const b2 = new Banco(':memory:');
+  b2.registrarMidiaDoInstagram('M1', 'feed', 'Fone', 'https://l/f', agora);
+  const caiu: any = { ...falso, mandarNoDirect: async () => { throw new Error('rede caiu'); }, comentarios: async () => [{ id: 'C1', texto: 'quero', usuario: 'ana' }] };
+  await responderComentarios(b2, c, agora, fetch, caiu).catch(() => {});
+  directs.length = 0;
+  await responderComentarios(b2, c, agora, fetch, falso);
+  assert.ok(!directs.includes('C1'), 'o comentário anotado antes de mandar não é reenviado');
+  assert.equal(b2.respostasNoDirect(1, agora), 0, 'quem falhou não conta como enviado');
+});
