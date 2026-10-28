@@ -268,7 +268,7 @@ test('comenta QUERO: quem pede recebe o link no direct uma vez só, e a legenda 
   assert.deepEqual(directs.map((d) => d.id), ['C1', 'C3'], 'só quem pediu; o que o Instagram recusou fica para trás sem derrubar o resto');
   assert.deepEqual(publicas, ['C1', 'C3'], 'responde em público que mandou no direct');
   assert.equal(r.respondidos, 2);
-  assert.ok(directs[0]!.texto.includes('https://meli.la/abc') && directs[0]!.texto.includes('afiliado') && directs[0]!.texto.includes('chat.whatsapp.com/ABC'));
+  assert.ok(directs[0]!.texto.includes('https://meli.la/abc') && directs[0]!.texto.includes('chat.whatsapp.com/ABC'));
   // Na rodada seguinte, ninguém recebe de novo.
   directs.length = 0;
   await responderComentarios(banco, c, agora, fetch, falso);
@@ -342,4 +342,28 @@ test('comenta QUERO: nunca manda o direct duas vezes ao mesmo comentário (nem s
   await responderComentarios(b2, c, agora, fetch, falso);
   assert.ok(!directs.includes('C1'), 'o comentário anotado antes de mandar não é reenviado');
   assert.equal(b2.respostasNoDirect(1, agora), 0, 'quem falhou não conta como enviado');
+});
+
+
+test('comenta QUERO: o direct varia entre comentários (abertura, preço e convite), o mesmo comentário recebe sempre a mesma versão e o link nunca some', async () => {
+  const { mensagemParaOComentario } = await import('../src/instagram.ts');
+  const { normalizar } = await import('../src/categoria.ts');
+  const c = lerConfig({ INSTAGRAM_ATIVO: '1', INSTAGRAM_TOKEN: 't', INSTAGRAM_USER_ID: 'u', BLOG_URL: 'https://site', BLOG_WHATSAPP: 'https://chat.whatsapp.com/ABC' });
+  const palavras = c.instagram.palavrasDoComentario.map(normalizar);
+  const um = { titulo: 'Fone Bluetooth', link: 'https://l/f' };
+  const varios = { titulo: 'Reel', link: JSON.stringify([1, 2, 3].map((n) => ({ titulo: `Produto ${n}`, link: `https://l/${n}` }))) };
+  const textos = new Set<string>();
+  const aberturas = new Set<string>();
+  for (let i = 0; i < 40; i++) {
+    const m = mensagemParaOComentario('quero', um, palavras, c, `comentario-${i}`)!;
+    textos.add(m);
+    aberturas.add(m.split('\n')[0]!);
+    assert.ok(m.includes('https://l/f') && m.includes('chat.whatsapp.com/ABC'), 'link e grupo em toda versão');
+    assert.doesNotMatch(m, /afiliado/i, 'sem o aviso de afiliado');
+    assert.equal(m, mensagemParaOComentario('quero', um, palavras, c, `comentario-${i}`), 'o mesmo comentário, a mesma versão');
+    const mv = mensagemParaOComentario('1 e 2', varios, palavras, c, `comentario-${i}`)!;
+    assert.ok(mv.includes('https://l/1') && mv.includes('https://l/2') && !/afiliado/i.test(mv));
+  }
+  assert.ok(aberturas.size >= 3, `pelo menos 3 aberturas diferentes (${aberturas.size})`);
+  assert.ok(textos.size >= 6, `as mensagens completas variam (${textos.size} versões em 40)`);
 });
