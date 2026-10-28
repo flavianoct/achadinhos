@@ -151,6 +151,7 @@ export async function prepararAchados(banco: Banco, config: Config, agora: Date,
   const produtos = banco.melhoresProdutos({ horas: 48, limite: 400 }, agora);
   const recentes = banco.carrosseisPublicadosRecentes(DIAS_SEM_REPETIR_NICHO, agora);
   const candidatos = Object.keys(NICHO_NA_CAPA)
+    .filter((c) => !config.instagram.soNosReels.includes(c))
     .filter((c) => !recentes.some((r) => r.startsWith('achados-') && r.endsWith(`-${c}`)))
     .map((c) => ({ categoria: c, itens: produtosDosAchados(produtos, config, c) }))
     .filter((c) => c.itens.length >= ITENS_DOS_ACHADOS);

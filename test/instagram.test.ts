@@ -256,3 +256,20 @@ test('instagram: arte sem a foto do produto não é publicada; a foto é tentada
   r = await publicarNoInstagram(banco, config, AGORA, f, new Instagram('tok', '1789', f, 0));
   assert.ok(r.feed + r.stories >= 1, 'com a foto, a arte sai');
 });
+
+test('instagram: moda só sai em Reel: o post de feed e os Stories pulam o nicho e usam o próximo', async () => {
+  const banco = new Banco(':memory:');
+  const config = lerConfig(base);
+  banco.guardarParaSocial({ ...oferta('A', 99), categoria: 'moda' }, new Date(AGORA.getTime() - 60_000));
+  banco.guardarParaSocial({ ...oferta('B', 5), categoria: 'casa' }, new Date(AGORA.getTime() - 120_000));
+  await prepararSocial(banco, config, AGORA, (async () => new Response(null, { status: 404 })) as typeof fetch);
+  for (const l of banco.socialRecentes(12, 10, AGORA)) banco.salvarFotoSocial(l.chave, 'data:image/png;base64,AAAA');
+  const { f, chamadas } = apiFalsa();
+  const r = await publicarNoInstagram(banco, config, AGORA, f, new Instagram('tok', '1789', f, 0));
+  assert.ok(r.feed + r.stories >= 1);
+  const urls = chamadas.map((c) => c.corpo.get('image_url') ?? '').filter(Boolean);
+  assert.ok(urls.every((u) => !/mercadolivre-a-/i.test(u) && !u.includes('-a-')), 'a moda (A) não saiu');
+  assert.ok(urls.some((u) => u.includes('-b-') || /mercadolivre-b/i.test(u)), 'saiu a casa (B)');
+  const livre = lerConfig({ ...base, INSTAGRAM_SO_NOS_REELS: '' });
+  assert.equal(livre.instagram.soNosReels.length, 0);
+});
