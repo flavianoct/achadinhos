@@ -122,6 +122,13 @@ export class Instagram {
     return ((r.data ?? []) as any[]).map((c) => ({ id: String(c.id), texto: String(c.text ?? ''), usuario: c.username }));
   }
 
+  /** Quantos comentários o Instagram diz que o post tem (inclui os que o app não pode ler), ou undefined se não informou. */
+  async contagemDeComentarios(mediaId: string): Promise<number | undefined> {
+    const r = await this.chamar('GET', mediaId, { fields: 'comments_count' });
+    const n = Number(r?.comments_count);
+    return Number.isFinite(n) ? n : undefined;
+  }
+
   /** Resposta privada a um comentário: a mensagem chega no direct de quem comentou (o Instagram aceita uma por comentário, em até 7 dias). */
   async mandarNoDirect(commentId: string, texto: string): Promise<void> {
     await this.chamar('POST', `${this.userId}/messages`, { recipient: JSON.stringify({ comment_id: commentId }), message: JSON.stringify({ text: texto }) });
@@ -424,6 +431,7 @@ export async function responderComentarios(banco: Banco, config: Config, agora: 
   const api = cliente ?? new Instagram(ig.token, ig.userId, fetchFn);
   const palavras = ig.palavrasDoComentario.map(normalizar);
   let falhas = 0;
+  let escondidos = 0;
   const bloquear = (motivo: string, como: string) => {
     banco.salvarTexto(CHAVE_DIRECT_BLOQUEADO, `${marcaDoToken(ig.token)}|${motivo}`, agora);
     resumo.avisos.push(`O "comenta QUERO" foi desligado (as artes e legendas voltam para o link da bio): ${motivo}. ${como}`);
@@ -432,6 +440,10 @@ export async function responderComentarios(banco: Banco, config: Config, agora: 
     for (const midia of banco.midiasRecentesDoInstagram(7, agora)) {
       if (resumo.respondidos >= ig.respostasPorRodada) break;
       const comentarios = await api.comentarios(midia.mediaId);
+      // O Instagram diz quantos comentários o post tem; se diz que há e o app não recebe nenhum, o app está em modo de desenvolvimento
+      // (nesse modo só chegam os comentários de quem tem função no app) ou falta a permissão.
+      const total = await api.contagemDeComentarios?.(midia.mediaId).catch(() => undefined);
+      if (total && total > comentarios.length) escondidos += total - comentarios.length;
       for (const c of comentarios) {
         if (resumo.respondidos >= ig.respostasPorRodada) break;
         resumo.lidos++;
@@ -462,6 +474,7 @@ export async function responderComentarios(banco: Banco, config: Config, agora: 
         await pausa(1500);
       }
     }
+    if (escondidos > 0) resumo.avisos.push(`Instagram: os posts têm ${escondidos} comentário(s) que o app não recebeu (modo de desenvolvimento: só chegam comentários de quem tem função no app). Para o público receber o link no direct, o app precisa do acesso avançado da Meta.`);
   } catch (e) {
     const mensagem = (e as Error).message;
     if (e instanceof ErroInstagram && e.fatal) {
