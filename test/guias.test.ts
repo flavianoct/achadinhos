@@ -372,3 +372,14 @@ test('dicas: a página do guia mostra cada critério com a sua explicação', as
   const tipo = TIPOS_DE_GUIA.find((t) => t.slug === 'air-fryers')!;
   tipo.criterios.forEach((c, i) => assert.ok(html.includes(`<li><strong>${c}</strong>: `) && html.includes(EXPLICACOES_DOS_CRITERIOS['air-fryers']![i]!.replace(/"/g, '&quot;')), c));
 });
+
+test('privacidade: a página fala do Instagram (comentários e direct) e de como pedir a exclusão dos dados, como a Meta exige', async () => {
+  const { gerarBlog } = await import('../src/blog.ts');
+  const banco = new Banco(':memory:');
+  for (let i = 1; i <= 3; i++) banco.guardarParaGuia('air-fryers', { ...fone(i), idProduto: `AF${i}`, titulo: `Air Fryer ${i}L Digital` }, AGORA);
+  const dir = mkdtempSync(join(tmpdir(), 'priv-'));
+  await gerarBlog(banco, lerConfig({ BLOG_PASTA: dir, BLOG_IA: 'nenhuma' }), AGORA);
+  const html = readFileSync(join(dir, 'privacidade.html'), 'utf8');
+  assert.ok(html.includes('id="instagram"') && html.includes('mensagem privada') && html.includes('identificador do comentário'));
+  assert.ok(html.includes('id="exclusao"') && html.includes('apagar meus dados') && html.includes('até 30 dias'));
+});

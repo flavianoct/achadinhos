@@ -645,7 +645,7 @@ function paginaPrivacidade(site: Site): string {
   const corpo = `  <article class="texto">
   <h1>Privacidade e afiliados</h1>
   <p class="intro">Resumo claro do que acontece com os seus dados e dos links deste site.</p>
-  <nav class="indice" aria-label="Nesta página"><a href="#afiliados">Links de afiliado</a><a href="#dados">Dados pessoais</a><a href="#imagens">Imagens e preços</a><a href="#ia">Inteligência artificial</a><a href="#contato">Contato</a></nav>
+  <nav class="indice" aria-label="Nesta página"><a href="#afiliados">Links de afiliado</a><a href="#dados">Dados pessoais</a><a href="#instagram">Instagram</a><a href="#exclusao">Exclusão de dados</a><a href="#imagens">Imagens e preços</a><a href="#ia">Inteligência artificial</a><a href="#contato">Contato</a></nav>
   <section class="bloco" id="afiliados">
   <h2>Links de afiliado</h2>
   <p>${esc(b.nome)} participa de programas de afiliados de lojas online. Quando você clica em um botão ou link de produto e compra, a loja pode nos pagar uma comissão. O preço para você é o mesmo. Esses links são marcados como patrocinados (<code>rel="sponsored"</code>).</p>
@@ -653,6 +653,15 @@ function paginaPrivacidade(site: Site): string {
   <section class="bloco" id="dados">
   <h2>Dados pessoais</h2>
   <p>Este site não tem cadastro, comentários nem formulários, e não coleta nome, e-mail ou telefone. Ele não usa cookies próprios de publicidade nem ferramentas de rastreamento. Ao abrir um link de loja, você passa a seguir as regras de privacidade dessa loja.</p>
+  </section>
+  <section class="bloco" id="instagram">
+  <h2>Instagram: comentários e mensagens</h2>
+  <p>No Instagram do ${esc(b.nome)}, quando alguém comenta um post pedindo o link de um produto (por exemplo, "QUERO" ou o número do produto), nosso sistema lê esse comentário e responde com uma mensagem privada (direct) contendo o link do produto e o aviso de que é link de afiliado. Para isso usamos a API oficial do Instagram, com as permissões de comentários e de mensagens, e somente na conta do ${esc(b.nome)}.</p>
+  <p>O que lemos: o texto do comentário, o identificador do comentário e o nome de usuário público de quem comentou. O que guardamos: apenas o identificador do comentário, para não responder duas vezes, por até 30 dias. Não guardamos o texto das mensagens, não criamos perfis de pessoas, não vendemos nem compartilhamos esses dados com terceiros e não os usamos para publicidade.</p>
+  </section>
+  <section class="bloco" id="exclusao">
+  <h2>Exclusão de dados</h2>
+  <p>Para pedir que apaguemos qualquer dado seu ligado ao nosso Instagram, envie uma mensagem direta para o perfil ${b.instagramLink && urlSegura(b.instagramLink) ? `<a href="${esc(b.instagramLink)}" target="_blank" rel="noopener me">do ${esc(b.nome)} no Instagram</a>` : `do ${esc(b.nome)} no Instagram`} com o texto "apagar meus dados", ou escreva pelo canal de contato abaixo. Atendemos em até 7 dias. Como guardamos só o identificador do comentário e por no máximo 30 dias, os dados também deixam de existir sozinhos.</p>
   </section>
   <section class="bloco" id="imagens">
   <h2>Imagens e preços</h2>
