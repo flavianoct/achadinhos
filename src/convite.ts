@@ -1,3 +1,4 @@
+import { NICHOS } from './categoria.ts';
 import type { Config } from './config.ts';
 import { diaDe } from './db.ts';
 
@@ -100,7 +101,36 @@ export function textoDoConvite(config: Config, variante: number, hora: number, l
   const links = linksDosCanais(config, lugar);
   if (links.length === 0) return '';
   const v = VARIANTES[((variante % VARIANTES.length) + VARIANTES.length) % VARIANTES.length]!;
-  return [`${saudacaoDaHora(hora)}! ${v.emoji} ${v.frase}`, v.vantagem, '', `👇 ${v.chamada}`, ...links.map((l) => `${l.emoji} ${l.rotulo}: ${l.link}`)].join('\n');
+  const nichos = linhasDosNichos(config, variante);
+  return [`${saudacaoDaHora(hora)}! ${v.emoji} ${v.frase}`, v.vantagem, '', `👇 ${v.chamada}`, ...links.map((l) => `${l.emoji} ${l.rotulo}: ${l.link}`), ...(nichos.length ? ['', ...nichos] : [])].join('\n');
+}
+
+/** Frases do convite aos grupos de nicho (o grupo só tem ofertas do nicho). Escolhidas pela variante do convite. */
+const FRASES_DO_NICHO = [
+  (nome: string) => `Só quer promoção de ${nome}? Tem um grupo só disso, sem o resto:`,
+  (nome: string) => `Aqui as ofertas são de todos os assuntos. Se você quer só ${nome}, entra no grupo de ${nome}:`,
+  (nome: string) => `Quer receber só as promoções de ${nome}? Entra no grupo de ${nome}:`,
+  (nome: string) => `Prefere ver só ${nome}? O grupo de ${nome} tem só promoção de ${nome}:`,
+];
+
+/**
+ * Os grupos de nicho para onde o convite pode levar (WHATSAPP_ROTAS, só os links de grupo ou canal do WhatsApp). Cada um recebe o seu
+ * nome e uma frase. Quem já está no grupo de nicho não recebe convite: ele só é enviado ao canal e aos grupos gerais.
+ */
+export function linhasDosNichos(config: Config, variante: number): string[] {
+  const vistos = new Set<string>();
+  const linhas: string[] = [];
+  for (const r of config.whatsapp.rotas) {
+    const link = String(r.link ?? '');
+    if (!/^https:\/\//.test(link) || vistos.has(link)) continue;
+    vistos.add(link);
+    const info = NICHOS[r.nicho];
+    if (!info) continue;
+    const nome = info.nome.toLowerCase();
+    const frase = FRASES_DO_NICHO[((variante % FRASES_DO_NICHO.length) + FRASES_DO_NICHO.length) % FRASES_DO_NICHO.length]!;
+    linhas.push(frase(nome), `${info.emoji} Grupo de ${info.nome}: ${link}`);
+  }
+  return linhas;
 }
 
 /** Os horários sorteados do dia (ms), um em cada faixa igual do horário de postagem, com pelo menos 1 hora de folga nas pontas. */
