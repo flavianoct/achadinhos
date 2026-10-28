@@ -387,10 +387,28 @@ export interface ResumoDosComentarios {
 }
 
 /** Mensagem do direct: o link do produto (que leva ao preço de agora), o aviso de afiliado e o convite para o grupo. */
-export function mensagemDoDirect(titulo: string, link: string, config: Config): string {
+/** Versões do direct: a abertura, a linha do preço e o convite ao grupo, escolhidas pelo comentário para as mensagens não ficarem iguais. */
+const ABERTURAS_1 = ['Oi! Aqui está o link que você pediu 👇', 'Que bom que você gostou! Olha o link 👇', 'Prontinho, aqui está o que você pediu 👇', 'Oi, tudo bem? Separei o link pra você 👇'];
+const ABERTURAS_N = ['Oi! Aqui estão os links que você pediu 👇', 'Que bom que você gostou! Olha os links 👇', 'Prontinho, aqui está o que você pediu 👇', 'Oi, tudo bem? Separei os links pra você 👇'];
+const AVISOS_DO_PRECO = ['O preço pode mudar a qualquer momento.', 'Lembrando: o preço muda de uma hora pra outra.', 'Confere o preço na loja antes de comprar, ele pode mudar.', 'Preço sujeito a mudança.'];
+const CONVITES = [
+  'Quer receber achados assim todo dia? Entra no grupo:',
+  'Quer ver mais achados como esse? Tem um grupo grátis:',
+  'Todo dia chegam achados novos no grupo. Entra aqui:',
+  'Não quer perder os próximos? O grupo é grátis:',
+];
+
+/** Número estável de 0 a n-1 para o mesmo texto (o mesmo comentário sempre recebe a mesma versão). */
+function variante(chave: string, n: number): number {
+  let h = 0;
+  for (const c of chave) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return h % n;
+}
+
+export function mensagemDoDirect(titulo: string, link: string, config: Config, chave = link): string {
   const curto = titulo.length > 80 ? `${titulo.slice(0, 80).replace(/\s+\S*$/, '')}…` : titulo;
-  const linhas = ['Oi! Aqui está o link que você pediu 👇', '', `🛒 ${curto}`, `👉 ${link}`, '', 'O preço pode mudar a qualquer momento. Link de afiliado: comprando por ele você ajuda o perfil sem pagar nada a mais.'];
-  if (config.blog.whatsappLink) linhas.push('', `📲 Quer receber achados assim todo dia? Entra no grupo: ${config.blog.whatsappLink}`);
+  const linhas = [ABERTURAS_1[variante(chave, ABERTURAS_1.length)]!, '', `🛒 ${curto}`, `👉 ${link}`, '', AVISOS_DO_PRECO[variante(`a${chave}`, AVISOS_DO_PRECO.length)]!];
+  if (config.blog.whatsappLink) linhas.push('', `📲 ${CONVITES[variante(`c${chave}`, CONVITES.length)]} ${config.blog.whatsappLink}`);
   return linhas.join('\n');
 }
 
@@ -409,23 +427,23 @@ function produtosDoPost(link: string): Array<{ titulo: string; link: string }> |
  * A mensagem do direct para um comentário, ou undefined se o comentário não pediu nada. No Reel de produtos, o número comentado ("2",
  * "quero o 3") leva ao link daquele produto; "quero" sem número leva aos links de todos. Nos outros posts, uma das palavras leva ao link do post.
  */
-export function mensagemParaOComentario(texto: string, midia: { titulo: string; link: string }, palavras: string[], config: Config): string | undefined {
+export function mensagemParaOComentario(texto: string, midia: { titulo: string; link: string }, palavras: string[], config: Config, idDoComentario = texto): string | undefined {
   const produtos = produtosDoPost(midia.link);
   const pediu = palavras.some((p) => contemPalavra(texto, p));
-  if (!produtos) return pediu ? mensagemDoDirect(midia.titulo, midia.link, config) : undefined;
+  if (!produtos) return pediu ? mensagemDoDirect(midia.titulo, midia.link, config, idDoComentario) : undefined;
   const numeros = [...new Set([...texto.matchAll(/(?:^|[^0-9])([1-9])(?![0-9])/g)].map((m) => Number(m[1])).filter((n) => n >= 1 && n <= produtos.length))];
   const escolhidos = numeros.length ? numeros.map((n) => produtos[n - 1]!) : pediu ? produtos : [];
   if (!escolhidos.length) return undefined;
-  if (escolhidos.length === 1) return mensagemDoDirect(escolhidos[0]!.titulo, escolhidos[0]!.link, config);
+  if (escolhidos.length === 1) return mensagemDoDirect(escolhidos[0]!.titulo, escolhidos[0]!.link, config, idDoComentario);
   const curto = (t: string) => (t.length > 60 ? `${t.slice(0, 60).replace(/\s+\S*$/, '')}…` : t);
-  const linhas = ['Oi! Aqui estão os links que você pediu 👇', ''];
+  const linhas = [ABERTURAS_N[variante(idDoComentario, ABERTURAS_N.length)]!, ''];
   for (const p of escolhidos) linhas.push(`${produtos.indexOf(p) + 1}. ${curto(p.titulo)}`, `👉 ${p.link}`, '');
-  linhas.push('O preço pode mudar a qualquer momento. Links de afiliado: comprando por eles você ajuda o perfil sem pagar nada a mais.');
-  if (config.blog.whatsappLink) linhas.push('', `📲 Quer receber achados assim todo dia? Entra no grupo: ${config.blog.whatsappLink}`);
+  linhas.push(AVISOS_DO_PRECO[variante(`a${idDoComentario}`, AVISOS_DO_PRECO.length)]!);
+  if (config.blog.whatsappLink) linhas.push('', `📲 ${CONVITES[variante(`c${idDoComentario}`, CONVITES.length)]} ${config.blog.whatsappLink}`);
   return linhas.join('\n');
 }
 
-const RESPOSTAS_PUBLICAS = ['Te mandei no direct! 📩', 'Mandei o link no seu direct 📩', 'Enviado! Olha o seu direct 📩', 'Prontinho, link no direct 📩'];
+const RESPOSTAS_PUBLICAS = ['Te mandei no direct! 📩', 'Mandei o link no seu direct 📩', 'Enviado! Olha o seu direct 📩', 'Prontinho, link no direct 📩', 'Olha lá no seu direct 😉', 'Já te mandei! Confere o direct 📲'];
 
 /**
  * "Comenta QUERO": lê os comentários dos posts dos últimos 7 dias e, a quem comentou uma das palavras, manda o link no direct e responde
@@ -460,7 +478,7 @@ export async function responderComentarios(banco: Banco, config: Config, agora: 
         // Comentário da própria conta (a resposta pública do robô tem a palavra "link"): nunca responde a si mesmo.
         if (eu && c.usuario?.toLowerCase() === eu) continue;
         const texto = normalizar(c.texto);
-        const mensagem = mensagemParaOComentario(texto, midia, palavras, config);
+        const mensagem = mensagemParaOComentario(texto, midia, palavras, config, c.id);
         if (!mensagem) continue;
         // Anota ANTES de mandar: se a rodada cair no meio, o mesmo comentário não recebe o direct de novo na seguinte.
         banco.marcarComentario(c.id, false, agora);
@@ -482,7 +500,7 @@ export async function responderComentarios(banco: Banco, config: Config, agora: 
         banco.marcarComentario(c.id, true, agora);
         resumo.respondidos++;
         try {
-          await api.responderComentario(c.id, RESPOSTAS_PUBLICAS[resumo.respondidos % RESPOSTAS_PUBLICAS.length]!);
+          await api.responderComentario(c.id, RESPOSTAS_PUBLICAS[variante(`p${c.id}`, RESPOSTAS_PUBLICAS.length)]!);
         } catch {
           // A resposta pública é um extra: se falhar, o link já foi no direct.
         }
