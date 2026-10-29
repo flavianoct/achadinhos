@@ -122,6 +122,8 @@ export async function prepararDestaque(banco: Banco, config: Config, agora: Date
   ];
   const ordem = vezDaRoupa ? grupos.flat() : [...grupos[2]!, ...grupos[3]!, ...grupos[0]!, ...grupos[1]!];
   for (const oferta of ordem) {
+    // Produto de foto única (o zoom em foto parada fica serrilhado) não vira destaque: sai no Reel de 3 achados.
+    if ((oferta.fotos?.length ?? 0) < config.instagram.destaqueMinFotos) continue;
     if ((!todos && !nichos.includes(oferta.categoria)) || !/^https:\/\//i.test(oferta.link) || !/^https:\/\//i.test(oferta.imagem ?? '') || !passaNoFiltroDoInstagram(oferta, config.instagram)) continue;
     if (banco.textoSalvo(`destaque:${oferta.loja}:${oferta.idProduto}`, DIAS_SEM_REPETIR_DESTAQUE, agora)) continue;
     const imagem = await reduzirFoto(await baixarImagemComoDataUri(oferta.imagem, fetchFn), 1080, 86);

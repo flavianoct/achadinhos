@@ -354,7 +354,7 @@ test('destaque: o Reel de destaque é um produto só (dos nichos escolhidos), co
   assert.equal(efeitosDoDestaque().filter((e) => e.tipo === 'whoosh').length, 4);
 
   const banco = bancoComProdutos();
-  const config = lerConfig({ ...base, INSTAGRAM_REELS_POR_DIA: '3', INSTAGRAM_HORARIOS_REELS: '', INSTAGRAM_REELS_DE_DESTAQUE: '1', INSTAGRAM_DESTAQUE_NICHOS: 'moda,beleza' });
+  const config = lerConfig({ ...base, INSTAGRAM_REELS_POR_DIA: '3', INSTAGRAM_HORARIOS_REELS: '', INSTAGRAM_REELS_DE_DESTAQUE: '1', INSTAGRAM_DESTAQUE_NICHOS: 'moda,beleza', INSTAGRAM_DESTAQUE_MIN_FOTOS: '0' });
   assert.equal(await prepararReel(banco, config, AGORA, foto), true, 'o 1º: o destaque');
   const dados = JSON.parse(banco.reelPendente(AGORA)!.dados);
   assert.equal(dados.formato, 'destaque');
@@ -386,7 +386,7 @@ test('galeria: o destaque prefere o produto com várias fotos do anúncio e guar
   const banco = new Banco(':memory:');
   banco.guardarProduto({ ...produto(1), pontos: 99 }, AGORA);
   banco.guardarProduto({ ...produto(2), pontos: 50, fotos: [1, 2, 3, 4].map((n) => `https://http2.mlstatic.com/f${n}.png`) }, AGORA);
-  const config = lerConfig({ ...base, INSTAGRAM_REELS_DE_DESTAQUE: '3' });
+  const config = lerConfig({ ...base, INSTAGRAM_REELS_DE_DESTAQUE: '3', INSTAGRAM_DESTAQUE_MIN_FOTOS: '0' });
   assert.equal(await prepararDestaque(banco, config, AGORA, foto), true);
   const dados = JSON.parse(banco.reelPendente(AGORA)!.dados);
   assert.equal(dados.item.oferta.idProduto, 'MLB2', 'o de várias fotos vem antes, mesmo com menos pontos');
@@ -398,11 +398,11 @@ test('roupa feminina: o destaque escolhe vestido antes de outros produtos, e a m
   const banco = new Banco(':memory:');
   banco.guardarProduto({ ...produto(1), categoria: 'moda', titulo: 'Mochila Executiva Notebook', pontos: 99 }, AGORA);
   banco.guardarProduto({ ...produto(2), categoria: 'moda', titulo: 'Vestido Midi Feminino Alcinha', pontos: 40 }, AGORA);
-  const config = lerConfig({ ...base, INSTAGRAM_REELS_DE_DESTAQUE: '3' });
+  const config = lerConfig({ ...base, INSTAGRAM_REELS_DE_DESTAQUE: '3', INSTAGRAM_DESTAQUE_MIN_FOTOS: '0' });
   assert.ok(config.shopee.nichosPrioritarios.includes('moda'));
   assert.equal(await prepararDestaque(banco, config, AGORA, foto), true);
   assert.equal(JSON.parse(banco.reelPendente(AGORA)!.dados).item.oferta.idProduto, 'MLB2', 'o vestido vem antes, mesmo com menos pontos');
-  const semPreferencia = lerConfig({ ...base, INSTAGRAM_REELS_DE_DESTAQUE: '3', INSTAGRAM_DESTAQUE_PREFERE: '' });
+  const semPreferencia = lerConfig({ ...base, INSTAGRAM_REELS_DE_DESTAQUE: '3', INSTAGRAM_DESTAQUE_PREFERE: '', INSTAGRAM_DESTAQUE_MIN_FOTOS: '0' });
   const b2 = new Banco(':memory:');
   b2.guardarProduto({ ...produto(1), categoria: 'moda', titulo: 'Mochila Executiva Notebook', pontos: 99 }, AGORA);
   b2.guardarProduto({ ...produto(2), categoria: 'moda', titulo: 'Vestido Midi Feminino Alcinha', pontos: 40 }, AGORA);
@@ -415,10 +415,22 @@ test('roupa feminina: só o primeiro Reel do dia é de roupa (INSTAGRAM_REELS_DE
   const banco = new Banco(':memory:');
   banco.guardarProduto({ ...produto(1), categoria: 'casa', titulo: 'Air Fryer 5L Digital', pontos: 60 }, AGORA);
   banco.guardarProduto({ ...produto(2), categoria: 'moda', titulo: 'Vestido Midi Feminino Alcinha', pontos: 90 }, AGORA);
-  const config = lerConfig({ ...base, INSTAGRAM_REELS_DE_DESTAQUE: '3', INSTAGRAM_REELS_DE_ROUPA: '1' });
+  const config = lerConfig({ ...base, INSTAGRAM_REELS_DE_DESTAQUE: '3', INSTAGRAM_REELS_DE_ROUPA: '1', INSTAGRAM_DESTAQUE_MIN_FOTOS: '0' });
   assert.equal(await prepararDestaque(banco, config, AGORA, foto), true);
   assert.equal(JSON.parse(banco.reelPendente(AGORA)!.dados).item.oferta.idProduto, 'MLB2', 'o 1º do dia: o vestido');
   banco.marcarReelPublicado(banco.reelPendente(AGORA)!.chave, AGORA);
   assert.equal(await prepararDestaque(banco, config, AGORA, foto), true);
   assert.equal(JSON.parse(banco.reelPendente(AGORA)!.dados).item.oferta.idProduto, 'MLB1', 'o 2º: outro produto, mesmo com o vestido com mais pontos');
+});
+
+test('destaque: produto de foto única não vira destaque (o zoom em foto parada fica serrilhado); com 3 fotos ou mais, vira galeria', async () => {
+  const { prepararDestaque } = await import('../src/reel.ts');
+  const banco = new Banco(':memory:');
+  banco.guardarProduto({ ...produto(1), titulo: 'Produto de foto única', pontos: 99 }, AGORA);
+  const config = lerConfig({ ...base, INSTAGRAM_REELS_DE_DESTAQUE: '3' });
+  assert.equal(config.instagram.destaqueMinFotos, 3);
+  assert.equal(await prepararDestaque(banco, config, AGORA, foto), false, 'sem galeria, não há destaque (sai o Reel de 3 achados)');
+  banco.guardarProduto({ ...produto(2), titulo: 'Produto com galeria', pontos: 40, fotos: [1, 2, 3].map((n) => `https://http2.mlstatic.com/f${n}.png`) }, AGORA);
+  assert.equal(await prepararDestaque(banco, config, AGORA, foto), true);
+  assert.equal(JSON.parse(banco.reelPendente(AGORA)!.dados).item.oferta.idProduto, 'MLB2');
 });

@@ -87,7 +87,8 @@ const Gancho: React.FC<{ p: PropsDoDestaque }> = ({ p }) => {
 const Detalhe: React.FC<{ p: PropsDoDestaque; parte: 0 | 1 | 2 }> = ({ p, parte }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const zoom = interpolate(frame, [0, QUADROS_DO_DESTAQUE.detalhe], [1.9, 2.2]);
+  // Zoom leve: aproximar demais uma foto parada deixa a imagem serrilhada.
+  const zoom = interpolate(frame, [0, QUADROS_DO_DESTAQUE.detalhe], [1.15, 1.35]);
   const foco = ['30%', '50%', '72%'][parte];
   const prova = p.provas[parte];
   const chip = spring({ frame: frame - 6, fps, config: { damping: 9, stiffness: 240 } });
@@ -134,8 +135,8 @@ const Fim: React.FC<{ p: PropsDoDestaque }> = ({ p }) => {
 /** A foto grande, quase tela cheia, sobre ela mesma desfocada; entra com um "soco" de zoom e depois aproxima devagar. */
 const FotoGrande: React.FC<{ imagem: string; duracao: number; escurecer?: number }> = ({ imagem, duracao, escurecer = 0 }) => {
   const frame = useCurrentFrame();
-  const soco = interpolate(frame, [0, 5], [1.14, 1], travar);
-  const devagar = interpolate(frame, [5, duracao], [1, 1.05], travar);
+  const soco = interpolate(frame, [0, 5], [1.05, 1], travar);
+  const devagar = interpolate(frame, [5, duracao], [1, 1.02], travar);
   return (
     <AbsoluteFill style={{ background: MARCA.fundo, overflow: 'hidden' }}>
       <Img src={imagem} style={{ position: 'absolute', inset: -200, width: 'calc(100% + 400px)', height: 'calc(100% + 400px)', objectFit: 'cover', filter: 'blur(50px) brightness(0.6) saturate(1.3)' }} />
