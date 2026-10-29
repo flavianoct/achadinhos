@@ -154,7 +154,7 @@ export interface Config {
   /** Arte de Story, legenda e roteiro de vídeo das ofertas postadas (aparecem no painel). */
   social: { ativo: boolean };
   /** Publicação automática no Instagram (conta profissional). Token e ID ficam nos Secrets. */
-  instagram: { ativo: boolean; token: string; userId: string; feedPorDia: number; storiesPorDia: number; intervaloFeedMin: number; intervaloStoryMin: number; notaMinima: number; vendasMinimas: number; palavrasBloqueadas: string[]; carrosselPorDia: number; carrosselItens: number; carrosselTetos: number[]; dicasDias: number[]; perguntaDias: number[]; horariosFeed: number[]; horariosStories: number[]; reelsPorDia: number; horariosReels: number[]; resumoHora: number; dataHora: number; grupoDias: number[]; tokenData: string; comentaQuero: boolean; palavrasDoComentario: string[]; respostasPorRodada: number; reelRemotion: boolean; destaqueNichos: string[]; reelsDeDestaque: number; destaquePrefere: string[]; soNosReels: string[]; reelsDeRoupa: number };
+  instagram: { ativo: boolean; token: string; userId: string; feedPorDia: number; storiesPorDia: number; intervaloFeedMin: number; intervaloStoryMin: number; notaMinima: number; vendasMinimas: number; palavrasBloqueadas: string[]; carrosselPorDia: number; carrosselItens: number; carrosselTetos: number[]; dicasDias: number[]; perguntaDias: number[]; horariosFeed: number[]; horariosStories: number[]; reelsPorDia: number; horariosReels: number[]; resumoHora: number; dataHora: number; grupoDias: number[]; tokenData: string; comentaQuero: boolean; palavrasDoComentario: string[]; respostasPorRodada: number; reelRemotion: boolean; destaqueNichos: string[]; reelsDeDestaque: number; destaquePrefere: string[]; soNosReels: string[]; reelsDeRoupa: number; destaqueMinFotos: number };
   painel: { porta: number };
 }
 
@@ -558,6 +558,8 @@ function lerConfigBase(env: Env): Config {
       soNosReels: lista(env.INSTAGRAM_SO_NOS_REELS === undefined ? 'moda' : env.INSTAGRAM_SO_NOS_REELS).map((n) => n.toLowerCase()),
       // Quantos dos primeiros Reels do dia são de roupa feminina; os seguintes dão preferência a outros produtos.
       reelsDeRoupa: numero(env, 'INSTAGRAM_REELS_DE_ROUPA', 1),
+      // Fotos mínimas do anúncio para virar Reel de destaque (3 = só galeria, sem zoom em foto parada). 0 = qualquer produto.
+      destaqueMinFotos: numero(env, 'INSTAGRAM_DESTAQUE_MIN_FOTOS', 3),
       destaquePrefere: lista(env.INSTAGRAM_DESTAQUE_PREFERE === undefined ? 'vestido,saia,conjunto feminino,blusa feminina,cropped,macacao feminino,biquini,body feminino' : env.INSTAGRAM_DESTAQUE_PREFERE).map((p) => p.toLowerCase()),
     },
     painel: { porta: numero(env, 'PAINEL_PORTA', 3210) },
