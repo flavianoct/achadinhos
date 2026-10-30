@@ -577,3 +577,16 @@ test('tema do dia: na data marcada os ajustes do tema valem, no dia seguinte tud
   // Mais de uma data.
   assert.ok(temaDeHoje({ TEMA_DO_DIA: 'games', TEMA_DO_DIA_DATA: '2026-10-29, 2026-10-30' }, hoje));
 });
+
+test('tema do dia: pode ser um dia da semana (toda sexta), com ou sem acento e "-feira", e vale só naquele dia', async () => {
+  const { temaDeHoje } = await import('../src/temas.ts');
+  const sexta = new Date('2026-10-30T15:00:00Z');
+  const sabado = new Date('2026-10-31T15:00:00Z');
+  const sextaQueVem = new Date('2026-11-06T15:00:00Z');
+  for (const dia of ['sexta', 'Sexta-feira', 'SEXTA', 'quinta, sexta']) assert.ok(temaDeHoje({ TEMA_DO_DIA: 'vestidos', TEMA_DO_DIA_SEMANA: dia }, sexta), dia);
+  assert.equal(temaDeHoje({ TEMA_DO_DIA: 'vestidos', TEMA_DO_DIA_SEMANA: 'sexta' }, sabado), undefined, 'no sábado volta ao normal');
+  assert.ok(temaDeHoje({ TEMA_DO_DIA: 'vestidos', TEMA_DO_DIA_SEMANA: 'sexta' }, sextaQueVem), 'e na sexta seguinte liga de novo');
+  assert.ok(temaDeHoje({ TEMA_DO_DIA: 'games', TEMA_DO_DIA_SEMANA: 'sabado', TEMA_DO_DIA_DATA: '2026-10-30' }, sexta), 'a data avulsa continua valendo junto');
+  assert.equal(temaDeHoje({ TEMA_DO_DIA: 'vestidos', TEMA_DO_DIA_SEMANA: 'sextou' }, sexta), undefined, 'dia que não existe não liga');
+  assert.equal(lerConfig({ ...base, TEMA_DO_DIA: 'vestidos', TEMA_DO_DIA_SEMANA: 'sexta' }, sabado).temaDoDia, undefined);
+});
