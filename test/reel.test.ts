@@ -434,3 +434,42 @@ test('destaque: produto de foto única não vira destaque (o zoom em foto parada
   assert.equal(await prepararDestaque(banco, config, AGORA, foto), true);
   assert.equal(JSON.parse(banco.reelPendente(AGORA)!.dados).item.oferta.idProduto, 'MLB2');
 });
+
+test('reel agendado: sai na hora marcada, uma vez só, e quem comenta "eu quero" recebe o link real do produto', async () => {
+  const { reelsNaHora, lerReelsAgendados, arquivoNoSite } = await import('../src/agendados.ts');
+  const { responderComentarios } = await import('../src/instagram.ts');
+  const reels = lerReelsAgendados();
+  const vestido = reels.find((r) => r.id === 'vestido-vinho-2026-10-30')!;
+  assert.ok(vestido, 'a ficha do vestido existe e o vídeo está na pasta');
+  assert.match(vestido.link, /^https:\/\/produto\.mercadolivre\.com\.br\/MLB-3601773569.*matt_word=topfera&matt_tool=25960771/, 'link real de afiliado');
+  assert.ok(!/R\$/.test(vestido.legenda), 'sem preço em reais');
+  assert.equal(reelsNaHora(reels, new Date('2026-10-30T20:00:00Z')).length, 0, '17h: ainda não é a hora');
+  assert.equal(reelsNaHora(reels, new Date('2026-10-30T21:05:00Z')).map((r) => r.id)[0], vestido.id, '18h05: é a hora');
+  assert.equal(reelsNaHora(reels, new Date('2026-10-31T12:00:00Z')).length, 0, 'passou da tolerância de 12 horas');
+
+  const banco = bancoComProdutos();
+  const agora = new Date('2026-10-30T21:10:00Z');
+  const config = lerConfig({ ...base, HORA_INICIO: '8', HORA_FIM: '23', INSTAGRAM_REELS_POR_DIA: '0' });
+  const chamadas: string[] = [];
+  const f = (async (url: string, init: any = {}) => {
+    const u = String(url);
+    chamadas.push(`${init.method ?? 'GET'} ${u} ${init.body ? String(init.body) : ''}`);
+    if ((init.method ?? 'GET') === 'HEAD') return new Response(null, { status: 200 });
+    if (u.includes('/media_publish')) return new Response(JSON.stringify({ id: 'reel-vestido' }));
+    if (u.endsWith('/media')) return new Response(JSON.stringify({ id: 'cont-9' }));
+    return new Response(JSON.stringify({ status_code: 'FINISHED' }));
+  }) as unknown as typeof fetch;
+  const { Instagram, publicarNoInstagram } = await import('../src/instagram.ts');
+  const cliente = new Instagram('tok-secreto', '1789', f, 0);
+  const r1 = await publicarNoInstagram(banco, config, agora, f, cliente);
+  assert.equal(r1.reels, 1, 'publicou o Reel agendado');
+  const criar = decodeURIComponent(chamadas.find((c) => c.startsWith('POST') && c.includes('media_type=REELS'))!.replace(/\+/g, ' '));
+  assert.ok(criar.includes(arquivoNoSite(vestido)) && criar.includes('Comenta EU QUERO'));
+  assert.equal((await publicarNoInstagram(banco, config, new Date(agora.getTime() + 3_600_000), f, cliente)).reels, 0, 'uma vez só');
+  // O comentário "eu quero" nesse Reel leva ao link real do vestido.
+  const directs: string[] = [];
+  const falso: any = { meuUsuario: async () => 'mataprecooficial', comentarios: async () => [{ id: 'C9', texto: 'EU QUERO!', usuario: 'maria' }], contagemDeComentarios: async () => 1, mandarNoDirect: async (_i: string, t: string) => void directs.push(t), responderComentario: async () => {} };
+  await responderComentarios(banco, lerConfig({ ...base, INSTAGRAM_COMENTA_QUERO: '1' }), agora, fetch, falso);
+  assert.equal(directs.length, 1);
+  assert.ok(directs[0]!.includes('MLB-3601773569') && directs[0]!.includes('matt_word=topfera'), 'o direct leva o link real do vestido');
+});

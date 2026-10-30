@@ -5,6 +5,7 @@ import { diaDe, horaDe } from './db.ts';
 import { CHAVE_DIRECT_BLOQUEADO, HORAS_DO_SOCIAL, comentaQueroAtivo, marcaDoToken, arquivoDaArte, arquivosDoCarrossel, legendaDoCarrossel, montarLegenda, totalDeImagens, type DadosDoCarrossel, type Fetch } from './social.ts';
 import { Telegram } from './telegram.ts';
 import { legendaDoQuiz, legendaParaTikTokEShorts, type DadosDoQuiz } from './quiz.ts';
+import { arquivoNoSite, lerReelsAgendados, reelsNaHora } from './agendados.ts';
 import { arquivoDoReel, legendaDoDestaque, legendaDoReel, type DadosDoDestaque, type DadosDoReel } from './reel.ts';
 import { linhaDeChegada, linhaDeOntem, numerosDoGrupo } from './grupo.ts';
 import type { OfertaAvaliada } from './types.ts';
@@ -295,8 +296,27 @@ export async function publicarNoInstagram(banco: Banco, config: Config, agora: D
         }
       }
     }
+    // Reel pronto e agendado (reels-prontos/): sai na hora marcada, uma vez só, e o "eu quero" leva ao link real do produto dele.
+    let agendadoPublicado = false;
+    for (const ag of reelsNaHora(lerReelsAgendados(), agora)) {
+      if (banco.textoSalvo(`agendado:${ag.id}`, 60, agora)) continue;
+      const video = `${config.blog.url}/social/${arquivoNoSite(ag)}`;
+      if (!(await noAr(video))) continue;
+      try {
+        const id = await api.publicarReel(video, ag.legenda);
+        banco.salvarTexto(`agendado:${ag.id}`, agora.toISOString(), agora);
+        if (id) banco.registrarMidiaDoInstagram(id, 'reel', ag.titulo, ag.link, agora);
+        resumo.reels++;
+        agendadoPublicado = true;
+        await pausa(2000);
+      } catch (e) {
+        resumo.avisos.push(`Instagram: o Reel agendado "${ag.titulo}" não saiu: ${(e as Error).message}`);
+        if (e instanceof ErroInstagram && e.fatal) throw e;
+      }
+      break;
+    }
     // O Reel do dia é um formato à parte (vídeo): tem o próprio limite diário e as próprias horas.
-    const reel = ig.reelsPorDia > 0 && banco.reelsPublicadosNoDia(agora) < ig.reelsPorDia && (ig.horariosReels.length === 0 || ig.horariosReels.includes(hora)) ? banco.reelPendente(agora) : undefined;
+    const reel = agendadoPublicado ? undefined : ig.reelsPorDia > 0 && banco.reelsPublicadosNoDia(agora) < ig.reelsPorDia && (ig.horariosReels.length === 0 || ig.horariosReels.includes(hora)) ? banco.reelPendente(agora) : undefined;
     if (reel) {
       const video = `${config.blog.url}/social/${arquivoDoReel(reel.chave)}`;
       if (await noAr(video)) {

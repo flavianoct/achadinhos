@@ -1,5 +1,5 @@
 import React from 'react';
-import { AbsoluteFill, Audio, Img, interpolate, Sequence, spring, staticFile, useCurrentFrame, useVideoConfig } from 'remotion';
+import { AbsoluteFill, Audio, Img, interpolate, OffthreadVideo, Sequence, spring, staticFile, useCurrentFrame, useVideoConfig } from 'remotion';
 import { carregarFonte } from './fonte';
 import { FONTE, Logo, MARCA } from './marca';
 
@@ -17,9 +17,11 @@ export const QUADROS_DO_DESTAQUE = { gancho: 45, detalhe: 50, fim: 105 };
 export const QUADROS_DA_GALERIA = { gancho: 40, foto: 20, fim: 90 };
 export const MAXIMO_DE_FOTOS = 7;
 const fotosDaGaleria = (p: { fotos?: string[] }) => (p.fotos && p.fotos.length >= 3 ? p.fotos.slice(0, MAXIMO_DE_FOTOS) : undefined);
-export const duracaoDoDestaque = (p: { fotos?: string[] } = {}) => {
+/** Abertura em vídeo (clipe feito por IA a partir da foto do anúncio), com o aviso "feito com IA": entra antes da galeria. */
+export const QUADROS_DA_ABERTURA = 120;
+export const duracaoDoDestaque = (p: { fotos?: string[]; abertura?: string } = {}) => {
   const fotos = fotosDaGaleria(p);
-  if (fotos) return QUADROS_DA_GALERIA.gancho + fotos.length * QUADROS_DA_GALERIA.foto + QUADROS_DA_GALERIA.fim;
+  if (fotos) return (p.abertura ? QUADROS_DA_ABERTURA : 0) + QUADROS_DA_GALERIA.gancho + fotos.length * QUADROS_DA_GALERIA.foto + QUADROS_DA_GALERIA.fim;
   return QUADROS_DO_DESTAQUE.gancho + 3 * QUADROS_DO_DESTAQUE.detalhe + QUADROS_DO_DESTAQUE.fim;
 };
 
@@ -36,6 +38,8 @@ export type PropsDoDestaque = {
   audio?: string;
   /** Todas as fotos do anúncio (a primeira é a principal). Com 3 ou mais, o vídeo vira galeria. */
   fotos?: string[];
+  /** Clipe de vídeo (em public/) que abre o Reel, feito por IA a partir da foto do anúncio. */
+  abertura?: string;
 };
 
 const caber = (s: string, base: number, largura = 940) => Math.min(base, Math.floor(largura / (Math.max(1, s.length) * 0.74)));
@@ -157,9 +161,23 @@ const Galeria: React.FC<{ p: PropsDoDestaque; fotos: string[] }> = ({ p, fotos }
   const q = QUADROS_DA_GALERIA;
   const frameGeral = useCurrentFrame();
   const { fps } = useVideoConfig();
+  const ab = p.abertura ? QUADROS_DA_ABERTURA : 0;
   return (
     <AbsoluteFill style={{ background: MARCA.fundo }}>
-      <Sequence durationInFrames={q.gancho}>
+      {p.abertura ? (
+        <Sequence durationInFrames={ab}>
+          <AbsoluteFill style={{ background: MARCA.fundo, overflow: 'hidden' }}>
+            <OffthreadVideo src={staticFile(p.abertura)} muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            <AbsoluteFill style={{ background: 'linear-gradient(180deg, rgba(14,14,16,.4) 0%, rgba(14,14,16,0) 18%, rgba(14,14,16,0) 70%, rgba(14,14,16,.85) 100%)' }} />
+          </AbsoluteFill>
+          <div style={{ position: 'absolute', top: 250, width: '100%', display: 'flex', justifyContent: 'center' }}><div style={{ padding: '10px 26px', borderRadius: 40, background: 'rgba(14,14,16,.8)' }}><Logo altura={48} /></div></div>
+          {p.fato ? <Linha y={1400} tamanho={caber(p.fato, 110)} cor={MARCA.amarelo} italico style={{ WebkitTextStroke: `3px ${MARCA.fundo}` }}>{p.fato}</Linha> : null}
+          {p.nome.map((l, k) => <Linha key={k} y={1520 + k * 64} tamanho={caber(l, 54)} cor="#fff">{l}</Linha>)}
+          {/* O Instagram exige o aviso de conteúdo feito com IA; aqui também fica escrito na tela. */}
+          <div style={{ position: 'absolute', left: 40, top: 1650, padding: '8px 22px', borderRadius: 30, background: 'rgba(14,14,16,.78)', color: '#fff', fontFamily: 'Arial, sans-serif', fontWeight: 700, fontSize: 26 }}>Vídeo feito com IA a partir da foto do anúncio</div>
+        </Sequence>
+      ) : null}
+      <Sequence from={ab} durationInFrames={q.gancho}>
         <FotoGrande imagem={fotos[0]!} duracao={q.gancho} />
         <div style={{ position: 'absolute', top: 250, width: '100%', display: 'flex', justifyContent: 'center' }}><div style={{ padding: '10px 26px', borderRadius: 40, background: 'rgba(14,14,16,.8)' }}><Logo altura={48} /></div></div>
         {p.fato ? (
@@ -170,7 +188,7 @@ const Galeria: React.FC<{ p: PropsDoDestaque; fotos: string[] }> = ({ p, fotos }
         ))}
       </Sequence>
       {fotos.map((foto, i) => (
-        <Sequence key={i} from={q.gancho + i * q.foto} durationInFrames={q.foto}>
+        <Sequence key={i} from={ab + q.gancho + i * q.foto} durationInFrames={q.foto}>
           <FotoGrande imagem={foto} duracao={q.foto} />
           {/* Bolinhas: quantas fotos faltam (a pessoa fica até o fim). */}
           <div style={{ position: 'absolute', top: 262, width: '100%', display: 'flex', justifyContent: 'center', gap: 12 }}>
@@ -184,7 +202,7 @@ const Galeria: React.FC<{ p: PropsDoDestaque; fotos: string[] }> = ({ p, fotos }
           <Corte />
         </Sequence>
       ))}
-      <Sequence from={q.gancho + fotos.length * q.foto} durationInFrames={q.fim}>
+      <Sequence from={ab + q.gancho + fotos.length * q.foto} durationInFrames={q.fim}>
         <FotoGrande imagem={fotos[0]!} duracao={q.fim} escurecer={0.1} />
         <div style={{ position: 'absolute', top: 250, width: '100%', display: 'flex', justifyContent: 'center' }}><div style={{ padding: '10px 26px', borderRadius: 40, background: 'rgba(14,14,16,.8)' }}><Logo altura={48} /></div></div>
         <FimDaGaleria p={p} />
