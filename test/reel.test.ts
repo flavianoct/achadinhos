@@ -13,7 +13,7 @@ import type { OfertaAvaliada } from '../src/types.ts';
 
 // 12h em Brasília
 const AGORA = new Date('2026-10-03T15:00:00Z');
-const base = { INSTAGRAM_ATIVO: '1', INSTAGRAM_TOKEN: 'tok-secreto', INSTAGRAM_USER_ID: '1789', BLOG_URL: 'https://fulano.github.io/achadinhos', HORA_INICIO: '8', HORA_FIM: '23', INSTAGRAM_HORARIOS_FEED: '', INSTAGRAM_HORARIOS_STORIES: '', INSTAGRAM_HORARIOS_REELS: '', INSTAGRAM_REELS_DE_DESTAQUE: '0' };
+const base = { INSTAGRAM_ATIVO: '1', INSTAGRAM_TOKEN: 'tok-secreto', INSTAGRAM_USER_ID: '1789', BLOG_URL: 'https://fulano.github.io/achadinhos', HORA_INICIO: '8', HORA_FIM: '23', INSTAGRAM_HORARIOS_FEED: '', INSTAGRAM_HORARIOS_STORIES: '', INSTAGRAM_HORARIOS_REELS: '', INSTAGRAM_REELS_DE_DESTAQUE: '0', INSTAGRAM_NICHOS: '' };
 
 const produto = (n: number): OfertaAvaliada => ({
   loja: 'mercadolivre', idProduto: `MLB${n}`, titulo: `Produto Bom Numero ${n} Com Nome Longo Para Testar Legenda`, preco: 20 + n, link: `https://www.mercadolivre.com.br/p/MLB${n}`,
