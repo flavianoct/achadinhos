@@ -16,9 +16,9 @@ const PONTOS_PADRAO = 'pet=48,bebe=48,ferramentas=48,games=52';
 
 export const TEMAS_DO_DIA: Record<string, TemaDoDia> = {
   vestidos: {
-    nome: 'Dia dos vestidos e blusinhas femininas',
+    nome: 'Dia dos vestidos, blusinhas e calças femininas',
     ajustes: {
-      TEMA: 'vestido,blusa,blusinha,cropped,macacao,macaquinho,saia,camisola,body',
+      TEMA: 'vestido,blusa,blusinha,cropped,macacao,macaquinho,saia,camisola,body,calca',
       // Roupa feminina vende pouco por anúncio: o corte de vendas e de pontos da moda cai só hoje.
       SHOPEE_VENDAS_MINIMAS: '200',
       VENDAS_MINIMAS: '30',
