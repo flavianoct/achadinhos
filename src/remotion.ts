@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 import { pedirAoGemini } from './blog.ts';
 import { normalizar } from './categoria.ts';
 import type { Config } from './config.ts';
+import { ganchoDoReel } from './ganchos.ts';
 import { formatarVendas } from './mensagem.ts';
 import { CORES_DO_NICHO } from './moldes.ts';
 import { estiloDaMusica, sintetizarEfeitos, sintetizarMusica, type Efeito } from './musica.ts';
@@ -42,6 +43,8 @@ export interface PropsDoRemotion {
   musica?: string;
   /** "+80 ACHADOS POR DIA NO GRUPO" (o fim do vídeo); vazio, não aparece. */
   grupo?: string;
+  /** A frase de gancho dos primeiros 1,5 s. */
+  frase?: string[];
 }
 
 /** Provas reais do produto, uma por chip. */
@@ -173,7 +176,9 @@ export async function gravarComRemotion(itens: Array<{ oferta: OfertaAvaliada; i
     const nomes = await nomesDaIa(itens.map((it) => it.oferta.titulo), config, fetchFn);
     if (nomes) console.log(`[reel] nomes da IA: ${nomes.map((n) => n || '(título da loja)').join(' | ')}`);
     const musica = prepararMusica(chave, remotion.pasta);
-    const props: PropsDoRemotion = { ...propsDoRemotion(itens, comentaQuero, nomes), audio, ...(musica ? { musica } : {}), ...(grupo ? { grupo } : {}) };
+    const gancho = ganchoDoReel(itens.map((it) => it.oferta), chave);
+    console.log(`[reel] gancho de texto (${chave}): ${gancho.tipo} — ${gancho.linhas.join(' / ')}`);
+    const props: PropsDoRemotion = { ...propsDoRemotion(itens, comentaQuero, nomes), audio, frase: gancho.linhas, ...(musica ? { musica } : {}), ...(grupo ? { grupo } : {}) };
     writeFileSync(caminhoDoAudio, audioDoRemotion(itens.length, chave, Boolean(musica)));
     const arquivoDosProps = join(tmp, 'props.json');
     writeFileSync(arquivoDosProps, JSON.stringify(props));
@@ -283,7 +288,10 @@ export async function gravarDestaqueComRemotion(item: { oferta: OfertaAvaliada; 
     }
     writeFileSync(caminhoDoAudio, mix);
     const o = item.oferta;
+    const gancho = ganchoDoReel([o], chave);
+    console.log(`[reel] gancho de texto (${chave}): ${gancho.tipo} — ${gancho.linhas.join(' / ')}`);
     const props = {
+      frase: gancho.linhas,
       nome: tituloParaArte(nome || o.titulo, 22, 2),
       imagem: item.imagem,
       fato: fatoDoGancho(o),

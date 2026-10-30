@@ -1,6 +1,7 @@
 import React from 'react';
 import { AbsoluteFill, Audio, Img, interpolate, OffthreadVideo, Sequence, spring, staticFile, useCurrentFrame, useVideoConfig } from 'remotion';
 import { carregarFonte } from './fonte';
+import { Frase } from './Frase';
 import { FONTE, Logo, MARCA } from './marca';
 
 carregarFonte();
@@ -42,6 +43,8 @@ export type PropsDoDestaque = {
   fotos?: string[];
   /** Clipe de vídeo (em public/) que abre o Reel, feito por IA a partir da foto do anúncio. */
   abertura?: string;
+  /** A frase de gancho dos primeiros 1,5 s (até 2 linhas); vazia, abre só com o logo. */
+  frase?: string[];
 };
 
 /** Volume da música: entra em meio segundo e sai no último segundo, num nível baixo (os efeitos e o olhar são o principal). */
@@ -80,8 +83,9 @@ const Gancho: React.FC<{ p: PropsDoDestaque }> = ({ p }) => {
   return (
     <AbsoluteFill>
       <Fundo imagem={p.imagem} cor={p.cor} />
-      <div style={{ position: 'absolute', top: 262, width: '100%', display: 'flex', justifyContent: 'center' }}><Logo altura={52} /></div>
+      {p.frase?.length ? null : <div style={{ position: 'absolute', top: 262, width: '100%', display: 'flex', justifyContent: 'center' }}><Logo altura={52} /></div>}
       <Inteiro imagem={p.imagem} escala={0.85 + entra * 0.15} />
+      {p.frase?.length ? <Frase linhas={p.frase} y={190} /> : null}
       {p.fato ? (
         <Linha y={1350} tamanho={caber(p.fato, 120)} cor={MARCA.amarelo} italico style={{ transform: `scale(${2.2 - fato * 1.2}) rotate(-3deg)`, opacity: Math.min(1, fato * 2), WebkitTextStroke: `3px ${MARCA.fundo}` }}>{p.fato}</Linha>
       ) : null}
@@ -175,7 +179,7 @@ const Galeria: React.FC<{ p: PropsDoDestaque; fotos: string[] }> = ({ p, fotos }
             <OffthreadVideo src={staticFile(p.abertura)} muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             <AbsoluteFill style={{ background: 'linear-gradient(180deg, rgba(14,14,16,.4) 0%, rgba(14,14,16,0) 18%, rgba(14,14,16,0) 70%, rgba(14,14,16,.85) 100%)' }} />
           </AbsoluteFill>
-          <div style={{ position: 'absolute', top: 250, width: '100%', display: 'flex', justifyContent: 'center' }}><div style={{ padding: '10px 26px', borderRadius: 40, background: 'rgba(14,14,16,.8)' }}><Logo altura={48} /></div></div>
+          {p.frase?.length ? <Sequence durationInFrames={45}><Frase linhas={p.frase} /></Sequence> : <div style={{ position: 'absolute', top: 250, width: '100%', display: 'flex', justifyContent: 'center' }}><div style={{ padding: '10px 26px', borderRadius: 40, background: 'rgba(14,14,16,.8)' }}><Logo altura={48} /></div></div>}
           {p.fato ? <Linha y={1400} tamanho={caber(p.fato, 110)} cor={MARCA.amarelo} italico style={{ WebkitTextStroke: `3px ${MARCA.fundo}` }}>{p.fato}</Linha> : null}
           {p.nome.map((l, k) => <Linha key={k} y={1520 + k * 64} tamanho={caber(l, 54)} cor="#fff">{l}</Linha>)}
           {/* O Instagram exige o aviso de conteúdo feito com IA; aqui também fica escrito na tela. */}
@@ -184,7 +188,7 @@ const Galeria: React.FC<{ p: PropsDoDestaque; fotos: string[] }> = ({ p, fotos }
       ) : null}
       <Sequence from={ab} durationInFrames={q.gancho}>
         <FotoGrande imagem={fotos[0]!} duracao={q.gancho} />
-        <div style={{ position: 'absolute', top: 250, width: '100%', display: 'flex', justifyContent: 'center' }}><div style={{ padding: '10px 26px', borderRadius: 40, background: 'rgba(14,14,16,.8)' }}><Logo altura={48} /></div></div>
+        {p.frase?.length && !p.abertura ? <Frase linhas={p.frase} /> : <div style={{ position: 'absolute', top: 250, width: '100%', display: 'flex', justifyContent: 'center' }}><div style={{ padding: '10px 26px', borderRadius: 40, background: 'rgba(14,14,16,.8)' }}><Logo altura={48} /></div></div>}
         {p.fato ? (
           <Linha y={1370} tamanho={caber(p.fato, 120)} cor={MARCA.amarelo} italico style={{ transform: `scale(${2.2 - spring({ frame: frameGeral - 6, fps, config: { damping: 8, stiffness: 260 } }) * 1.2}) rotate(-3deg)`, WebkitTextStroke: `3px ${MARCA.fundo}` }}>{p.fato}</Linha>
         ) : null}

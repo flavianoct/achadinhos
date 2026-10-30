@@ -1,5 +1,6 @@
 import React from 'react';
 import { AbsoluteFill, Audio, Img, interpolate, Sequence, spring, staticFile, useCurrentFrame, useVideoConfig } from 'remotion';
+import { Frase } from './Frase';
 import { FONTE, Logo, MARCA } from './marca';
 import { carregarFonte } from './fonte';
 
@@ -40,6 +41,8 @@ export type PropsDosAchados = {
   musica?: string;
   /** "+80 ACHADOS POR DIA NO GRUPO": o que o grupo entrega, no fim do vídeo. */
   grupo?: string;
+  /** A frase de gancho dos primeiros 1,5 s (até 2 linhas); vazia, abre só com o logo. */
+  frase?: string[];
 };
 
 export const duracaoDosAchados = (n: number) => QUADROS.gancho + n * QUADROS.item + QUADROS.fim;
@@ -178,7 +181,7 @@ const Gancho: React.FC<{ props: PropsDosAchados }> = ({ props }) => {
         </Linha>
         <Palavras texto="TOP 3 DE HOJE: ESPERA O Nº 1" y={1470} tamanho={caber('TOP 3 DE HOJE: ESPERA O Nº 1', 54)} cor="#fff" inicio={12} passo={2} />
       </AbsoluteFill>
-      <div style={{ position: 'absolute', top: 270, width: '100%', display: 'flex', justifyContent: 'center' }}><Logo altura={58} /></div>
+      {props.frase?.length ? <Frase linhas={props.frase} y={190} /> : <div style={{ position: 'absolute', top: 270, width: '100%', display: 'flex', justifyContent: 'center' }}><Logo altura={58} /></div>}
     </AbsoluteFill>
   );
 };
