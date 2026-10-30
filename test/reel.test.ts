@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -472,4 +472,20 @@ test('reel agendado: sai na hora marcada, uma vez só, e quem comenta "eu quero"
   await responderComentarios(banco, lerConfig({ ...base, INSTAGRAM_COMENTA_QUERO: '1' }), agora, fetch, falso);
   assert.equal(directs.length, 1);
   assert.ok(directs[0]!.includes('MLB-3601773569') && directs[0]!.includes('matt_word=topfera'), 'o direct leva o link real do vestido');
+});
+
+test('músicas do Fenaky: cada Reel usa uma faixa, as faixas giram entre os Reels e, sem faixa na pasta, vale a trilha sintetizada', async () => {
+  const { musicasDisponiveis, posicaoDaMusica, prepararMusica } = await import('../src/musicas.ts');
+  const lista = musicasDisponiveis();
+  assert.ok(lista.length >= 3 && lista.every((n) => /\.mp3$/.test(n)), `as músicas estão na pasta (${lista.length})`);
+  const usadas = new Set(['reel-2026-10-30', 'reel-2026-10-30-2', 'reel-2026-10-30-3', 'reel-2026-10-31', 'reel-2026-10-31-2', 'reel-2026-10-31-3'].map((c) => posicaoDaMusica(c, lista.length)));
+  assert.ok(usadas.size >= 4, `giram entre os Reels (${usadas.size} faixas diferentes em 6 Reels)`);
+  assert.notEqual(posicaoDaMusica('reel-2026-10-30', lista.length), posicaoDaMusica('reel-2026-10-30-2', lista.length), 'dois Reels do mesmo dia não repetem a faixa');
+  assert.equal(posicaoDaMusica('reel-2026-10-30', lista.length), posicaoDaMusica('reel-2026-10-30', lista.length), 'o mesmo Reel, a mesma faixa');
+  const pasta = mkdtempSync(join(tmpdir(), 'rem-'));
+  mkdirSync(join(pasta, 'public'), { recursive: true });
+  const nome = prepararMusica('reel-2026-10-30', pasta)!;
+  assert.match(nome, /^musica-.*\.mp3$/);
+  assert.ok(existsSync(join(pasta, 'public', nome)), 'a faixa foi copiada para o Remotion');
+  assert.equal(prepararMusica('reel-2026-10-30', pasta, mkdtempSync(join(tmpdir(), 'vazio-'))), undefined, 'sem pasta de músicas, usa a sintetizada');
 });

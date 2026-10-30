@@ -36,11 +36,16 @@ export type PropsDosAchados = {
   promessa: string;
   comentaQuero: boolean;
   audio?: string;
+  /** Música do Fenaky (em public/), por baixo dos efeitos. */
+  musica?: string;
   /** "+80 ACHADOS POR DIA NO GRUPO": o que o grupo entrega, no fim do vídeo. */
   grupo?: string;
 };
 
 export const duracaoDosAchados = (n: number) => QUADROS.gancho + n * QUADROS.item + QUADROS.fim;
+
+/** Volume da música: entra em meio segundo e sai no último segundo, num nível baixo (os efeitos e o olhar são o principal). */
+export const musicaComFade = (frame: number, total: number) => 0.8 * Math.min(1, frame / 15, Math.max(0, (total - frame) / 30));
 
 const caber = (s: string, base: number, largura = 940) => Math.min(base, Math.floor(largura / (Math.max(1, s.length) * 0.74)));
 const travar = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' } as const;
@@ -279,6 +284,7 @@ export const Achados: React.FC<PropsDosAchados> = (props) => {
       <Sequence from={QUADROS.gancho + n * QUADROS.item} durationInFrames={QUADROS.fim}>
         <Fim props={props} />
       </Sequence>
+      {props.musica ? <Audio src={staticFile(props.musica)} volume={(f) => musicaComFade(f, duracaoDosAchados(props.itens.length))} /> : null}
       {props.audio ? <Audio src={staticFile(props.audio)} /> : null}
     </AbsoluteFill>
   );

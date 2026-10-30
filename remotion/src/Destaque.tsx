@@ -36,11 +36,16 @@ export type PropsDoDestaque = {
   cor: string;
   comentaQuero: boolean;
   audio?: string;
+  /** Música do Fenaky (em public/), por baixo dos efeitos. */
+  musica?: string;
   /** Todas as fotos do anúncio (a primeira é a principal). Com 3 ou mais, o vídeo vira galeria. */
   fotos?: string[];
   /** Clipe de vídeo (em public/) que abre o Reel, feito por IA a partir da foto do anúncio. */
   abertura?: string;
 };
+
+/** Volume da música: entra em meio segundo e sai no último segundo, num nível baixo (os efeitos e o olhar são o principal). */
+const musicaComFade = (frame: number, total: number) => 0.8 * Math.min(1, frame / 15, Math.max(0, (total - frame) / 30));
 
 const caber = (s: string, base: number, largura = 940) => Math.min(base, Math.floor(largura / (Math.max(1, s.length) * 0.74)));
 const travar = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' } as const;
@@ -208,6 +213,7 @@ const Galeria: React.FC<{ p: PropsDoDestaque; fotos: string[] }> = ({ p, fotos }
         <FimDaGaleria p={p} />
         <Corte />
       </Sequence>
+      {p.musica ? <Audio src={staticFile(p.musica)} volume={(f) => musicaComFade(f, duracaoDoDestaque(p))} /> : null}
       {p.audio ? <Audio src={staticFile(p.audio)} /> : null}
     </AbsoluteFill>
   );
@@ -241,6 +247,7 @@ export const Destaque: React.FC<PropsDoDestaque> = (p) => {
         <Sequence key={parte} from={q.gancho + parte * q.detalhe} durationInFrames={q.detalhe}><Detalhe p={p} parte={parte} /></Sequence>
       ))}
       <Sequence from={q.gancho + 3 * q.detalhe} durationInFrames={q.fim}><Fim p={p} /></Sequence>
+      {p.musica ? <Audio src={staticFile(p.musica)} volume={(f) => musicaComFade(f, duracaoDoDestaque(p))} /> : null}
       {p.audio ? <Audio src={staticFile(p.audio)} /> : null}
     </AbsoluteFill>
   );
