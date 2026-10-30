@@ -4,3 +4,5 @@ public/*.mp4
 produtos/*/*.mp4
 produtos/*/foto.*
 public/*.wav
+public/musica-*
+public/reel-audio-*

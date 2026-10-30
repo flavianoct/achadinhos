@@ -9,6 +9,7 @@ import type { Config } from './config.ts';
 import { formatarVendas } from './mensagem.ts';
 import { CORES_DO_NICHO } from './moldes.ts';
 import { estiloDaMusica, sintetizarEfeitos, sintetizarMusica, type Efeito } from './musica.ts';
+import { prepararMusica } from './musicas.ts';
 import { seloDaOferta, tituloParaArte, type Fetch } from './social.ts';
 import type { OfertaAvaliada } from './types.ts';
 
@@ -37,6 +38,8 @@ export interface PropsDoRemotion {
   promessa: string;
   comentaQuero: boolean;
   audio?: string;
+  /** Música do Fenaky (em public/), que toca por baixo dos efeitos. */
+  musica?: string;
   /** "+80 ACHADOS POR DIA NO GRUPO" (o fim do vídeo); vazio, não aparece. */
   grupo?: string;
 }
@@ -137,8 +140,10 @@ export function duracaoDoRemotion(n: number): number {
 }
 
 /** A trilha com os efeitos já misturados, no tamanho exato do vídeo. */
-export function audioDoRemotion(n: number, chave: string): Buffer {
+export function audioDoRemotion(n: number, chave: string, comMusica = false): Buffer {
   const total = duracaoDoRemotion(n);
+  // Com a música do Fenaky, o áudio são só os efeitos: a música toca por baixo, dentro do próprio vídeo.
+  if (comMusica) return sintetizarEfeitos(total, efeitosDoRemotion(n));
   const musica = sintetizarMusica(total, estiloDaMusica(chave));
   const efeitos = sintetizarEfeitos(total, efeitosDoRemotion(n));
   const saida = Buffer.from(musica);
@@ -167,8 +172,9 @@ export async function gravarComRemotion(itens: Array<{ oferta: OfertaAvaliada; i
   try {
     const nomes = await nomesDaIa(itens.map((it) => it.oferta.titulo), config, fetchFn);
     if (nomes) console.log(`[reel] nomes da IA: ${nomes.map((n) => n || '(título da loja)').join(' | ')}`);
-    const props: PropsDoRemotion = { ...propsDoRemotion(itens, comentaQuero, nomes), audio, ...(grupo ? { grupo } : {}) };
-    writeFileSync(caminhoDoAudio, audioDoRemotion(itens.length, chave));
+    const musica = prepararMusica(chave, remotion.pasta);
+    const props: PropsDoRemotion = { ...propsDoRemotion(itens, comentaQuero, nomes), audio, ...(musica ? { musica } : {}), ...(grupo ? { grupo } : {}) };
+    writeFileSync(caminhoDoAudio, audioDoRemotion(itens.length, chave, Boolean(musica)));
     const arquivoDosProps = join(tmp, 'props.json');
     writeFileSync(arquivoDosProps, JSON.stringify(props));
     await executar(process.execPath, [remotion.cli, 'render', 'src/index.ts', 'Achados', destino, `--props=${arquivoDosProps}`, '--log=error'], { cwd: remotion.pasta, timeout: 6 * 60_000, maxBuffer: 20_000_000 });
@@ -266,10 +272,15 @@ export async function gravarDestaqueComRemotion(item: { oferta: OfertaAvaliada; 
     const q = QUADROS_DO_DESTAQUE;
     const g = QUADROS_DA_GALERIA;
     const total = (fotos ? g.gancho + fotos.length * g.foto + g.fim : q.gancho + 3 * q.detalhe + q.fim) / FPS;
-    const musica = sintetizarMusica(total, estiloDaMusica(chave));
     const efeitos = sintetizarEfeitos(total, efeitosDoDestaque(fotos?.length ?? 0));
-    const mix = Buffer.from(musica);
-    for (let i = 44; i < Math.min(musica.length, efeitos.length); i += 2) mix.writeInt16LE(Math.max(-32767, Math.min(32767, musica.readInt16LE(i) + efeitos.readInt16LE(i))), i);
+    const musicaDoFenaky = prepararMusica(chave, remotion.pasta);
+    let mix = efeitos;
+    if (!musicaDoFenaky) {
+      // Sem música do Fenaky na pasta, vale a trilha sintetizada por código, misturada aos efeitos.
+      const sintetizada = sintetizarMusica(total, estiloDaMusica(chave));
+      mix = Buffer.from(sintetizada);
+      for (let i = 44; i < Math.min(sintetizada.length, efeitos.length); i += 2) mix.writeInt16LE(Math.max(-32767, Math.min(32767, sintetizada.readInt16LE(i) + efeitos.readInt16LE(i))), i);
+    }
     writeFileSync(caminhoDoAudio, mix);
     const o = item.oferta;
     const props = {
@@ -280,6 +291,7 @@ export async function gravarDestaqueComRemotion(item: { oferta: OfertaAvaliada; 
       cor: CORES_DO_NICHO[o.categoria] ?? CORES_DO_NICHO.geral!,
       comentaQuero,
       audio,
+      ...(musicaDoFenaky ? { musica: musicaDoFenaky } : {}),
       ...(fotos ? { fotos } : {}),
     };
     const arquivoDosProps = join(tmp, 'props.json');
