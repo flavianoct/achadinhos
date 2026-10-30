@@ -135,6 +135,7 @@ async function modoNuvem(): Promise<void> {
       dizer(`- **Aviso nas rotas:** ${aviso}`);
       avisar(chaveDoAviso('rotas', aviso), aviso);
     }
+    if (robo.config.temaDoDia) dizer(`- Tema do dia: ${robo.config.temaDoDia}.`);
     const convite = await robo.postarConviteAgora();
     if (convite.postou) dizer('- Convite para os canais postado no Telegram.');
     else if (convite.motivo && !/fora do dia|já postado|Telegram não configurado/.test(convite.motivo)) avisar('convite:erro', `Não consegui postar o convite aos outros canais: ${convite.motivo}`);
