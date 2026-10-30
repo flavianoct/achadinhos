@@ -1,7 +1,7 @@
 /**
  * Tema do dia: num dia marcado, o robô inteiro (coleta, Telegram, WhatsApp e Instagram) foca num assunto, como "dia dos vestidos".
  * Cada tema é um conjunto de ajustes prontos que sobrepõem os do ajustes.env SÓ naquele dia: na manhã seguinte tudo volta ao normal sozinho.
- * Para ligar: TEMA_DO_DIA=vestidos e TEMA_DO_DIA_DATA=2026-10-30 (uma ou mais datas, separadas por vírgula).
+ * Para ligar: TEMA_DO_DIA=vestidos e o dia: TEMA_DO_DIA_SEMANA=sexta (todo ano, toda semana) e/ou TEMA_DO_DIA_DATA=2026-10-30 (datas avulsas).
  */
 import { diaDe } from './db.ts';
 
@@ -49,11 +49,29 @@ function datas(texto: string | undefined): string[] {
   return (texto ?? '').split(',').map((d) => d.trim()).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d));
 }
 
-/** O tema que vale hoje (no horário de Brasília), ou undefined. Sem data marcada, nenhum tema vale: o tema nunca fica ligado por esquecimento. */
+const DIAS_DA_SEMANA = ['domingo', 'segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado'];
+
+/** Dias da semana (0 = domingo) de um texto como "sexta" ou "segunda, quinta-feira"; aceita com ou sem acento e "-feira". */
+function diasDaSemana(texto: string | undefined): number[] {
+  return (texto ?? '')
+    .split(',')
+    .map((d) => d.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/-?feira$/, ''))
+    .map((d) => DIAS_DA_SEMANA.indexOf(d))
+    .filter((i) => i >= 0);
+}
+
+/** Dia da semana de hoje no horário de Brasília (0 = domingo). */
+function diaDaSemanaDeHoje(agora: Date): number {
+  const curto = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Sao_Paulo', weekday: 'short' }).format(agora);
+  return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(curto);
+}
+
+/** O tema que vale hoje (no horário de Brasília), ou undefined. Sem dia marcado (nem data nem dia da semana), nenhum tema vale: o tema nunca fica ligado por esquecimento. */
 export function temaDeHoje(env: Record<string, string | undefined>, agora: Date): { chave: string; tema: TemaDoDia } | undefined {
   const chave = (env.TEMA_DO_DIA ?? '').trim().toLowerCase();
   const tema = TEMAS_DO_DIA[chave];
-  if (!tema || !datas(env.TEMA_DO_DIA_DATA).includes(diaDe(agora))) return undefined;
+  const ehHoje = datas(env.TEMA_DO_DIA_DATA).includes(diaDe(agora)) || diasDaSemana(env.TEMA_DO_DIA_SEMANA).includes(diaDaSemanaDeHoje(agora));
+  if (!tema || !ehHoje) return undefined;
   return { chave, tema };
 }
 
