@@ -273,3 +273,12 @@ test('instagram: moda só sai em Reel: o post de feed e os Stories pulam o nicho
   const livre = lerConfig({ ...base, INSTAGRAM_SO_NOS_REELS: '' });
   assert.equal(livre.instagram.soNosReels.length, 0);
 });
+
+test('instagram: só tecnologia, moda, games e casa vão para o Instagram (INSTAGRAM_NICHOS); pet, beleza e os outros ficam de fora', async () => {
+  const { passaNoFiltroDoInstagram } = await import('../src/instagram.ts');
+  const ig = lerConfig(base).instagram;
+  assert.deepEqual(ig.nichos, ['tech', 'moda', 'games', 'casa']);
+  for (const c of ['tech', 'moda', 'games', 'casa']) assert.equal(passaNoFiltroDoInstagram({ ...oferta('A', 5), categoria: c }, ig), true, c);
+  for (const c of ['pet', 'beleza', 'esporte', 'bebe', 'ferramentas', 'geral']) assert.equal(passaNoFiltroDoInstagram({ ...oferta('A', 5), categoria: c }, ig), false, c);
+  assert.equal(passaNoFiltroDoInstagram({ ...oferta('A', 5), categoria: 'pet' }, lerConfig({ ...base, INSTAGRAM_NICHOS: '' }).instagram), true, 'vazio libera todos');
+});
