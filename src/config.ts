@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { parseEnv } from 'node:util';
 import { CATEGORIAS, definirPalavrasDosNichos } from './categoria.ts';
+import { aplicarTemaDoDia, temaDeHoje } from './temas.ts';
 import { NICHOS_DAS_LOJAS, categoriasMlDosNichos, categoriasShopeeDosNichos, type CategoriaDaShopee } from './nichos.ts';
 
 export interface Config {
@@ -156,6 +157,8 @@ export interface Config {
   /** Publicação automática no Instagram (conta profissional). Token e ID ficam nos Secrets. */
   instagram: { ativo: boolean; token: string; userId: string; feedPorDia: number; storiesPorDia: number; intervaloFeedMin: number; intervaloStoryMin: number; notaMinima: number; vendasMinimas: number; palavrasBloqueadas: string[]; carrosselPorDia: number; carrosselItens: number; carrosselTetos: number[]; dicasDias: number[]; perguntaDias: number[]; horariosFeed: number[]; horariosStories: number[]; reelsPorDia: number; horariosReels: number[]; resumoHora: number; dataHora: number; grupoDias: number[]; tokenData: string; comentaQuero: boolean; palavrasDoComentario: string[]; respostasPorRodada: number; reelRemotion: boolean; destaqueNichos: string[]; reelsDeDestaque: number; destaquePrefere: string[]; soNosReels: string[]; reelsDeRoupa: number; destaqueMinFotos: number; nichos: string[] };
   painel: { porta: number };
+  /** O tema do dia que está valendo hoje (nome para mostrar), se houver. */
+  temaDoDia?: string;
 }
 
 export type Env = Record<string, string | undefined>;
@@ -352,8 +355,11 @@ export function nichosComDestino(c: Config): string[] {
   return [...new Set([...Object.keys(c.rotas.porCategoria), ...c.whatsapp.rotas.map((r) => r.nicho)])].filter((n) => n !== 'geral');
 }
 
-export function lerConfig(env: Env = process.env): Config {
+export function lerConfig(envOriginal: Env = process.env, agora: Date = new Date()): Config {
+  // Tema do dia: na data marcada, os ajustes do tema valem por cima dos de sempre (e somem sozinhos no dia seguinte).
+  const env = aplicarTemaDoDia(envOriginal, agora);
   const c = lerConfigBase(env);
+  c.temaDoDia = temaDeHoje(envOriginal, agora)?.tema.nome;
   c.filtro.pontosPorNicho = mapaPorNicho(env.NICHO_PONTOS_MINIMOS ?? PONTOS_POR_NICHO_PADRAO, 'NICHO_PONTOS_MINIMOS', c.rotas.avisos);
   c.rotas.minimos = mapaPorNicho(env.NICHO_MINIMOS, 'NICHO_MINIMOS', c.rotas.avisos);
   c.rotas.minimoPadrao = Math.max(0, numero(env, 'NICHO_MINIMO_PADRAO', 6));

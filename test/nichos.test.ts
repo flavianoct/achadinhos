@@ -550,3 +550,30 @@ test('whatsapp: a cota por rodada é dos canais gerais, e as mensagens só do gr
   assert.equal(banco.whatsappNosUltimosMinutos(20, AGORA), 1);
   assert.equal(banco.mensagensDoWhatsapp(1, AGORA).filter((m) => m.soNicho).length, 2);
 });
+
+test('tema do dia: na data marcada os ajustes do tema valem, no dia seguinte tudo volta ao normal, e sem data o tema não liga', async () => {
+  const { TEMAS_DO_DIA, temaDeHoje } = await import('../src/temas.ts');
+  const hoje = new Date('2026-10-30T15:00:00Z');
+  const amanha = new Date('2026-10-31T15:00:00Z');
+  const env = { ...base, TEMA_DO_DIA: 'vestidos', TEMA_DO_DIA_DATA: '2026-10-30' };
+  const dia = lerConfig(env, hoje);
+  assert.equal(dia.temaDoDia, TEMAS_DO_DIA.vestidos!.nome);
+  assert.ok(dia.filtro.tema.includes('vestido') && dia.filtro.tema.includes('blusa'), 'o tema vira o TEMA do robô');
+  assert.equal(dia.filtro.vendasMinimasShopee, 200, 'o corte de vendas cai só no dia');
+  assert.deepEqual(dia.instagram.nichos, ['moda']);
+  assert.equal(dia.instagram.soNosReels.length, 0, 'a moda sai também no feed hoje');
+  assert.equal(dia.instagram.reelsDeRoupa, 3);
+  assert.equal(dia.filtro.pontosPorNicho.moda, 45);
+  assert.equal(dia.filtro.pontosPorNicho.pet, 48, 'os outros cortes de sempre continuam');
+  // No dia seguinte, tudo volta ao que o ajustes.env diz.
+  const normal = lerConfig(env, amanha);
+  assert.equal(normal.temaDoDia, undefined);
+  assert.deepEqual(normal.filtro.tema, []);
+  assert.equal(normal.filtro.vendasMinimasShopee, lerConfig(base, amanha).filtro.vendasMinimasShopee);
+  assert.deepEqual(normal.instagram.nichos, ['tech', 'moda', 'games', 'casa']);
+  // Sem data, ou com tema que não existe, nada liga.
+  assert.equal(temaDeHoje({ TEMA_DO_DIA: 'vestidos' }, hoje), undefined);
+  assert.equal(temaDeHoje({ TEMA_DO_DIA: 'inventado', TEMA_DO_DIA_DATA: '2026-10-30' }, hoje), undefined);
+  // Mais de uma data.
+  assert.ok(temaDeHoje({ TEMA_DO_DIA: 'games', TEMA_DO_DIA_DATA: '2026-10-29, 2026-10-30' }, hoje));
+});
