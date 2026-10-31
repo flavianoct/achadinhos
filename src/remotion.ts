@@ -22,7 +22,7 @@ const executar = promisify(execFile);
  */
 
 /** Quadros de cada cena (30 por segundo). Precisam ser os mesmos de QUADROS em remotion/src/Achados.tsx (um teste confere). */
-export const QUADROS_DO_REMOTION = { gancho: 42, item: 72, fim: 78 };
+export const QUADROS_DO_REMOTION = { gancho: 54, item: 72, fim: 78 };
 const FPS = 30;
 
 export interface ItemDoRemotion {
@@ -230,9 +230,9 @@ export async function gravarCarrosselComRemotion(props: PropsDoCarrosselRemotion
 }
 
 /** Quadros do Reel de destaque (um produto). Precisam ser os mesmos de QUADROS_DO_DESTAQUE em remotion/src/Destaque.tsx (um teste confere). */
-export const QUADROS_DO_DESTAQUE = { gancho: 45, detalhe: 50, fim: 105 };
+export const QUADROS_DO_DESTAQUE = { gancho: 57, detalhe: 50, fim: 105 };
 /** Galeria (3 fotos ou mais): os mesmos de QUADROS_DA_GALERIA em remotion/src/Destaque.tsx. */
-export const QUADROS_DA_GALERIA = { gancho: 40, foto: 20, fim: 90 };
+export const QUADROS_DA_GALERIA = { gancho: 52, foto: 20, fim: 90 };
 export const MAXIMO_DE_FOTOS = 7;
 
 /** Os efeitos do destaque: pop no carimbo do fato, whoosh em cada corte, pop em cada prova e ding no pedido de comentário. */

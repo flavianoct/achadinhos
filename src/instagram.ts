@@ -9,6 +9,7 @@ import { arquivoNoSite, lerReelsAgendados, reelsNaHora } from './agendados.ts';
 import { arquivoDoReel, legendaDoDestaque, legendaDoReel, type DadosDoDestaque, type DadosDoReel } from './reel.ts';
 import { linhaDeChegada, linhaDeOntem, numerosDoGrupo } from './grupo.ts';
 import type { OfertaAvaliada } from './types.ts';
+import { ganchoDoReel } from './ganchos.ts';
 import { campanhaDeHoje, carregarCampanhas } from './datas.ts';
 import { arquivoDaData, arquivoDoResumo, chaveDaDataPublicada, chaveDoResumoPublicado } from './vitrine.ts';
 
@@ -141,6 +142,42 @@ export class Instagram {
   /** Resposta privada a um comentário: a mensagem chega no direct de quem comentou (o Instagram aceita uma por comentário, em até 7 dias). */
   async mandarNoDirect(commentId: string, texto: string): Promise<void> {
     await this.chamar('POST', `${this.userId}/messages`, { recipient: JSON.stringify({ comment_id: commentId }), message: JSON.stringify({ text: texto }) });
+  }
+
+  /** Os posts mais recentes da conta (feed, carrossel e Reels; os Stories não aparecem aqui). */
+  async midiasRecentes(limite = 40): Promise<Array<{ id: string; formato: string; legenda: string; publicadoEm: number }>> {
+    const r = await this.chamar('GET', `${this.userId}/media`, { fields: 'id,media_type,media_product_type,caption,timestamp', limit: String(limite) });
+    return ((r.data ?? []) as any[]).map((m) => ({
+      id: String(m.id),
+      formato: m.media_product_type === 'REELS' ? 'reel' : m.media_type === 'CAROUSEL_ALBUM' ? 'carrossel' : 'feed',
+      legenda: String(m.caption ?? ''),
+      publicadoEm: Date.parse(m.timestamp ?? '') || 0,
+    }));
+  }
+
+  /**
+   * Os números de um post. Se o Instagram recusar alguma métrica da lista (ele muda os nomes de tempos em tempos), tenta de novo com as
+   * básicas. Precisa da permissão instagram_business_manage_insights no token.
+   */
+  async metricas(mediaId: string, reel: boolean): Promise<Record<string, number>> {
+    const basicas = ['reach', 'views', 'saved', 'shares', 'likes', 'comments', 'total_interactions'];
+    const listas = reel ? [[...basicas, 'ig_reels_avg_watch_time'], basicas, ['reach', 'saved', 'likes', 'comments']] : [basicas, ['reach', 'saved', 'likes', 'comments']];
+    let ultimo: unknown;
+    for (const lista of listas) {
+      try {
+        const r = await this.chamar('GET', `${mediaId}/insights`, { metric: lista.join(',') });
+        const saida: Record<string, number> = {};
+        for (const m of (r.data ?? []) as any[]) {
+          const v = Number(m.values?.[0]?.value ?? m.total_value?.value);
+          if (Number.isFinite(v)) saida[m.name] = v;
+        }
+        return saida;
+      } catch (e) {
+        if (e instanceof ErroInstagram && e.fatal) throw e;
+        ultimo = e;
+      }
+    }
+    throw ultimo;
   }
 
   /** Resposta pública ao comentário ("te mandei no direct"), que mostra para quem passa que funciona. */
@@ -305,7 +342,10 @@ export async function publicarNoInstagram(banco: Banco, config: Config, agora: D
       try {
         const id = await api.publicarReel(video, ag.legenda);
         banco.salvarTexto(`agendado:${ag.id}`, agora.toISOString(), agora);
-        if (id) banco.registrarMidiaDoInstagram(id, 'reel', ag.titulo, ag.link, agora);
+        if (id) {
+          banco.registrarMidiaDoInstagram(id, 'reel', ag.titulo, ag.link, agora);
+          banco.anotarGanchoDaMidia(id, 'pronto', agora);
+        }
         resumo.reels++;
         agendadoPublicado = true;
         await pausa(2000);
@@ -331,6 +371,9 @@ export async function publicarNoInstagram(banco: Banco, config: Config, agora: D
             // Destaque: um produto só, o "eu quero" leva direto a ele.
             const link = dadosDoReel.formato === 'destaque' ? dadosDoReel.item.oferta.link : produtos ? JSON.stringify(produtos) : paginaDaBio(config);
             banco.registrarMidiaDoInstagram(id, 'reel', dadosDoReel.titulo, link, agora);
+            // O formato do gancho de texto (o mesmo que o vídeo usou: depende só dos produtos e da chave), para comparar o alcance.
+            const ofertas = dadosDoReel.formato === 'reel' ? dadosDoReel.itens.map((it) => it.oferta) : dadosDoReel.formato === 'destaque' ? [dadosDoReel.item.oferta] : [];
+            if (ofertas.length) banco.anotarGanchoDaMidia(id, ganchoDoReel(ofertas, reel.chave).tipo, agora);
           }
           resumo.reels++;
           await pausa(2000);

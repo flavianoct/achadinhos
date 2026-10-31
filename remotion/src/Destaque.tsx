@@ -13,9 +13,9 @@ carregarFonte();
  */
 
 export const DESTAQUE_FPS = 30;
-export const QUADROS_DO_DESTAQUE = { gancho: 45, detalhe: 50, fim: 105 };
+export const QUADROS_DO_DESTAQUE = { gancho: 57, detalhe: 50, fim: 105 };
 /** Com 3 fotos ou mais do anúncio, o destaque vira galeria: uma foto grande por batida. */
-export const QUADROS_DA_GALERIA = { gancho: 40, foto: 20, fim: 90 };
+export const QUADROS_DA_GALERIA = { gancho: 52, foto: 20, fim: 90 };
 export const MAXIMO_DE_FOTOS = 7;
 const fotosDaGaleria = (p: { fotos?: string[] }) => (p.fotos && p.fotos.length >= 3 ? p.fotos.slice(0, MAXIMO_DE_FOTOS) : undefined);
 /** Abertura em vídeo (clipe feito por IA a partir da foto do anúncio), com o aviso "feito com IA": entra antes da galeria. */
@@ -86,7 +86,7 @@ const Gancho: React.FC<{ p: PropsDoDestaque }> = ({ p }) => {
       {p.frase?.length ? null : <div style={{ position: 'absolute', top: 262, width: '100%', display: 'flex', justifyContent: 'center' }}><Logo altura={52} /></div>}
       <Inteiro imagem={p.imagem} escala={0.85 + entra * 0.15} />
       {p.frase?.length ? <Frase linhas={p.frase} y={190} /> : null}
-      {p.fato ? (
+      {p.fato && !p.frase?.length ? (
         <Linha y={1350} tamanho={caber(p.fato, 120)} cor={MARCA.amarelo} italico style={{ transform: `scale(${2.2 - fato * 1.2}) rotate(-3deg)`, opacity: Math.min(1, fato * 2), WebkitTextStroke: `3px ${MARCA.fundo}` }}>{p.fato}</Linha>
       ) : null}
       {p.nome.map((l, k) => (
@@ -180,7 +180,7 @@ const Galeria: React.FC<{ p: PropsDoDestaque; fotos: string[] }> = ({ p, fotos }
             <AbsoluteFill style={{ background: 'linear-gradient(180deg, rgba(14,14,16,.4) 0%, rgba(14,14,16,0) 18%, rgba(14,14,16,0) 70%, rgba(14,14,16,.85) 100%)' }} />
           </AbsoluteFill>
           {p.frase?.length ? <Sequence durationInFrames={45}><Frase linhas={p.frase} /></Sequence> : <div style={{ position: 'absolute', top: 250, width: '100%', display: 'flex', justifyContent: 'center' }}><div style={{ padding: '10px 26px', borderRadius: 40, background: 'rgba(14,14,16,.8)' }}><Logo altura={48} /></div></div>}
-          {p.fato ? <Linha y={1400} tamanho={caber(p.fato, 110)} cor={MARCA.amarelo} italico style={{ WebkitTextStroke: `3px ${MARCA.fundo}` }}>{p.fato}</Linha> : null}
+          {p.fato && !p.frase?.length ? <Linha y={1400} tamanho={caber(p.fato, 110)} cor={MARCA.amarelo} italico style={{ WebkitTextStroke: `3px ${MARCA.fundo}` }}>{p.fato}</Linha> : null}
           {p.nome.map((l, k) => <Linha key={k} y={1520 + k * 64} tamanho={caber(l, 54)} cor="#fff">{l}</Linha>)}
           {/* O Instagram exige o aviso de conteúdo feito com IA; aqui também fica escrito na tela. */}
           <div style={{ position: 'absolute', left: 40, top: 1650, padding: '8px 22px', borderRadius: 30, background: 'rgba(14,14,16,.78)', color: '#fff', fontFamily: 'Arial, sans-serif', fontWeight: 700, fontSize: 26 }}>Vídeo feito com IA a partir da foto do anúncio</div>
@@ -189,7 +189,7 @@ const Galeria: React.FC<{ p: PropsDoDestaque; fotos: string[] }> = ({ p, fotos }
       <Sequence from={ab} durationInFrames={q.gancho}>
         <FotoGrande imagem={fotos[0]!} duracao={q.gancho} />
         {p.frase?.length && !p.abertura ? <Frase linhas={p.frase} /> : <div style={{ position: 'absolute', top: 250, width: '100%', display: 'flex', justifyContent: 'center' }}><div style={{ padding: '10px 26px', borderRadius: 40, background: 'rgba(14,14,16,.8)' }}><Logo altura={48} /></div></div>}
-        {p.fato ? (
+        {p.fato && !(p.frase?.length && !p.abertura) ? (
           <Linha y={1370} tamanho={caber(p.fato, 120)} cor={MARCA.amarelo} italico style={{ transform: `scale(${2.2 - spring({ frame: frameGeral - 6, fps, config: { damping: 8, stiffness: 260 } }) * 1.2}) rotate(-3deg)`, WebkitTextStroke: `3px ${MARCA.fundo}` }}>{p.fato}</Linha>
         ) : null}
         {p.nome.map((l, k) => (

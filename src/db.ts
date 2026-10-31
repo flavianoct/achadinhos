@@ -62,6 +62,15 @@ export class Banco {
         link TEXT NOT NULL,
         publicado_em INTEGER NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS instagram_metricas (
+        media_id TEXT PRIMARY KEY,
+        formato TEXT NOT NULL,
+        legenda TEXT NOT NULL,
+        gancho TEXT NOT NULL DEFAULT '',
+        publicado_em INTEGER NOT NULL,
+        metricas TEXT NOT NULL DEFAULT '{}',
+        atualizado_em INTEGER NOT NULL
+      );
       CREATE TABLE IF NOT EXISTS instagram_respostas (
         comment_id TEXT PRIMARY KEY,
         respondido_em INTEGER NOT NULL,
@@ -824,6 +833,29 @@ export class Banco {
     this.db.prepare(`INSERT OR REPLACE INTO instagram_midias (media_id, tipo, titulo, link, publicado_em) VALUES (?, ?, ?, ?, ?)`).run(mediaId, tipo, titulo, link, agora.getTime());
   }
 
+  /** Anota o formato de gancho de texto de um Reel publicado, para comparar o alcance de cada formato depois. */
+  anotarGanchoDaMidia(mediaId: string, gancho: string, agora: Date): void {
+    this.db
+      .prepare(`INSERT INTO instagram_metricas (media_id, formato, legenda, gancho, publicado_em, atualizado_em) VALUES (?, 'reel', '', ?, ?, 0) ON CONFLICT (media_id) DO UPDATE SET gancho = excluded.gancho`)
+      .run(mediaId, gancho, agora.getTime());
+  }
+
+  /** Guarda os números de um post (o gancho anotado na publicação fica). */
+  salvarMetricas(m: { mediaId: string; formato: string; legenda: string; publicadoEm: number; metricas: Record<string, number> }, agora: Date): void {
+    this.db
+      .prepare(
+        `INSERT INTO instagram_metricas (media_id, formato, legenda, publicado_em, metricas, atualizado_em) VALUES (?, ?, ?, ?, ?, ?)
+         ON CONFLICT (media_id) DO UPDATE SET formato = excluded.formato, legenda = excluded.legenda, publicado_em = excluded.publicado_em, metricas = excluded.metricas, atualizado_em = excluded.atualizado_em`,
+      )
+      .run(m.mediaId, m.formato, m.legenda, m.publicadoEm, JSON.stringify(m.metricas), agora.getTime());
+  }
+
+  /** Os posts com números lidos, publicados nos últimos `dias`. */
+  metricasDoInstagram(dias: number, agora: Date): Array<{ mediaId: string; formato: string; legenda: string; gancho: string; publicadoEm: number; metricas: Record<string, number> }> {
+    const linhas = this.db.prepare(`SELECT * FROM instagram_metricas WHERE publicado_em >= ? AND atualizado_em > 0 ORDER BY publicado_em DESC`).all(agora.getTime() - dias * 86_400_000) as Array<Record<string, any>>;
+    return linhas.map((l) => ({ mediaId: l.media_id, formato: l.formato, legenda: l.legenda, gancho: l.gancho, publicadoEm: l.publicado_em, metricas: JSON.parse(l.metricas) }));
+  }
+
   /** Posts publicados nos últimos `dias` (o Instagram só deixa responder no direct comentários de até 7 dias), do mais novo ao mais antigo. */
   midiasRecentesDoInstagram(dias: number, agora: Date): Array<{ mediaId: string; tipo: string; titulo: string; link: string }> {
     return (this.db.prepare(`SELECT media_id, tipo, titulo, link FROM instagram_midias WHERE publicado_em >= ? ORDER BY publicado_em DESC`).all(agora.getTime() - dias * 86_400_000) as Array<{ media_id: string; tipo: string; titulo: string; link: string }>).map((l) => ({ mediaId: l.media_id, tipo: l.tipo, titulo: l.titulo, link: l.link }));
@@ -891,6 +923,7 @@ export class Banco {
     this.db.prepare(`DELETE FROM vendas_por_dia WHERE dia < ?`).run(diasAtras(agora, 10));
     this.db.prepare(`DELETE FROM instagram_midias WHERE publicado_em < ?`).run(t - 14 * 86_400_000);
     this.db.prepare(`DELETE FROM instagram_respostas WHERE respondido_em < ?`).run(t - 30 * 86_400_000);
+    this.db.prepare(`DELETE FROM instagram_metricas WHERE publicado_em < ?`).run(t - 60 * 86_400_000);
     this.db.prepare(`DELETE FROM postados WHERE postado_em < ?`).run(t - 90 * 86_400_000);
     this.db.prepare(`DELETE FROM cupons_postados WHERE postado_em < ?`).run(t - 90 * 86_400_000);
     this.db.prepare(`DELETE FROM campanhas_postadas WHERE postado_em < ?`).run(t - 90 * 86_400_000);

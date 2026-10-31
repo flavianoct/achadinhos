@@ -1,3 +1,4 @@
+import { lerMetricasDoInstagram } from './metricas.ts';
 import { execFile } from 'node:child_process';
 import { appendFileSync } from 'node:fs';
 import { FonteSimulada, OFERTAS_SIMULADAS } from './fontes/simulada.ts';
@@ -225,6 +226,13 @@ async function modoNuvem(): Promise<void> {
     for (const a of comentarios.avisos) {
       dizer(`- Aviso do Instagram: ${a}`);
       avisar(chaveDoAviso('instagram', a), a, 'aviso');
+    }
+    // Os números do Instagram (uma vez por dia): alcance, salvamentos e o tempo assistido de cada post e Reel, e qual gancho rende mais.
+    const numeros = await lerMetricasDoInstagram(robo.banco, robo.config, new Date());
+    for (const linha of numeros.relatorio ?? []) dizer(linha);
+    if (numeros.aviso) {
+      dizer(`- Aviso do Instagram: ${numeros.aviso}`);
+      avisar(chaveDoAviso('instagram', numeros.aviso), numeros.aviso, 'aviso');
     }
     // Pinterest: pins novos do dia, imagens/planilha/feed/galeria no site e, com token e quadro, publicação pela API.
     try {

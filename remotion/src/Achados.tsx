@@ -18,7 +18,7 @@ carregarFonte();
  */
 
 export const ACHADOS_FPS = 30;
-export const QUADROS = { gancho: 42, item: 72, fim: 78 };
+export const QUADROS = { gancho: 54, item: 72, fim: 78 };
 
 export type Selo = { texto: string; tipo: 'desconto' | 'historico' | 'febre' };
 export type ItemDosAchados = {
@@ -176,9 +176,9 @@ const Gancho: React.FC<{ props: PropsDosAchados }> = ({ props }) => {
         <div style={{ position: 'absolute', left: 90, top: 400, transform: `scale(${0.7 + entra * 0.3})`, opacity: entra }}>
           <Cartao imagem={n1.imagem} largura={900} altura={860} zoom={1 + frame * 0.003} flutua={Math.sin(frame / 8) * 8} inclina={-2} />
         </div>
-        <Linha y={1300} tamanho={caber(props.fato, 132)} cor={MARCA.amarelo} italico style={{ transform: `scale(${2.2 - fato * 1.2}) rotate(-3deg)`, opacity: Math.min(1, fato * 2), WebkitTextStroke: `3px ${MARCA.fundo}` }}>
+        {props.frase?.length ? null : <Linha y={1300} tamanho={caber(props.fato, 132)} cor={MARCA.amarelo} italico style={{ transform: `scale(${2.2 - fato * 1.2}) rotate(-3deg)`, opacity: Math.min(1, fato * 2), WebkitTextStroke: `3px ${MARCA.fundo}` }}>
           {props.fato}
-        </Linha>
+        </Linha>}
         <Palavras texto="TOP 3 DE HOJE: ESPERA O Nº 1" y={1470} tamanho={caber('TOP 3 DE HOJE: ESPERA O Nº 1', 54)} cor="#fff" inicio={12} passo={2} />
       </AbsoluteFill>
       {props.frase?.length ? <Frase linhas={props.frase} y={190} /> : <div style={{ position: 'absolute', top: 270, width: '100%', display: 'flex', justifyContent: 'center' }}><Logo altura={58} /></div>}

@@ -14,7 +14,7 @@ export const Frase: React.FC<{ linhas?: string[]; y?: number }> = ({ linhas, y =
     <div style={{ position: 'absolute', left: 0, right: 0, top: y, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
       {linhas.slice(0, 2).map((l, k) => {
         const entra = spring({ frame: frame - k * 5, fps, config: { damping: 9, stiffness: 260 } });
-        const tamanho = Math.min(104, Math.floor(860 / (Math.max(1, l.length) * 0.66)));
+        const tamanho = Math.min(104, Math.floor(780 / (Math.max(1, l.length) * 0.66)));
         return (
           <div
             key={k}
