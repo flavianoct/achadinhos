@@ -21,26 +21,53 @@ export interface ConteudoSocial {
   svg: string;
 }
 
+/** As 2 hashtags do assunto do produto: complemento, porque o assunto do perfil é promoção. */
 const HASHTAGS: Record<string, string[]> = {
-  tech: ['#tecnologia', '#gadgets', '#celular', '#fone', '#fonebluetooth', '#eletronicos', '#smartphone', '#tecnologiabrasil'],
-  casa: ['#casa', '#cozinha', '#utilidades', '#decoracao', '#casaorganizada', '#utilidadesdomesticas', '#lar', '#dicasdecasa'],
-  beleza: ['#beleza', '#skincare', '#maquiagem', '#autocuidado', '#cuidadoscomapele', '#cabelo', '#perfumes', '#makeup'],
-  moda: ['#moda', '#lookdodia', '#estilo', '#modafeminina', '#modamasculina', '#outfit', '#tendencia', '#acessorios'],
-  esporte: ['#fitness', '#treino', '#academia', '#suplementos', '#vidasaudavel', '#whey', '#musculacao', '#saude'],
-  games: ['#games', '#gamer', '#videogame', '#gamebr', '#setupgamer', '#playstation', '#pcgamer', '#gaming'],
-  bebe: ['#maternidade', '#bebe', '#mamae', '#maedeprimeiraviagem', '#enxovalbebe', '#filhos', '#vidademae', '#infantil'],
-  ferramentas: ['#ferramentas', '#bricolagem', '#facavocemesmo', '#diy', '#construcao', '#reforma', '#oficina', '#marcenaria'],
-  pet: ['#pet', '#cachorro', '#gato', '#petshop', '#amopets', '#dogsofinstagram', '#tutordepet', '#cuidadoscompet'],
-  geral: ['#achadinhos', '#ofertas', '#compras', '#dicasdecompra', '#economia'],
+  tech: ['#achadinhostech', '#tecnologia'],
+  casa: ['#achadinhosdecasa', '#utilidadesdomesticas'],
+  beleza: ['#achadinhosdebeleza', '#autocuidado'],
+  moda: ['#achadinhosdemoda', '#modafeminina'],
+  esporte: ['#achadinhosfitness', '#treino'],
+  games: ['#achadinhosgamer', '#setupgamer'],
+  bebe: ['#achadinhosinfantis', '#maternidade'],
+  ferramentas: ['#ferramentas', '#facavocemesmo'],
+  pet: ['#achadinhospet', '#petlovers'],
+  geral: ['#compras', '#economia'],
 };
 
-/** Hashtags de alcance, comuns a todas as ofertas (ofertas, economia, achadinhos, Mercado Livre). */
-const HASHTAGS_COMUNS = ['#achadinhos', '#achadinhosdodia', '#achadinhosmercadolivre', '#promocao', '#promocaododia', '#ofertas', '#ofertasdodia', '#desconto', '#cupom', '#mercadolivre', '#comprasonline', '#economizar', '#publi'];
+/**
+ * As hashtags do perfil, iguais em todo post: é por elas (e pela linha de assunto) que o Instagram entende o público, quem caça
+ * promoção. Poucas e sempre as mesmas dão um sinal claro; muitas e genéricas parecem spam.
+ */
+const HASHTAGS_DO_PERFIL = ['#achadinhos', '#promocao', '#ofertasdodia', '#grupodepromocoes', '#matapreco'];
 
-/** No máximo 9 hashtags de assunto (muitas parecem spam): as da categoria primeiro, depois as de alcance. O #publi vai na primeira linha. */
-export function hashtagsDaCategoria(categoria: string): string[] {
-  const todas = [...(HASHTAGS[categoria] ?? HASHTAGS.geral), ...HASHTAGS_COMUNS];
-  return [...new Set(todas.filter((h) => h !== '#publi'))].slice(0, 9);
+/** 7 hashtags: as 5 do perfil e as 2 do assunto do produto (sem grupo de WhatsApp, sai a de grupo). O #publi vai na primeira linha. */
+export function hashtagsDaCategoria(categoria: string, comGrupo = true): string[] {
+  const perfil = comGrupo ? HASHTAGS_DO_PERFIL : HASHTAGS_DO_PERFIL.filter((h) => h !== '#grupodepromocoes');
+  return [...new Set([...perfil, ...(HASHTAGS[categoria] ?? HASHTAGS.geral!)])];
+}
+
+/** O assunto do produto em palavras de busca ("moda feminina"), para a linha de assunto da legenda. */
+const ASSUNTO_DA_BUSCA: Record<string, string> = {
+  tech: 'tecnologia',
+  casa: 'casa e cozinha',
+  beleza: 'beleza',
+  moda: 'moda feminina',
+  esporte: 'esporte e academia',
+  games: 'games',
+  bebe: 'bebê e infantil',
+  ferramentas: 'ferramentas',
+  pet: 'pet',
+};
+
+/**
+ * A linha de assunto da legenda, com as palavras que as pessoas buscam: o Instagram lê a legenda como texto de busca e usa isso para
+ * achar o público. O assunto do perfil vem primeiro (promoções), o do produto depois.
+ */
+export function linhaDeAssunto(categoria: string, comGrupo = true): string {
+  const assunto = ASSUNTO_DA_BUSCA[categoria];
+  // Sem grupo de WhatsApp configurado, não promete grupo.
+  return `🔎 Achadinhos e promoções do dia${assunto ? ` em ${assunto}` : ''} | ${nomeDaMarca()}${comGrupo ? ', grupo de promoções' : ''}`;
 }
 
 const ROTULO_DA_CATEGORIA: Record<string, string> = {
@@ -236,6 +263,7 @@ export function montarLegenda(o: OfertaAvaliada, config: Config, comentaQuero = 
   // A chamada logo na segunda linha (antes do "mais"): é ela que gera o comentário, e o comentário é o que mais leva o post longe.
   if (comentaQuero) linhas.push('💬 Comenta QUERO que eu te mando o link no direct');
   linhas.push(tituloCompleto(o.titulo));
+  linhas.push(linhaDeAssunto(o.categoria, temGrupo));
   if (grupo.chegada) linhas.push(grupo.chegada);
   linhas.push('');
   linhas.push(`🎯 ${quem[escolha(`q${o.idProduto}`, quem.length)]}`);
@@ -256,7 +284,7 @@ export function montarLegenda(o: OfertaAvaliada, config: Config, comentaQuero = 
   linhas.push('');
   linhas.push('Publi: link de afiliado. O preço pode mudar a qualquer momento.');
   linhas.push('');
-  linhas.push(hashtagsDaCategoria(o.categoria).join(' '));
+  linhas.push(hashtagsDaCategoria(o.categoria, temGrupo).join(' '));
   return linhas.join('\n');
 }
 
@@ -486,7 +514,7 @@ function perguntaDaDica(d: DadosDaDica): string {
 
 /** Legenda da dica: gancho e #publi na primeira linha, os critérios por escrito, a pergunta e a chamada para o guia. */
 export function legendaDaDica(d: DadosDaDica, config: Config): string {
-  const linhas = [`📌 ${d.titulo} #publi`, '🔖 Salva este post: ajuda na hora de comprar e evita arrependimento.', ''];
+  const linhas = [`📌 ${d.titulo} #publi`, '🔖 Salva este post: ajuda na hora de comprar e evita arrependimento.', linhaDeAssunto(d.categoria, temWhatsapp(config)), ''];
   d.criterios.forEach((c, i) => linhas.push(d.explicacoes?.[i] ? `${i + 1}) ${c}: ${d.explicacoes[i]}` : `${i + 1}) ${c}`));
   linhas.push(
     '',
@@ -496,7 +524,7 @@ export function legendaDaDica(d: DadosDaDica, config: Config): string {
     '',
     'Publi: link de afiliado nos produtos do guia. Os preços podem mudar a qualquer momento.',
     '',
-    hashtagsDaCategoria(d.categoria).join(' '),
+    hashtagsDaCategoria(d.categoria, temWhatsapp(config)).join(' '),
   );
   return linhas.join('\n');
 }
@@ -528,6 +556,7 @@ export function legendaDoDuelo(d: DadosDoDuelo, config: Config): string {
   };
   return [
     `🤔 ${d.assunto}: A ou B? Qual você escolhe? #publi`,
+    linhaDeAssunto(d.categoria, temWhatsapp(config)),
     '',
     um('🅰️', a!),
     '',
@@ -540,7 +569,7 @@ export function legendaDoDuelo(d: DadosDoDuelo, config: Config): string {
     '',
     'Publi: link de afiliado nos produtos do guia. Os preços podem mudar a qualquer momento.',
     '',
-    hashtagsDaCategoria(d.categoria).join(' '),
+    hashtagsDaCategoria(d.categoria, temWhatsapp(config)).join(' '),
   ].join('\n');
 }
 
@@ -565,6 +594,7 @@ export function legendaDosAchados(d: DadosDosAchados, config: Config, comentaQue
   return [
     `📌 ${d.titulo} #publi`,
     comentaQuero ? `💬 Comenta o número (1 a ${n}) que eu te mando o link no direct` : `💬 Qual você levaria? Comenta o número 👇`,
+    linhaDeAssunto(d.categoria, temWhatsapp(config)),
     '',
     ...nomes.map((nome, i) => `${i + 1}. ${nome}`),
     '',
@@ -574,7 +604,7 @@ export function legendaDosAchados(d: DadosDosAchados, config: Config, comentaQue
     '',
     'Publi: links de afiliado. Preços e estoque podem mudar a qualquer momento.',
     '',
-    hashtagsDaCategoria(d.categoria).join(' '),
+    hashtagsDaCategoria(d.categoria, temWhatsapp(config)).join(' '),
   ].join('\n');
 }
 

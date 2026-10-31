@@ -10,7 +10,7 @@ import { estiloDaMusica, sintetizarEfeitos, sintetizarMusica, type Efeito } from
 import { CORES_DO_NICHO, esc, fundo, marca, MARCA } from './moldes.ts';
 import { formatarVendas } from './mensagem.ts';
 import { contemPalavra, normalizar } from './categoria.ts';
-import { baixarImagemComoDataUri, comentaQueroAtivo, hashtagsDaCategoria, reduzirFoto, renderizarPng, seloDaOferta, temWhatsapp, tituloParaArte, type Fetch } from './social.ts';
+import { baixarImagemComoDataUri, comentaQueroAtivo, hashtagsDaCategoria, linhaDeAssunto, reduzirFoto, renderizarPng, seloDaOferta, temWhatsapp, tituloParaArte, type Fetch } from './social.ts';
 import { gravarComRemotion, gravarDestaqueComRemotion, nomesDaIa } from './remotion.ts';
 import { passaNoFiltroDoInstagram } from './instagram.ts';
 import { linhaPorDia, numerosDoGrupo } from './grupo.ts';
@@ -150,6 +150,7 @@ export function legendaDoDestaque(d: DadosDoDestaque, config: Config, comentaQue
   return [
     `✨ ${d.nome || o.titulo.split(/\s+/).slice(0, 8).join(' ')} #publi`,
     comentaQuero ? '💬 Comenta EU QUERO que eu te mando o link no direct' : '💬 Gostou? O link está na bio',
+    linhaDeAssunto(o.categoria, temWhatsapp(config)),
     '',
     ...(provas ? [`✅ ${provas}`, ''] : []),
     comentaQuero ? '💰 O preço de agora vai junto com o link, no seu direct.' : '💰 O preço de agora está no link da bio.',
@@ -158,7 +159,7 @@ export function legendaDoDestaque(d: DadosDoDestaque, config: Config, comentaQue
     '',
     'Publi: link de afiliado. Preço e estoque podem mudar a qualquer momento.',
     '',
-    hashtagsDaCategoria(o.categoria).join(' '),
+    hashtagsDaCategoria(o.categoria, temWhatsapp(config)).join(' '),
   ].join('\n');
 }
 
@@ -285,10 +286,13 @@ export function legendaDoReel(dados: DadosDoReel, config: Config, comentaQuero =
   const curto = (t: string) => t.split(/\s+/).slice(0, 7).join(' ').replace(/[,;:-]+$/, '');
   const linhas = dados.itens.map((it, i) => `${i + 1}. ${curto(it.oferta.titulo)}`);
   const numeros = dados.itens.map((_, i) => i + 1).join(', ').replace(/, (\d+)$/, ' ou $1');
+  // Com os produtos todos do mesmo assunto, a linha de assunto e as hashtags falam dele; misturados, só de promoções.
+  const assunto = new Set(dados.itens.map((it) => it.oferta.categoria)).size === 1 ? dados.itens[0]!.oferta.categoria : 'geral';
   const telegram = config.blog.telegramLink ? `\n📲 Ofertas na hora no Telegram (link na bio)` : '';
   return [
     `👀 ${dados.titulo} #publi`,
     comentaQuero ? `💬 Comenta o número (${numeros}) que eu te mando o link no direct` : `💬 Qual você levaria? Comenta ${numeros} 👇`,
+    linhaDeAssunto(assunto, temWhatsapp(config)),
     '',
     ...linhas,
     '',
@@ -298,7 +302,7 @@ export function legendaDoReel(dados: DadosDoReel, config: Config, comentaQuero =
     '',
     'Publi: links de afiliado. Preços e estoque podem mudar a qualquer momento.',
     '',
-    '#achadinhos #ofertas #promocao #desconto #compras',
+    hashtagsDaCategoria(assunto, temWhatsapp(config)).join(' '),
   ].join('\n');
 }
 

@@ -24,7 +24,10 @@ test('social: legenda sem valor nenhum, manda o preço para o grupo com gatilho,
   assert.ok(!montarLegenda(oferta, comBlog).includes('https://'));
   assert.match(l, /Publi: link de afiliado/);
   assert.match(l.split('\n')[0], /#publi/, 'aviso de publicidade já na primeira linha, antes do "mais"');
-  assert.match(l, /#cozinha/);
+  assert.match(l, /#achadinhosdecasa/);
+  assert.doesNotMatch(l, /grupo/i, 'sem grupo configurado, nem a linha de assunto nem as hashtags falam em grupo');
+  assert.ok(hashtagsDaCategoria('moda').includes('#grupodepromocoes') && hashtagsDaCategoria('moda').length === 7);
+  assert.match(l, /🔎 Achadinhos e promoções do dia em casa e cozinha/);
   assert.ok(!l.includes('https://exemplo/x'), 'link não vai na legenda, só na bio');
   assert.equal(nomeDoCanal(config), '@topfera_achadinhos');
   assert.ok(hashtagsDaCategoria('inexistente').includes('#achadinhos'));
