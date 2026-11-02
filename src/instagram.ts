@@ -2,7 +2,7 @@ import { contemPalavra, normalizar } from './categoria.ts';
 import type { Config } from './config.ts';
 import type { Banco } from './db.ts';
 import { diaDe, horaDe } from './db.ts';
-import { CHAVE_DIRECT_BLOQUEADO, HORAS_DO_SOCIAL, comentaQueroAtivo, marcaDoToken, arquivoDaArte, arquivosDoCarrossel, legendaDoCarrossel, montarLegenda, totalDeImagens, type DadosDoCarrossel, type Fetch } from './social.ts';
+import { CHAVE_DIRECT_BLOQUEADO, HORAS_DO_SOCIAL, comentaQueroAtivo, marcaDoToken, textoAlternativo, arquivoDaArte, arquivosDoCarrossel, legendaDoCarrossel, montarLegenda, totalDeImagens, type DadosDoCarrossel, type Fetch } from './social.ts';
 import { Telegram } from './telegram.ts';
 import { legendaDoQuiz, legendaParaTikTokEShorts, type DadosDoQuiz } from './quiz.ts';
 import { arquivoNoSite, lerReelsAgendados, reelsNaHora } from './agendados.ts';
@@ -101,8 +101,15 @@ export class Instagram {
     }
   }
 
-  publicarFoto(urlDaImagem: string, legenda: string): Promise<string> {
-    return this.publicar({ image_url: urlDaImagem, caption: legenda });
+  /** Foto do feed. Com `alt`, vai o texto alternativo da imagem; se o Instagram recusar o campo, publica sem ele (o post não pode parar por isso). */
+  async publicarFoto(urlDaImagem: string, legenda: string, alt?: string): Promise<string> {
+    if (!alt) return this.publicar({ image_url: urlDaImagem, caption: legenda });
+    try {
+      return await this.publicar({ image_url: urlDaImagem, caption: legenda, alt_text: alt });
+    } catch (e) {
+      if (e instanceof ErroInstagram && !e.fatal && /alt_text/i.test(e.message)) return this.publicar({ image_url: urlDaImagem, caption: legenda });
+      throw e;
+    }
   }
 
   /** Carrossel de 2 a 10 imagens: cada imagem vira um contêiner "filho" e o contêiner do carrossel leva a legenda. */
@@ -416,7 +423,7 @@ export async function publicarNoInstagram(banco: Banco, config: Config, agora: D
     }
     for (const c of candidatos) {
       if (!c.igFeedEm && podePublicar('feed') && (await noAr(url(c.chave, 'feed')))) {
-        const id = await etapa('post do feed', () => api.publicarFoto(url(c.chave, 'feed'), montarLegenda(c.oferta, config, comentaQuero, { chegada: linhaDeChegada(banco, c.oferta, agora), ontem })));
+        const id = await etapa('post do feed', () => api.publicarFoto(url(c.chave, 'feed'), montarLegenda(c.oferta, config, comentaQuero, { chegada: linhaDeChegada(banco, c.oferta, agora), ontem }), textoAlternativo(c.oferta)));
         banco.marcarInstagram(c.chave, 'feed', agora);
         if (id) banco.registrarMidiaDoInstagram(id, 'feed', c.oferta.titulo, c.oferta.link, agora);
         resumo.feed++;

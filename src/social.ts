@@ -36,15 +36,24 @@ const HASHTAGS: Record<string, string[]> = {
 };
 
 /**
- * As hashtags do perfil, iguais em todo post: é por elas (e pela linha de assunto) que o Instagram entende o público, quem caça
- * promoção. Poucas e sempre as mesmas dão um sinal claro; muitas e genéricas parecem spam.
+ * As hashtags de cada post: só 3, sempre as mesmas (o Instagram diz que hashtag pesa pouco no alcance; o que pesa são as palavras da
+ * legenda, por isso a linha de assunto). O assunto do produto vai na linha de assunto e no texto alternativo, não em hashtag.
  */
-const HASHTAGS_DO_PERFIL = ['#achadinhos', '#promocao', '#ofertasdodia', '#grupodepromocoes', '#matapreco'];
+const HASHTAGS_DO_PERFIL = ['#achadinhos', '#promocao', '#grupodepromocoes'];
 
-/** 7 hashtags: as 5 do perfil e as 2 do assunto do produto (sem grupo de WhatsApp, sai a de grupo). O #publi vai na primeira linha. */
-export function hashtagsDaCategoria(categoria: string, comGrupo = true): string[] {
-  const perfil = comGrupo ? HASHTAGS_DO_PERFIL : HASHTAGS_DO_PERFIL.filter((h) => h !== '#grupodepromocoes');
-  return [...new Set([...perfil, ...(HASHTAGS[categoria] ?? HASHTAGS.geral!)])];
+/** As hashtags do post (sem grupo de WhatsApp configurado, sai a de grupo). O #publi vai na primeira linha. */
+export function hashtagsDaCategoria(_categoria: string, comGrupo = true): string[] {
+  return comGrupo ? HASHTAGS_DO_PERFIL : HASHTAGS_DO_PERFIL.filter((h) => h !== '#grupodepromocoes');
+}
+
+/**
+ * Texto alternativo da imagem (a descrição que o Instagram usa para acessibilidade e para entender o conteúdo): o que a foto mostra e o
+ * assunto, só com o que os dados provam (nome do produto e categoria). Até 100 caracteres, sem preço.
+ */
+export function textoAlternativo(o: Pick<OfertaAvaliada, 'titulo' | 'categoria'>): string {
+  const assunto = ASSUNTO_DA_BUSCA[o.categoria];
+  const nome = titulosCurto(o.titulo, assunto ? 45 : 80).replace(/[…]+$/, '').trim();
+  return `Foto do produto: ${nome}${assunto ? `. Achadinho de ${assunto}` : ''}`.slice(0, 100);
 }
 
 /** O assunto do produto em palavras de busca ("moda feminina"), para a linha de assunto da legenda. */

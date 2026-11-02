@@ -24,9 +24,10 @@ test('social: legenda sem valor nenhum, manda o preço para o grupo com gatilho,
   assert.ok(!montarLegenda(oferta, comBlog).includes('https://'));
   assert.match(l, /Publi: link de afiliado/);
   assert.match(l.split('\n')[0], /#publi/, 'aviso de publicidade já na primeira linha, antes do "mais"');
-  assert.match(l, /#achadinhosdecasa/);
+  assert.match(l, /#achadinhos #promocao/);
   assert.doesNotMatch(l, /grupo/i, 'sem grupo configurado, nem a linha de assunto nem as hashtags falam em grupo');
-  assert.ok(hashtagsDaCategoria('moda').includes('#grupodepromocoes') && hashtagsDaCategoria('moda').length === 7);
+  assert.deepEqual(hashtagsDaCategoria('moda'), ['#achadinhos', '#promocao', '#grupodepromocoes'], 'só 3 hashtags, iguais em todo post');
+  assert.deepEqual(hashtagsDaCategoria('moda', false), ['#achadinhos', '#promocao']);
   assert.match(l, /🔎 Achadinhos e promoções do dia em casa e cozinha/);
   assert.ok(!l.includes('https://exemplo/x'), 'link não vai na legenda, só na bio');
   assert.equal(nomeDoCanal(config), '@topfera_achadinhos');
@@ -369,4 +370,29 @@ test('comenta QUERO: o direct varia entre comentários (abertura, preço e convi
   }
   assert.ok(aberturas.size >= 3, `pelo menos 3 aberturas diferentes (${aberturas.size})`);
   assert.ok(textos.size >= 6, `as mensagens completas variam (${textos.size} versões em 40)`);
+});
+
+test('texto alternativo: descreve o produto e o assunto, sem preço, em até 100 caracteres', async () => {
+  const { textoAlternativo } = await import('../src/social.ts');
+  const t = textoAlternativo({ titulo: 'Vestido Midi Feminino Alcinha Viscolycra Soltinho Elegante Longo Casual', categoria: 'moda' });
+  assert.match(t, /^Foto do produto: Vestido Midi/);
+  assert.match(t, /moda feminina/);
+  assert.ok(t.length <= 100 && !/R\$|%/.test(t));
+});
+
+test('instagram: se recusar o texto alternativo, o post sai mesmo assim, sem ele', async () => {
+  const { Instagram } = await import('../src/instagram.ts');
+  const chamadas: string[] = [];
+  const falso = (async (url: string, init?: RequestInit) => {
+    const corpo = String(init?.body ?? url);
+    chamadas.push(corpo.includes('alt_text') ? 'com-alt' : 'sem-alt');
+    const json = (o: unknown, ok = true) => ({ ok, status: ok ? 200 : 400, json: async () => o }) as Response;
+    if (url.endsWith('/media') && corpo.includes('alt_text')) return json({ error: { message: 'Invalid parameter alt_text', code: 100 } }, false);
+    if (url.endsWith('/media')) return json({ id: 'c1' });
+    if (url.includes('c1')) return json({ status_code: 'FINISHED' });
+    return json({ id: 'post1' });
+  }) as unknown as typeof fetch;
+  const id = await new Instagram('t', '1', falso, 0).publicarFoto('https://x/a.png', 'legenda', 'Foto do produto: teste');
+  assert.equal(id, 'post1');
+  assert.deepEqual(chamadas.filter((c) => c === 'com-alt').length, 1, 'tentou uma vez com o texto alternativo');
 });
