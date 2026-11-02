@@ -288,7 +288,7 @@ export async function gravarDestaqueComRemotion(item: { oferta: OfertaAvaliada; 
     }
     writeFileSync(caminhoDoAudio, mix);
     const o = item.oferta;
-    const gancho = ganchoDoReel([o], chave);
+    const gancho = ganchoDoReel([o], chave, config.instagram.problemas);
     console.log(`[reel] gancho de texto (${chave}): ${gancho.tipo} — ${gancho.linhas.join(' / ')}`);
     const props = {
       frase: gancho.linhas,

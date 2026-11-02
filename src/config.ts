@@ -155,7 +155,7 @@ export interface Config {
   /** Arte de Story, legenda e roteiro de vídeo das ofertas postadas (aparecem no painel). */
   social: { ativo: boolean };
   /** Publicação automática no Instagram (conta profissional). Token e ID ficam nos Secrets. */
-  instagram: { ativo: boolean; token: string; userId: string; feedPorDia: number; storiesPorDia: number; intervaloFeedMin: number; intervaloStoryMin: number; notaMinima: number; vendasMinimas: number; palavrasBloqueadas: string[]; carrosselPorDia: number; carrosselItens: number; carrosselTetos: number[]; dicasDias: number[]; perguntaDias: number[]; horariosFeed: number[]; horariosStories: number[]; reelsPorDia: number; horariosReels: number[]; resumoHora: number; dataHora: number; grupoDias: number[]; tokenData: string; comentaQuero: boolean; palavrasDoComentario: string[]; respostasPorRodada: number; reelRemotion: boolean; destaqueNichos: string[]; reelsDeDestaque: number; destaquePrefere: string[]; soNosReels: string[]; reelsDeRoupa: number; destaqueMinFotos: number; nichos: string[] };
+  instagram: { ativo: boolean; token: string; userId: string; feedPorDia: number; storiesPorDia: number; intervaloFeedMin: number; intervaloStoryMin: number; notaMinima: number; vendasMinimas: number; palavrasBloqueadas: string[]; carrosselPorDia: number; carrosselItens: number; carrosselTetos: number[]; dicasDias: number[]; perguntaDias: number[]; horariosFeed: number[]; horariosStories: number[]; reelsPorDia: number; horariosReels: number[]; resumoHora: number; dataHora: number; grupoDias: number[]; tokenData: string; comentaQuero: boolean; palavrasDoComentario: string[]; respostasPorRodada: number; reelRemotion: boolean; destaqueNichos: string[]; reelsDeDestaque: number; destaquePrefere: string[]; soNosReels: string[]; reelsDeRoupa: number; destaqueMinFotos: number; nichos: string[]; problemas: boolean };
   painel: { porta: number };
   /** O tema do dia que está valendo hoje (nome para mostrar), se houver. */
   temaDoDia?: string;
@@ -565,6 +565,8 @@ function lerConfigBase(env: Env): Config {
       // Quantos dos primeiros Reels do dia são de roupa feminina; os seguintes dão preferência a outros produtos.
       // Os nichos que vão para o Instagram (feed, Stories, carrossel e Reels). Vazio = todos. Os outros seguem para o Telegram e o WhatsApp.
       nichos: lista(env.INSTAGRAM_NICHOS === undefined ? 'tech,moda,games,casa' : env.INSTAGRAM_NICHOS).map((n) => n.toLowerCase()),
+      // Problema → solução (src/problemas.ts) no gancho do Reel de destaque e na primeira linha da legenda. Desligado até a revisão.
+      problemas: ligado(env, 'INSTAGRAM_PROBLEMAS', false),
       reelsDeRoupa: numero(env, 'INSTAGRAM_REELS_DE_ROUPA', 1),
       // Fotos mínimas do anúncio para virar Reel de destaque (3 = só galeria, sem zoom em foto parada). 0 = qualquer produto.
       destaqueMinFotos: numero(env, 'INSTAGRAM_DESTAQUE_MIN_FOTOS', 3),

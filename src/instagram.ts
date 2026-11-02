@@ -386,7 +386,7 @@ export async function publicarNoInstagram(banco: Banco, config: Config, agora: D
             banco.registrarMidiaDoInstagram(id, 'reel', dadosDoReel.titulo, link, agora);
             // O formato do gancho de texto (o mesmo que o vídeo usou: depende só dos produtos e da chave), para comparar o alcance.
             const ofertas = dadosDoReel.formato === 'reel' ? dadosDoReel.itens.map((it) => it.oferta) : dadosDoReel.formato === 'destaque' ? [dadosDoReel.item.oferta] : [];
-            if (ofertas.length) banco.anotarGanchoDaMidia(id, ganchoDoReel(ofertas, reel.chave).tipo, agora);
+            if (ofertas.length) banco.anotarGanchoDaMidia(id, ganchoDoReel(ofertas, reel.chave, ig.problemas).tipo, agora);
           }
           resumo.reels++;
           await pausa(2000);

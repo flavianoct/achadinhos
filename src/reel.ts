@@ -14,6 +14,7 @@ import { baixarImagemComoDataUri, comentaQueroAtivo, hashtagsDaCategoria, linhaD
 import { gravarComRemotion, gravarDestaqueComRemotion, nomesDaIa } from './remotion.ts';
 import { passaNoFiltroDoInstagram } from './instagram.ts';
 import { linhaPorDia, numerosDoGrupo } from './grupo.ts';
+import { problemaDoProduto } from './problemas.ts';
 import type { OfertaAvaliada } from './types.ts';
 
 const executar = promisify(execFile);
@@ -148,7 +149,11 @@ export function legendaDoDestaque(d: DadosDoDestaque, config: Config, comentaQue
   const o = d.item.oferta;
   const provas = [o.nota && o.nota >= 4 ? `⭐ nota ${o.nota.toFixed(1).replace('.', ',')}` : '', o.vendas && o.vendas >= 100 ? `${formatarVendas(o.vendas)} vendidos` : '', o.freteGratis ? 'frete grátis' : ''].filter(Boolean).join(' · ');
   return [
-    `✨ ${d.nome || o.titulo.split(/\s+/).slice(0, 8).join(' ')} #publi`,
+    // Vender a solução: com o problema comprovado pelo título, a legenda abre com ele.
+    (() => {
+      const problema = config.instagram.problemas ? problemaDoProduto(o) : undefined;
+      return problema ? `${problema.pergunta} ${problema.resposta} #publi` : `✨ ${d.nome || o.titulo.split(/\s+/).slice(0, 8).join(' ')} #publi`;
+    })(),
     comentaQuero ? '💬 Comenta EU QUERO que eu te mando o link no direct' : '💬 Gostou? O link está na bio',
     linhaDeAssunto(o.categoria, temWhatsapp(config)),
     '',

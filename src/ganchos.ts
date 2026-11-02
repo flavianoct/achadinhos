@@ -1,5 +1,6 @@
 import { formatarVendas } from './mensagem.ts';
 import { posicaoDaMusica } from './musicas.ts';
+import { problemaDoProduto } from './problemas.ts';
 import type { OfertaAvaliada } from './types.ts';
 
 /**
@@ -7,7 +8,7 @@ import type { OfertaAvaliada } from './types.ts';
  * (um por Reel, sem repetir em seguida) para a gente comparar qual rende mais alcance. Só vale o que os dados provam: nada de preço em
  * reais, "exclusivo" ou "o mais barato".
  */
-export type TipoDeFrase = 'pergunta' | 'prova' | 'curiosidade' | 'lista' | 'escolha';
+export type TipoDeFrase = 'pergunta' | 'prova' | 'curiosidade' | 'lista' | 'escolha' | 'problema';
 
 export interface GanchoDeTexto {
   /** O formato, para registrar no log e comparar o alcance depois. */
@@ -43,9 +44,12 @@ export function provaDoGancho(o: OfertaAvaliada): string[] | undefined {
  * Escolhe o gancho do Reel. `itens` é a quantidade de produtos (1 no destaque, 3 nos achados): "lista" e "escolha" só fazem sentido com
  * vários. O formato gira com a chave do Reel (data e ordem), então Reels seguidos usam formatos diferentes.
  */
-export function ganchoDoReel(ofertas: OfertaAvaliada[], chave: string): GanchoDeTexto {
+export function ganchoDoReel(ofertas: OfertaAvaliada[], chave: string, comProblema = false): GanchoDeTexto {
   const o = ofertas[0]!;
   const varios = ofertas.length > 1;
+  // Vender a solução: num Reel de um produto só, se o título comprova a solução de um problema, o gancho é o problema.
+  const problema = comProblema && !varios ? problemaDoProduto(o) : undefined;
+  if (problema) return { tipo: 'problema', linhas: problema.linhas };
   const opcoes: GanchoDeTexto[] = [
     { tipo: 'pergunta', linhas: PERGUNTAS[o.categoria] ?? PERGUNTA_GERAL },
     { tipo: 'curiosidade', linhas: CURIOSIDADES[posicaoDaMusica(`${chave}-c`, CURIOSIDADES.length)]! },

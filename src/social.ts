@@ -7,6 +7,7 @@ import { formatarVendas } from './mensagem.ts';
 import { normalizar } from './categoria.ts';
 import { CORES_DO_NICHO, esc, fundo, marca, MARCA, svgDaCapaDaDica, svgDaCapaDoDuelo, svgDoCompetidor, svgDoFechamentoDoDuelo, svgDoCriterio, svgDoFechamentoDaDica, svgDoFeed, svgDoStory, svgsDaApresentacao, type DadosDaApresentacao, type DadosDaArte, type TipoDeGancho } from './moldes.ts';
 import { semListaDeModelos } from './fontes/mercadolivre-api.ts';
+import { problemaDoProduto } from './problemas.ts';
 import type { OfertaAvaliada } from './types.ts';
 
 export type Fetch = typeof fetch;
@@ -268,7 +269,9 @@ export function montarLegenda(o: OfertaAvaliada, config: Config, comentaQuero = 
   const quem = PARA_QUEM[o.categoria] ?? PARA_QUEM.geral!;
   const temGrupo = temWhatsapp(config);
   // A primeira linha é o que aparece antes do "mais": gancho e aviso de publicidade já ali.
-  linhas.push(`${montarGancho(o)} #publi`);
+  // Vender a solução: se o título comprova a solução de um problema, a legenda abre com ele.
+  const problema = config.instagram.problemas ? problemaDoProduto(o) : undefined;
+  linhas.push(problema ? `${problema.pergunta} ${problema.resposta} #publi` : `${montarGancho(o)} #publi`);
   // A chamada logo na segunda linha (antes do "mais"): é ela que gera o comentário, e o comentário é o que mais leva o post longe.
   if (comentaQuero) linhas.push('💬 Comenta QUERO que eu te mando o link no direct');
   linhas.push(tituloCompleto(o.titulo));
