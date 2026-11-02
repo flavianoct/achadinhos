@@ -386,8 +386,10 @@ function dadosDaArte(o: OfertaAvaliada, imagem: string | undefined, larguraDoTit
 }
 
 /** Arte do Story, 1080x1920, em SVG. A imagem do produto vai embutida (data URI) para o painel virar PNG no navegador. */
-export function montarSvgDoStory(o: OfertaAvaliada, imagem: string | undefined, _config?: Config, comentaQuero = false, grupo?: string): string {
-  return svgDoStory(dadosDaArte(o, imagem, 32, comentaQuero, grupo));
+export function montarSvgDoStory(o: OfertaAvaliada, imagem: string | undefined, _config?: Config, _comentaQuero = false, grupo?: string): string {
+  // Story não tem comentário: quem responde manda direct, e o robô só lê comentários de posts. Por isso o Story nunca pede "comenta
+  // QUERO" (seria uma promessa que ninguém cumpre); a chamada é o link da bio, com o que o grupo entrega.
+  return svgDoStory(dadosDaArte(o, imagem, 32, false, grupo));
 }
 
 /** Versão 4:5 (1080x1350) para o feed: o feed do Instagram não aceita imagem em pé 9:16. */

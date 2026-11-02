@@ -125,7 +125,8 @@ test('moldes: toda arte é válida, sem preço em reais, com a prova real, a cha
           assert.ok(!svg.includes('<INMA>') && svg.includes('&lt;INMA&gt;'), 'título escapado');
           assert.equal(svg.includes('MENOR PREÇO'), i % 2 === 1, 'selo de menor preço só com histórico confirmado');
           assert.ok(/5 mil vendidos/.test(svg) && svg.includes('Frete grátis'), 'a prova real (vendidos, frete) aparece');
-          if (comentaQuero) assert.ok(svg.includes('COMENTA &quot;QUERO&quot;') && svg.includes('NO DIRECT'), 'a chamada do comenta QUERO');
+          // Story não tem comentário: ele leva sempre ao link da bio; só o feed pede o comenta QUERO.
+          if (comentaQuero && h === 1350) assert.ok(svg.includes('COMENTA &quot;QUERO&quot;') && svg.includes('NO DIRECT'), 'a chamada do comenta QUERO');
           else assert.ok(svg.includes('LINK NA BIO'), 'sem o comenta QUERO, leva ao link da bio');
           assert.ok(!GATILHOS_DE_URGENCIA.some((g) => svg.includes(`>${g}<`)) && !GATILHOS_DE_EXCLUSIVIDADE.some((g) => svg.includes(`>${g}<`)), 'sem adesivos de gatilho sobre o produto');
           assert.ok((svg.match(/<text /g) ?? []).length <= 12, 'poucos textos na arte');
