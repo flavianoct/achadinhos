@@ -74,7 +74,13 @@ const Capa: React.FC<{ p: PropsDoCarrossel }> = ({ p }) => {
     { x: 550, y: 560, r: 5, w: 330 },
     { x: 360, y: 520, r: 0, w: 360 },
   ];
-  const ordem = [3, 4, 1, 2, 0].filter((i) => i < n);
+  const poucos = n <= 3;
+  const grandes = [
+    { x: 50, y: 720, r: -8, w: 360 },
+    { x: 670, y: 720, r: 8, w: 360 },
+    { x: 330, y: 620, r: 0, w: 430 },
+  ];
+  const ordem = poucos ? (n === 3 ? [1, 2, 0] : n === 2 ? [1, 0] : [0]) : [3, 4, 1, 2, 0].filter((i) => i < n);
   return (
     <AbsoluteFill>
       <Fundo imagem={p.itens[0]!.imagem} cor={p.itens[0]!.cor} />
@@ -87,7 +93,7 @@ const Capa: React.FC<{ p: PropsDoCarrossel }> = ({ p }) => {
         </div>
       ) : null}
       {ordem.map((i, k) => {
-        const pos = posicoes[(n >= 5 ? k : k + (5 - n))] ?? posicoes[4]!;
+        const pos = poucos ? (n === 3 ? grandes[k]! : n === 2 ? [grandes[0]!, { ...grandes[2]!, x: 560 }][k]! : { ...grandes[2]!, x: 330 }) : (posicoes[(n >= 5 ? k : k + (5 - n))] ?? posicoes[4]!);
         return (
           <div key={i} style={{ position: 'absolute', left: pos.x, top: pos.y, zIndex: k }}>
             <Cartao imagem={p.itens[i]!.imagem} largura={pos.w} altura={pos.w * 1.15} inclina={pos.r} raio={30} />
@@ -117,11 +123,11 @@ const SeloFixo: React.FC<{ selo: SeloDoCarrossel }> = ({ selo }) => {
   return <div style={{ position: 'absolute', right: 60, top: 200, padding: '16px 34px', borderRadius: 18, background: amarelo ? MARCA.amarelo : MARCA.vermelho, color: amarelo ? MARCA.fundo : '#fff', border: '5px solid #fff', fontFamily: FONTE, fontWeight: 900, fontSize: 42, transform: 'rotate(-7deg)', boxShadow: '0 16px 40px rgba(0,0,0,.5)' }}>{selo.texto}</div>;
 };
 
-const Produto: React.FC<{ item: ItemDoCarrossel; i: number; total: number }> = ({ item, i, total }) => (
+const Produto: React.FC<{ item: ItemDoCarrossel; i: number; total: number; comentaQuero: boolean }> = ({ item, i, total, comentaQuero }) => (
   <AbsoluteFill>
     <Fundo imagem={item.imagem} cor={item.cor} />
     {/* Número gigante vazado atrás do produto. */}
-    <div style={{ position: 'absolute', left: -30, top: 500, fontFamily: FONTE, fontWeight: 900, fontStyle: 'italic', fontSize: 560, lineHeight: 1, color: 'transparent', WebkitTextStroke: `8px ${MARCA.amarelo}`, opacity: 0.55 }}>{i + 1}</div>
+    <div style={{ position: 'absolute', left: -20, top: 420, fontFamily: FONTE, fontWeight: 900, fontStyle: 'italic', fontSize: 430, lineHeight: 1, color: 'transparent', WebkitTextStroke: `8px ${MARCA.amarelo}`, opacity: 0.55 }}>{i + 1}</div>
     <div style={{ position: 'absolute', top: 64, left: 60, right: 60, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
       <Logo altura={46} />
       <div style={{ padding: '8px 22px', borderRadius: 30, background: 'rgba(14,14,16,.7)', border: `3px solid ${MARCA.amarelo}`, color: MARCA.amarelo, fontFamily: FONTE, fontWeight: 900, fontSize: 34 }}>{i + 1}/{total}</div>
@@ -139,6 +145,11 @@ const Produto: React.FC<{ item: ItemDoCarrossel; i: number; total: number }> = (
         <div key={k} style={{ padding: '10px 24px', borderRadius: 36, background: k === 0 ? MARCA.amarelo : 'rgba(255,255,255,.14)', border: k === 0 ? 'none' : '2px solid rgba(255,255,255,.35)', color: k === 0 ? MARCA.fundo : '#fff', fontFamily: FONTE, fontWeight: 900, fontSize: 34 }}>{prova}</div>
       ))}
     </div>
+    {comentaQuero ? (
+      <div style={{ position: 'absolute', top: 1190, width: '100%', display: 'flex', justifyContent: 'center' }}>
+        <div style={{ padding: '12px 34px', borderRadius: 50, background: 'rgba(14,14,16,.78)', border: `3px solid ${MARCA.amarelo}`, color: '#fff', fontFamily: FONTE, fontWeight: 900, fontSize: 36 }}>COMENTA <span style={{ color: MARCA.amarelo }}>{i + 1}</span> E EU TE MANDO O LINK</div>
+      </div>
+    ) : null}
     <div style={{ position: 'absolute', bottom: 34, left: 0, right: 0, textAlign: 'center', color: MARCA.suave, fontFamily: 'Arial, sans-serif', fontWeight: 700, fontSize: 24 }}>{MARCA.aviso}</div>
     {i < total - 1 ? <div style={{ position: 'absolute', right: 26, top: 520, opacity: 0.9 }}><Seta tamanho={70} cor={MARCA.amarelo} /></div> : null}
   </AbsoluteFill>
@@ -157,7 +168,7 @@ const Fim: React.FC<{ p: PropsDoCarrossel }> = ({ p }) => {
       <div style={{ position: 'absolute', top: 360, left: 60, display: 'flex', gap: 16 }}>
         {p.itens.map((it, i) => (
           <div key={i} style={{ position: 'relative' }}>
-            <Cartao imagem={it.imagem} largura={largura} altura={largura * 1.6} raio={24} />
+            <Cartao imagem={it.imagem} largura={largura} altura={largura * 1.2} raio={24} />
             <div style={{ position: 'absolute', left: -10, top: -24 }}><Bolinha n={i + 1} tamanho={Math.min(76, largura * 0.45)} /></div>
           </div>
         ))}
@@ -178,6 +189,6 @@ const Fim: React.FC<{ p: PropsDoCarrossel }> = ({ p }) => {
 export const Carrossel: React.FC<PropsDoCarrossel> = (p) => {
   const frame = useCurrentFrame();
   if (frame === 0) return <Capa p={p} />;
-  if (frame <= p.itens.length) return <Produto item={p.itens[frame - 1]!} i={frame - 1} total={p.itens.length} />;
+  if (frame <= p.itens.length) return <Produto item={p.itens[frame - 1]!} i={frame - 1} total={p.itens.length} comentaQuero={p.comentaQuero} />;
   return <Fim p={p} />;
 };
