@@ -14,6 +14,8 @@ import { campanhaDeHoje, carregarCampanhas } from './datas.ts';
 import { arquivoDaData, arquivoDoResumo, chaveDaDataPublicada, chaveDoResumoPublicado } from './vitrine.ts';
 
 const BASE = 'https://graph.instagram.com/v23.0';
+/** Em que momento do Reel (ms) fica a capa. */
+export const CAPA_DO_REEL_MS = 1000;
 const pausa = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export class ErroInstagram extends Error {
@@ -120,9 +122,13 @@ export class Instagram {
     return this.publicar({ media_type: 'CAROUSEL', children: filhos.join(','), caption: legenda });
   }
 
-  /** Reel (vídeo vertical em mp4 já no ar no site). O Instagram leva de alguns segundos a poucos minutos para processar o vídeo. */
+  /**
+   * Reel (vídeo vertical em mp4 já no ar no site). O Instagram leva de alguns segundos a poucos minutos para processar o vídeo.
+   * A capa é o quadro de 1 segundo (e não o primeiro, em que o produto ainda está entrando e o texto, transparente): a frase do gancho já
+   * está inteira e nítida.
+   */
   publicarReel(urlDoVideo: string, legenda: string): Promise<string> {
-    return this.publicar({ media_type: 'REELS', video_url: urlDoVideo, caption: legenda, share_to_feed: 'true' }, 60);
+    return this.publicar({ media_type: 'REELS', video_url: urlDoVideo, caption: legenda, share_to_feed: 'true', thumb_offset: String(CAPA_DO_REEL_MS) }, 60);
   }
 
   /** Comentários de um post (só os de primeiro nível; as respostas não entram). */

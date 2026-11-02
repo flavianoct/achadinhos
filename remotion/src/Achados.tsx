@@ -181,7 +181,7 @@ const Gancho: React.FC<{ props: PropsDosAchados }> = ({ props }) => {
         </Linha>}
         <Palavras texto="TOP 3 DE HOJE: ESPERA O Nº 1" y={1470} tamanho={caber('TOP 3 DE HOJE: ESPERA O Nº 1', 54)} cor="#fff" inicio={12} passo={2} />
       </AbsoluteFill>
-      {props.frase?.length ? <Frase linhas={props.frase} y={190} /> : <div style={{ position: 'absolute', top: 270, width: '100%', display: 'flex', justifyContent: 'center' }}><Logo altura={58} /></div>}
+      {props.frase?.length ? <Frase linhas={props.frase} y={250} /> : <div style={{ position: 'absolute', top: 270, width: '100%', display: 'flex', justifyContent: 'center' }}><Logo altura={58} /></div>}
     </AbsoluteFill>
   );
 };

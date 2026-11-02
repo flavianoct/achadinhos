@@ -396,3 +396,18 @@ test('instagram: se recusar o texto alternativo, o post sai mesmo assim, sem ele
   assert.equal(id, 'post1');
   assert.deepEqual(chamadas.filter((c) => c === 'com-alt').length, 1, 'tentou uma vez com o texto alternativo');
 });
+
+test('instagram: o Reel sai com a capa no quadro de 1 segundo, e não no primeiro', async () => {
+  const { Instagram, CAPA_DO_REEL_MS } = await import('../src/instagram.ts');
+  const corpos: string[] = [];
+  const falso = (async (url: string, init?: RequestInit) => {
+    const corpo = String(init?.body ?? url);
+    const json = (o: unknown) => ({ ok: true, status: 200, json: async () => o }) as Response;
+    if (url.endsWith('/media')) { corpos.push(corpo); return json({ id: 'c1' }); }
+    if (url.includes('c1')) return json({ status_code: 'FINISHED' });
+    return json({ id: 'reel1' });
+  }) as unknown as typeof fetch;
+  assert.equal(await new Instagram('t', '1', falso, 0).publicarReel('https://x/v.mp4', 'legenda'), 'reel1');
+  assert.match(corpos[0]!, new RegExp(`thumb_offset=${CAPA_DO_REEL_MS}`));
+  assert.ok(CAPA_DO_REEL_MS >= 800 && CAPA_DO_REEL_MS <= 1500);
+});

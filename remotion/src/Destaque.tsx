@@ -85,7 +85,7 @@ const Gancho: React.FC<{ p: PropsDoDestaque }> = ({ p }) => {
       <Fundo imagem={p.imagem} cor={p.cor} />
       {p.frase?.length ? null : <div style={{ position: 'absolute', top: 262, width: '100%', display: 'flex', justifyContent: 'center' }}><Logo altura={52} /></div>}
       <Inteiro imagem={p.imagem} escala={0.85 + entra * 0.15} />
-      {p.frase?.length ? <Frase linhas={p.frase} y={190} /> : null}
+      {p.frase?.length ? <Frase linhas={p.frase} y={250} /> : null}
       {p.fato && !p.frase?.length ? (
         <Linha y={1350} tamanho={caber(p.fato, 120)} cor={MARCA.amarelo} italico style={{ transform: `scale(${2.2 - fato * 1.2}) rotate(-3deg)`, opacity: Math.min(1, fato * 2), WebkitTextStroke: `3px ${MARCA.fundo}` }}>{p.fato}</Linha>
       ) : null}
