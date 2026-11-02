@@ -18,13 +18,13 @@ permissions:
   models: read      # IA gratuita do GitHub, que escreve os posts
   actions: write    # a rodada chama a próxima (veja o job "proxima")
 
-# Nunca duas rodadas ao mesmo tempo: a segunda espera a primeira terminar.
-concurrency:
-  group: robo
-  cancel-in-progress: false
-
 jobs:
   rodar:
+    # Nunca duas rodadas ao mesmo tempo: a segunda espera a primeira terminar. A trava fica só neste job (e não na rodada inteira):
+    # assim, se o job "proxima" (que só espera e chama a próxima) travar, o cron de reserva continua rodando o robô.
+    concurrency:
+      group: robo
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 25
     environment:
