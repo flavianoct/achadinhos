@@ -118,33 +118,133 @@ export function executarComando(texto: string, banco: Banco, agora: Date, ctx: {
 
 type Fetch = typeof fetch;
 
+type Botao = { text: string; callback_data: string };
+type Teclado = Botao[][];
+
+const EMOJI_DO_TEMA: Record<string, string> = { vestidos: '👗', tecnologia: '📱', cozinha: '🍳', games: '🎮' };
+const botao = (text: string, data: string): Botao => ({ text, callback_data: data });
+const VOLTAR: Botao = botao('⬅️ Menu', 'menu');
+
+/** Os comandos que aparecem no botão "Menu" azul do Telegram (setMyCommands). */
+export const COMANDOS_DO_MENU = [
+  { command: 'menu', description: 'Abrir o menu com botões' },
+  { command: 'temas', description: 'Ver os temas' },
+  { command: 'status', description: 'Como o robô está' },
+  { command: 'ajuda', description: 'Lista de comandos' },
+];
+
+export function menuPrincipal(): { texto: string; teclado: Teclado } {
+  return {
+    texto: '🤖 Robô Mata Preço\nO que você quer fazer?',
+    teclado: [[botao('📅 Tema do dia', 'temas'), botao('📊 Status', 'status')], [botao('🛑 Desligar tema', 'desligar'), botao('✍️ Criar tema', 'criar')], [botao('❓ Ajuda', 'ajuda')]],
+  };
+}
+
+/** Quais temas existem (de fábrica e criados), para montar os botões. */
+function temasDisponiveis(banco: Banco): Array<{ chave: string; nome: string }> {
+  const extras = lerTemasExtras(banco.ajustesDeComando().TEMAS_EXTRAS);
+  return [...Object.entries(TEMAS_DO_DIA).map(([chave, t]) => ({ chave, nome: t.nome })), ...Object.entries(extras).map(([chave, t]) => ({ chave, nome: t.nome }))];
+}
+
 /**
- * Lê as mensagens novas do bot e executa os comandos do dono. Devolve se algum ajuste mudou. Nunca lança erro.
- * `donoChat`: o ID do chat privado do dono (só ele é obedecido).
+ * Resposta a um toque de botão. `dado` é o callback_data (curto: o Telegram aceita até 64 bytes). Nunca lança erro; dado desconhecido
+ * volta ao menu. Os toques que mudam algo passam pelo mesmo executarComando dos comandos de texto (mesmas regras e travas).
+ */
+export function respostaDeBotao(dado: string, banco: Banco, agora: Date, ctx: { temaAtivo?: string } = {}): { texto: string; teclado: Teclado; mudou: boolean } {
+  const menu = menuPrincipal();
+  const comVoltar = (texto: string, mudou = false) => ({ texto, teclado: [[VOLTAR]], mudou });
+  try {
+    const [acao = '', a = '', b = ''] = dado.split(':');
+    if (acao === 'menu') return { ...menu, mudou: false };
+    if (acao === 'status') return comVoltar(executarComando('/status', banco, agora, ctx).resposta);
+    if (acao === 'ajuda') return comVoltar(executarComando('/ajuda', banco, agora, ctx).resposta);
+    if (acao === 'criar') return comVoltar('✍️ Para criar um tema, escreva no chat:\n\n/novotema NOME palavra1, palavra2, palavra3\n\nExemplo:\n/novotema calcas calça, jeans, legging\n\nDepois ele aparece aqui em "Tema do dia".');
+    if (acao === 'desligar') {
+      const r = executarComando('/tema desligar', banco, agora, ctx);
+      return { texto: r.resposta, teclado: [[VOLTAR]], mudou: r.mudou };
+    }
+    if (acao === 'temas') {
+      const temas = temasDisponiveis(banco);
+      return { texto: '📅 Qual tema?', teclado: [...temas.map((t) => [botao(`${EMOJI_DO_TEMA[t.chave] ?? '🏷️'} ${t.chave}`, `t:${t.chave}`)]), [VOLTAR]], mudou: false };
+    }
+    if (acao === 't' && a) {
+      const nome = temasDisponiveis(banco).find((t) => t.chave === a)?.nome ?? a;
+      return {
+        texto: `${nome}\nQuando?`,
+        teclado: [[botao('Só hoje', `h:${a}`), botao('Toda sexta', `d:${a}:sexta`)], [botao('Todo sábado', `d:${a}:sabado`), botao('Todo domingo', `d:${a}:domingo`)], [botao('⬅️ Temas', 'temas')]],
+        mudou: false,
+      };
+    }
+    if (acao === 'h' && a) {
+      const r = executarComando(`/tema ${a}`, banco, agora, ctx);
+      return { texto: r.resposta, teclado: [[VOLTAR]], mudou: r.mudou };
+    }
+    if (acao === 'd' && a && b) {
+      const r = executarComando(`/tema ${a} ${b}`, banco, agora, ctx);
+      return { texto: r.resposta, teclado: [[VOLTAR]], mudou: r.mudou };
+    }
+    return { ...menu, mudou: false };
+  } catch {
+    return { ...menu, mudou: false };
+  }
+}
+
+type Atualizacao = {
+  update_id: number;
+  message?: { text?: string; chat?: { id: number; type: string } };
+  callback_query?: { id: string; data?: string; from?: { id: number }; message?: { message_id: number; chat?: { id: number; type: string } } };
+};
+
+/**
+ * Lê as mensagens novas do bot (comandos de texto e toques nos botões) e executa o que o dono pediu. Devolve se algum ajuste mudou.
+ * Nunca lança erro. `donoChat`: o ID do chat privado do dono; só ele é obedecido (mensagem ou botão de qualquer outro chat é ignorado).
  */
 export async function lerComandosDoTelegram(banco: Banco, token: string, donoChat: string, agora: Date, ctx: { temaAtivo?: string } = {}, fetchFn: Fetch = fetch): Promise<boolean> {
   if (!token || !/^-?\d{5,}$/.test(donoChat)) return false;
   try {
     const base = `https://api.telegram.org/bot${token}`;
+    const chamar = (metodo: string, corpo: Record<string, unknown>) =>
+      fetchFn(`${base}/${metodo}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(corpo), signal: AbortSignal.timeout(20_000) }).catch(() => undefined);
+    // O menu azul do Telegram (lista de comandos): configurado uma vez por versão da lista.
+    const versaoDoMenu = String(COMANDOS_DO_MENU.length);
+    if (banco.ajustesDeComando().TELEGRAM_MENU !== versaoDoMenu) {
+      await chamar('setMyCommands', { commands: COMANDOS_DO_MENU });
+      banco.salvarAjusteDeComando('TELEGRAM_MENU', versaoDoMenu);
+    }
     const deslocamento = Number(banco.ajustesDeComando().TELEGRAM_OFFSET ?? '0') || 0;
-    const r = await fetchFn(`${base}/getUpdates?offset=${deslocamento}&timeout=0&limit=20&allowed_updates=${encodeURIComponent('["message"]')}`, { signal: AbortSignal.timeout(20_000) });
-    const dados = (await r.json().catch(() => ({}))) as { ok?: boolean; result?: Array<{ update_id: number; message?: { text?: string; chat?: { id: number; type: string } } }> };
+    const r = await fetchFn(`${base}/getUpdates?offset=${deslocamento}&timeout=0&limit=20&allowed_updates=${encodeURIComponent('["message","callback_query"]')}`, { signal: AbortSignal.timeout(20_000) });
+    const dados = (await r.json().catch(() => ({}))) as { ok?: boolean; result?: Atualizacao[] };
     if (!dados.ok || !dados.result?.length) return false;
     let mudou = false;
     let ultimo = deslocamento;
     for (const u of dados.result) {
       ultimo = Math.max(ultimo, u.update_id + 1);
+      // Toque num botão: só vale se veio do chat privado do dono.
+      const cb = u.callback_query;
+      if (cb) {
+        const doDono = cb.message?.chat?.type === 'private' && String(cb.message.chat.id) === donoChat && String(cb.from?.id) === donoChat;
+        await chamar('answerCallbackQuery', { callback_query_id: cb.id });
+        if (!doDono || !cb.data) continue;
+        const res = respostaDeBotao(cb.data, banco, agora, ctx);
+        if (res.mudou) mudou = true;
+        // Troca o texto da própria mensagem (o menu não vira uma fila de mensagens); se não der, manda uma nova.
+        const editou = await chamar('editMessageText', { chat_id: donoChat, message_id: cb.message?.message_id, text: res.texto, reply_markup: { inline_keyboard: res.teclado } });
+        const ok = editou ? ((await editou.json().catch(() => ({}))) as { ok?: boolean }).ok : false;
+        if (!ok) await chamar('sendMessage', { chat_id: donoChat, text: res.texto, reply_markup: { inline_keyboard: res.teclado } });
+        continue;
+      }
       const m = u.message;
       // Só o chat privado do dono é obedecido.
       if (!m?.text || m.chat?.type !== 'private' || String(m.chat.id) !== donoChat || !m.text.startsWith('/')) continue;
+      const comando = m.text.trim().split(/\s+/)[0]!.replace(/@\S+$/, '').toLowerCase();
+      if (comando === '/menu' || comando === '/start' || comando === '/ajuda') {
+        const menu = menuPrincipal();
+        await chamar('sendMessage', { chat_id: donoChat, text: menu.texto, reply_markup: { inline_keyboard: menu.teclado } });
+        continue;
+      }
       const res = executarComando(m.text, banco, agora, ctx);
       if (res.mudou) mudou = true;
-      await fetchFn(`${base}/sendMessage`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ chat_id: donoChat, text: res.resposta }),
-        signal: AbortSignal.timeout(20_000),
-      }).catch(() => undefined);
+      await chamar('sendMessage', { chat_id: donoChat, text: res.resposta, reply_markup: { inline_keyboard: [[VOLTAR]] } });
     }
     banco.salvarAjusteDeComando('TELEGRAM_OFFSET', String(ultimo));
     return mudou;

@@ -77,3 +77,40 @@ test('telegram: erro de rede ou resposta estranha nunca lança', async () => {
   assert.equal(await lerComandosDoTelegram(banco, 'T', '123456', sexta, {}, (async () => { throw new Error('sem rede'); }) as unknown as typeof fetch), false);
   assert.equal(await lerComandosDoTelegram(banco, 'T', '123456', sexta, {}, (async () => ({ ok: true, json: async () => ({ ok: false }) }) as Response) as unknown as typeof fetch), false);
 });
+
+test('menu: os botões levam do menu ao tema e à data, e mexem nos ajustes pelas mesmas regras dos comandos', async () => {
+  const { respostaDeBotao, menuPrincipal } = await import('../src/comandos.ts');
+  const banco = new Banco(':memory:');
+  assert.ok(menuPrincipal().teclado.flat().every((b) => Buffer.byteLength(b.callback_data) <= 64), 'o Telegram só aceita 64 bytes por botão');
+  const temas = respostaDeBotao('temas', banco, sexta);
+  assert.ok(temas.teclado.flat().some((b) => b.callback_data === 't:vestidos'));
+  assert.ok(respostaDeBotao('t:vestidos', banco, sexta).teclado.flat().some((b) => b.callback_data === 'd:vestidos:sexta'));
+  assert.equal(respostaDeBotao('h:vestidos', banco, sexta).mudou, true);
+  assert.equal(banco.ajustesDeComando().TEMA_DO_DIA, 'vestidos');
+  assert.equal(respostaDeBotao('d:games:sexta', banco, sexta).mudou, true);
+  assert.equal(banco.ajustesDeComando().TEMA_DO_DIA_SEMANA, 'sexta');
+  assert.equal(respostaDeBotao('desligar', banco, sexta).mudou, true);
+  assert.equal(temaDeHoje(aplicarComandos({}, banco), sexta), undefined);
+  for (const lixo of ['', 'xx', 'h:', 'h:inexistente', 'd:vestidos:domingão', 't:../../etc', 'd::']) assert.doesNotThrow(() => respostaDeBotao(lixo, banco, sexta), lixo);
+  assert.equal(respostaDeBotao('h:inexistente', banco, sexta).mudou, false);
+});
+
+test('menu: o toque num botão só vale vindo do chat privado do dono, e o menu azul é configurado uma vez', async () => {
+  const banco = new Banco(':memory:');
+  const chamadas: Array<{ metodo: string; corpo: any }> = [];
+  const cb = (id: number, quem: number, chat: number, tipo: string, data: string) => ({ update_id: id, callback_query: { id: `c${id}`, data, from: { id: quem }, message: { message_id: 5, chat: { id: chat, type: tipo } } } });
+  const falso = (async (url: string, init?: RequestInit) => {
+    const metodo = String(url).split('/').pop()!.split('?')[0]!;
+    chamadas.push({ metodo, corpo: init?.body ? JSON.parse(String(init.body)) : undefined });
+    if (metodo === 'getUpdates') return { ok: true, json: async () => ({ ok: true, result: [cb(1, 999, 999, 'private', 'h:vestidos'), cb(2, 123456, 123456, 'group', 'h:vestidos'), cb(3, 999, 123456, 'private', 'h:vestidos'), cb(4, 123456, 123456, 'private', 'h:games')] }) } as Response;
+    return { ok: true, json: async () => ({ ok: true }) } as Response;
+  }) as unknown as typeof fetch;
+  assert.equal(await lerComandosDoTelegram(banco, 'TOKEN', '123456', sexta, {}, falso), true);
+  assert.equal(banco.ajustesDeComando().TEMA_DO_DIA, 'games', 'só o toque do dono, no chat privado dele, valeu');
+  assert.equal(chamadas.filter((c) => c.metodo === 'answerCallbackQuery').length, 4, 'todos os toques são respondidos (some o relógio do botão)');
+  assert.equal(chamadas.filter((c) => c.metodo === 'editMessageText').length, 1, 'e só o do dono mexeu na mensagem');
+  assert.equal(chamadas.filter((c) => c.metodo === 'setMyCommands').length, 1);
+  chamadas.length = 0;
+  await lerComandosDoTelegram(banco, 'TOKEN', '123456', sexta, {}, falso);
+  assert.equal(chamadas.filter((c) => c.metodo === 'setMyCommands').length, 0, 'o menu azul não é refeito toda rodada');
+});
