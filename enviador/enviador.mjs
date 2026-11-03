@@ -434,6 +434,10 @@ async function rodar() {
   await recarregarDestinos();
   if (!destinos.length) log('Nenhum destino válido por enquanto: confira WHATSAPP_DESTINOS no ajustes.env. Vou tentar de novo em alguns minutos.');
   log(`Pronto. Deixe este serviço rodando. Ctrl+C para parar.`);
+  // Menu do Telegram respondido na hora (só liga com "telegram" no config.json). Isolado: se falhar, o WhatsApp segue normal.
+  import('./menu-telegram.mjs')
+    .then((m) => m.iniciar({ token: config.telegram?.token, chat: config.telegram?.chat, urlDoSite: config.urlDoSite, vistosPath: join(PASTA_DE_DADOS, 'telegram-vistos.json'), log }))
+    .catch((e) => log(`Menu do Telegram não ligou (${e.message}). O envio do WhatsApp segue normal.`));
 
   let estado = lerEstado();
   const falhasSeguidas = new Map();

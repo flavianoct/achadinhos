@@ -90,7 +90,7 @@ async function modoNuvem(): Promise<void> {
     // Comandos do Telegram (tema do dia): lê o que o dono mandou ao bot; se mudou algo, remonta a configuração antes da coleta.
     // Desligado sem TELEGRAM_COMANDOS_CHAT no ajustes.env; qualquer erro é ignorado.
     try {
-      const mudou = await lerComandosDoTelegram(robo.banco, robo.config.telegram.token, String(robo.env.TELEGRAM_COMANDOS_CHAT ?? '').trim(), new Date(), { temaAtivo: robo.config.temaDoDia });
+      const mudou = await lerComandosDoTelegram(robo.banco, robo.config.telegram.token, String(robo.env.TELEGRAM_COMANDOS_CHAT ?? '').trim(), new Date(), { temaAtivo: robo.config.temaDoDia, menuNaVps: String(robo.env.TELEGRAM_MENU_NA_VPS ?? '').trim() === '1' });
       if (mudou) {
         robo.recarregar();
         dizer('- Comando recebido pelo Telegram: ajustes de tema atualizados.');

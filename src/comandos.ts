@@ -189,6 +189,10 @@ export function respostaDeBotao(dado: string, banco: Banco, agora: Date, ctx: { 
   }
 }
 
+/** O toque é só de navegação (menu, temas, status, ajuda, criar)? Com o menu na VPS, quem responde é ela. */
+const ehNavegacao = (dado: string) => ['menu', 'temas', 'status', 'ajuda', 'criar', 't'].includes(dado.split(':')[0] ?? '');
+const ehNavegacaoDeTexto = (texto: string) => ['/menu', '/start', '/ajuda', '/temas', '/status'].includes((texto.trim().split(/\s+/)[0] ?? '').replace(/@\S+$/, '').toLowerCase());
+
 type Atualizacao = {
   update_id: number;
   message?: { text?: string; chat?: { id: number; type: string } };
@@ -199,7 +203,7 @@ type Atualizacao = {
  * Lê as mensagens novas do bot (comandos de texto e toques nos botões) e executa o que o dono pediu. Devolve se algum ajuste mudou.
  * Nunca lança erro. `donoChat`: o ID do chat privado do dono; só ele é obedecido (mensagem ou botão de qualquer outro chat é ignorado).
  */
-export async function lerComandosDoTelegram(banco: Banco, token: string, donoChat: string, agora: Date, ctx: { temaAtivo?: string } = {}, fetchFn: Fetch = fetch): Promise<boolean> {
+export async function lerComandosDoTelegram(banco: Banco, token: string, donoChat: string, agora: Date, ctx: { temaAtivo?: string; menuNaVps?: boolean } = {}, fetchFn: Fetch = fetch): Promise<boolean> {
   if (!token || !/^-?\d{5,}$/.test(donoChat)) return false;
   try {
     const base = `https://api.telegram.org/bot${token}`;
@@ -223,6 +227,7 @@ export async function lerComandosDoTelegram(banco: Banco, token: string, donoCha
       const cb = u.callback_query;
       if (cb) {
         const doDono = cb.message?.chat?.type === 'private' && String(cb.message.chat.id) === donoChat && String(cb.from?.id) === donoChat;
+        if (ctx.menuNaVps && cb.data && ehNavegacao(cb.data)) continue;
         await chamar('answerCallbackQuery', { callback_query_id: cb.id });
         if (!doDono || !cb.data) continue;
         const res = respostaDeBotao(cb.data, banco, agora, ctx);
@@ -236,6 +241,7 @@ export async function lerComandosDoTelegram(banco: Banco, token: string, donoCha
       const m = u.message;
       // Só o chat privado do dono é obedecido.
       if (!m?.text || m.chat?.type !== 'private' || String(m.chat.id) !== donoChat || !m.text.startsWith('/')) continue;
+      if (ctx.menuNaVps && ehNavegacaoDeTexto(m.text)) continue;
       const comando = m.text.trim().split(/\s+/)[0]!.replace(/@\S+$/, '').toLowerCase();
       if (comando === '/menu' || comando === '/start' || comando === '/ajuda') {
         const menu = menuPrincipal();

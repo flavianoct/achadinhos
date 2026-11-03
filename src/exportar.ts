@@ -1,3 +1,4 @@
+import { TEMAS_DO_DIA, lerTemasExtras } from './temas.ts';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ResultadoDoBlog } from './blog.ts';
@@ -192,6 +193,14 @@ export function publicarControle(banco: Banco, config: Config, dados: DadosDaRod
     : [];
   writeFileSync(join(pasta, 'status.json'), JSON.stringify(status, null, 2), 'utf8');
   writeFileSync(join(pasta, 'whatsapp.json'), JSON.stringify(montarWhatsapp(config, mensagens, agora), null, 2), 'utf8');
+  // Estado do menu do Telegram (a VPS lê daqui a lista de temas e o tema de hoje para responder na hora). Público e sem segredos.
+  try {
+    const extras = lerTemasExtras(banco.ajustesDeComando().TEMAS_EXTRAS);
+    const temas = [...Object.entries(TEMAS_DO_DIA).map(([chave, t]) => ({ chave, nome: t.nome })), ...Object.entries(extras).map(([chave, t]) => ({ chave, nome: t.nome }))];
+    writeFileSync(join(pasta, 'comandos.json'), JSON.stringify({ atualizadoEm: agora.toISOString(), temaAtivo: config.temaDoDia ?? null, temas }), 'utf8');
+  } catch {
+    // o menu da VPS cai na lista de fábrica
+  }
   writeFileSync(join(pasta, 'social.json'), JSON.stringify({ atualizadoEm: agora.toISOString(), itens: conteudoSocialRecente(banco, config, agora) }), 'utf8');
   writeFileSync(join(pasta, 'painel.html'), PAGINA_DO_PAINEL, 'utf8');
   writeFileSync(join(pasta, 'configurar.html'), paginaDeConfigurar(), 'utf8');
