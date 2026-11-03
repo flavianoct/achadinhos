@@ -21,6 +21,17 @@ PRIMEIRO USO
    (o canal pode ser o link dele; a conta precisa ser dona do canal)
 5. Dê dois cliques em iniciar-enviador.bat e deixe a janela aberta.
 
+CONEXAO SIMPLES (POR CODIGO, SEM QR E SEM ENTRAR NA VPS)
+Configure uma vez no config.json (na VPS: nano ~/achadinhos/enviador/config.json):
+  "numero": "5511999998888",                       <- o numero do robo, com 55 e DDD
+  "telegram": { "token": "TOKEN-DO-BOT", "chat": "SEU-ID" }
+(o token e o mesmo do bot do robo; o seu ID voce descobre mandando "oi" para o @userinfobot no Telegram)
+Depois: sudo systemctl restart achadinhos-enviador
+A partir dai, se o WhatsApp desconectar (atualizacao do app, aparelho removido), o enviador apaga a sessao
+morta sozinho e manda no seu Telegram um codigo de 8 letras. No celular do robo: WhatsApp -> Aparelhos
+conectados -> Conectar um aparelho -> Conectar com numero de telefone -> digite o codigo. Pronto.
+Sem "numero" no config.json, continua o QR code no terminal (journalctl -u achadinhos-enviador -f).
+
 ATUALIZAR O ENVIADOR (depois de mudancas no robo)
 Na VPS (servico achadinhos-enviador) ele se atualiza sozinho: uma vez por hora
 confere a main no GitHub e, se houver versao nova, baixa e reinicia. O log

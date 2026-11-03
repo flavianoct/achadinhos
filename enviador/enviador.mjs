@@ -3,7 +3,7 @@
 // Uso: node enviador.mjs            (fica rodando e enviando)
 //      node enviador.mjs listar     (mostra seus grupos e os códigos deles)
 import { execFile } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -87,31 +87,83 @@ function lerEstado() {
 }
 const salvarEstado = (e) => writeFileSync(CAMINHO_ESTADO, JSON.stringify(e, null, 2));
 
-/** Conecta ao WhatsApp. Na primeira vez mostra um QR code para escanear em Aparelhos conectados. */
-async function conectar() {
-  mkdirSync(PASTA_LOGIN, { recursive: true });
-  const { state, saveCreds } = await useMultiFileAuthState(PASTA_LOGIN);
+/** Manda um aviso no seu Telegram privado (config.json → "telegram": { "token": "...", "chat": "..." }). Sem isso, só vai para o log. */
+async function avisarNoTelegram(config, texto) {
+  const t = config?.telegram;
+  if (!t?.token || !t?.chat) return;
+  try {
+    await fetch(`https://api.telegram.org/bot${t.token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ chat_id: t.chat, text: texto }),
+      signal: AbortSignal.timeout(20_000),
+    });
+  } catch (e) {
+    log(`Não consegui avisar no Telegram (${e.message}).`);
+  }
+}
+
+/** Código de pareamento no formato que o WhatsApp mostra (ABCD-1234). */
+const formatarCodigo = (c) => String(c).replace(/[^A-Z0-9]/gi, '').toUpperCase().replace(/^(.{4})(.{4})$/, '$1-$2');
+
+/**
+ * Conecta ao WhatsApp e se mantém conectado.
+ * - Com "numero" no config.json (o número do robô, com 55 e DDD: "5511999998888"), a conexão é por CÓDIGO: o enviador pede um código de
+ *   8 letras ao WhatsApp, escreve no log e manda no seu Telegram (se "telegram" estiver no config.json). Você digita o código no celular do
+ *   robô: Aparelhos conectados → Conectar um aparelho → Conectar com número de telefone. Sem número, vale o QR code no terminal, como antes.
+ * - Se o WhatsApp desconectar o aparelho (atualização do app, aparelho removido), a sessão morta é apagada sozinha e um código novo é
+ *   pedido: não precisa entrar na VPS, apagar pasta nem reiniciar o serviço.
+ */
+async function conectar(config = {}) {
   const { version } = await fetchLatestBaileysVersion();
-  return new Promise((resolve, reject) => {
-    const abrir = () => {
+  const numero = String(config.numero ?? '').replace(/\D/g, '');
+  let ultimoCodigoEm = 0;
+  return new Promise((resolve) => {
+    let pronto = false;
+    const abrir = async () => {
+      mkdirSync(PASTA_LOGIN, { recursive: true });
+      const { state, saveCreds } = await useMultiFileAuthState(PASTA_LOGIN);
       const sock = makeWASocket({ version, auth: state, logger: pino({ level: process.env.LOG_NIVEL || 'silent' }), browser: Browsers.macOS('Desktop'), markOnlineOnConnect: false, generateHighQualityLinkPreview: false, syncFullHistory: false });
       sock.ev.on('creds.update', saveCreds);
-      sock.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {
+      sock.ev.on('connection.update', async ({ connection, lastDisconnect, qr }) => {
         if (qr) {
-          log('Escaneie este QR no WhatsApp do número dedicado: Configurações → Aparelhos conectados → Conectar um aparelho.');
-          qrcode.generate(qr, { small: true });
+          if (numero && !state.creds.registered) {
+            // Um código por vez: ele vale alguns minutos; só pede outro depois de 3 minutos sem conectar.
+            if (Date.now() - ultimoCodigoEm < 3 * 60_000) return;
+            ultimoCodigoEm = Date.now();
+            try {
+              const codigo = formatarCodigo(await sock.requestPairingCode(numero));
+              const aviso = `WhatsApp do robô desconectado. Para conectar de novo, no celular do robô: WhatsApp → Aparelhos conectados → Conectar um aparelho → Conectar com número de telefone, e digite o código ${codigo}`;
+              log(aviso);
+              await avisarNoTelegram(config, aviso);
+            } catch (e) {
+              log(`Não consegui pedir o código de conexão (${e.message}). Vai o QR code:`);
+              qrcode.generate(qr, { small: true });
+            }
+          } else {
+            log('Escaneie este QR no WhatsApp do número dedicado: Configurações → Aparelhos conectados → Conectar um aparelho.');
+            qrcode.generate(qr, { small: true });
+          }
         }
         if (connection === 'open') {
           log('WhatsApp conectado.');
+          if (ultimoCodigoEm) await avisarNoTelegram(config, 'WhatsApp do robô conectado de novo. ✅');
+          ultimoCodigoEm = 0;
           sockAtual.sock = sock;
           sockAtual.aberto = true;
-          resolve(sock);
+          if (!pronto) {
+            pronto = true;
+            resolve(sock);
+          }
         }
         if (connection === 'close') {
           if (sockAtual.sock === sock) sockAtual.aberto = false;
           const codigo = lastDisconnect?.error?.output?.statusCode;
           if (codigo === DisconnectReason.loggedOut) {
-            reject(new Error('O WhatsApp desconectou este aparelho. Apague a pasta .achadinhos-enviador (na sua pasta de usuário) e rode de novo para escanear o QR.'));
+            // Sessão morta: apaga e começa uma nova (o pedido de código ou o QR aparece na sequência).
+            log('O WhatsApp desconectou este aparelho. Apagando a sessão antiga e pedindo uma conexão nova…');
+            rmSync(PASTA_LOGIN, { recursive: true, force: true });
+            setTimeout(abrir, 3000);
           } else {
             log(`Conexão caiu (código ${codigo ?? '?'}). Reconectando em 5 s…`);
             setTimeout(abrir, 5000);
@@ -141,7 +193,7 @@ function reiniciarConexao(motivo) {
 const ehQuedaDeConexao = (e) => /connection (closed|lost|failure)|timed out|socket|stream errored|not open/i.test(String(e?.message ?? e));
 
 async function listar() {
-  const sock = await conectar();
+  const sock = await conectar(lerConfig());
   const grupos = await sock.groupFetchAllParticipating();
   log('Seus grupos (copie o "código" do que quiser usar para config.json → destinos):');
   for (const g of Object.values(grupos)) console.log(`  ${g.subject}\n    código: ${g.id}`);
@@ -364,7 +416,7 @@ async function rodar() {
   usarPrevia = config.usarPrevia !== false;
   imagemDoGrupo = config.imagemDoGrupo === 'arte' ? 'arte' : 'foto';
   urlDoSiteAtual = config.urlDoSite;
-  const sock = await conectar();
+  const sock = await conectar(config);
   // Os destinos vêm de WHATSAPP_DESTINOS (ajustes.env, publicado em whatsapp.json) e do config.json; a lista é recarregada a cada 10 minutos,
   // então trocar de canal ou grupo não exige reiniciar o enviador.
   let destinos = [];
@@ -469,7 +521,7 @@ async function rodar() {
 async function testar() {
   const config = lerConfig();
   urlDoSiteAtual = config.urlDoSite;
-  const sock = await conectar();
+  const sock = await conectar(lerConfig());
   let destinos = await resolverDestinos(sock, { destinos: await destinosCompletos(config) });
   // "testar imagem grupo": só nos grupos (o canal não mostra imagem enviada).
   if (process.argv[4] === 'grupo') destinos = destinos.filter((d) => d.jid.endsWith('@g.us'));
