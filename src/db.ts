@@ -71,6 +71,10 @@ export class Banco {
         metricas TEXT NOT NULL DEFAULT '{}',
         atualizado_em INTEGER NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS ajustes_por_comando (
+        chave TEXT PRIMARY KEY,
+        valor TEXT NOT NULL
+      );
       CREATE TABLE IF NOT EXISTS instagram_respostas (
         comment_id TEXT PRIMARY KEY,
         respondido_em INTEGER NOT NULL,
@@ -831,6 +835,15 @@ export class Banco {
   /** Guarda o post publicado no Instagram e o link que vai no direct de quem comentar "QUERO" nele. */
   registrarMidiaDoInstagram(mediaId: string, tipo: string, titulo: string, link: string, agora: Date): void {
     this.db.prepare(`INSERT OR REPLACE INTO instagram_midias (media_id, tipo, titulo, link, publicado_em) VALUES (?, ?, ?, ?, ?)`).run(mediaId, tipo, titulo, link, agora.getTime());
+  }
+
+  /** Ajustes definidos por comando no Telegram (src/comandos.ts): valem por cima do ajustes.env. */
+  ajustesDeComando(): Record<string, string> {
+    return Object.fromEntries((this.db.prepare(`SELECT chave, valor FROM ajustes_por_comando`).all() as Array<{ chave: string; valor: string }>).map((l) => [l.chave, l.valor]));
+  }
+
+  salvarAjusteDeComando(chave: string, valor: string): void {
+    this.db.prepare(`INSERT INTO ajustes_por_comando (chave, valor) VALUES (?, ?) ON CONFLICT (chave) DO UPDATE SET valor = excluded.valor`).run(chave, valor);
   }
 
   /** Anota o formato de gancho de texto de um Reel publicado, para comparar o alcance de cada formato depois. */

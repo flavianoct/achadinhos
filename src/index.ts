@@ -14,6 +14,7 @@ import { copiarReelsAgendados } from './agendados.ts';
 import { gravarReel, prepararReel } from './reel.ts';
 import { gravarPngs, prepararSocial } from './social.ts';
 import { gravarBio } from './bio.ts';
+import { lerComandosDoTelegram } from './comandos.ts';
 import { PublicadorDeTeste } from './telegram.ts';
 import { gravarDataEspecial, gravarResumoDoDia } from './vitrine.ts';
 
@@ -86,6 +87,17 @@ async function modoNuvem(): Promise<void> {
     }
     process.exitCode = 1;
   } else {
+    // Comandos do Telegram (tema do dia): lê o que o dono mandou ao bot; se mudou algo, remonta a configuração antes da coleta.
+    // Desligado sem TELEGRAM_COMANDOS_CHAT no ajustes.env; qualquer erro é ignorado.
+    try {
+      const mudou = await lerComandosDoTelegram(robo.banco, robo.config.telegram.token, String(robo.env.TELEGRAM_COMANDOS_CHAT ?? '').trim(), new Date(), { temaAtivo: robo.config.temaDoDia });
+      if (mudou) {
+        robo.recarregar();
+        dizer('- Comando recebido pelo Telegram: ajustes de tema atualizados.');
+      }
+    } catch {
+      // nunca atrapalha a rodada
+    }
     const coleta = await robo.coletarAgora();
     rodada.coleta = coleta;
     dizer(`- Coleta: ${coleta.coletadas} ofertas vistas, ${coleta.aprovadas} aprovadas.`);

@@ -44,6 +44,22 @@ export const TEMAS_DO_DIA: Record<string, TemaDoDia> = {
   },
 };
 
+/** Temas criados por comando no Telegram: { nome: { nome, palavras } }. JSON inválido ou fora do formato vira "nenhum" (nunca derruba a rodada). */
+export function lerTemasExtras(json: string | undefined): Record<string, { nome: string; palavras: string[] }> {
+  const saida: Record<string, { nome: string; palavras: string[] }> = {};
+  try {
+    const lido = JSON.parse(json || '{}') as Record<string, { nome?: unknown; palavras?: unknown }>;
+    for (const [chave, t] of Object.entries(lido)) {
+      if (!/^[a-z0-9]{1,20}$/.test(chave) || chave in TEMAS_DO_DIA || !Array.isArray(t?.palavras)) continue;
+      const palavras = t.palavras.filter((p): p is string => typeof p === 'string' && /^[a-z0-9 ]{3,24}$/.test(p)).slice(0, 30);
+      if (palavras.length) saida[chave] = { nome: typeof t.nome === 'string' ? t.nome.slice(0, 60) : `Dia: ${chave}`, palavras };
+    }
+  } catch {
+    // JSON ruim: ignora
+  }
+  return saida;
+}
+
 /** Datas AAAA-MM-DD válidas de um texto separado por vírgula. */
 function datas(texto: string | undefined): string[] {
   return (texto ?? '').split(',').map((d) => d.trim()).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d));
@@ -69,7 +85,8 @@ function diaDaSemanaDeHoje(agora: Date): number {
 /** O tema que vale hoje (no horário de Brasília), ou undefined. Sem dia marcado (nem data nem dia da semana), nenhum tema vale: o tema nunca fica ligado por esquecimento. */
 export function temaDeHoje(env: Record<string, string | undefined>, agora: Date): { chave: string; tema: TemaDoDia } | undefined {
   const chave = (env.TEMA_DO_DIA ?? '').trim().toLowerCase();
-  const tema = TEMAS_DO_DIA[chave];
+  const extra = lerTemasExtras(env.TEMAS_EXTRAS)[chave];
+  const tema = TEMAS_DO_DIA[chave] ?? (extra ? { nome: extra.nome, ajustes: { TEMA: extra.palavras.join(',') } } : undefined);
   const ehHoje = datas(env.TEMA_DO_DIA_DATA).includes(diaDe(agora)) || diasDaSemana(env.TEMA_DO_DIA_SEMANA).includes(diaDaSemanaDeHoje(agora));
   if (!tema || !ehHoje) return undefined;
   return { chave, tema };

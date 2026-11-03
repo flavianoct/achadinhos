@@ -14,6 +14,7 @@ import { chaveDoCupom, lerCupons } from './cupons.ts';
 import { garimparCupons, type ResultadoDoGarimpo } from './garimpo-cupons.ts';
 import { buscarCampanhas, buscarVendas } from './shopee-extra.ts';
 import { atualizarVendas, coletar, postarCampanha, postarProxima, postarProximoCupom, type Descartes, type ResultadoDaCampanha, type ResultadoDoCupom, type ResultadoDoPost, type ResumoDaColeta } from './pipeline.ts';
+import { aplicarComandos } from './comandos.ts';
 import { Telegram, type Publicador } from './telegram.ts';
 import type { Fonte, Loja } from './types.ts';
 
@@ -94,7 +95,8 @@ export class Robo {
     this.temArquivoEnv = arquivo !== undefined;
     // O arquivo tem prioridade, mas uma linha vazia ("CHAVE=") não apaga um valor vindo do ambiente.
     const preenchidos = Object.fromEntries(Object.entries(arquivo ?? {}).filter(([, v]) => v.trim() !== ''));
-    this.env = { ...(this.opcoes.envBase ?? process.env), ...preenchidos };
+    // Os comandos do Telegram (tema do dia) valem por cima do arquivo; qualquer problema ali é ignorado.
+    this.env = aplicarComandos({ ...(this.opcoes.envBase ?? process.env), ...preenchidos }, this.banco);
     try {
       this.config = lerConfig(this.env);
       this.erroDeConfig = undefined;
