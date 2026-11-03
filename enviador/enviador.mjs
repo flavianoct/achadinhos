@@ -123,13 +123,17 @@ async function conectar(config = {}) {
     const abrir = async () => {
       mkdirSync(PASTA_LOGIN, { recursive: true });
       const { state, saveCreds } = await useMultiFileAuthState(PASTA_LOGIN);
-      const sock = makeWASocket({ version, auth: state, logger: pino({ level: process.env.LOG_NIVEL || 'silent' }), browser: Browsers.macOS('Desktop'), markOnlineOnConnect: false, generateHighQualityLinkPreview: false, syncFullHistory: false });
+      // A conexão por código só é aceita com um navegador (Chrome); "Desktop" faz o WhatsApp recusar o código. O QR aceita os dois.
+      // qrTimeout maior: o código precisa de tempo para ser digitado no celular antes de este socket expirar.
+      let codigoPedido = false;
+      const sock = makeWASocket({ version, auth: state, logger: pino({ level: process.env.LOG_NIVEL || 'silent' }), browser: numero ? Browsers.macOS('Chrome') : Browsers.macOS('Desktop'), markOnlineOnConnect: false, generateHighQualityLinkPreview: false, syncFullHistory: false, ...(numero ? { qrTimeout: 180_000 } : {}) });
       sock.ev.on('creds.update', saveCreds);
       sock.ev.on('connection.update', async ({ connection, lastDisconnect, qr }) => {
         if (qr) {
           if (numero && !state.creds.registered) {
-            // Um código por vez: ele vale alguns minutos; só pede outro depois de 3 minutos sem conectar.
-            if (Date.now() - ultimoCodigoEm < 3 * 60_000) return;
+            // Um código por conexão: ele só vale para este socket. Se o socket expirar, a reconexão pede outro.
+            if (codigoPedido) return;
+            codigoPedido = true;
             ultimoCodigoEm = Date.now();
             try {
               const codigo = formatarCodigo(await sock.requestPairingCode(numero));
