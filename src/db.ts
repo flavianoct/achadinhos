@@ -837,6 +837,12 @@ export class Banco {
     this.db.prepare(`INSERT OR REPLACE INTO instagram_midias (media_id, tipo, titulo, link, publicado_em) VALUES (?, ?, ?, ?, ?)`).run(mediaId, tipo, titulo, link, agora.getTime());
   }
 
+  /** Consulta só de leitura (resumos): aceita apenas SELECT. */
+  consultar<T>(sql: string, ...args: Array<string | number>): T[] {
+    if (!/^\s*select\s/i.test(sql)) throw new Error('consultar() só aceita SELECT');
+    return this.db.prepare(sql).all(...args) as T[];
+  }
+
   /** Ajustes definidos por comando no Telegram (src/comandos.ts): valem por cima do ajustes.env. */
   ajustesDeComando(): Record<string, string> {
     return Object.fromEntries((this.db.prepare(`SELECT chave, valor FROM ajustes_por_comando`).all() as Array<{ chave: string; valor: string }>).map((l) => [l.chave, l.valor]));

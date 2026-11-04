@@ -14,6 +14,7 @@ import { copiarReelsAgendados } from './agendados.ts';
 import { gravarReel, prepararReel } from './reel.ts';
 import { gravarPngs, prepararSocial } from './social.ts';
 import { gravarBio } from './bio.ts';
+import { avisosNoTelegram } from './avisos-telegram.ts';
 import { lerComandosDoTelegram } from './comandos.ts';
 import { PublicadorDeTeste } from './telegram.ts';
 import { gravarDataEspecial, gravarResumoDoDia } from './vitrine.ts';
@@ -261,6 +262,13 @@ async function modoNuvem(): Promise<void> {
       dizer(`- Aviso: o Pinterest falhou nesta rodada (${(e as Error).message}).`);
     }
     robo.banco.registrarAvisos(avisos, new Date());
+    // Resumo do dia, números do Instagram e alertas no seu Telegram privado (só manda mensagem; erro nunca atrapalha a rodada).
+    try {
+      const enviadas = await avisosNoTelegram(robo.banco, robo.env, robo.config.telegram.token, avisos, numeros.relatorio, new Date());
+      if (enviadas) dizer(`- Telegram privado: ${enviadas} aviso(s) enviado(s) ao dono.`);
+    } catch {
+      // ignora
+    }
     publicarControle(robo.banco, robo.config, rodada, new Date());
     const naBio = gravarBio(robo.banco, robo.config, new Date());
     if (robo.config.blog.url) dizer(`- Página do link da bio: ${robo.config.blog.url}/bio.html (${naBio} ofertas).`);
