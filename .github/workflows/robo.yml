@@ -169,5 +169,21 @@ jobs:
             echo "A próxima rodada cairia às ${hora}h, fora do horário (${inicio:-8}h às ${fim:-23}h). Ciclo pausado até o cron de manhã."
             exit 0
           fi
+          # Só uma corrente de rodadas por vez. Toda rodada (do cron ou chamada por outra) chama a próxima; se uma rodada
+          # mais nova já existe, ela é que segue a corrente e esta pára aqui. Sem isso, cada disparo do cron abria uma
+          # corrente a mais: em 03/11 havia ~6 correntes, uma rodada a cada ~5 minutos, e o limite diário acabava às 15h.
+          # Se a consulta falhar, chama a próxima mesmo assim (melhor uma rodada a mais do que o robô parado).
+          mais_novas() {
+            gh run list --repo "$GITHUB_REPOSITORY" --workflow robo.yml --limit 30 --json databaseId \
+              --jq "[.[] | select(.databaseId > ${GITHUB_RUN_ID})] | length" 2>/dev/null || echo 0
+          }
+          if [ "$(mais_novas)" -gt 0 ]; then
+            echo "Já existe uma rodada mais nova; ela segue a corrente. Esta não chama a próxima."
+            exit 0
+          fi
           sleep 1500
+          if [ "$(mais_novas)" -gt 0 ]; then
+            echo "Uma rodada mais nova começou enquanto esta esperava; ela segue a corrente. Esta não chama a próxima."
+            exit 0
+          fi
           gh workflow run robo.yml --repo "$GITHUB_REPOSITORY" --ref main
