@@ -12,7 +12,7 @@ import { escolherParaCarrossel } from './carrossel.ts';
 import { linkAfiliadoML } from './fontes/mercadolivre.ts';
 import { chaveDoCupom, lerCupons } from './cupons.ts';
 import { garimparCupons, type ResultadoDoGarimpo } from './garimpo-cupons.ts';
-import { buscarCampanhas, buscarVendas } from './shopee-extra.ts';
+import { buscarCampanhas, buscarVendas, type Campanha } from './shopee-extra.ts';
 import { atualizarVendas, coletar, postarCampanha, postarProxima, postarProximoCupom, type Descartes, type ResultadoDaCampanha, type ResultadoDoCupom, type ResultadoDoPost, type ResumoDaColeta } from './pipeline.ts';
 import { aplicarComandos } from './comandos.ts';
 import { Telegram, type Publicador } from './telegram.ts';
@@ -273,6 +273,12 @@ export class Robo {
       else if (r.motivo === 'erro') this.log(`ERRO na campanha: ${r.detalhe}`);
       return r;
     });
+  }
+
+  /** As campanhas da Shopee em vigor (API de afiliados), só para consulta. Devolve [] se a Shopee não está ligada. */
+  async campanhasAgora(): Promise<Campanha[]> {
+    const shopee = this.shopee();
+    return shopee ? buscarCampanhas(shopee) : [];
   }
 
   /** Lê o cupons.json e posta o próximo cupom vigente (no máximo CUPONS_POR_DIA por dia). Devolve também os avisos do arquivo. */

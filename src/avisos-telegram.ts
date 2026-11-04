@@ -55,6 +55,29 @@ export function textoDoResumo(banco: Banco, agora: Date): string {
 type Fetch = typeof fetch;
 
 /**
+ * Prévia das campanhas da Shopee, SÓ para o dono (Telegram privado, uma vez por dia): nome, até quando vale e o link de afiliado, para
+ * você tocar e conferir se abre direito antes de ligar CAMPANHAS_POR_DIA. Nada vai ao público. Liga com CAMPANHAS_PREVIA=1.
+ */
+export async function previaDeCampanhas(banco: Banco, env: Record<string, string | undefined>, token: string, buscar: () => Promise<Array<{ nome: string; link: string; fim?: number }>>, agora: Date, fetchFn: Fetch = fetch): Promise<number> {
+  const chat = String(env.TELEGRAM_COMANDOS_CHAT ?? '').trim();
+  if (String(env.CAMPANHAS_PREVIA ?? '').trim() !== '1' || !token || !/^-?\d{5,}$/.test(chat)) return 0;
+  const chave = `tg:previa-campanhas:${diaDe(agora)}`;
+  if (banco.textoSalvo(chave, 1, agora)) return 0;
+  try {
+    const campanhas = (await buscar()).filter((c) => !c.fim || c.fim * (c.fim < 1e12 ? 1000 : 1) > agora.getTime()).slice(0, 6);
+    banco.salvarTexto(chave, '1', agora);
+    const fim = (c: { fim?: number }) => (c.fim ? ` (até ${new Date(c.fim * (c.fim < 1e12 ? 1000 : 1)).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit' })})` : '');
+    const texto = campanhas.length
+      ? ['🛍️ Campanhas da Shopee em vigor (prévia só para você). Toque no link e confira se abre direito:', '', ...campanhas.map((c, i) => `${i + 1}. ${c.nome.slice(0, 80)}${fim(c)}\n${c.link}`)].join('\n')
+      : '🛍️ A API da Shopee não trouxe nenhuma campanha em vigor agora.';
+    await new Telegram(token, chat, fetchFn).publicarTexto(texto, chat);
+    return 1;
+  } catch {
+    return 0;
+  }
+}
+
+/**
  * Manda ao dono o que for novo desta rodada. `relatorioDoInstagram`: as linhas do relatório de números (só existem 1 vez por dia).
  * Devolve quantas mensagens enviou. Nunca lança erro.
  */

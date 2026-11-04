@@ -58,3 +58,19 @@ test('avisos no Telegram: Telegram fora do ar não lança e tenta de novo na pr�
   assert.equal(await avisosNoTelegram(banco, env, 'TOKEN', avisos, undefined, manha, falso), 1, 'na rodada seguinte o aviso ainda não tinha sido marcado como enviado');
   assert.equal(enviadas.length, 1);
 });
+
+test('prévia das campanhas da Shopee: só liga com CAMPANHAS_PREVIA=1, só para o dono, uma vez por dia, só as vigentes', async () => {
+  const { previaDeCampanhas } = await import('../src/avisos-telegram.ts');
+  const banco = new Banco(':memory:');
+  const { enviadas, falso } = simulado();
+  const futuro = Math.floor(Date.parse('2026-11-20T00:00:00-03:00') / 1000);
+  const passado = Math.floor(Date.parse('2026-10-01T00:00:00-03:00') / 1000);
+  const buscar = async () => [{ nome: 'Black Friday Shopee', link: 'https://s.shopee.com.br/abc', fim: futuro }, { nome: 'Campanha velha', link: 'https://s.shopee.com.br/old', fim: passado }];
+  assert.equal(await previaDeCampanhas(banco, env, 'TOKEN', buscar, manha, falso), 0, 'sem CAMPANHAS_PREVIA=1 não manda');
+  assert.equal(await previaDeCampanhas(banco, { ...env, CAMPANHAS_PREVIA: '1' }, 'TOKEN', buscar, manha, falso), 1);
+  assert.match(enviadas[0]!, /Black Friday Shopee \(até 20\/11\)\nhttps:\/\/s\.shopee\.com\.br\/abc/);
+  assert.doesNotMatch(enviadas[0]!, /Campanha velha/, 'campanha vencida não entra');
+  assert.equal(await previaDeCampanhas(banco, { ...env, CAMPANHAS_PREVIA: '1' }, 'TOKEN', buscar, manha, falso), 0, 'uma vez por dia');
+  assert.equal(await previaDeCampanhas(new Banco(':memory:'), { CAMPANHAS_PREVIA: '1' }, 'TOKEN', buscar, manha, falso), 0, 'sem o ID do dono não manda');
+  assert.equal(await previaDeCampanhas(new Banco(':memory:'), { ...env, CAMPANHAS_PREVIA: '1' }, 'TOKEN', async () => { throw new Error('API fora'); }, manha, falso), 0, 'erro da API não lança');
+});

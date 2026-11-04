@@ -14,7 +14,7 @@ import { copiarReelsAgendados } from './agendados.ts';
 import { gravarReel, prepararReel } from './reel.ts';
 import { gravarPngs, prepararSocial } from './social.ts';
 import { gravarBio } from './bio.ts';
-import { avisosNoTelegram } from './avisos-telegram.ts';
+import { avisosNoTelegram, previaDeCampanhas } from './avisos-telegram.ts';
 import { lerComandosDoTelegram } from './comandos.ts';
 import { PublicadorDeTeste } from './telegram.ts';
 import { gravarDataEspecial, gravarResumoDoDia } from './vitrine.ts';
@@ -265,7 +265,8 @@ async function modoNuvem(): Promise<void> {
     // Resumo do dia, números do Instagram e alertas no seu Telegram privado (só manda mensagem; erro nunca atrapalha a rodada).
     try {
       const enviadas = await avisosNoTelegram(robo.banco, robo.env, robo.config.telegram.token, avisos, numeros.relatorio, new Date());
-      if (enviadas) dizer(`- Telegram privado: ${enviadas} aviso(s) enviado(s) ao dono.`);
+      const previa = await previaDeCampanhas(robo.banco, robo.env, robo.config.telegram.token, () => robo.campanhasAgora(), new Date());
+      if (enviadas || previa) dizer(`- Telegram privado: ${enviadas + previa} aviso(s) enviado(s) ao dono.`);
     } catch {
       // ignora
     }
