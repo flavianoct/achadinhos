@@ -139,6 +139,8 @@ async function conectar(config = {}) {
               const codigo = formatarCodigo(await sock.requestPairingCode(numero));
               const aviso = `WhatsApp do robô desconectado. Para conectar de novo, no celular do robô: WhatsApp → Aparelhos conectados → Conectar um aparelho → Conectar com número de telefone, e digite o código ${codigo}`;
               log(aviso);
+              estadoZap.codigo = codigo;
+              estadoZap.codigoEm = Date.now();
               await avisarNoTelegram(config, aviso);
             } catch (e) {
               log(`Não consegui pedir o código de conexão (${e.message}). Vai o QR code:`);
@@ -151,6 +153,7 @@ async function conectar(config = {}) {
         }
         if (connection === 'open') {
           log('WhatsApp conectado.');
+          estadoZap.codigo = undefined;
           if (ultimoCodigoEm) await avisarNoTelegram(config, 'WhatsApp do robô conectado de novo. ✅');
           ultimoCodigoEm = 0;
           sockAtual.sock = sock;
@@ -179,6 +182,9 @@ async function conectar(config = {}) {
     abrir();
   });
 }
+/** O que o menu do Telegram mostra do WhatsApp: se há código de conexão esperando e quando saiu a última mensagem. */
+const estadoZap = { codigo: undefined, codigoEm: 0, ultimoEnvioEm: 0 };
+
 /** O socket que está valendo agora. Muda a cada reconexão, por isso o envio sempre lê daqui (e não guarda o primeiro). */
 const sockAtual = { sock: null, aberto: false };
 
@@ -288,6 +294,7 @@ async function destinosCompletos(config) {
 
 /** Mostra o recibo que o WhatsApp devolveu (id e id do servidor): é a prova de que a mensagem foi aceita. */
 function recibo(r, tipo) {
+  estadoZap.ultimoEnvioEm = Date.now();
   log(`  ${tipo} aceito pelo WhatsApp (id ${r?.key?.id ?? '?'}, servidor ${r?.key?.server_id ?? r?.key?.serverId ?? 'sem id de servidor'}).`);
 }
 
@@ -436,7 +443,7 @@ async function rodar() {
   log(`Pronto. Deixe este serviço rodando. Ctrl+C para parar.`);
   // Menu do Telegram respondido na hora (só liga com "telegram" no config.json). Isolado: se falhar, o WhatsApp segue normal.
   import('./menu-telegram.mjs')
-    .then((m) => m.iniciar({ token: config.telegram?.token, chat: config.telegram?.chat, urlDoSite: config.urlDoSite, vistosPath: join(PASTA_DE_DADOS, 'telegram-vistos.json'), log }))
+    .then((m) => m.iniciar({ token: config.telegram?.token, chat: config.telegram?.chat, urlDoSite: config.urlDoSite, estadoDoWhatsapp: () => ({ aberto: sockAtual.aberto, ...estadoZap }), vistosPath: join(PASTA_DE_DADOS, 'telegram-vistos.json'), log }))
     .catch((e) => log(`Menu do Telegram não ligou (${e.message}). O envio do WhatsApp segue normal.`));
 
   let estado = lerEstado();

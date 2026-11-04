@@ -190,8 +190,8 @@ export function respostaDeBotao(dado: string, banco: Banco, agora: Date, ctx: { 
 }
 
 /** O toque é só de navegação (menu, temas, status, ajuda, criar)? Com o menu na VPS, quem responde é ela. */
-const ehNavegacao = (dado: string) => ['menu', 'temas', 'status', 'ajuda', 'criar', 't'].includes(dado.split(':')[0] ?? '');
-const ehNavegacaoDeTexto = (texto: string) => ['/menu', '/start', '/ajuda', '/temas', '/status'].includes((texto.trim().split(/\s+/)[0] ?? '').replace(/@\S+$/, '').toLowerCase());
+const ehNavegacao = (dado: string) => ['menu', 'temas', 'status', 'ajuda', 'criar', 't', 'whatsapp'].includes(dado.split(':')[0] ?? '');
+const ehNavegacaoDeTexto = (texto: string) => ['/menu', '/start', '/ajuda', '/temas', '/status', '/whatsapp'].includes((texto.trim().split(/\s+/)[0] ?? '').replace(/@\S+$/, '').toLowerCase());
 
 type Atualizacao = {
   update_id: number;

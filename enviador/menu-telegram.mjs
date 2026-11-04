@@ -31,7 +31,7 @@ export const COMANDOS_DO_MENU = [
 export function menuPrincipal() {
   return {
     texto: '🤖 Robô Mata Preço\nO que você quer fazer?',
-    teclado: [[botao('📅 Tema do dia', 'temas'), botao('📊 Status', 'status')], [botao('🛑 Desligar tema', 'desligar'), botao('✍️ Criar tema', 'criar')], [botao('❓ Ajuda', 'ajuda')]],
+    teclado: [[botao('📅 Tema do dia', 'temas'), botao('📊 Status', 'status')], [botao('🛑 Desligar tema', 'desligar'), botao('✍️ Criar tema', 'criar')], [botao('🔌 WhatsApp', 'whatsapp'), botao('❓ Ajuda', 'ajuda')]],
   };
 }
 
@@ -48,12 +48,23 @@ const minutosAtras = (iso) => {
   return Number.isFinite(t) ? Math.max(0, Math.round((Date.now() - t) / 60_000)) : undefined;
 };
 
+/** O estado do WhatsApp em texto: conectado (com a hora da última mensagem) ou desconectado (com o código de conexão, se houver). */
+export function textoDoWhatsapp(zap) {
+  if (!zap) return '🔌 WhatsApp: estado indisponível agora.';
+  const hora = (t) => new Date(t).toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' });
+  const ultima = zap.ultimoEnvioEm ? `Última mensagem enviada às ${hora(zap.ultimoEnvioEm)}.` : 'Ainda sem mensagem enviada desde que o enviador ligou.';
+  if (zap.aberto) return `✅ WhatsApp conectado.\n${ultima}`;
+  const codigo = zap.codigo && Date.now() - zap.codigoEm < 5 * 60_000 ? `\n\nDigite este código no celular do robô:\nWhatsApp → Aparelhos conectados → Conectar um aparelho → Conectar com número de telefone\n👉 ${zap.codigo}` : '\n\nO código de conexão chega aqui sozinho. Se já passou, toque em 🔄 Atualizar.';
+  return `❌ WhatsApp desconectado.\n${ultima}${codigo}`;
+}
+
 /** Resposta de quem só navega (nada é mudado). Devolve undefined se o dado não é de navegação. */
-export function respostaDeNavegacao(dado, estadoBruto) {
+export function respostaDeNavegacao(dado, estadoBruto, zap) {
   const estado = estadoOuPadrao(estadoBruto);
   const [acao = '', a = ''] = String(dado).split(':');
   if (acao === 'menu') return menuPrincipal();
   if (acao === 'ajuda') return { texto: AJUDA, teclado: [[VOLTAR]] };
+  if (acao === 'whatsapp') return { texto: textoDoWhatsapp(zap), teclado: [[botao('🔄 Atualizar', 'whatsapp')], [VOLTAR]] };
   if (acao === 'criar') {
     return { texto: '✍️ Para criar um tema, escreva no chat:\n\n/novotema NOME palavra1, palavra2, palavra3\n\nExemplo:\n/novotema calcas calça, jeans, legging\n\nDepois ele aparece aqui em "Tema do dia".', teclado: [[VOLTAR]] };
   }
@@ -84,11 +95,12 @@ export function respostaDeRecebido(dado) {
 }
 
 /** Comando de texto: navegação (responde na hora), mudança (confirma o recebimento) ou outro (deixa para o robô). */
-export function respostaDeTexto(texto, estadoBruto) {
+export function respostaDeTexto(texto, estadoBruto, zap) {
   const comando = String(texto).trim().split(/\s+/)[0].replace(/@\S+$/, '').toLowerCase();
   if (comando === '/menu' || comando === '/start') return { tipo: 'navega', ...menuPrincipal() };
   if (comando === '/ajuda') return { tipo: 'navega', texto: AJUDA, teclado: [[VOLTAR]] };
   if (comando === '/status') return { tipo: 'navega', ...respostaDeNavegacao('status', estadoBruto) };
+  if (comando === '/whatsapp') return { tipo: 'navega', ...respostaDeNavegacao('whatsapp', estadoBruto, zap) };
   if (comando === '/temas') {
     const estado = estadoOuPadrao(estadoBruto);
     return { tipo: 'navega', texto: ['Temas:', ...estado.temas.map((t) => `• ${t.chave} — ${t.nome}`), '', 'Ligar: /tema NOME   ou   /tema NOME sexta', 'Criar: /novotema NOME palavra1, palavra2, palavra3'].join('\n'), teclado: [[VOLTAR]] };
@@ -103,7 +115,7 @@ export function respostaDeTexto(texto, estadoBruto) {
  * Liga o menu: de poucos em poucos segundos, lê o Telegram (sem confirmar) e responde o que é do dono. `vistosPath` guarda o último
  * update já respondido (para não responder duas vezes, mesmo depois de reiniciar). Nunca lança erro.
  */
-export function iniciar({ token, chat, urlDoSite, vistosPath, log, fetchFn = fetch, intervaloMs = 4000 }) {
+export function iniciar({ token, chat, urlDoSite, estadoDoWhatsapp, vistosPath, log, fetchFn = fetch, intervaloMs = 4000 }) {
   if (!token || !/^-?\d{5,}$/.test(String(chat))) return () => undefined;
   const dono = String(chat);
   const base = `https://api.telegram.org/bot${token}`;
@@ -144,7 +156,7 @@ export function iniciar({ token, chat, urlDoSite, vistosPath, log, fetchFn = fet
           const doDono = cb.message?.chat?.type === 'private' && String(cb.message.chat.id) === dono && String(cb.from?.id) === dono;
           if (!doDono || !cb.data) continue;
           await chamar('answerCallbackQuery', { callback_query_id: cb.id });
-          const res = ehToqueQueMuda(cb.data) ? respostaDeRecebido(cb.data) : respostaDeNavegacao(cb.data, await lerEstado());
+          const res = ehToqueQueMuda(cb.data) ? respostaDeRecebido(cb.data) : respostaDeNavegacao(cb.data, await lerEstado(), estadoDoWhatsapp?.());
           if (!res) continue;
           const editou = await chamar('editMessageText', { chat_id: dono, message_id: cb.message.message_id, text: res.texto, reply_markup: { inline_keyboard: res.teclado } });
           const ok = editou ? (await editou.json().catch(() => ({}))).ok : false;
@@ -153,7 +165,7 @@ export function iniciar({ token, chat, urlDoSite, vistosPath, log, fetchFn = fet
         }
         const m = u.message;
         if (!m?.text || m.chat?.type !== 'private' || String(m.chat.id) !== dono || !m.text.startsWith('/')) continue;
-        const res = respostaDeTexto(m.text, await lerEstado());
+        const res = respostaDeTexto(m.text, await lerEstado(), estadoDoWhatsapp?.());
         if (res) await chamar('sendMessage', { chat_id: dono, text: res.texto, reply_markup: { inline_keyboard: res.teclado } });
       }
     } catch (e) {

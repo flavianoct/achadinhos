@@ -76,3 +76,15 @@ test('robô com o menu na VPS: não responde a navegação (a VPS já respondeu)
   assert.equal(metodos.filter((m) => m === 'sendMessage').length, 0, 'sem resposta de navegação em texto');
   assert.equal(metodos.filter((m) => m === 'editMessageText').length, 1, 'só a mudança confirma (trocando a mensagem de "recebi")');
 });
+
+test('menu da VPS: botão do WhatsApp mostra conectado, desconectado e o código pendente', async () => {
+  // @ts-ignore: módulo .mjs puro, sem tipos
+  const { textoDoWhatsapp, menuPrincipal: menu } = await import('../enviador/menu-telegram.mjs');
+  assert.ok(menu().teclado.flat().some((b: any) => b.callback_data === 'whatsapp'));
+  assert.match(textoDoWhatsapp({ aberto: true, ultimoEnvioEm: Date.now() }), /✅ WhatsApp conectado.*Última mensagem enviada às \d\d:\d\d/s);
+  assert.match(textoDoWhatsapp({ aberto: false, codigo: 'ABCD-1234', codigoEm: Date.now(), ultimoEnvioEm: 0 }), /❌ WhatsApp desconectado.*ABCD-1234/s);
+  assert.doesNotMatch(textoDoWhatsapp({ aberto: false, codigo: 'ABCD-1234', codigoEm: Date.now() - 10 * 60_000, ultimoEnvioEm: 0 }), /ABCD-1234/, 'código velho não é mostrado');
+  assert.match(textoDoWhatsapp(undefined), /indisponível/);
+  assert.match(respostaDeTexto('/whatsapp', undefined, { aberto: true, ultimoEnvioEm: 0 }).texto, /conectado/);
+  assert.match(respostaDeNavegacao('whatsapp', undefined, { aberto: false, ultimoEnvioEm: 0 }).texto, /desconectado/);
+});
