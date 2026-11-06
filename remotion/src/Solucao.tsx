@@ -18,7 +18,10 @@ carregarFonte();
 
 export const SOLUCAO_FPS = 30;
 export const QUADROS_DA_SOLUCAO = { dor: 66, virada: 30, solucao: 165, fim: 84 };
-export const duracaoDaSolucao = () => Object.values(QUADROS_DA_SOLUCAO).reduce((a, b) => a + b, 0);
+export type TemposDaSolucao = typeof QUADROS_DA_SOLUCAO;
+/** Os tempos de cada parte: os de sempre ou os do Reel narrado (cada parte acompanha uma frase da voz). */
+export const temposDaSolucao = (p: { tempos?: TemposDaSolucao } = {}) => p.tempos ?? QUADROS_DA_SOLUCAO;
+export const duracaoDaSolucao = (p: { tempos?: TemposDaSolucao } = {}) => Object.values(temposDaSolucao(p)).reduce((a, b) => a + b, 0);
 
 export type PropsDaSolucao = {
   /** A dor, em até 2 linhas curtas em maiúsculas. */
@@ -47,6 +50,10 @@ export type PropsDaSolucao = {
   musica?: string;
   /** Efeitos sonoros (em public/), sintetizados pelo robô no tempo dos cortes. */
   audio?: string;
+  /** Narração (em public/): com ela, a música fica bem baixinha por baixo da voz. */
+  voz?: string;
+  /** Quadros de cada parte, para acompanhar a narração; vazio, os de sempre. */
+  tempos?: TemposDaSolucao;
 };
 
 const travar = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' } as const;
@@ -76,7 +83,7 @@ const Foto: React.FC<{ src: string; duracao: number }> = ({ src, duracao }) => {
 /** O fundo do Reel inteiro: o vídeo do produto ou as fotos em sequência. Na dor fica sem cor e escuro; a cor volta na virada. */
 const Fundo: React.FC<{ p: PropsDaSolucao }> = ({ p }) => {
   const frame = useCurrentFrame();
-  const q = QUADROS_DA_SOLUCAO;
+  const q = temposDaSolucao(p);
   const cinza = interpolate(frame, [q.dor - 4, q.dor + 2], [1, 0], travar);
   const brilho = interpolate(frame, [q.dor - 4, q.dor + 2], [0.45, 1], travar);
   const filtro = `grayscale(${cinza}) brightness(${brilho})`;
@@ -149,6 +156,9 @@ const Solucao: React.FC<{ p: PropsDaSolucao }> = ({ p }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const entra = spring({ frame: frame - 4, fps, config: { damping: 11, stiffness: 200 } });
+  // Na solução longa (narrada), a prova aparece na segunda metade, junto com a frase "mais de 4 mil pessoas já compraram".
+  const metade = Math.floor(temposDaSolucao(p).solucao / 2);
+  const provas = temposDaSolucao(p).solucao > QUADROS_DA_SOLUCAO.solucao || p.voz ? [p.prova, p.nota].filter((s): s is string => Boolean(s && s.trim())) : [];
   return (
     <AbsoluteFill>
       <AbsoluteFill style={{ background: 'linear-gradient(180deg, rgba(14,14,16,.45) 0%, rgba(14,14,16,0) 16%, rgba(14,14,16,0) 64%, rgba(14,14,16,.88) 88%)' }} />
@@ -161,6 +171,13 @@ const Solucao: React.FC<{ p: PropsDaSolucao }> = ({ p }) => {
       {p.nome.slice(0, 2).map((l, k) => (
         <Linha key={k} y={1580 + k * 54} tamanho={caber(l, 44)} cor="#fff" style={{ opacity: interpolate(frame, [12 + k * 4, 20 + k * 4], [0, 1], travar) }}>{l}</Linha>
       ))}
+      {provas.length && frame >= metade ? (
+        <div style={{ position: 'absolute', top: 420, width: '100%', display: 'flex', justifyContent: 'center', gap: 20 }}>
+          {provas.map((s, k) => (
+            <div key={k} style={{ padding: '14px 34px', borderRadius: 50, background: 'rgba(14,14,16,.85)', border: `3px solid ${MARCA.amarelo}`, color: '#fff', fontFamily: FONTE, fontWeight: 900, fontSize: caber(s, 50, 520), transform: `scale(${spring({ frame: frame - metade - k * 4, fps, config: { damping: 10, stiffness: 220 } })})` }}>{s}</div>
+          ))}
+        </div>
+      ) : null}
       {p.video && p.videoDeIa ? (
         <div style={{ position: 'absolute', left: 40, top: 1720, padding: '8px 22px', borderRadius: 30, background: 'rgba(14,14,16,.78)', color: '#fff', fontFamily: 'Arial, sans-serif', fontWeight: 700, fontSize: 26 }}>Vídeo feito com IA a partir da foto do anúncio</div>
       ) : null}
@@ -216,8 +233,8 @@ const Fim: React.FC<{ p: PropsDaSolucao }> = ({ p }) => {
 const volumeDaMusica = (frame: number, total: number) => 0.7 * Math.min(1, frame / 15, Math.max(0, (total - frame) / 30));
 
 export const SolucaoReel: React.FC<PropsDaSolucao> = (p) => {
-  const q = QUADROS_DA_SOLUCAO;
-  const total = duracaoDaSolucao();
+  const q = temposDaSolucao(p);
+  const total = duracaoDaSolucao(p);
   return (
     <AbsoluteFill style={{ background: MARCA.fundo }}>
       <Fundo p={p} />
@@ -225,7 +242,8 @@ export const SolucaoReel: React.FC<PropsDaSolucao> = (p) => {
       <Sequence from={q.dor} durationInFrames={q.virada}><Virada p={p} /></Sequence>
       <Sequence from={q.dor + q.virada} durationInFrames={q.solucao}><Solucao p={p} /></Sequence>
       <Sequence from={q.dor + q.virada + q.solucao} durationInFrames={q.fim}><Fim p={p} /></Sequence>
-      {p.musica ? <Audio src={staticFile(p.musica)} volume={(f) => volumeDaMusica(f, total)} /> : null}
+      {p.musica ? <Audio src={staticFile(p.musica)} volume={(f) => volumeDaMusica(f, total) * (p.voz ? 0.3 : 1)} /> : null}
+      {p.voz ? <Audio src={staticFile(p.voz)} /> : null}
       {p.audio ? <Audio src={staticFile(p.audio)} /> : null}
     </AbsoluteFill>
   );

@@ -54,7 +54,7 @@ const solucao: PropsDaSolucao = {
 
 export const Root: React.FC = () => (
   <>
-    <Composition id="Solucao" component={SolucaoReel} durationInFrames={duracaoDaSolucao()} fps={SOLUCAO_FPS} width={1080} height={1920} defaultProps={solucao} />
+    <Composition id="Solucao" component={SolucaoReel} durationInFrames={duracaoDaSolucao(solucao)} fps={SOLUCAO_FPS} width={1080} height={1920} defaultProps={solucao} calculateMetadata={({ props }) => ({ durationInFrames: duracaoDaSolucao(props) })} />
     <Composition id="Destaque" component={Destaque} durationInFrames={duracaoDoDestaque(destaque)} fps={DESTAQUE_FPS} width={1080} height={1920} defaultProps={destaque} calculateMetadata={({ props }) => ({ durationInFrames: duracaoDoDestaque(props) })} />
     <Composition
       id="Carrossel"

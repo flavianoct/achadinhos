@@ -15,3 +15,6 @@ reel-*.mp4
 ml-teste.env
 
 shopee-teste.env
+
+# Gravações de voz do dono (o repositório é público)
+audios/
