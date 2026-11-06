@@ -412,3 +412,27 @@ test('instagram: o Reel sai com a capa no quadro de 1 segundo, e não no primeir
   assert.match(corpos[0]!, new RegExp(`thumb_offset=${CAPA_DO_REEL_MS}`));
   assert.ok(CAPA_DO_REEL_MS >= 800 && CAPA_DO_REEL_MS <= 1500);
 });
+
+test('comenta QUERO: um post apagado no Instagram não impede o link de ir para quem comentou nos outros posts', async () => {
+  const { responderComentarios, ErroInstagram } = await import('../src/instagram.ts');
+  const { Banco } = await import('../src/db.ts');
+  const c = lerConfig({ INSTAGRAM_ATIVO: '1', INSTAGRAM_TOKEN: 't', INSTAGRAM_USER_ID: 'u', BLOG_URL: 'https://site' });
+  const agora = new Date('2026-11-06T15:00:00Z');
+  const banco = new Banco(':memory:');
+  // Do mais novo ao mais antigo: o do meio foi apagado; o mais antigo (depois dele) precisa ser lido mesmo assim.
+  banco.registrarMidiaDoInstagram('NOVO', 'feed', 'Fone', 'https://meli.la/novo', new Date(agora.getTime() - 1 * 3_600_000));
+  banco.registrarMidiaDoInstagram('APAGADO', 'reel', 'Fralda', 'https://meli.la/x', new Date(agora.getTime() - 2 * 3_600_000));
+  banco.registrarMidiaDoInstagram('ANTIGO', 'feed', 'Vestido', 'https://meli.la/antigo', new Date(agora.getTime() - 3 * 3_600_000));
+  const directs: string[] = [];
+  const falso: any = {
+    comentarios: async (id: string) => {
+      if (id === 'APAGADO') throw new ErroInstagram("Instagram recusou (400/100/33): Object with ID 'APAGADO' does not exist", false);
+      return [{ id: `c-${id}`, texto: 'quero' }];
+    },
+    mandarNoDirect: async (id: string) => void directs.push(id),
+    responderComentario: async () => {},
+  };
+  const r = await responderComentarios(banco, c, agora, fetch, falso);
+  assert.deepEqual(directs.sort(), ['c-ANTIGO', 'c-NOVO'], 'os dois posts existentes foram lidos, antes e depois do apagado');
+  assert.match(r.avisos.join(' '), /1 post\(s\) sem leitura de comentários/);
+});

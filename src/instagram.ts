@@ -536,6 +536,7 @@ export async function responderComentarios(banco: Banco, config: Config, agora: 
   const palavras = ig.palavrasDoComentario.map(normalizar);
   let falhas = 0;
   let escondidos = 0;
+  let semLeitura = 0;
   const eu = await api.meuUsuario?.().catch(() => undefined);
   const bloquear = (motivo: string, como: string) => {
     banco.salvarTexto(CHAVE_DIRECT_BLOQUEADO, `${marcaDoToken(ig.token)}|${motivo}`, agora);
@@ -544,7 +545,18 @@ export async function responderComentarios(banco: Banco, config: Config, agora: 
   try {
     for (const midia of banco.midiasRecentesDoInstagram(7, agora)) {
       if (resumo.respondidos >= ig.respostasPorRodada) break;
-      const comentarios = await api.comentarios(midia.mediaId);
+      // Um post apagado (ou sem acesso) não pode derrubar a leitura dos outros: pula só ele. Token vencido ou falta de permissão continuam
+      // parando tudo (e desligando o comenta QUERO), como antes.
+      let comentarios: Array<{ id: string; texto: string; usuario?: string }>;
+      try {
+        comentarios = await api.comentarios(midia.mediaId);
+      } catch (e) {
+        if (e instanceof ErroInstagram && !e.fatal) {
+          semLeitura++;
+          continue;
+        }
+        throw e;
+      }
       // O Instagram diz quantos comentários o post tem; se diz que há e o app não recebe nenhum, o app está em modo de desenvolvimento
       // (nesse modo só chegam os comentários de quem tem função no app) ou falta a permissão.
       const total = await api.contagemDeComentarios?.(midia.mediaId).catch(() => undefined);
@@ -585,6 +597,7 @@ export async function responderComentarios(banco: Banco, config: Config, agora: 
         await pausa(1500);
       }
     }
+    if (semLeitura > 0) resumo.avisos.push(`Instagram: ${semLeitura} post(s) sem leitura de comentários (provavelmente apagados no Instagram); os outros foram lidos normalmente.`);
     if (escondidos > 0) resumo.avisos.push(`Instagram: os posts têm ${escondidos} comentário(s) que o app não recebeu (modo de desenvolvimento: só chegam comentários de quem tem função no app). Para o público receber o link no direct, o app precisa do acesso avançado da Meta.`);
   } catch (e) {
     const mensagem = (e as Error).message;
