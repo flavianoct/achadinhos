@@ -32,3 +32,9 @@ test('as linhas cabem no gancho e nenhum par fala em preço', () => {
     assert.ok(!/R\$|barat|preço/i.test(p.linhas.join(' ') + p.resposta));
   }
 });
+
+test('"cabo de aço" de mochila não vira gancho de cabo de celular', () => {
+  const mochila = problemaDoProduto(o('Mochila Executiva Impermeável Unissex Reforçada com Cabo de Aço para Notebook', 'moda'))!;
+  assert.equal(mochila.pergunta, 'Medo de molhar na chuva?');
+  assert.match(problemaDoProduto(o('Cabo USB-C Reforçado Nylon Trançado 2m', 'tech'))!.pergunta, /cabo que quebra/i);
+});

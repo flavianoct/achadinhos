@@ -489,3 +489,20 @@ test('músicas do Fenaky: cada Reel usa uma faixa, as faixas giram entre os Reel
   assert.ok(existsSync(join(pasta, 'public', nome)), 'a faixa foi copiada para o Remotion');
   assert.equal(prepararMusica('reel-2026-10-30', pasta, mkdtempSync(join(tmpdir(), 'vazio-'))), undefined, 'sem pasta de músicas, usa a sintetizada');
 });
+
+test('formato solução: os tempos do robô e do vídeo batem, os efeitos cabem no vídeo e nunca entra preço em reais', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { QUADROS_DA_SOLUCAO, duracaoDaSolucao, efeitosDaSolucao, propsDaSolucao } = await import('../src/remotion.ts');
+  const { problemaDoProduto } = await import('../src/problemas.ts');
+  const tsx = readFileSync(new URL('../remotion/src/Solucao.tsx', import.meta.url), 'utf8');
+  const m = /QUADROS_DA_SOLUCAO = \{ dor: (\d+), virada: (\d+), solucao: (\d+), fim: (\d+) \}/.exec(tsx)!;
+  assert.deepEqual({ dor: Number(m[1]), virada: Number(m[2]), solucao: Number(m[3]), fim: Number(m[4]) }, QUADROS_DA_SOLUCAO, 'o áudio e o vídeo usam os mesmos tempos');
+  for (const e of efeitosDaSolucao()) assert.ok(e.t >= 0 && e.t < duracaoDaSolucao(), `efeito ${e.tipo} em ${e.t}s`);
+  const oferta = { titulo: "Fone de ouvido sem fio à prova d'água Bluetooth", categoria: 'tech', nota: 4.7, vendas: 14453, preco: 39.9 } as OfertaAvaliada;
+  const problema = problemaDoProduto(oferta)!;
+  const props = propsDaSolucao({ oferta, imagem: 'data:image/png;base64,AA', fotos: ['a', 'b', 'c'] }, problema, 'Fone à prova d’água', true);
+  assert.deepEqual(props.dor, ['FONE QUE ESTRAGA', 'NO SUOR?']);
+  assert.match(props.prova, /VENDIDOS$/);
+  assert.equal(props.nota, '★ 4,7');
+  assert.ok(!/R\$|39/.test(JSON.stringify(props)), 'sem preço no vídeo');
+});

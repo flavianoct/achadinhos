@@ -121,10 +121,14 @@ export async function prepararDestaque(banco: Banco, config: Config, agora: Date
     produtos.filter((o) => !roupa(o) && galeria(o)),
     produtos.filter((o) => !roupa(o) && !galeria(o)),
   ];
-  const ordem = vezDaRoupa ? grupos.flat() : [...grupos[2]!, ...grupos[3]!, ...grupos[0]!, ...grupos[1]!];
+  const porGrupo = vezDaRoupa ? grupos.flat() : [...grupos[2]!, ...grupos[3]!, ...grupos[0]!, ...grupos[1]!];
+  // Com INSTAGRAM_PROBLEMAS ligado, o produto que resolve uma dor comprovada pelo título vem primeiro: sai no formato "problema → solução".
+  const ordem = config.instagram.problemas ? [...porGrupo.filter((o) => problemaDoProduto(o)), ...porGrupo.filter((o) => !problemaDoProduto(o))] : porGrupo;
   for (const oferta of ordem) {
     // Produto de foto única (o zoom em foto parada fica serrilhado) não vira destaque: sai no Reel de 3 achados.
-    if ((oferta.fotos?.length ?? 0) < config.instagram.destaqueMinFotos) continue;
+    // No formato "problema → solução" uma foto basta: o zoom é leve e a dor escrita segura a atenção.
+    const viraSolucao = config.instagram.problemas && problemaDoProduto(oferta);
+    if (!viraSolucao && (oferta.fotos?.length ?? 0) < config.instagram.destaqueMinFotos) continue;
     if ((!todos && !nichos.includes(oferta.categoria)) || !/^https:\/\//i.test(oferta.link) || !/^https:\/\//i.test(oferta.imagem ?? '') || !passaNoFiltroDoInstagram(oferta, config.instagram)) continue;
     if (banco.textoSalvo(`destaque:${oferta.loja}:${oferta.idProduto}`, DIAS_SEM_REPETIR_DESTAQUE, agora)) continue;
     const imagem = await reduzirFoto(await baixarImagemComoDataUri(oferta.imagem, fetchFn), 1080, 86);

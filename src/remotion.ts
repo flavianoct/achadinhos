@@ -11,6 +11,7 @@ import { formatarVendas } from './mensagem.ts';
 import { CORES_DO_NICHO } from './moldes.ts';
 import { estiloDaMusica, sintetizarEfeitos, sintetizarMusica, type Efeito } from './musica.ts';
 import { prepararMusica } from './musicas.ts';
+import { problemaDoProduto, type ProblemaDoProduto } from './problemas.ts';
 import { seloDaOferta, tituloParaArte, type Fetch } from './social.ts';
 import type { OfertaAvaliada } from './types.ts';
 
@@ -263,7 +264,47 @@ export function efeitosDoDestaque(fotos = 0): Efeito[] {
   return efeitos;
 }
 
-/** Desenha o Reel de destaque (composição "Destaque") e grava em `saida`. Devolve o motivo da falha, ou undefined se gravou. */
+/** Quadros do Reel "problema → solução": os mesmos de QUADROS_DA_SOLUCAO em remotion/src/Solucao.tsx (um teste confere). */
+export const QUADROS_DA_SOLUCAO = { dor: 66, virada: 30, solucao: 165, fim: 84 };
+export const duracaoDaSolucao = () => Object.values(QUADROS_DA_SOLUCAO).reduce((a, b) => a + b, 0) / FPS;
+
+/** Os efeitos da solução: pop na dor, whoosh e pop na virada, whoosh na solução e no fim, pop no carimbo e ding no pedido. */
+export function efeitosDaSolucao(): Efeito[] {
+  const q = QUADROS_DA_SOLUCAO;
+  const virada = q.dor / FPS;
+  const solucao = (q.dor + q.virada) / FPS;
+  const fim = (q.dor + q.virada + q.solucao) / FPS;
+  return [
+    { t: 0.3, tipo: 'pop' },
+    { t: virada - 0.12, tipo: 'whoosh' },
+    { t: virada + 0.1, tipo: 'pop' },
+    { t: solucao - 0.12, tipo: 'whoosh' },
+    { t: fim - 0.12, tipo: 'whoosh' },
+    { t: fim + 0.35, tipo: 'pop' },
+    { t: fim + 0.9, tipo: 'ding' },
+  ];
+}
+
+/** Os dados do Reel "problema → solução" (composição "Solucao"). Nunca preço em reais: a prova é de vendas, a nota, das avaliações. */
+export function propsDaSolucao(item: { oferta: OfertaAvaliada; imagem: string; fotos?: string[] }, problema: ProblemaDoProduto, nome: string | undefined, comentaQuero: boolean) {
+  const o = item.oferta;
+  return {
+    dor: problema.linhas,
+    resposta: problema.resposta,
+    nome: tituloParaArte(nome || o.titulo, 22, 2),
+    imagem: item.imagem,
+    ...(item.fotos && item.fotos.length > 1 ? { fotos: item.fotos.slice(0, 5) } : {}),
+    prova: o.vendas && o.vendas >= 100 ? `${formatarVendas(o.vendas).toUpperCase()} VENDIDOS` : '',
+    nota: o.nota && o.nota >= 4 ? `★ ${o.nota.toFixed(1).replace('.', ',')}` : '',
+    cor: CORES_DO_NICHO[o.categoria] ?? CORES_DO_NICHO.geral!,
+    comentaQuero,
+  };
+}
+
+/**
+ * Desenha o Reel de destaque e grava em `saida`. Com INSTAGRAM_PROBLEMAS ligado e um problema comprovado pelo título, sai no formato
+ * "problema → solução" (composição "Solucao"); senão, na composição "Destaque". Devolve o motivo da falha, ou undefined se gravou.
+ */
 export async function gravarDestaqueComRemotion(item: { oferta: OfertaAvaliada; imagem: string; fotos?: string[] }, nome: string | undefined, chave: string, saida: string, config: Config, comentaQuero: boolean): Promise<string | undefined> {
   if (!config.instagram.reelRemotion) return 'desligado (REEL_REMOTION=0)';
   const remotion = remotionInstalado();
@@ -274,10 +315,11 @@ export async function gravarDestaqueComRemotion(item: { oferta: OfertaAvaliada; 
   const caminhoDoAudio = join(remotion.pasta, 'public', audio);
   try {
     const fotos = item.fotos && item.fotos.length >= 3 ? item.fotos.slice(0, MAXIMO_DE_FOTOS) : undefined;
+    const problema = config.instagram.problemas ? problemaDoProduto(item.oferta) : undefined;
     const q = QUADROS_DO_DESTAQUE;
     const g = QUADROS_DA_GALERIA;
-    const total = (fotos ? g.gancho + fotos.length * g.foto + g.fim : q.gancho + 3 * q.detalhe + q.fim) / FPS;
-    const efeitos = sintetizarEfeitos(total, efeitosDoDestaque(fotos?.length ?? 0));
+    const total = problema ? duracaoDaSolucao() : (fotos ? g.gancho + fotos.length * g.foto + g.fim : q.gancho + 3 * q.detalhe + q.fim) / FPS;
+    const efeitos = sintetizarEfeitos(total, problema ? efeitosDaSolucao() : efeitosDoDestaque(fotos?.length ?? 0));
     const musicaDoFenaky = prepararMusica(chave, remotion.pasta);
     let mix = efeitos;
     if (!musicaDoFenaky) {
@@ -288,6 +330,17 @@ export async function gravarDestaqueComRemotion(item: { oferta: OfertaAvaliada; 
     }
     writeFileSync(caminhoDoAudio, mix);
     const o = item.oferta;
+    const arquivoDosProps = join(tmp, 'props.json');
+    const renderizar = async (composicao: string) => {
+      await executar(process.execPath, [remotion.cli, 'render', 'src/index.ts', composicao, destino, `--props=${arquivoDosProps}`, '--log=error'], { cwd: remotion.pasta, timeout: 6 * 60_000, maxBuffer: 20_000_000 });
+      return existsSync(destino) ? undefined : 'o Remotion terminou sem gravar o vídeo';
+    };
+    if (problema) {
+      console.log(`[reel] formato solução (${chave}): ${problema.linhas.join(' / ')} → ${problema.resposta}`);
+      const props = { ...propsDaSolucao(item, problema, nome, comentaQuero), audio, ...(musicaDoFenaky ? { musica: musicaDoFenaky } : {}) };
+      writeFileSync(arquivoDosProps, JSON.stringify(props));
+      return await renderizar('Solucao');
+    }
     const gancho = ganchoDoReel([o], chave, config.instagram.problemas);
     console.log(`[reel] gancho de texto (${chave}): ${gancho.tipo} — ${gancho.linhas.join(' / ')}`);
     const props = {
@@ -302,10 +355,8 @@ export async function gravarDestaqueComRemotion(item: { oferta: OfertaAvaliada; 
       ...(musicaDoFenaky ? { musica: musicaDoFenaky } : {}),
       ...(fotos ? { fotos } : {}),
     };
-    const arquivoDosProps = join(tmp, 'props.json');
     writeFileSync(arquivoDosProps, JSON.stringify(props));
-    await executar(process.execPath, [remotion.cli, 'render', 'src/index.ts', 'Destaque', destino, `--props=${arquivoDosProps}`, '--log=error'], { cwd: remotion.pasta, timeout: 6 * 60_000, maxBuffer: 20_000_000 });
-    return existsSync(destino) ? undefined : 'o Remotion terminou sem gravar o vídeo';
+    return await renderizar('Destaque');
   } catch (e) {
     const erro = e as Error & { stderr?: string };
     return `o Remotion falhou (${(erro.stderr || erro.message).toString().trim().slice(0, 300)})`;

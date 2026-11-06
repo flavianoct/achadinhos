@@ -4,6 +4,7 @@ import { Achados, ACHADOS_FPS, duracaoDosAchados, type PropsDosAchados } from '.
 import { Carrossel, imagensDoCarrossel, type PropsDoCarrossel } from './Carrossel';
 import { Destaque, DESTAQUE_FPS, duracaoDoDestaque, type PropsDoDestaque } from './Destaque';
 import { duracaoDoReel, Reel, REEL_FPS, type PropsDoReel } from './Reel';
+import { duracaoDaSolucao, SOLUCAO_FPS, SolucaoReel, type PropsDaSolucao } from './Solucao';
 import { duracaoDoTikTok, TikTok, TIKTOK_FPS, type PropsDoTikTok } from './TikTok';
 
 /** Valores de exemplo para o editor visual (`npm run estudio`). O comando `gerar` troca por os do produto. */
@@ -39,8 +40,21 @@ const carrossel: PropsDoCarrossel = {
 /** Exemplo do Reel de destaque (um produto só) para o editor visual. */
 const destaque: PropsDoDestaque = { nome: ['Vestido Midi', 'Canelado'], imagem: 'https://placehold.co/600x800/png', fato: '2,3 MIL VENDIDOS', provas: ['★ 4,9', '2,3 mil vendidos', 'Frete grátis'], cor: '#E11D48', comentaQuero: true };
 
+/** Exemplo do Reel "problema → solução" para o editor visual; o comando `gerar-solucao` passa o produto de verdade. */
+const solucao: PropsDaSolucao = {
+  dor: ['TEU FONE MORRE', 'NO SUOR?'],
+  resposta: 'Esse é resistente à água.',
+  nome: ['Fone Bluetooth', 'à prova d’água'],
+  imagem: 'https://placehold.co/800x800/png',
+  prova: '14 MIL VENDIDOS',
+  nota: '★ 4,7',
+  cor: '#E10600',
+  comentaQuero: true,
+};
+
 export const Root: React.FC = () => (
   <>
+    <Composition id="Solucao" component={SolucaoReel} durationInFrames={duracaoDaSolucao()} fps={SOLUCAO_FPS} width={1080} height={1920} defaultProps={solucao} />
     <Composition id="Destaque" component={Destaque} durationInFrames={duracaoDoDestaque(destaque)} fps={DESTAQUE_FPS} width={1080} height={1920} defaultProps={destaque} calculateMetadata={({ props }) => ({ durationInFrames: duracaoDoDestaque(props) })} />
     <Composition
       id="Carrossel"

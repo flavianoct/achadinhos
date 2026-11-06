@@ -33,7 +33,8 @@ export const PROBLEMAS: ParDeProblema[] = [
   { produto: /\bfones?\b|earbud/, prova: /prova d.?agua|a prova de agua|\bipx\d/, linhas: ['FONE QUE ESTRAGA', 'NO SUOR?'], resposta: 'Esse é resistente à água.' },
   { produto: /power ?bank|carregador portatil|bateria externa/, prova: /power ?bank|portatil|externa/, linhas: ['CELULAR MORRE', 'NA RUA?'], resposta: 'Carregador portátil pra levar na bolsa.' },
   { produto: /carregador/, prova: /turbo|rapido|fast|\d{2,3} ?w\b/, linhas: ['CELULAR DEMORA', 'PRA CARREGAR?'], resposta: 'Esse é carregador rápido.' },
-  { produto: /\bcabo\b/, prova: /reforcad|nylon|tranca/, linhas: ['CABO QUE', 'QUEBRA TODO MÊS?'], resposta: 'Esse cabo é reforçado.' },
+  // "Cabo de aço" é de mochila e de ferramenta, não cabo de celular.
+  { produto: /\bcabo\b(?! de aco)/, prova: /reforcad|nylon|tranca/, linhas: ['CABO QUE', 'QUEBRA TODO MÊS?'], resposta: 'Esse cabo é reforçado.' },
   { produto: /suporte/, prova: /celular/, linhas: ['CANSOU DE', 'SEGURAR O CELULAR?'], resposta: 'Esse suporte segura pra você.' },
   { produto: /camera/, prova: /wi-?fi|wifi/, linhas: ['QUER VER A CASA', 'DE LONGE?'], resposta: 'Câmera wi-fi: você vê pelo celular.' },
   { produto: /\bmouse\b/, prova: /sem fio|wireless/, linhas: ['FIO DO MOUSE', 'ATRAPALHA?'], resposta: 'Esse mouse é sem fio.' },
