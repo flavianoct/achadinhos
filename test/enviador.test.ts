@@ -108,3 +108,18 @@ test('enviador: envio pendurado numa conexão morta estoura o tempo (e conta com
   assert.equal(await comLimiteDeTempo(Promise.resolve('ok'), 1000), 'ok', 'envio normal passa sem atraso');
   await assert.rejects(comLimiteDeTempo(Promise.reject(new Error('socket fechou')), 1000), /socket fechou/, 'o erro original continua chegando');
 });
+
+test('enviador: com o site travado, a fila vem da branch dados (a leitura mais recente vence; falhas são ignoradas)', async () => {
+  // @ts-ignore: módulo .mjs puro, sem tipos
+  const { escolherMaisRecente, enderecoDoWhatsappNaBranch } = await import('../enviador/logica.mjs');
+  const velha = { atualizadoEm: '2026-11-07T09:35:00Z', mensagens: [] };
+  const nova = { atualizadoEm: '2026-11-07T10:43:00Z', mensagens: [{ id: 'a' }] };
+  assert.equal(escolherMaisRecente([velha, nova]), nova, 'o site atrasado perde para a branch mais nova');
+  assert.equal(escolherMaisRecente([nova, velha]), nova);
+  assert.equal(escolherMaisRecente([undefined, velha]), velha, 'se um dos dois falhou, vale o outro');
+  assert.equal(escolherMaisRecente([undefined, 'lixo', null]), undefined, 'nenhum válido: sem fila');
+  assert.equal(escolherMaisRecente([{ mensagens: [] }, velha]), velha, 'leitura sem data perde para a datada');
+  assert.equal(enderecoDoWhatsappNaBranch('https://flavianoct.github.io/achadinhos/'), 'https://raw.githubusercontent.com/flavianoct/achadinhos/dados/whatsapp.json');
+  assert.equal(enderecoDoWhatsappNaBranch('https://exemplo.com/site'), undefined, 'site que não é do GitHub Pages: sem atalho');
+  assert.equal(enderecoDoWhatsappNaBranch('isto não é endereço'), undefined);
+});

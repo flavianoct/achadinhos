@@ -117,3 +117,35 @@ export function comLimiteDeTempo(promessa, ms, o = 'a operação') {
   });
   return Promise.race([promessa, limite]).finally(() => clearTimeout(timer));
 }
+
+/**
+ * De várias leituras do whatsapp.json (site e branch dados), a mais recente (atualizadoEm). O site (GitHub Pages) às vezes trava por horas
+ * sem avisar, e o enviador ficava sem mensagem nova; a branch dados é atualizada na mesma rodada por outro caminho. Leituras que falharam
+ * (undefined/inválidas) são ignoradas; sem nenhuma válida, devolve undefined.
+ */
+export function escolherMaisRecente(leituras) {
+  let melhor;
+  let tMelhor = -Infinity;
+  for (const d of leituras ?? []) {
+    if (!d || typeof d !== 'object') continue;
+    const t = Date.parse(d.atualizadoEm ?? '');
+    const valor = Number.isFinite(t) ? t : -1;
+    if (!melhor || valor > tMelhor) {
+      melhor = d;
+      tMelhor = valor;
+    }
+  }
+  return melhor;
+}
+
+/** O endereço do whatsapp.json na branch dados, a partir do endereço do site (https://DONO.github.io/REPO). */
+export function enderecoDoWhatsappNaBranch(urlDoSite) {
+  try {
+    const u = new URL(urlDoSite);
+    const dono = u.hostname.split('.')[0];
+    const repo = u.pathname.split('/').filter(Boolean)[0];
+    return dono && repo && u.hostname.endsWith('.github.io') ? `https://raw.githubusercontent.com/${dono}/${repo}/dados/whatsapp.json` : undefined;
+  } catch {
+    return undefined;
+  }
+}

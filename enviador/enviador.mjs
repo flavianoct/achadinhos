@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import makeWASocket, { Browsers, DisconnectReason, fetchLatestBaileysVersion, useMultiFileAuthState } from '@whiskeysockets/baileys';
 import pino from 'pino';
 import qrcode from 'qrcode-terminal';
-import { comLimiteDeTempo, destinoAceita, enderecosDaFoto, esperaAleatoria, podarEstado, podeEnviarAgora, ritmoDoEnvio, selecionarPendentes, textoParaDestino, tipoDeDestino } from './logica.mjs';
+import { comLimiteDeTempo, destinoAceita, enderecoDoWhatsappNaBranch, escolherMaisRecente, enderecosDaFoto, esperaAleatoria, podarEstado, podeEnviarAgora, ritmoDoEnvio, selecionarPendentes, textoParaDestino, tipoDeDestino } from './logica.mjs';
 
 const aqui = dirname(fileURLToPath(import.meta.url));
 const CAMINHO_CONFIG = join(aqui, 'config.json');
@@ -278,13 +278,9 @@ let filtroGeral = {};
 async function destinosCompletos(config) {
   let remotos = [];
   try {
-    const url = `${config.urlDoSite.replace(/\/+$/, '')}/whatsapp.json?t=${Date.now()}`;
-    const r = await fetch(url, { signal: AbortSignal.timeout(20_000), cache: 'no-store' });
-    if (r.ok) {
-      const dados = await r.json();
-      remotos = (dados.destinos ?? []).filter((d) => d.link).map((d) => ({ link: d.link, nichos: d.nichos }));
-      filtroGeral = dados.geral ?? {};
-    }
+    const dados = await lerWhatsappJson(config);
+    remotos = (dados.destinos ?? []).filter((d) => d.link).map((d) => ({ link: d.link, nichos: d.nichos }));
+    filtroGeral = dados.geral ?? {};
   } catch {
     // sem o site agora: segue só com os destinos locais
   }
@@ -419,11 +415,34 @@ async function enviarUma(sock, jid, m) {
   recibo(await enviarMsg(sock, jid, linkPreview ? { text: m.texto, linkPreview } : { text: m.texto }), linkPreview ? 'texto com prévia' : 'texto');
 }
 
+/**
+ * Lê o whatsapp.json do site e da branch dados e fica com o mais recente. Só falha se NENHUM dos dois responder.
+ */
+async function lerWhatsappJson(config) {
+  const site = `${config.urlDoSite.replace(/\/+$/, '')}/whatsapp.json?t=${Date.now()}`;
+  const branch = enderecoDoWhatsappNaBranch(config.urlDoSite);
+  const ler = async (url) => {
+    try {
+      const r = await fetch(url, { signal: AbortSignal.timeout(20_000), cache: 'no-store' });
+      return r.ok ? await r.json() : undefined;
+    } catch {
+      return undefined;
+    }
+  };
+  const [doSite, daBranch] = await Promise.all([ler(site), branch ? ler(`${branch}?t=${Date.now()}`) : undefined]);
+  const escolhido = escolherMaisRecente([doSite, daBranch]);
+  if (!escolhido) throw new Error('nem o site nem a branch dados responderam');
+  if (daBranch && escolhido === daBranch && doSite !== daBranch && Date.parse(daBranch.atualizadoEm ?? '') > Date.parse(doSite?.atualizadoEm ?? '') + 10 * 60_000) {
+    if (!lerWhatsappJson.avisou || Date.now() - lerWhatsappJson.avisou > 30 * 60_000) {
+      lerWhatsappJson.avisou = Date.now();
+      log('O site está atrasado (o GitHub Pages pode estar travado): lendo a fila da branch dados.');
+    }
+  }
+  return escolhido;
+}
+
 async function buscarFila(config) {
-  const url = `${config.urlDoSite.replace(/\/+$/, '')}/whatsapp.json?t=${Date.now()}`;
-  const r = await fetch(url, { signal: AbortSignal.timeout(20_000), cache: 'no-store' });
-  if (!r.ok) throw new Error(`o site respondeu ${r.status}`);
-  const dados = await r.json();
+  const dados = await lerWhatsappJson(config);
   envioRemoto = dados.envio && typeof dados.envio === 'object' ? dados.envio : {};
   return Array.isArray(dados.mensagens) ? dados.mensagens : [];
 }

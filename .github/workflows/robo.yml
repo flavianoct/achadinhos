@@ -122,11 +122,14 @@ jobs:
         run: |
           pasta=$(mktemp -d)
           cp dados.db "$pasta/"
+          # A fila do WhatsApp também vai para a branch dados: se o GitHub Pages travar (já aconteceu), o enviador lê daqui.
+          [ -f blog/whatsapp.json ] && cp blog/whatsapp.json "$pasta/" || true
           cd "$pasta"
           git init -q -b dados
           git config user.name "achadinhos-bot"
           git config user.email "achadinhos-bot@users.noreply.github.com"
           git add dados.db
+          [ -f whatsapp.json ] && git add whatsapp.json || true
           git commit -q -m "Banco de dados do robô"
           # Um único commit, sempre substituído: o histórico do repositório não cresce.
           git push -q -f "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" dados
