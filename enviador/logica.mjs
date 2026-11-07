@@ -105,3 +105,15 @@ export function textoParaDestino(m, jid) {
   }
   return m.texto;
 }
+
+/**
+ * Espera a promessa, mas no máximo `ms`: passado o tempo, rejeita com "timed out" (que o enviador trata como queda de conexão). Sem isso,
+ * um envio pendurado numa conexão que morreu travava o enviador para sempre.
+ */
+export function comLimiteDeTempo(promessa, ms, o = 'a operação') {
+  let timer;
+  const limite = new Promise((_, rejeitar) => {
+    timer = setTimeout(() => rejeitar(new Error(`timed out: ${o} em ${Math.round(ms / 1000)} s`)), ms);
+  });
+  return Promise.race([promessa, limite]).finally(() => clearTimeout(timer));
+}

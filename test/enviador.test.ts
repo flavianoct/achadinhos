@@ -98,3 +98,13 @@ test('enviador: oferta velha é descartada, mas o convite vale 3 h', async () =>
   const msgs = [{ id: 'velha', texto: 'x', criadoEm: AGORA - 60 * 60_000 }, { id: 'nova', texto: 'x', criadoEm: AGORA - 10 * 60_000 }, { id: 'convite', loja: 'convite', texto: 'x', criadoEm: AGORA - 100 * 60_000 }];
   assert.deepEqual(selecionarPendentes(msgs, {}, AGORA, 45 * 60_000, true).map((m: any) => m.id), ['nova', 'convite']);
 });
+
+test('enviador: envio pendurado numa conexão morta estoura o tempo (e conta como queda), em vez de travar para sempre', async () => {
+  // @ts-ignore: módulo .mjs puro, sem tipos
+  const { comLimiteDeTempo } = await import('../enviador/logica.mjs');
+  const quedaDeConexao = (e: any) => /connection (closed|lost|failure)|timed out|socket|stream errored|not open/i.test(String(e?.message ?? e));
+  const nuncaResponde = new Promise(() => {});
+  await assert.rejects(comLimiteDeTempo(nuncaResponde, 30, 'o WhatsApp não respondeu'), (e: any) => quedaDeConexao(e) && /timed out/.test(e.message));
+  assert.equal(await comLimiteDeTempo(Promise.resolve('ok'), 1000), 'ok', 'envio normal passa sem atraso');
+  await assert.rejects(comLimiteDeTempo(Promise.reject(new Error('socket fechou')), 1000), /socket fechou/, 'o erro original continua chegando');
+});

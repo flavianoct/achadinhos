@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import makeWASocket, { Browsers, DisconnectReason, fetchLatestBaileysVersion, useMultiFileAuthState } from '@whiskeysockets/baileys';
 import pino from 'pino';
 import qrcode from 'qrcode-terminal';
-import { destinoAceita, enderecosDaFoto, esperaAleatoria, podarEstado, podeEnviarAgora, ritmoDoEnvio, selecionarPendentes, textoParaDestino, tipoDeDestino } from './logica.mjs';
+import { comLimiteDeTempo, destinoAceita, enderecosDaFoto, esperaAleatoria, podarEstado, podeEnviarAgora, ritmoDoEnvio, selecionarPendentes, textoParaDestino, tipoDeDestino } from './logica.mjs';
 
 const aqui = dirname(fileURLToPath(import.meta.url));
 const CAMINHO_CONFIG = join(aqui, 'config.json');
@@ -387,10 +387,18 @@ async function montarPrevia(m) {
   return { 'canonical-url': link, 'matched-text': link, title: titulo, description: descricao, jpegThumbnail };
 }
 
+/**
+ * Envia com limite de tempo. Se a conexão morre no meio do envio, o sendMessage do WhatsApp pode ficar esperando para sempre, e o enviador
+ * inteiro parava ali (foi o que aconteceu em 06/11 às 14h24: 16 horas sem enviar, com o serviço "ativo"). Estourado o tempo, vira erro de
+ * queda de conexão ("timed out"): o enviador reinicia a conexão e tenta a mesma mensagem de novo, sem descartá-la.
+ */
+const LIMITE_DO_ENVIO_MS = 75_000;
+const enviarMsg = (sock, jid, conteudo, limiteMs = LIMITE_DO_ENVIO_MS) => comLimiteDeTempo(sock.sendMessage(jid, conteudo), limiteMs, 'o WhatsApp não respondeu ao envio');
+
 async function enviarUma(sock, jid, m) {
   // O convite aos outros canais é só texto, sem foto e sem cartão de prévia.
   if (String(m.id).startsWith('convite:')) {
-    recibo(await sock.sendMessage(jid, { text: textoParaDestino(m, jid) }), 'convite');
+    recibo(await enviarMsg(sock, jid, { text: textoParaDestino(m, jid) }), 'convite');
     return;
   }
   // Grupo aceita imagem normalmente (a foto do produto, como no Telegram, com a legenda); canal só aceita texto.
@@ -398,15 +406,17 @@ async function enviarUma(sock, jid, m) {
     const arte = await imagemParaGrupo(m);
     if (arte) {
       try {
-        recibo(await sock.sendMessage(jid, { image: arte.buffer, mimetype: arte.mimetype, caption: m.texto }), imagemDoGrupo === 'arte' ? 'arte com legenda' : 'foto do produto com legenda');
+        recibo(await enviarMsg(sock, jid, { image: arte.buffer, mimetype: arte.mimetype, caption: m.texto }), imagemDoGrupo === 'arte' ? 'arte com legenda' : 'foto do produto com legenda');
         return;
       } catch (e) {
+        // Conexão caída não se resolve mandando texto: deixa o erro subir para o enviador reiniciar a conexão e tentar de novo.
+        if (ehQuedaDeConexao(e)) throw e;
         log(`  imagem falhou (${e.message}); enviando só o texto.`);
       }
     } else log(`  a foto do produto não baixou (${m.imagem ?? 'oferta sem foto'}); enviando o texto com a prévia do link.`);
   }
   const linkPreview = usarPrevia ? await montarPrevia(m) : undefined;
-  recibo(await sock.sendMessage(jid, linkPreview ? { text: m.texto, linkPreview } : { text: m.texto }), linkPreview ? 'texto com prévia' : 'texto');
+  recibo(await enviarMsg(sock, jid, linkPreview ? { text: m.texto, linkPreview } : { text: m.texto }), linkPreview ? 'texto com prévia' : 'texto');
 }
 
 async function buscarFila(config) {
