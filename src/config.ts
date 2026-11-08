@@ -91,7 +91,7 @@ export interface Config {
     proporcaoDasLojas: Record<string, number>;
   };
   /** Cupons do Mercado Livre e da Amazon, cadastrados por você em cupons.json. */
-  cupons: { ativo: boolean; arquivo: string; porDia: number; repetirDias: number; garimpo: boolean; lojas: string[]; bloquear: string[]; linkShopee: string; paginaShopee: string };
+  cupons: { ativo: boolean; arquivo: string; porDia: number; repetirDias: number; garimpo: boolean; aprovacao: boolean; lojas: string[]; bloquear: string[]; linkShopee: string; paginaShopee: string };
   /** Convite discreto aos outros canais (WhatsApp, Telegram, Instagram): poucas vezes, sem encher o canal. */
   convite: { ativo: boolean; porDia: number };
   /** Quiz "Preço certo" nos Reels: o último Reel do dia (ou os últimos QUIZ_POR_DIA) vira um quiz. */
@@ -464,6 +464,8 @@ function lerConfigBase(env: Env): Config {
       porDia: numero(env, 'CUPONS_POR_DIA', 3),
       repetirDias: numero(env, 'CUPONS_REPETIR_DIAS', 3),
       garimpo: ligado(env, 'CUPONS_GARIMPO', true),
+      // Garimpo com a sua aprovação: o robô manda cada cupom achado para o seu Telegram privado, com os botões Postar e Ignorar.
+      aprovacao: ligado(env, 'CUPONS_APROVACAO', false),
       lojas: env.CUPONS_LOJAS === undefined ? ['mercadolivre', 'shopee'] : lista(env.CUPONS_LOJAS).map((l) => l.toLowerCase()),
       bloquear: lista(env.CUPONS_BLOQUEAR),
       linkShopee: (env.CUPONS_LINK_SHOPEE ?? '').trim(),

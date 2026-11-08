@@ -10,11 +10,12 @@ import { convitesDeHoje } from './convite.ts';
 import { carregarCampanhas, chaveDaFase, fasesDevidas, grandesDeHoje, lembretesDoDono, lerDatas, textoDaData, textoDosMelhores, todasAsCampanhas } from './datas.ts';
 import { escolherParaCarrossel } from './carrossel.ts';
 import { linkAfiliadoML } from './fontes/mercadolivre.ts';
-import { chaveDoCupom, lerCupons } from './cupons.ts';
+import { chaveDoCupom, lerCupons, type Cupom } from './cupons.ts';
 import { garimparCupons, type ResultadoDoGarimpo } from './garimpo-cupons.ts';
 import { buscarCampanhas, buscarVendas, type Campanha } from './shopee-extra.ts';
 import { atualizarVendas, coletar, postarCampanha, postarProxima, postarProximoCupom, type Descartes, type ResultadoDaCampanha, type ResultadoDoCupom, type ResultadoDoPost, type ResumoDaColeta } from './pipeline.ts';
 import { aplicarComandos } from './comandos.ts';
+import { cuponsAprovados } from './cupons-aprovacao.ts';
 import { Telegram, type Publicador } from './telegram.ts';
 import type { Fonte, Loja } from './types.ts';
 
@@ -281,6 +282,12 @@ export class Robo {
     return shopee ? buscarCampanhas(shopee) : [];
   }
 
+  /** Garimpa os cupons das lojas ligadas (só para mandar ao dono aprovar; nada é postado). */
+  async garimparParaAprovacao(agora: Date = new Date()): Promise<Cupom[]> {
+    const r = await (this.opcoes.garimparCupons ?? garimparCupons)(this.config, agora);
+    return r.cupons;
+  }
+
   /** Lê o cupons.json e posta o próximo cupom vigente (no máximo CUPONS_POR_DIA por dia). Devolve também os avisos do arquivo. */
   postarCupomAgora(agora: Date = new Date()): Promise<{ resultado: ResultadoDoCupom; avisos: string[] }> {
     return this.emSerie(async () => {
@@ -295,6 +302,11 @@ export class Robo {
         avisos.push(...garimpo.avisos);
         const jaTem = new Set(cupons.map((c) => chaveDoCupom(c)));
         cupons = [...cupons, ...garimpo.cupons.filter((c) => !jaTem.has(chaveDoCupom(c)))];
+      }
+      // Os cupons que você aprovou no Telegram entram na fila, logo depois dos seus do cupons.json.
+      if (this.config.cupons.aprovacao) {
+        const jaTem2 = new Set(cupons.map((c) => chaveDoCupom(c)));
+        cupons = [...cupons, ...cuponsAprovados(this.banco, agora).filter((c) => !jaTem2.has(chaveDoCupom(c)))];
       }
       const resultado = await postarProximoCupom(this.publicador, this.banco, cupons, this.config, agora);
       if (resultado.postou) this.log(`cupom postado: [${resultado.cupom.loja}] ${resultado.cupom.titulo.slice(0, 60)}`);

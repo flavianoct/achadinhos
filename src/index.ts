@@ -15,6 +15,7 @@ import { gravarReel, prepararReel } from './reel.ts';
 import { gravarPngs, prepararSocial } from './social.ts';
 import { gravarBio } from './bio.ts';
 import { avisosNoTelegram, previaDeCampanhas } from './avisos-telegram.ts';
+import { enviarCandidatosDeCupom } from './cupons-aprovacao.ts';
 import { lerComandosDoTelegram } from './comandos.ts';
 import { PublicadorDeTeste } from './telegram.ts';
 import { gravarDataEspecial, gravarResumoDoDia } from './vitrine.ts';
@@ -266,7 +267,8 @@ async function modoNuvem(): Promise<void> {
     try {
       const enviadas = await avisosNoTelegram(robo.banco, robo.env, robo.config.telegram.token, avisos, numeros.relatorio, new Date());
       const previa = await previaDeCampanhas(robo.banco, robo.env, robo.config.telegram.token, () => robo.campanhasAgora(), new Date());
-      if (enviadas || previa) dizer(`- Telegram privado: ${enviadas + previa} aviso(s) enviado(s) ao dono.`);
+      const candidatos = await enviarCandidatosDeCupom(robo.banco, robo.env, robo.config.telegram.token, robo.config.cupons.aprovacao, () => robo.garimparParaAprovacao(), new Date());
+      if (enviadas || previa || candidatos) dizer(`- Telegram privado: ${enviadas + previa} aviso(s)${candidatos ? ` e ${candidatos} cupom(ns) para você aprovar` : ''} enviado(s) ao dono.`);
     } catch {
       // ignora
     }

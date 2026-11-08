@@ -71,6 +71,13 @@ export class Banco {
         metricas TEXT NOT NULL DEFAULT '{}',
         atualizado_em INTEGER NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS cupons_candidatos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        chave TEXT NOT NULL UNIQUE,
+        dados TEXT NOT NULL,
+        estado TEXT NOT NULL DEFAULT 'pendente',
+        criado_em INTEGER NOT NULL
+      );
       CREATE TABLE IF NOT EXISTS ajustes_por_comando (
         chave TEXT PRIMARY KEY,
         valor TEXT NOT NULL
@@ -837,6 +844,28 @@ export class Banco {
     this.db.prepare(`INSERT OR REPLACE INTO instagram_midias (media_id, tipo, titulo, link, publicado_em) VALUES (?, ?, ?, ?, ?)`).run(mediaId, tipo, titulo, link, agora.getTime());
   }
 
+  /** Cupom achado pelo garimpo, esperando a sua aprovação no Telegram. Devolve o id, ou undefined se esse cupom já foi visto antes. */
+  novoCandidatoDeCupom(chave: string, dados: string, agora: Date): number | undefined {
+    const r = this.db.prepare(`INSERT OR IGNORE INTO cupons_candidatos (chave, dados, criado_em) VALUES (?, ?, ?)`).run(chave, dados, agora.getTime());
+    return Number(r.changes) > 0 ? Number(r.lastInsertRowid) : undefined;
+  }
+
+  /** Aprova ('aprovado') ou recusa ('recusado'/'ignorado') um candidato que ainda está pendente. Devolve se mudou algo. */
+  decidirCandidatoDeCupom(id: number, estado: 'aprovado' | 'recusado' | 'ignorado'): boolean {
+    return Number(this.db.prepare(`UPDATE cupons_candidatos SET estado = ? WHERE id = ? AND estado = 'pendente'`).run(estado, id).changes) > 0;
+  }
+
+  /** Os dados (JSON) dos candidatos num estado. */
+  candidatosDeCupom(estado: string): string[] {
+    return (this.db.prepare(`SELECT dados FROM cupons_candidatos WHERE estado = ? ORDER BY id`).all(estado) as Array<{ dados: string }>).map((l) => l.dados);
+  }
+
+  /** Quantos candidatos já foram enviados para aprovação hoje. */
+  candidatosDeHoje(agora: Date): number {
+    const desde = Date.parse(`${diaDe(agora)}T00:00:00-03:00`);
+    return Number((this.db.prepare(`SELECT COUNT(*) AS n FROM cupons_candidatos WHERE criado_em >= ?`).get(desde) as { n: number }).n);
+  }
+
   /** Consulta só de leitura (resumos): aceita apenas SELECT. */
   consultar<T>(sql: string, ...args: Array<string | number>): T[] {
     if (!/^\s*select\s/i.test(sql)) throw new Error('consultar() só aceita SELECT');
@@ -945,6 +974,7 @@ export class Banco {
     this.db.prepare(`DELETE FROM instagram_metricas WHERE publicado_em < ?`).run(t - 60 * 86_400_000);
     this.db.prepare(`DELETE FROM postados WHERE postado_em < ?`).run(t - 90 * 86_400_000);
     this.db.prepare(`DELETE FROM cupons_postados WHERE postado_em < ?`).run(t - 90 * 86_400_000);
+    this.db.prepare(`DELETE FROM cupons_candidatos WHERE criado_em < ?`).run(t - 30 * 86_400_000);
     this.db.prepare(`DELETE FROM campanhas_postadas WHERE postado_em < ?`).run(t - 90 * 86_400_000);
     this.db.prepare(`DELETE FROM vendas WHERE comprado_em < ?`).run(t - 120 * 86_400_000);
     this.db.prepare(`DELETE FROM whatsapp_saida WHERE criado_em < ?`).run(t - 2 * 86_400_000);

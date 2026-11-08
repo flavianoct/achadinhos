@@ -155,6 +155,14 @@ export function respostaDeBotao(dado: string, banco: Banco, agora: Date, ctx: { 
   const comVoltar = (texto: string, mudou = false) => ({ texto, teclado: [[VOLTAR]], mudou });
   try {
     const [acao = '', a = '', b = ''] = dado.split(':');
+    // Cupom achado pelo garimpo: o toque do dono aprova ou recusa (só se ainda estiver pendente).
+    if (acao === 'cp') {
+      const id = Number(b);
+      if (!Number.isInteger(id) || id <= 0 || (a !== 'ok' && a !== 'no')) return { ...menu, mudou: false };
+      const mudou = banco.decidirCandidatoDeCupom(id, a === 'ok' ? 'aprovado' : 'recusado');
+      if (!mudou) return { texto: 'Esse cupom já foi decidido antes.', teclado: [], mudou: false };
+      return { texto: a === 'ok' ? '✅ Aprovado. Vai para o canal e o WhatsApp na próxima postagem de cupom.' : '❌ Ignorado. Não vai ser postado.', teclado: [], mudou: false };
+    }
     if (acao === 'menu') return { ...menu, mudou: false };
     if (acao === 'status') return comVoltar(executarComando('/status', banco, agora, ctx).resposta);
     if (acao === 'ajuda') return comVoltar(executarComando('/ajuda', banco, agora, ctx).resposta);
