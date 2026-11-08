@@ -58,6 +58,11 @@ const VARIANTES: Variante[] = [
   { emoji: '🎁', frase: 'De graça e sem pegadinha: você compra direto na loja.', vantagem: 'Para quem não curte grupo: as mesmas ofertas, sem mostrar o seu número.', chamada: 'É só tocar para entrar:' },
   { emoji: '🙌', frase: 'Quem gosta de economizar já está por lá.', vantagem: 'Mesmas ofertas do grupo, sem mostrar o seu número e sem conversa.', chamada: 'Junte-se a eles:' },
   { emoji: '🔥', frase: 'Ainda tem oferta boa saindo hoje.', vantagem: 'Receba na hora, sem grupo e sem mostrar o seu número.', chamada: 'Não perca as próximas:' },
+  // Para quem sai do grupo (ou pensa em sair) por causa da notificação: o canal tem as mesmas ofertas e dá para silenciar.
+  { emoji: '🔕', frase: 'Notificação toda hora irrita? A gente entende.', vantagem: 'No canal as mesmas ofertas chegam sem barulho: você silencia e olha quando quiser.', chamada: 'Siga no seu ritmo:' },
+  { emoji: '😴', frase: 'Saiu do grupo por causa do barulho? Dá para voltar sem ele.', vantagem: 'No canal são as mesmas ofertas, sem conversa e sem mostrar o seu número.', chamada: 'Volte pelo canal:' },
+  { emoji: '🛍️', frase: 'Quer economizar sem o celular apitando o dia inteiro?', vantagem: 'O canal tem as mesmas ofertas do grupo, e você abre quando der.', chamada: 'Entre no canal, é grátis:' },
+  { emoji: '🤫', frase: 'Dica: silencie o grupo e siga as ofertas pelo canal.', vantagem: 'Você não perde oferta e não recebe notificação de conversa.', chamada: 'Entre no canal:' },
 ];
 
 /** Bom dia, boa tarde ou boa noite, pela hora de Brasília. */
