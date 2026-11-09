@@ -394,6 +394,19 @@ const enviarMsg = (sock, jid, conteudo, limiteMs = LIMITE_DO_ENVIO_MS) => comLim
 async function enviarUma(sock, jid, m) {
   // O convite aos outros canais é só texto, sem foto e sem cartão de prévia.
   if (String(m.id).startsWith('convite:')) {
+    // Convite do blog: no GRUPO vai o banner com o texto (e o link) na legenda; se a foto não baixar, vai só o texto. Canal: só texto.
+    if (m.imagem && jid.endsWith('@g.us')) {
+      const foto = await baixarFoto(m.imagem);
+      if (foto) {
+        try {
+          recibo(await enviarMsg(sock, jid, { image: foto.buffer, mimetype: foto.mimetype, caption: textoParaDestino(m, jid) }), 'convite com banner');
+          return;
+        } catch (e) {
+          if (ehQuedaDeConexao(e)) throw e;
+          log(`  banner do convite falhou (${e.message}); enviando só o texto.`);
+        }
+      }
+    }
     recibo(await enviarMsg(sock, jid, { text: textoParaDestino(m, jid) }), 'convite');
     return;
   }

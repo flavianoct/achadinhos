@@ -194,9 +194,9 @@ export class Robo {
       const convite = devidos.find((c) => c.textos.telegram && !this.banco.convitePostado(`telegram:${c.numero}`, c.dia));
       if (!convite) return { postou: false, motivo: 'já postado hoje' };
       try {
-        // Convite do blog: banner com botão "Ver as ofertas de hoje" (a legenda leva só a pergunta). Sem foto ou sem botão, vai o texto de sempre.
+        // Convite do blog: banner com a mensagem inteira (com o link escrito) na legenda e o botão "Ver as ofertas de hoje". Sem foto ou sem botão, vai o texto de sempre.
         if (convite.imagem && convite.blogUrl && this.publicador.publicarAviso) {
-          const legenda = escaparHtml(convite.textos.telegram.split('\n\n')[0] ?? convite.textos.telegram);
+          const legenda = escaparHtml(convite.textos.telegram);
           await this.publicador.publicarAviso({ texto: legenda, botao: '🌐 Ver as ofertas de hoje', url: convite.blogUrl, imagem: convite.imagem });
         } else await this.publicador.publicarTexto(convite.textos.telegram);
       } catch (e) {
