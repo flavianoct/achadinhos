@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { convitesDeHoje, horariosDosConvites, linksDosCanais, saudacaoDaHora, textoDoConvite } from '../src/convite.ts';
+import { convitesDeHoje, horariosDosConvites, linksDosCanais, saudacaoDaHora, textoDoBlog, textoDoConvite } from '../src/convite.ts';
 // @ts-ignore: módulo .mjs puro, sem tipos
 import { textoParaDestino } from '../enviador/logica.mjs';
 import { lerConfig } from '../src/config.ts';
@@ -185,4 +185,22 @@ test('convite: leva também ao grupo de nicho (pet), com o nome e uma frase vari
   assert.ok(frases.size >= 3, 'a frase do convite varia');
   const semGrupo = lerConfig({ TELEGRAM_BOT_TOKEN: '1:a', TELEGRAM_CHAT_ID: '@x', BLOG_TELEGRAM: 'https://t.me/canal', BLOG_WHATSAPP: 'https://whatsapp.com/channel/ABC' });
   assert.ok(!/Grupo de/.test(textoDoConvite(semGrupo, 0, 10, 'telegram')), 'sem grupo de nicho, o convite não muda');
+});
+
+test('convite do blog (CONVITE_TIPO=blog): "perdeu alguma oferta?" leva ao blog, igual em todo lugar, sem pedir para entrar em canal', () => {
+  const config = lerConfig({ ...base, CONVITE_TIPO: 'blog', CONVITES_POR_DIA: '3' });
+  const t = textoDoBlog(config, 0, 14);
+  assert.match(t, /^Boa tarde! 🛒 Perdeu alguma oferta hoje\?/);
+  assert.ok(t.includes('https://flavianoct.github.io/achadinhos') && !t.includes(canal) && !t.includes('t.me/canal'));
+  const todas = Array.from({ length: 6 }, (_, v) => textoDoBlog(config, v, 9));
+  assert.equal(new Set(todas).size, 6, 'seis frases diferentes');
+  for (const x of todas) assert.ok(x.length < 260 && x.includes('flavianoct.github.io'));
+  assert.equal(textoDoBlog(lerConfig({}), 0, 9), '', 'sem endereço do blog, sem texto');
+  // Os convites do dia usam o texto do blog em todos os lugares; sem CONVITE_TIPO continua o convite aos canais.
+  const horario = horariosDosConvites(config, DIA)[0]!;
+  const [c] = convitesDeHoje(config, new Date(horario + 60_000));
+  assert.ok(c && c.textos.telegram === c.textos.whatsappGrupo && c.textos.telegram.includes('flavianoct.github.io') && !c.textos.telegram.includes('t.me/canal'));
+  assert.ok(c!.imagem?.endsWith('/marca/blog/blog-ofertas.png') && c!.blogUrl === 'https://flavianoct.github.io/achadinhos', 'leva o banner e o endereço do blog');
+  const [antigo] = convitesDeHoje(lerConfig(base), new Date(horario + 60_000));
+  assert.ok(antigo && antigo.textos.whatsappGrupo.includes('t.me/canal'));
 });

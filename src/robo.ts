@@ -7,6 +7,7 @@ import { FonteMercadoLivre } from './fontes/mercadolivre.ts';
 import { FonteMercadoLivreApi } from './fontes/mercadolivre-api.ts';
 import { FonteShopee, planoDeBuscas } from './fontes/shopee.ts';
 import { convitesDeHoje } from './convite.ts';
+import { escaparHtml } from './mensagem.ts';
 import { carregarCampanhas, chaveDaFase, fasesDevidas, grandesDeHoje, lembretesDoDono, lerDatas, textoDaData, textoDosMelhores, todasAsCampanhas } from './datas.ts';
 import { escolherParaCarrossel } from './carrossel.ts';
 import { linkAfiliadoML } from './fontes/mercadolivre.ts';
@@ -193,7 +194,11 @@ export class Robo {
       const convite = devidos.find((c) => c.textos.telegram && !this.banco.convitePostado(`telegram:${c.numero}`, c.dia));
       if (!convite) return { postou: false, motivo: 'já postado hoje' };
       try {
-        await this.publicador.publicarTexto(convite.textos.telegram);
+        // Convite do blog: banner com botão "Ver as ofertas de hoje" (a legenda leva só a pergunta). Sem foto ou sem botão, vai o texto de sempre.
+        if (convite.imagem && convite.blogUrl && this.publicador.publicarAviso) {
+          const legenda = escaparHtml(convite.textos.telegram.split('\n\n')[0] ?? convite.textos.telegram);
+          await this.publicador.publicarAviso({ texto: legenda, botao: '🌐 Ver as ofertas de hoje', url: convite.blogUrl, imagem: convite.imagem });
+        } else await this.publicador.publicarTexto(convite.textos.telegram);
       } catch (e) {
         this.log(`ERRO ao postar o convite: ${(e as Error).message}`);
         return { postou: false, motivo: (e as Error).message };

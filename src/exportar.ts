@@ -188,7 +188,7 @@ export function publicarControle(banco: Banco, config: Config, dados: DadosDaRod
         // `textos` e manda o do grupo (os dois canais) para os grupos. Sem o link do Telegram não há convite no WhatsApp.
         ...convites
           .filter((c) => c.textos.whatsappCanal)
-          .map((c) => ({ id: c.id, criadoEm: c.criadoEm, loja: 'convite', categoria: undefined, texto: c.textos.whatsappCanal, textos: { canal: c.textos.whatsappCanal, grupo: c.textos.whatsappGrupo }, imagem: undefined, link: '' })),
+          .map((c) => ({ id: c.id, criadoEm: c.criadoEm, loja: 'convite', categoria: undefined, texto: c.textos.whatsappCanal, textos: { canal: c.textos.whatsappCanal, grupo: c.textos.whatsappGrupo }, imagem: c.imagem, link: '' })),
       ]
     : [];
   writeFileSync(join(pasta, 'status.json'), JSON.stringify(status, null, 2), 'utf8');

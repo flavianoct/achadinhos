@@ -23,6 +23,14 @@ export interface Convite {
    * whatsappGrupo: grupo do WhatsApp, convida para os dois.
    */
   textos: { telegram: string; whatsappCanal: string; whatsappGrupo: string };
+  /** Só no convite do blog: o banner (endereço público) e o endereço do blog, para o Telegram mandar foto com botão. */
+  imagem?: string;
+  blogUrl?: string;
+}
+
+/** O banner da mensagem do blog: PNG do repositório (marca/blog, gerado por `npm run banner-blog`), que o Telegram e o enviador baixam do GitHub. */
+export function urlDoBannerDoBlog(repositorio: string = process.env.GITHUB_REPOSITORY || 'flavianoct/achadinhos'): string {
+  return `https://raw.githubusercontent.com/${repositorio}/main/marca/blog/blog-ofertas.png`;
 }
 
 /** Onde o convite aparece. */
@@ -63,6 +71,27 @@ const VARIANTES: Variante[] = [
   { emoji: '🛍️', frase: 'Quer economizar sem o celular apitando o dia inteiro?', vantagem: 'O canal tem as mesmas ofertas do grupo, e você abre quando der.', chamada: 'Entre no canal, é grátis:' },
   { emoji: '🤫', frase: 'Dica: silencie o grupo e siga as ofertas pelo canal.', vantagem: 'Você não perde oferta e não recebe notificação de conversa.', chamada: 'Entre no canal:' },
 ];
+
+/**
+ * Mensagem "o que já saiu hoje": em vez de pedir para entrar em outro canal, leva ao blog, onde estão as ofertas do dia.
+ * Serve a quem chegou agora ou perdeu alguma, e vale em qualquer lugar (canal do Telegram, canal e grupo do WhatsApp).
+ */
+const FRASES_DO_BLOG: Array<{ emoji: string; frase: string; chamada: string }> = [
+  { emoji: '🛒', frase: 'Perdeu alguma oferta hoje? Veja tudo o que já saiu no blog.', chamada: 'Acesse e veja todas:' },
+  { emoji: '👀', frase: 'Quer saber quais ofertas já saíram hoje?', chamada: 'Estão todas no blog:' },
+  { emoji: '🔎', frase: 'Chegou agora e não sabe o que perdeu? As principais ofertas de hoje estão no blog.', chamada: 'Confira:' },
+  { emoji: '📋', frase: 'Quer ver as principais ofertas do dia de uma vez só?', chamada: 'Acesse o blog:' },
+  { emoji: '⏪', frase: 'Passou batido? No blog você vê o que já saiu hoje, sem rolar a conversa.', chamada: 'Veja aqui:' },
+  { emoji: '🔥', frase: 'Entrou depois e quer ver o que já saiu? Todas as ofertas de hoje ficam no blog.', chamada: 'Abra e confira:' },
+];
+
+/** O texto "veja no blog o que já saiu hoje". Vazio quando o blog não tem endereço público (https). */
+export function textoDoBlog(config: Config, variante: number, hora: number): string {
+  const link = config.blog.url;
+  if (!/^https:\/\//.test(link)) return '';
+  const v = FRASES_DO_BLOG[((variante % FRASES_DO_BLOG.length) + FRASES_DO_BLOG.length) % FRASES_DO_BLOG.length]!;
+  return [`${saudacaoDaHora(hora)}! ${v.emoji} ${v.frase}`, '', `👇 ${v.chamada}`, `🌐 ${link}`].join('\n');
+}
 
 /** Bom dia, boa tarde ou boa noite, pela hora de Brasília. */
 export function saudacaoDaHora(hora: number): string {
@@ -166,13 +195,16 @@ export function convitesDeHoje(config: Config, agora: Date): Convite[] {
     if (agora.getTime() < criadoEm || agora.getTime() >= criadoEm + HORAS_DE_VALIDADE_DO_CONVITE * 3_600_000) return;
     const hora = Number(new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', hourCycle: 'h23' }).format(new Date(criadoEm)));
     const variante = ordem[numero % ordem.length]!;
-    const textos = {
-      telegram: textoDoConvite(config, variante, hora, 'telegram'),
-      whatsappCanal: textoDoConvite(config, variante, hora, 'whatsapp-canal'),
-      whatsappGrupo: textoDoConvite(config, variante, hora, 'whatsapp-grupo'),
-    };
+    const doBlog = config.convite.tipo === 'blog' ? textoDoBlog(config, variante, hora) : '';
+    const textos = doBlog
+      ? { telegram: doBlog, whatsappCanal: doBlog, whatsappGrupo: doBlog }
+      : {
+          telegram: textoDoConvite(config, variante, hora, 'telegram'),
+          whatsappCanal: textoDoConvite(config, variante, hora, 'whatsapp-canal'),
+          whatsappGrupo: textoDoConvite(config, variante, hora, 'whatsapp-grupo'),
+        };
     if (!textos.telegram && !textos.whatsappCanal) return;
-    lista.push({ id: `convite:${dia}:${numero}`, dia, numero, criadoEm, textos });
+    lista.push({ id: `convite:${dia}:${numero}`, dia, numero, criadoEm, textos, ...(doBlog ? { imagem: urlDoBannerDoBlog(), blogUrl: config.blog.url } : {}) });
   });
   return lista;
 }

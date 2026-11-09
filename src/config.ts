@@ -93,7 +93,7 @@ export interface Config {
   /** Cupons do Mercado Livre e da Amazon, cadastrados por você em cupons.json. */
   cupons: { ativo: boolean; arquivo: string; porDia: number; repetirDias: number; garimpo: boolean; aprovacao: boolean; lojas: string[]; bloquear: string[]; linkShopee: string; paginaShopee: string };
   /** Convite discreto aos outros canais (WhatsApp, Telegram, Instagram): poucas vezes, sem encher o canal. */
-  convite: { ativo: boolean; porDia: number };
+  convite: { ativo: boolean; porDia: number; /** 'blog' = "perdeu alguma oferta? veja no blog"; 'canal' = convida para os outros canais. */ tipo: 'blog' | 'canal' };
   /** Quiz "Preço certo" nos Reels: o último Reel do dia (ou os últimos QUIZ_POR_DIA) vira um quiz. */
   quiz: { ativo: boolean; lojas: string[]; porDia: number; dias: number[]; formatos: Array<'preco' | 'sombra' | 'prefere'>; enviarPara: string };
   /** Pinterest: pins no formato 2:3 que levam gente ao grupo e aos canais. Sempre gera as imagens, a planilha de envio em massa, o feed RSS e a galeria; publica pela API quando há token e quadro. */
@@ -503,7 +503,7 @@ function lerConfigBase(env: Env): Config {
       sandbox: ligado(env, 'PINTEREST_SANDBOX', false),
       verificacao: /^[A-Za-z0-9]{10,64}$/.test((env.PINTEREST_VERIFICACAO ?? '').trim()) ? (env.PINTEREST_VERIFICACAO ?? '').trim() : '',
     },
-    convite: { ativo: ligado(env, 'CONVITE_ATIVO', false), porDia: Math.min(6, Math.max(0, numero(env, 'CONVITES_POR_DIA', 3))) },
+    convite: { ativo: ligado(env, 'CONVITE_ATIVO', false), porDia: Math.min(6, Math.max(0, numero(env, 'CONVITES_POR_DIA', 3))), tipo: opcao(env, 'CONVITE_TIPO', ['blog', 'canal'] as const, 'canal') },
     quiz: {
       ativo: ligado(env, 'QUIZ_ATIVO', false),
       // Chat privado do dono (ID numérico) que recebe o vídeo do quiz pronto, com a legenda, para postar no TikTok e nos Shorts. Vazio = não envia.

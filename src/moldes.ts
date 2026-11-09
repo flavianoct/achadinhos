@@ -614,6 +614,36 @@ ${texto(divisor + (x + w - divisor) / 2, meio + 78, 50, c.texto, c.loja)}`;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" font-family="${FONTE}">\n${corpo}\n</svg>`;
 }
 
+/**
+ * Banner da mensagem "perdeu alguma oferta hoje?": a marca, a pergunta em destaque e uma janelinha de navegador com cartões, para a
+ * pessoa ter vontade de ver como é o blog. Sem preço e sem promessa: só a pergunta e o convite para visitar (1280x720).
+ */
+export function svgDoBannerDoBlog(): string {
+  const jx = 250, jy = 392, jw = 780, jh = 196;
+  const cartoes = [0, 1, 2, 3]
+    .map((i) => {
+      const w = 168, gap = 16, x = jx + 22 + i * (w + gap), y = jy + 54;
+      return `<rect x="${x}" y="${y}" width="${w}" height="124" rx="14" fill="#23232A"/>
+<rect x="${x + 14}" y="${y + 16}" width="${w - 60}" height="12" rx="6" fill="${MARCA.amarelo}"/>
+<rect x="${x + 14}" y="${y + 44}" width="${w - 28}" height="9" rx="4.5" fill="#3A3A44"/>
+<rect x="${x + 14}" y="${y + 64}" width="${w - 50}" height="9" rx="4.5" fill="#3A3A44"/>
+<rect x="${x + 14}" y="${y + 92}" width="62" height="18" rx="9" fill="${MARCA.vermelho}"/>`;
+    })
+    .join('\n');
+  const corpo = `${fundo(1280, 720)}
+${marca(640, 88, 34, 'centro')}
+${texto(640, 190, 80, MARCA.branco, 'PERDEU ALGUMA')}
+${texto(640, 278, 92, MARCA.amarelo, 'OFERTA HOJE?')}
+${textoLeve(640, 340, 34, MARCA.suave, 'Veja tudo o que já saiu, no blog')}
+<rect x="${jx}" y="${jy}" width="${jw}" height="${jh}" rx="22" fill="#17171B" stroke="#2E2E36" stroke-width="2"/>
+<circle cx="${jx + 28}" cy="${jy + 27}" r="7" fill="#FF5F57"/><circle cx="${jx + 52}" cy="${jy + 27}" r="7" fill="#FEBC2E"/><circle cx="${jx + 76}" cy="${jy + 27}" r="7" fill="#28C840"/>
+<rect x="${jx + 110}" y="${jy + 16}" width="${jw - 140}" height="22" rx="11" fill="#23232A"/>
+${cartoes}
+<rect x="440" y="626" width="400" height="62" rx="31" fill="${MARCA.vermelho}"/>
+${texto(640, 668, 30, MARCA.branco, 'ACESSE O BLOG')}`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" font-family="${FONTE}">\n${corpo}\n</svg>`;
+}
+
 // ───────────────────────── Story "O que você perdeu ontem" (1080x1920) ─────────────────────────
 
 export interface DadosDoQueVocePerdeu {
