@@ -988,7 +988,8 @@ export class Banco {
     this.db.prepare(`DELETE FROM produtos WHERE visto_em < ?`).run(t - 7 * 86_400_000);
     this.db.prepare(`DELETE FROM guia_produtos WHERE visto_em < ?`).run(t - 30 * 86_400_000);
     this.db.prepare(`DELETE FROM textos WHERE criado_em < ? AND chave LIKE 'produto:%'`).run(t - 30 * 86_400_000);
-    this.db.prepare(`DELETE FROM textos WHERE criado_em < ? AND chave NOT LIKE 'produto:%'`).run(t - 3 * 86_400_000);
+    this.db.prepare(`DELETE FROM textos WHERE criado_em < ? AND chave NOT LIKE 'produto:%' AND chave NOT LIKE 'indexnow:%'`).run(t - 3 * 86_400_000);
+    this.db.prepare(`DELETE FROM textos WHERE criado_em < ? AND chave LIKE 'indexnow:%'`).run(t - 30 * 86_400_000);
     // A arte (svg e foto) só serve para refazer os PNGs das últimas HORAS (12 h): depois disso fica só a oferta. É isso que mantém o arquivo do banco
     // longe do limite de 100 MB do GitHub (se passar, a rodada deixa de guardar o banco e o robô perde o que fez).
     this.db.prepare(`UPDATE social_saida SET svg = NULL, imagem = NULL WHERE criado_em < ? AND (svg IS NOT NULL OR imagem IS NOT NULL)`).run(t - 14 * 3_600_000);
