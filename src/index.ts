@@ -8,6 +8,7 @@ import { publicarControle, type DadosDaRodada } from './exportar.ts';
 import { gravarPngsDoCarrossel, prepararCarrossel } from './carrossel.ts';
 import { publicarNoInstagram, responderComentarios } from './instagram.ts';
 import { type Alerta, chaveDoAviso } from './alertas.ts';
+import { avisarIndexNow } from './seo.ts';
 import { gravarPins, prepararPins, publicarNoPinterest } from './pinterest.ts';
 import { gravarQuiz, prepararQuiz } from './quiz.ts';
 import { copiarReelsAgendados } from './agendados.ts';
@@ -195,6 +196,14 @@ async function modoNuvem(): Promise<void> {
   if (robo.config.blog.ativo) {
     const blog = await robo.gerarBlogAgora();
     rodada.blog = blog;
+    // IndexNow: avisa o Bing e outros buscadores das páginas novas (a chave só vale depois que o arquivo dela está no ar: se recusar, tenta na rodada seguinte).
+    try {
+      const nx = await avisarIndexNow(robo.banco, robo.config, blog.enderecos ?? [], new Date());
+      if (nx.avisadas) dizer(`- IndexNow: ${nx.avisadas} páginas avisadas aos buscadores.`);
+      for (const a of nx.avisos) dizer(`- Aviso do IndexNow: ${a}`);
+    } catch (e) {
+      dizer(`- Aviso: o IndexNow falhou (${(e as Error).message}).`);
+    }
     dizer(`- Blog: ${blog.guias ?? 0} guias, ${blog.postsDeHoje} posts de hoje, ${blog.postsNoAr} no ar${blog.textosDeIA ? `, ${blog.textosDeIA} textos novos da IA (${blog.modeloDeIA})` : ''}.`);
     for (const aviso of blog.avisos) {
       dizer(`- Aviso do blog: ${aviso}`);

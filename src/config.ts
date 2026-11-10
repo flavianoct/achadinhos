@@ -128,6 +128,8 @@ export interface Config {
     /** Modelo usado quando o principal está sobrecarregado. */
     geminiReserva: string;
     publicar: 'nao' | 'git';
+    /** Avisa o IndexNow (Bing e outros buscadores) das páginas novas ou alteradas, e publica o llms.txt. */
+    indexnow: boolean;
     /** Link do canal do Telegram mostrado no blog. */
     telegramLink: string;
     /** Link do perfil do Instagram mostrado no blog (vem de BLOG_INSTAGRAM, só o @ ou o endereço). */
@@ -488,6 +490,7 @@ function lerConfigBase(env: Env): Config {
       geminiModelo: (env.GEMINI_MODELO ?? '').trim() || 'gemini-3.8-flash',
       geminiReserva: (env.GEMINI_RESERVA ?? '').trim() || 'gemini-3.1-flash-lite',
       publicar: opcao(env, 'BLOG_PUBLICAR', ['nao', 'git'] as const, 'nao'),
+      indexnow: ligado(env, 'BLOG_INDEXNOW', true),
       telegramLink: (env.BLOG_TELEGRAM ?? '').trim() || (chatId.startsWith('@') ? `https://t.me/${chatId.slice(1)}` : ''),
       instagramLink: linkDoInstagram(env.BLOG_INSTAGRAM ?? ''),
       whatsappLink: linkDoWhatsapp(env.BLOG_WHATSAPP ?? ''),

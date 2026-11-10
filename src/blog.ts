@@ -1,3 +1,4 @@
+import { chaveDoIndexNow, llmsTxt } from './seo.ts';
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readdirSync, unlinkSync, writeFileSync } from 'node:fs';
@@ -50,6 +51,8 @@ export interface ResultadoDoBlog {
   pasta: string;
   /** Todos os arquivos HTML gravados nesta rodada. */
   paginas: string[];
+  /** Endereço público e data de alteração de cada página do mapa do site (para avisar o IndexNow). */
+  enderecos?: Array<{ url: string; alteradoEm: number }>;
   /** Guias "Melhores X" no ar. */
   guias?: number;
   /** Posts criados ou atualizados hoje. */
@@ -1397,6 +1400,21 @@ export async function gerarBlog(banco: Banco, config: Config, agora: Date = new 
     });
     writeFileSync(join(b.pasta, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join('\n')}\n</urlset>\n`, 'utf8');
     writeFileSync(join(b.pasta, 'robots.txt'), `User-agent: *\nAllow: /\nSitemap: ${b.url}/sitemap.xml\n`, 'utf8');
+    resultado.enderecos = noMapa.map((a) => ({ url: endereco(a), alteradoEm: posts.find((p) => p.arquivo === a)?.atualizadoEm ?? guias.find((g) => g.arquivo === a)?.atualizadoEm ?? agora.getTime() }));
+    // Para as IAs: um resumo do site em Markdown. Para o IndexNow: o arquivo com a chave, que prova que o site é nosso.
+    writeFileSync(
+      join(b.pasta, 'llms.txt'),
+      llmsTxt(
+        config,
+        guias.map((g) => ({ titulo: g.titulo, url: endereco(g.arquivo), nota: `${g.dados.itens.length} produtos comparados` })),
+        posts.slice(0, 15).map((p) => ({ titulo: p.titulo, url: endereco(p.arquivo) })),
+      ),
+      'utf8',
+    );
+    if (b.indexnow) {
+      const chave = chaveDoIndexNow(b.url);
+      writeFileSync(join(b.pasta, `${chave}.txt`), chave, 'utf8');
+    }
     const itensDoFeed = posts.slice(0, 30).map((p) => `  <item><title>${esc(p.titulo)}</title><link>${esc(endereco(p.arquivo))}</link><guid>${esc(endereco(p.arquivo))}</guid><pubDate>${new Date(p.atualizadoEm).toUTCString()}</pubDate><description>${esc(encurtar(p.dados.intro, 300))}</description></item>`);
     writeFileSync(join(b.pasta, 'feed.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<rss version="2.0"><channel>\n  <title>${esc(b.nome)}</title><link>${esc(`${b.url}/`)}</link><description>${esc(`${b.nome}: ofertas do dia`)}</description><language>pt-BR</language>\n${itensDoFeed.join('\n')}\n</channel></rss>\n`, 'utf8');
   } else {
