@@ -189,4 +189,25 @@ jobs:
             echo "Uma rodada mais nova começou enquanto esta esperava; ela segue a corrente. Esta não chama a próxima."
             exit 0
           fi
-          gh workflow run robo.yml --repo "$GITHUB_REPOSITORY" --ref main
+          # Chama a próxima e confere se ela realmente começou. Em 11/11 o GitHub recusou uma rodada chamada assim
+          # ("startup_failure", sem nenhum job): a corrente parou às 17h19 e o cron de reserva também não disparou,
+          # então o robô ficou parado até alguém rodar na mão. Agora, se a rodada chamada falhar ao iniciar, chama de novo.
+          for tentativa in 1 2 3 4; do
+            gh workflow run robo.yml --repo "$GITHUB_REPOSITORY" --ref main || true
+            sleep 90
+            # A rodada que falha ao iniciar não tem nenhum job (e o GitHub pode levar minutos para marcá-la como falha);
+            # uma rodada sã já tem o job "rodar" criado em segundos, mesmo que esteja esperando na fila.
+            id=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow robo.yml --limit 1 --json databaseId --jq '.[0].databaseId' 2>/dev/null || echo 0)
+            jobs=0
+            if [ "${id:-0}" -gt "$GITHUB_RUN_ID" ]; then
+              jobs=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$id/jobs" --jq '.total_count' 2>/dev/null || echo 0)
+            fi
+            if [ "${jobs:-0}" -gt 0 ]; then
+              echo "Próxima rodada chamada (run $id)."
+              exit 0
+            fi
+            echo "::warning::A próxima rodada não começou (tentativa $tentativa, run ${id:-?} sem jobs). Tentando de novo."
+            sleep 60
+          done
+          echo "::error::Não consegui chamar a próxima rodada; fica por conta do cron de reserva."
+          exit 1
