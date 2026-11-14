@@ -1,0 +1,1004 @@
+{
+  "atualizadoEm": "2026-11-14T20:54:52.970Z",
+  "geral": {
+    "nichos": [],
+    "sem": []
+  },
+  "envio": {
+    "maximoPorHora": 14,
+    "esperaMinSeg": 60,
+    "esperaMaxSeg": 150,
+    "idadeMaximaMin": 45,
+    "maisNovaPrimeiro": true,
+    "horaInicio": 7,
+    "horaFim": 23
+  },
+  "destinos": [
+    {
+      "tipo": "canal",
+      "link": "https://whatsapp.com/channel/0029VbDtCLD2UPBAGBZ4UO1W"
+    },
+    {
+      "tipo": "grupo",
+      "link": "https://chat.whatsapp.com/KRJ3OtHhmZ10XfReNMTIaw"
+    },
+    {
+      "tipo": "grupo",
+      "link": "https://chat.whatsapp.com/KJi6FhpMfda0s0phA5W3Y3",
+      "nichos": [
+        "pet"
+      ]
+    }
+  ],
+  "mensagens": [
+    {
+      "id": "shopee:58204705757:1794655321801",
+      "criadoEm": 1794655321801,
+      "loja": "shopee",
+      "categoria": "casa",
+      "texto": "🔥 *Air Fryer Oven Philco 11L 8 Funções Visor 1800W PAF11B*\n\n~De R$ 479,32~\n💰 *Por R$ 349,90* (-27%)\n⭐ 5,0 · 1,9 mil vendidos\n🏬 Shopee\n\n👉 https://s.shopee.com.br/4LKv3rQxJw\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://cf.shopee.com.br/file/sg-11134201-825bb-muw81q77356v3f",
+      "link": "https://s.shopee.com.br/4LKv3rQxJw"
+    },
+    {
+      "id": "shopee:58261760024:1794655325354",
+      "criadoEm": 1794655325354,
+      "loja": "shopee",
+      "categoria": "beleza",
+      "texto": "🔥 *Aparador Feminino 4 Em 1 Recarregável USB Depilador Sobrancelha Nariz Axila Corpo 500mAh*\n\n~De R$ 59,00~\n💰 *Por R$ 35,99* (-39%)\n⭐ 4,9 · 8,7 mil vendidos\n🏬 Shopee\n\n👉 https://s.shopee.com.br/6AmZFEJybH\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://cf.shopee.com.br/file/br-11134207-820la-moy94uiglu6862",
+      "link": "https://s.shopee.com.br/6AmZFEJybH"
+    },
+    {
+      "id": "shopee:48852424107:1794655328660",
+      "criadoEm": 1794655328660,
+      "loja": "shopee",
+      "categoria": "geral",
+      "texto": "🔥 *Jogo De Taças De Vidro Diamond Cristal 330 ml 6 Peças*\n\n~De R$ 59,52~\n💰 *Por R$ 36,90* (-38%)\n⭐ 4,9 · 5,5 mil vendidos\n🏬 Shopee\n\n👉 https://s.shopee.com.br/2qW6t0FwP0\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://cf.shopee.com.br/file/br-11134207-820lg-mr201woae6thda",
+      "link": "https://s.shopee.com.br/2qW6t0FwP0"
+    },
+    {
+      "id": "mercadolivre:MLB51591660:1794657700756",
+      "criadoEm": 1794657700756,
+      "loja": "mercadolivre",
+      "categoria": "moda",
+      "texto": "🔥 *Kit Organizador de Mala com 7 Necessaires Impermeáveis para Viagem*\n\n~De R$ 59,90~\n💰 *Por R$ 41,49* (-31%)\n📉 Menor preço em 26 dias\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB51591660?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_808519-MLA99627343204_122025-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB51591660?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB58382190:1794657704245",
+      "criadoEm": 1794657704245,
+      "loja": "mercadolivre",
+      "categoria": "tech",
+      "texto": "🔥 *Mochila Notebook 17 Impermeável Reforçada Grande Masculina USB Escolar Trabalho Rincostar Preta Preto Liso*\n\n~De R$ 52,99~\n💰 *Por R$ 37,99* (-28%)\n📉 Menor preço em 15 dias\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB58382190?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_937893-MLA114680295948_082026-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB58382190?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "shopee:58268084688:1794659632090",
+      "criadoEm": 1794659632090,
+      "loja": "shopee",
+      "categoria": "moda",
+      "texto": "🔥 *Calça Masculina Jogger Poliamida C/Elastano Esportiva Academia Slim Treino*\n\n~De R$ 78,56~\n💰 *Por R$ 37,71* (-52%)\n📉 Menor preço em 22 dias\n⭐ 4,9 · 2,3 mil vendidos\n🏬 Shopee\n\n👉 https://s.shopee.com.br/7puoDndkSB\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://cf.shopee.com.br/file/br-11134207-820ls-mti13qoyyy9uce",
+      "link": "https://s.shopee.com.br/7puoDndkSB"
+    },
+    {
+      "id": "shopee:18198165593:1794659635630",
+      "criadoEm": 1794659635630,
+      "loja": "shopee",
+      "categoria": "moda",
+      "texto": "🔥 *Calça Jeans Feminina Wide Leg Cintura Alta Pantalona Tecido Leve 100% Algodão*\n\n~De R$ 148,72~\n💰 *Por R$ 69,90* (-53%)\n⭐ 4,8 · 7,6 mil vendidos\n🏬 Shopee\n\n👉 https://s.shopee.com.br/8AXecPcTmf\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://cf.shopee.com.br/file/br-11134207-7r98o-m7tz7imdb29uf2",
+      "link": "https://s.shopee.com.br/8AXecPcTmf"
+    },
+    {
+      "id": "shopee:22202389512:1794659638936",
+      "criadoEm": 1794659638936,
+      "loja": "shopee",
+      "categoria": "pet",
+      "texto": "🔥 *Caixa 18un Ração Úmida Granplus Sache Gato Adulto Atum 85g*\n\n~De R$ 73,38~\n💰 *Por R$ 49,90* (-32%)\n⭐ 5,0 · 2 mil vendidos\n🏬 Shopee\n\n👉 https://s.shopee.com.br/6q2E7WmKut\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://cf.shopee.com.br/file/br-11134207-7r98o-m1plzu4dymmgae",
+      "link": "https://s.shopee.com.br/6q2E7WmKut"
+    },
+    {
+      "id": "mercadolivre:MLB14896780:1794659642242",
+      "criadoEm": 1794659642242,
+      "loja": "mercadolivre",
+      "categoria": "casa",
+      "texto": "🔥 *Ventilador oscilante de parede ventisol Steel 6 pás 50cm preto*\n\n~De R$ 307,90~\n💰 *Por R$ 211,25* (-31%)\n🚚 Frete grátis\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB14896780?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_754389-MLA119103956430_112026-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB14896780?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB80112290:1794659645546",
+      "criadoEm": 1794659645546,
+      "loja": "mercadolivre",
+      "categoria": "beleza",
+      "texto": "🔥 *Prancha de Cabelo Braha Nano Titanium Bivolt, com Placas de Nanocerâmica e Display Digital*\n\n~De R$ 68,00~\n💰 *Por R$ 42,78* (-37%)\n📉 Menor preço em 9 dias\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB80112290?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_789211-MLA118520015891_092026-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB80112290?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB30455759:1794659648888",
+      "criadoEm": 1794659648888,
+      "loja": "mercadolivre",
+      "categoria": "casa",
+      "texto": "🔥 *Refil Filtro Electrolux para Purificador PA21G PA26G PA31G*\n\n~De R$ 164,90~\n💰 *Por R$ 91,10* (-45%)\n🚚 Frete grátis\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB30455759?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_645715-MLA117133508591_092026-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB30455759?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "shopee:40276461675:1794661538404",
+      "criadoEm": 1794661538404,
+      "loja": "shopee",
+      "categoria": "moda",
+      "texto": "🔥 *Vestido Feminino Midi Rodado Evangélico Detalhes de Botão Blazer Fake Casual Elegante Manga Bufante Malha Canelada*\n\n~De R$ 119,78~\n💰 *Por R$ 53,90* (-55%)\n⭐ 4,9 · 1,2 mil vendidos\n🏬 Shopee\n\n👉 https://s.shopee.com.br/9fMSPAWlip\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://cf.shopee.com.br/file/br-11134207-81ztc-mjssnlzv2ux282",
+      "link": "https://s.shopee.com.br/9fMSPAWlip"
+    },
+    {
+      "id": "mercadolivre:MLB62705555:1794661542093",
+      "criadoEm": 1794661542093,
+      "loja": "mercadolivre",
+      "categoria": "casa",
+      "texto": "🔥 *Kit C/2 Travesseiros Luxo Matelado Fibra Antialérgica 50x70*\n\n~De R$ 109,99~\n💰 *Por R$ 63,99* (-42%)\n📉 Menor preço em 17 dias\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB62705555?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_628480-MLA118655411158_102026-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB62705555?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB75542419:1794661545455",
+      "criadoEm": 1794661545455,
+      "loja": "mercadolivre",
+      "categoria": "casa",
+      "texto": "🔥 *Percarbonato De Sódio 100% Puro Tira Manchas Alvejante - 1kg Calisul*\n\n💰 *Por R$ 19,00*\n📉 Menor preço em 30 dias\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB75542419?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_670568-MLA113572446412_072026-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB75542419?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB19466433:1794661548784",
+      "criadoEm": 1794661548784,
+      "loja": "mercadolivre",
+      "categoria": "geral",
+      "texto": "🔥 *Lava Roupas Líquido Tixan Ypê Primavera 7 Litros*\n\n~De R$ 95,99~\n💰 *Por R$ 58,99* (-39%)\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB19466433?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_850337-MLA110275056555_042026-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB19466433?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB62807027:1794661552112",
+      "criadoEm": 1794661552112,
+      "loja": "mercadolivre",
+      "categoria": "casa",
+      "texto": "🔥 *Saia Tapete Base Árvore De Natal Decoração Papai Noel Enfeite Natalino Luxo Modelo 6 Luvinco*\n\n~De R$ 47,37~\n💰 *Por R$ 29,90* (-37%)\n📉 Menor preço em 22 dias\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB62807027?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_974396-MLA118385009551_092026-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB62807027?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB42976203:1794661555510",
+      "criadoEm": 1794661555510,
+      "loja": "mercadolivre",
+      "categoria": "casa",
+      "texto": "🔥 *Kit 2 Travesseiro Pena Pluma de Ganso Sintetica Siliconada Lavavel Toque Macio 70x50cm*\n\n~De R$ 44,29~\n💰 *Por R$ 29,89* (-33%)\n📉 Menor preço em 30 dias\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB42976203?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_790316-MLA95710243594_102025-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB42976203?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "shopee:48359146201:1794663320697",
+      "criadoEm": 1794663320697,
+      "loja": "shopee",
+      "categoria": "moda",
+      "texto": "🔥 *Lovito Vestido Feminino Midi Romântico Estampado DRB5BR180*\n\n~De R$ 124,79~\n💰 *Por R$ 59,90* (-52%)\n⭐ 4,9 · 1,1 mil vendidos\n🏬 Shopee\n\n👉 https://s.shopee.com.br/W8DYa0Ho1\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://cf.shopee.com.br/file/br-11134207-820l6-mth1gbs535kw17",
+      "link": "https://s.shopee.com.br/W8DYa0Ho1"
+    },
+    {
+      "id": "mercadolivre:MLB54774833:1794663324210",
+      "criadoEm": 1794663324210,
+      "loja": "mercadolivre",
+      "categoria": "esporte",
+      "texto": "🔥 *Bola de Futebol Trionda Training Copa do Mundo da FIFA 26TM adidas*\n\n~De R$ 249,99~\n💰 *Por R$ 173,00* (-31%)\n🚚 Frete grátis\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB54774833?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_727580-MLA93869936858_102025-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB54774833?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB53880377:1794663327846",
+      "criadoEm": 1794663327846,
+      "loja": "mercadolivre",
+      "categoria": "ferramentas",
+      "texto": "🔥 *Refletor Led 200w Holofote Bivolt Prova D'água Cor Branco Frio 6500k*\n\n~De R$ 79,98~\n💰 *Por R$ 29,99* (-63%)\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB53880377?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_993375-MLA112854255007_062026-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB53880377?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB56690567:1794663331157",
+      "criadoEm": 1794663331157,
+      "loja": "mercadolivre",
+      "categoria": "tech",
+      "texto": "🔥 *Bomba De Ar De Mão Pneu Car Air Pump Sem Fio 150 Psi Luz De Emergência Led Com Bateria Recarregável De 4000*\n\n~De R$ 157,98~\n💰 *Por R$ 59,99* (-62%)\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB56690567?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_695590-MLA110946316826_052026-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB56690567?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "shopee:23892543046:1794663334719",
+      "criadoEm": 1794663334719,
+      "loja": "shopee",
+      "categoria": "moda",
+      "texto": "🔥 *Vestido Midi Gestante Tomara Que Caia Anarruga Canelado Tubinho Justo Confortável*\n\n~De R$ 49,62~\n💰 *Por R$ 25,80* (-48%)\n📉 Menor preço em 17 dias\n⭐ 4,8 · 1 mil vendidos\n🏬 Shopee\n\n👉 https://s.shopee.com.br/40i5j0mxi6\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://cf.shopee.com.br/file/br-11134207-820m7-mpba63l32sjkd4",
+      "link": "https://s.shopee.com.br/40i5j0mxi6"
+    },
+    {
+      "id": "shopee:58261469125:1794663338015",
+      "criadoEm": 1794663338015,
+      "loja": "shopee",
+      "categoria": "moda",
+      "texto": "🔥 *Vestido Feminino Midi Malha Suplex Fenda Sem Bojo Alcinha Moda Camponesa Dia a Dia Confortavel*\n\n~De R$ 99,00~\n💰 *Por R$ 47,52* (-52%)\n📉 Menor preço em 17 dias\n⭐ 4,8 · 1,5 mil vendidos\n🏬 Shopee\n\n👉 https://s.shopee.com.br/9zzIs2Q7Wo\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://cf.shopee.com.br/file/br-11134207-820mg-muywfkw4gu0z79",
+      "link": "https://s.shopee.com.br/9zzIs2Q7Wo"
+    },
+    {
+      "id": "shopee:58264352198:1794665165151",
+      "criadoEm": 1794665165151,
+      "loja": "shopee",
+      "categoria": "moda",
+      "texto": "🔥 *Vestido Midi Feminino com Manga Bufante Tecido Duna com Lastex nas Costas Moda 2026*\n\n~De R$ 191,67~\n💰 *Por R$ 69,00* (-64%)\n📉 Menor preço em 17 dias\n⭐ 4,9 · 3,1 mil vendidos\n🏬 Shopee\n\n👉 https://s.shopee.com.br/7puoI3YMv7\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://cf.shopee.com.br/file/br-11134207-820lx-msh7c2tq45qcd3",
+      "link": "https://s.shopee.com.br/7puoI3YMv7"
+    },
+    {
+      "id": "mercadolivre:MLB19511972:1794665168642",
+      "criadoEm": 1794665168642,
+      "loja": "mercadolivre",
+      "categoria": "geral",
+      "texto": "🔥 *Öus Essencial Imigrante Furta Sem gênero Adultos*\n\n~De R$ 299,00~\n💰 *Por R$ 200,32* (-33%)\n🚚 Frete grátis\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB19511972?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_826248-MLA51012002371_082022-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB19511972?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB65647083:1794665171928",
+      "criadoEm": 1794665171928,
+      "loja": "mercadolivre",
+      "categoria": "moda",
+      "texto": "🔥 *Tênis Masculino Halftrack Low Iii Oakley*\n\n~De R$ 699,90~\n💰 *Por R$ 487,00* (-30%)\n🚚 Frete grátis\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB65647083?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_705749-MLA107267927389_022026-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB65647083?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "shopee:23998307001:1794665175223",
+      "criadoEm": 1794665175223,
+      "loja": "shopee",
+      "categoria": "moda",
+      "texto": "🔥 *Vestido MIDI no crepinho Elegante Com Regulador Com Bojo e Forro Modelo Botão Frontal*\n\n~De R$ 99,00~\n💰 *Por R$ 59,40* (-40%)\n📉 Menor preço em 17 dias\n⭐ 4,9 · 2 mil vendidos\n🏬 Shopee\n\n👉 https://s.shopee.com.br/9Kjc4oSesc\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://cf.shopee.com.br/file/br-11134207-820lm-mlzs9u5qiqdic1",
+      "link": "https://s.shopee.com.br/9Kjc4oSesc"
+    },
+    {
+      "id": "shopee:58269542668:1794665178559",
+      "criadoEm": 1794665178559,
+      "loja": "shopee",
+      "categoria": "moda",
+      "texto": "🔥 *Vestido Feminino Mídi Plus Size Canelado Tubinho Justo Decote Cruzado Fenda Botões Elegante*\n\n~De R$ 99,98~\n💰 *Por R$ 49,99* (-50%)\n⭐ 4,9 · 1 mil vendidos\n🏬 Shopee\n\n👉 https://s.shopee.com.br/AAIj4LPUBr\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://cf.shopee.com.br/file/br-11134207-820ls-mty9dvz5fthffe",
+      "link": "https://s.shopee.com.br/AAIj4LPUBr"
+    },
+    {
+      "id": "shopee:22793865605:1794665181887",
+      "criadoEm": 1794665181887,
+      "loja": "shopee",
+      "categoria": "moda",
+      "texto": "🔥 *Vestido Midi Estampado de Oncinha com Drapeado Disfarça Barriga e Modela de Corpo Elegante Alça Fina*\n\n~De R$ 99,98~\n💰 *Por R$ 59,99* (-40%)\n⭐ 4,9 · 1,4 mil vendidos\n🏬 Shopee\n\n👉 https://s.shopee.com.br/1W0kkPwTmN\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://cf.shopee.com.br/file/br-11134207-7r98o-m7y9emt98avl4a",
+      "link": "https://s.shopee.com.br/1W0kkPwTmN"
+    },
+    {
+      "id": "mercadolivre:MLB28365895:1794666962307",
+      "criadoEm": 1794666962307,
+      "loja": "mercadolivre",
+      "categoria": "casa",
+      "texto": "🔥 *Ventilador de Mesa 40cm Arno X-TREME 7 - 7 PÁS, 150W VE70*\n\n~De R$ 499,00~\n💰 *Por R$ 284,05* (-43%)\n🚚 Frete grátis\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB28365895?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_720983-MLA100059069891_122025-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB28365895?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB7975820:1794666965953",
+      "criadoEm": 1794666965953,
+      "loja": "mercadolivre",
+      "categoria": "beleza",
+      "texto": "🔥 *Prancha de cabelo Gama Italy Eleganza Plus*\n\n~De R$ 149,90~\n💰 *Por R$ 89,90* (-40%)\n🚚 Frete grátis\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB7975820?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_625242-MLA109735920377_032026-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB7975820?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB27747316:1794666969342",
+      "criadoEm": 1794666969342,
+      "loja": "mercadolivre",
+      "categoria": "beleza",
+      "texto": "🔥 *Prancha Cerâmica Taiff Profissional 180° Preto*\n\n~De R$ 186,25~\n💰 *Por R$ 115,00* (-38%)\n🚚 Frete grátis\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB27747316?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_815162-MLA99896276503_112025-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB27747316?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "shopee:58264365259:1794666972665",
+      "criadoEm": 1794666972665,
+      "loja": "shopee",
+      "categoria": "moda",
+      "texto": "🔥 *Vestido Tubinho Midi Feminino Canelado Ribana Premium com Fenda Alta Compressão Malha Dupla Modelador Elegante*\n\n~De R$ 99,96~\n💰 *Por R$ 51,98* (-48%)\n⭐ 4,8 · 1 mil vendidos\n🏬 Shopee\n\n👉 https://s.shopee.com.br/gRdkszeT8\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://cf.shopee.com.br/file/br-11134207-820lx-mqpiq7p1spa926",
+      "link": "https://s.shopee.com.br/gRdkszeT8"
+    },
+    {
+      "id": "mercadolivre:MLB38709287:1794666976053",
+      "criadoEm": 1794666976053,
+      "loja": "mercadolivre",
+      "categoria": "esporte",
+      "texto": "🔥 *Bola De Futebol De Campo Penalty Bravo Xxv Cor Laranja*\n\n~De R$ 164,07~\n💰 *Por R$ 103,98* (-37%)\n🚚 Frete grátis\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB38709287?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_985657-MLA110351748165_042026-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB38709287?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB27146487:1794666979547",
+      "criadoEm": 1794666979547,
+      "loja": "mercadolivre",
+      "categoria": "casa",
+      "texto": "🔥 *Kit 10 Potes 1 Litro Transparente Marmita Fitness Bpa Free Tampa Hermética Reutilizável Micro E Freezer*\n\n~De R$ 59,90~\n💰 *Por R$ 28,90* (-52%)\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB27146487?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_748154-MLA114700023633_072026-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB27146487?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB23553778:1794668851953",
+      "criadoEm": 1794668851953,
+      "loja": "mercadolivre",
+      "categoria": "geral",
+      "texto": "🔥 *Modelador de Cachos Infinity Mondial 55W EM-12*\n\n~De R$ 84,90~\n💰 *Por R$ 45,84* (-46%)\n📉 Menor preço em 11 dias\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB23553778?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_675784-MLU74957358569_032024-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB23553778?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB60058820:1794668855483",
+      "criadoEm": 1794668855483,
+      "loja": "mercadolivre",
+      "categoria": "geral",
+      "texto": "🔥 *Chumbinho Slug 5,5mm 1,31g 20 Grains Caça 125 Pcs - Maxshot*\n\n~De R$ 48,90~\n💰 *Por R$ 28,03* (-43%)\n📉 Menor preço em 30 dias\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB60058820?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_894138-MLA95498576717_102025-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB60058820?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB26773205:1794668858829",
+      "criadoEm": 1794668858829,
+      "loja": "mercadolivre",
+      "categoria": "esporte",
+      "texto": "🔥 *Bola de Vôlei VP 5000 Amarelo e Roxo Penalty*\n\n~De R$ 222,67~\n💰 *Por R$ 99,00* (-56%)\n📉 Menor preço em 30 dias\n🚚 Frete grátis\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB26773205?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_910955-MLA118815004576_102026-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB26773205?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB24001849:1794668862127",
+      "criadoEm": 1794668862127,
+      "loja": "mercadolivre",
+      "categoria": "beleza",
+      "texto": "🔥 *Aparador de Pelos Mondial Super Groom 10 BG-03 6W Bivolt — Completo*\n\n~De R$ 199,99~\n💰 *Por R$ 126,10* (-37%)\n🚚 Frete grátis\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB24001849?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_948099-MLA109212540976_042026-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB24001849?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB70684000:1794668865429",
+      "criadoEm": 1794668865429,
+      "loja": "mercadolivre",
+      "categoria": "casa",
+      "texto": "🔥 *Bolsa Térmica Lancheira Marmita 13,5L 2 Compartimentos Frasqueira Dupla Camada Alça de Ombro Fitness Trabalho*\n\n~De R$ 46,93~\n💰 *Por R$ 32,98* (-30%)\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB70684000?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_748419-MLA114184659679_072026-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB70684000?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "shopee:58205353427:1794670611899",
+      "criadoEm": 1794670611899,
+      "loja": "shopee",
+      "categoria": "moda",
+      "texto": "🔥 *Kit 12 Peças (6 Conjuntos) Pijama Feminino Baby Doll Short Doll Estampado Sem Bojo Roupa Dormir*\n\n~De R$ 150,93~\n💰 *Por R$ 64,90* (-57%)\n⭐ 4,8 · 1,1 mil vendidos\n🏬 Shopee\n\n👉 https://s.shopee.com.br/3B8xpKRszj\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://cf.shopee.com.br/file/sg-11134201-8260k-mktxdd5l6eis22",
+      "link": "https://s.shopee.com.br/3B8xpKRszj"
+    },
+    {
+      "id": "mercadolivre:MLB56064567:1794670615418",
+      "criadoEm": 1794670615418,
+      "loja": "mercadolivre",
+      "categoria": "beleza",
+      "texto": "🔥 *Short Cinta Modeladora Cós Alto Compressão Redutora Selene Cor Pó De Arroz Tamanho G*\n\n~De R$ 73,98~\n💰 *Por R$ 21,24* (-71%)\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB56064567?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_965925-MLA92022613418_092025-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB56064567?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB24288282:1794670618727",
+      "criadoEm": 1794670618727,
+      "loja": "mercadolivre",
+      "categoria": "geral",
+      "texto": "🔥 *Pigmento Mag Color Gold 5ml - Cores - Cor Castanho Médio*\n\n~De R$ 130,80~\n💰 *Por R$ 75,00* (-43%)\n📉 Menor preço em 30 dias\n🚚 Frete grátis\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB24288282?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_923962-MLA104225398950_012026-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB24288282?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB23545547:1794670622024",
+      "criadoEm": 1794670622024,
+      "loja": "mercadolivre",
+      "categoria": "bebe",
+      "texto": "🔥 *Chupeta Soothie 0-3M Dupla Philips Avent Azul - SCF099/01*\n\n💰 *Por R$ 39,91*\n📉 Menor preço em 16 dias\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB23545547?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_629862-MLA99493019130_112025-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB23545547?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB18392643:1794670625315",
+      "criadoEm": 1794670625315,
+      "loja": "mercadolivre",
+      "categoria": "bebe",
+      "texto": "🔥 *Fralda Descartável Turma da Mônica Baby Recém-Nascido RN Pacote 36 Unidades*\n\n~De R$ 29,25~\n💰 *Por R$ 18,33* (-37%)\n📉 Menor preço em 5 dias\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB18392643?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_776721-MLA112696702376_062026-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB18392643?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB45780583:1794670628620",
+      "criadoEm": 1794670628620,
+      "loja": "mercadolivre",
+      "categoria": "bebe",
+      "texto": "🔥 *Cercadinho Para Bebê Chiqueirinho Infantil Portátil Unissex Cor Azul Desenho Do Tecido Balão*\n\n~De R$ 220,00~\n💰 *Por R$ 110,00* (-50%)\n🚚 Frete grátis\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB45780583?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_810826-MLA91562773532_092025-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB45780583?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB15982844:1794672386754",
+      "criadoEm": 1794672386754,
+      "loja": "mercadolivre",
+      "categoria": "pet",
+      "soNicho": true,
+      "texto": "🔥 *Bravecto Cães 20-40kg 1000mg 1 Comp. Mastigável Msd Azul*\n\n💰 *Por R$ 88,94*\n📉 Menor preço em 27 dias\n🚚 Frete grátis\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB15982844?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_713073-MLA87288318879_072025-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB15982844?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "shopee:22698677025:1794672389763",
+      "criadoEm": 1794672389763,
+      "loja": "shopee",
+      "categoria": "casa",
+      "texto": "🔥 *Varal De Chão 3 Andares Roupa Calcinha Dobrável Grade Reforçado com 4 Rodas Portátil e Compacto*\n\n~De R$ 147,78~\n💰 *Por R$ 67,98* (-54%)\n⭐ 4,9 · 4,8 mil vendidos\n🏬 Shopee\n\n👉 https://s.shopee.com.br/80EEQ6d77c\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://cf.shopee.com.br/file/br-11134207-81z1k-mhg7txeyy7erfb",
+      "link": "https://s.shopee.com.br/80EEQ6d77c"
+    },
+    {
+      "id": "mercadolivre:MLB19970137:1794672393511",
+      "criadoEm": 1794672393511,
+      "loja": "mercadolivre",
+      "categoria": "bebe",
+      "texto": "🔥 *Cadeirinha Cosco Kids, Progress, 0 a 36kg, Preto*\n\n~De R$ 709,00~\n💰 *Por R$ 518,90* (-27%)\n🚚 Frete grátis\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB19970137?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_928226-MLA99462528060_112025-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB19970137?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB57083030:1794672396910",
+      "criadoEm": 1794672396910,
+      "loja": "mercadolivre",
+      "categoria": "bebe",
+      "texto": "🔥 *Triciclo Infantil Rosa Maral 2 em 1 Passeio e Pedal com Buzina*\n\n~De R$ 356,90~\n💰 *Por R$ 227,05* (-36%)\n📉 Menor preço em 26 dias\n🚚 Frete grátis\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB57083030?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_726344-MLA119248460566_112026-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB57083030?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB24626810:1794672400292",
+      "criadoEm": 1794672400292,
+      "loja": "mercadolivre",
+      "categoria": "casa",
+      "texto": "🔥 *Copo Transição Easy Sip 6m+ SCF551/05 Philips Avent*\n\n~De R$ 59,90~\n💰 *Por R$ 29,85* (-50%)\n📉 Menor preço em 26 dias\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB24626810?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_700261-MLA99618194932_122025-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB24626810?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB22839956:1794672403656",
+      "criadoEm": 1794672403656,
+      "loja": "mercadolivre",
+      "categoria": "bebe",
+      "texto": "🔥 *Andador Infantil Musical Disquinho Andajar Brinquedo com freio Até 12 Kg Safari ll Rosa Tutti Baby*\n\n~De R$ 299,00~\n💰 *Por R$ 208,45* (-30%)\n🚚 Frete grátis\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB22839956?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_944568-MLA95941592947_102025-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB22839956?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB78015488:1794672407034",
+      "criadoEm": 1794672407034,
+      "loja": "mercadolivre",
+      "categoria": "bebe",
+      "texto": "🔥 *Pulseira Guia Infantil Seguranca Anti Perda Criança Viagens Cor Azul*\n\n~De R$ 49,90~\n💰 *Por R$ 24,40* (-51%)\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB78015488?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_959694-MLA115154246856_082026-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB78015488?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "shopee:22094981741:1794673898415",
+      "criadoEm": 1794673898415,
+      "loja": "shopee",
+      "categoria": "tech",
+      "texto": "🔥 *Caixa de Som Portátil Bluetooth 50W TWS LED/USB/SD/FM com Graves Potentes*\n\n~De R$ 121,33~\n💰 *Por R$ 50,96* (-58%)\n⭐ 4,9 · 1,5 mil vendidos\n🏬 Shopee\n\n👉 https://s.shopee.com.br/30pYjHYu7n\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://cf.shopee.com.br/file/br-11134207-820m8-mnd3euz4ngn858",
+      "link": "https://s.shopee.com.br/30pYjHYu7n"
+    },
+    {
+      "id": "shopee:23694145234:1794673901959",
+      "criadoEm": 1794673901959,
+      "loja": "shopee",
+      "categoria": "casa",
+      "texto": "🔥 *Suporte De Shampoo Organizador Metal Prateleiras De Banheiro Cozinha NA PAREDE*\n\n~De R$ 30,14~\n💰 *Por R$ 16,88* (-44%)\n⭐ 4,8 · 4,5 mil vendidos\n🏬 Shopee\n\n👉 https://s.shopee.com.br/9V32TERl5V\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://cf.shopee.com.br/file/sg-11134201-7rauu-mawskugsfvjqc2",
+      "link": "https://s.shopee.com.br/9V32TERl5V"
+    },
+    {
+      "id": "shopee:21797631048:1794673905269",
+      "criadoEm": 1794673905269,
+      "loja": "shopee",
+      "categoria": "bebe",
+      "texto": "🔥 *Sapateira 4 ou 5 Andares Multiuso Desmontável Organizadora Multiuso Sapatos Livros Brinquedos*\n\n~De R$ 49,95~\n💰 *Por R$ 18,98* (-62%)\n⭐ 4,6 · 24,3 mil vendidos\n🏬 Shopee\n\n👉 https://s.shopee.com.br/30pYjHqVGc\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://cf.shopee.com.br/file/br-11134207-7r98o-m275pnv5hbnq94",
+      "link": "https://s.shopee.com.br/30pYjHqVGc"
+    },
+    {
+      "id": "shopee:49108107903:1794673908608",
+      "criadoEm": 1794673908608,
+      "loja": "shopee",
+      "categoria": "casa",
+      "texto": "🔥 *Kit 10 Pote Hermético Empilháveis Porta Mantimento Cozinha Organizador Rebirth*\n\n~De R$ 159,80~\n💰 *Por R$ 79,90* (-50%)\n⭐ 4,9 · 5,1 mil vendidos\n🏬 Shopee\n\n👉 https://s.shopee.com.br/9fMSfXR7kY\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://cf.shopee.com.br/file/br-11134207-820l4-mmje77j1jpc068",
+      "link": "https://s.shopee.com.br/9fMSfXR7kY"
+    },
+    {
+      "id": "mercadolivre:MLB44600571:1794673911928",
+      "criadoEm": 1794673911928,
+      "loja": "mercadolivre",
+      "categoria": "beleza",
+      "texto": "🔥 *Pasta Mo Gel Cx Com 2 Seringas Suplemento Cavalo Forte Oral*\n\n~De R$ 195,00~\n💰 *Por R$ 86,29* (-56%)\n📉 Menor preço em 27 dias\n🚚 Frete grátis\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB44600571?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_895674-MLA95469391571_102025-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB44600571?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB69121109:1794673915259",
+      "criadoEm": 1794673915259,
+      "loja": "mercadolivre",
+      "categoria": "geral",
+      "texto": "🔥 *Chocadeira Automática 72 Ovos Com Medidor De Umidade Lavável Bivolt Ovoscópio Certificada Inmetro BT-420*\n\n~De R$ 899,90~\n💰 *Por R$ 599,90* (-33%)\n🚚 Frete grátis\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB69121109?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_928705-MLA111283103903_052026-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB69121109?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB35005734:1794675951014",
+      "criadoEm": 1794675951014,
+      "loja": "mercadolivre",
+      "categoria": "pet",
+      "soNicho": true,
+      "texto": "🔥 *Coleira Antiparasita Scalibor 65 cm Proteção 4 Meses Pulgas e Mosquitos*\n\n~De R$ 85,90~\n💰 *Por R$ 51,54* (-40%)\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB35005734?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_908706-MLA118066167113_092026-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB35005734?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB30958147:1794677641802",
+      "criadoEm": 1794677641802,
+      "loja": "mercadolivre",
+      "categoria": "pet",
+      "soNicho": true,
+      "texto": "🔥 *Drinker Bebedouro Para Porquinho Da India Hamster Coelho 250ml Chalesco Cor Rosa*\n\n~De R$ 39,90~\n💰 *Por R$ 25,00* (-37%)\n📉 Menor preço em 7 dias\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB30958147?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_661445-MLA115155018374_082026-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB30958147?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB22758630:1794677644810",
+      "criadoEm": 1794677644810,
+      "loja": "mercadolivre",
+      "categoria": "geral",
+      "texto": "🔥 *10 Discos Corte Bosch Aço Inox P/Esmerilha 4.1/2x115x1,0 222,23*\n\n~De R$ 49,90~\n💰 *Por R$ 23,99* (-52%)\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB22758630?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_980979-MLA120173187959_102026-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB22758630?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB21017969:1794677648475",
+      "criadoEm": 1794677648475,
+      "loja": "mercadolivre",
+      "categoria": "ferramentas",
+      "texto": "🔥 *Caixa De Ferramentas Sanfonada Tramontina 7 Gavetas Azul*\n\n~De R$ 299,00~\n💰 *Por R$ 151,00* (-49%)\n📉 Menor preço em 27 dias\n🚚 Frete grátis\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB21017969?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_770998-MLA95699922734_102025-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB21017969?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB64085036:1794677651821",
+      "criadoEm": 1794677651821,
+      "loja": "mercadolivre",
+      "categoria": "moda",
+      "texto": "🔥 *Bolsa Ferramentas Grande Reforçada Manutenção Eletricista Com Alça Amarela 16 Divisões Fundo Rígido*\n\n~De R$ 109,00~\n💰 *Por R$ 68,00* (-38%)\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB64085036?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_910724-MLA104262185055_012026-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB64085036?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB18611173:1794677655183",
+      "criadoEm": 1794677655183,
+      "loja": "mercadolivre",
+      "categoria": "casa",
+      "texto": "🔥 *Lavadora de Alta Pressão Kärcher K5 2100 PSI 380L/h 1900W Motor Indução Com Jato Turbo Rotativo e Lança Leque*\n\n~De R$ 1.199,00~\n💰 *Por R$ 899,00* (-25%)\n🚚 Frete grátis\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB18611173?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_724354-MLA99989590201_112025-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB18611173?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "shopee:22893267017:1794679336759",
+      "criadoEm": 1794679336759,
+      "loja": "shopee",
+      "categoria": "geral",
+      "texto": "🔥 *Árvore De Natal Pinheiro 150/180/210cm 220/500/600 Galhos Cheia Premium Verde*\n\n~De R$ 90,14~\n💰 *Por R$ 64,90* (-28%)\n📉 Menor preço em 30 dias\n⭐ 4,8 · 1,6 mil vendidos\n🏬 Shopee\n\n👉 https://s.shopee.com.br/6fir4Fqapn\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://cf.shopee.com.br/file/br-11134207-820ll-mseahc66bsp164",
+      "link": "https://s.shopee.com.br/6fir4Fqapn"
+    },
+    {
+      "id": "shopee:23698384152:1794679340481",
+      "criadoEm": 1794679340481,
+      "loja": "shopee",
+      "categoria": "esporte",
+      "texto": "🔥 *Bicicleta Bike Ergometrica Spinning Academia Fitness Profissional 120kg*\n\n~De R$ 1.578,92~\n💰 *Por R$ 599,99* (-62%)\n⭐ 4,9 · 6,5 mil vendidos\n🏬 Shopee\n\n👉 https://s.shopee.com.br/8fTvRviymN\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://cf.shopee.com.br/file/br-11134207-7r98o-m8dq90menppta0",
+      "link": "https://s.shopee.com.br/8fTvRviymN"
+    },
+    {
+      "id": "mercadolivre:MLB80173715:1794679343861",
+      "criadoEm": 1794679343861,
+      "loja": "mercadolivre",
+      "categoria": "geral",
+      "texto": "🔥 *Mini VentiIador Soprador Ar Turbo 130000rpm EIétrico Sem Fio Recarregável Portátil USB-C 3 Níveis 3 Jato*\n\n~De R$ 96,00~\n💰 *Por R$ 43,00* (-55%)\n📉 Menor preço em 14 dias\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB80173715?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_804465-MLA121464170283_112026-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB80173715?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB65276331:1794679347207",
+      "criadoEm": 1794679347207,
+      "loja": "mercadolivre",
+      "categoria": "tech",
+      "texto": "🔥 *Kit Starlink Mini X – Internet via Satélite com Antena Mini e Roteador Wi-Fi 6*\n\n~De R$ 699,00~\n💰 *Por R$ 444,00* (-36%)\n📉 Menor preço em 7 dias\n🚚 Frete grátis\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB65276331?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_906463-MLA118742749100_102026-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB65276331?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB69558967:1794679350559",
+      "criadoEm": 1794679350559,
+      "loja": "mercadolivre",
+      "categoria": "geral",
+      "texto": "🔥 *Caneta Laser Verde Ultra Forte 50000mw Recarregável Alcance 100km Prova Dagua Laser Pointer Profissional*\n\n~De R$ 130,00~\n💰 *Por R$ 34,99* (-73%)\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB69558967?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_678155-MLA116974536521_082026-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB69558967?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB52039200:1794679353930",
+      "criadoEm": 1794679353930,
+      "loja": "mercadolivre",
+      "categoria": "tech",
+      "texto": "🔥 *Samsung Galaxy Buds Core branco*\n\n~De R$ 529,97~\n💰 *Por R$ 237,41* (-55%)\n🚚 Frete grátis\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB52039200?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_967872-MLA87279987383_072025-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB52039200?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB64997788:1794681058053",
+      "criadoEm": 1794681058053,
+      "loja": "mercadolivre",
+      "categoria": "tech",
+      "texto": "🔥 *Smartwatch S10 Série 10 Relógio Digital Masculino Feminino Resistente A Agua Caixa Preta Com 2 Pulseiras*\n\n~De R$ 183,00~\n💰 *Por R$ 76,00* (-58%)\n📉 Menor preço em 30 dias\n🚚 Frete grátis\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB64997788?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_892588-MLA113463134832_072026-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB64997788?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB80706033:1794681061587",
+      "criadoEm": 1794681061587,
+      "loja": "mercadolivre",
+      "categoria": "tech",
+      "texto": "🔥 *Carregador Super Rápido 25w Para Samsung Galaxy S24 S23 S22 S21 S20 Fe Ultra Motorola M22 M31 M32 M62 M63 M64*\n\n~De R$ 69,99~\n💰 *Por R$ 24,99* (-64%)\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB80706033?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_767887-MLA120087704221_102026-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB80706033?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB76113417:1794681064916",
+      "criadoEm": 1794681064916,
+      "loja": "mercadolivre",
+      "categoria": "moda",
+      "texto": "🔥 *Termo Higrômetro Digital Bahrein Para Medir Temperatura Interna E Umidade do Ar Com Relógio Com Memória*\n\n~De R$ 63,00~\n💰 *Por R$ 25,20* (-60%)\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB76113417?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_887279-MLA117887264710_102026-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB76113417?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB35503300:1794681068248",
+      "criadoEm": 1794681068248,
+      "loja": "mercadolivre",
+      "categoria": "ferramentas",
+      "texto": "🔥 *Jogo Chaves Combinadas Gedore Robust S09105012 06-22mm 12 Peças Cromado*\n\n~De R$ 104,99~\n💰 *Por R$ 78,95* (-25%)\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB35503300?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_836601-MLA99443244142_112025-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB35503300?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB23217567:1794681071576",
+      "criadoEm": 1794681071576,
+      "loja": "mercadolivre",
+      "categoria": "geral",
+      "texto": "🔥 *Receptor Midiabox B7 Century MidiaBox B7 Hdtv Sat Regional*\n\n~De R$ 208,00~\n💰 *Por R$ 139,36* (-33%)\n🚚 Frete grátis\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB23217567?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_771589-MLA108815193856_032026-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB23217567?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB76698443:1794681075108",
+      "criadoEm": 1794681075108,
+      "loja": "mercadolivre",
+      "categoria": "beleza",
+      "texto": "🔥 *Kit Aerógrafo Sem Fio Recarregável USB com Mini Compressor Portátil, Dupla Ação para Unhas, Bolo, Pintura e*\n\n~De R$ 127,89~\n💰 *Por R$ 67,59* (-47%)\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB76698443?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_719561-MLA114557973072_082026-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB76698443?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB55776599:1794682864185",
+      "criadoEm": 1794682864185,
+      "loja": "mercadolivre",
+      "categoria": "tech",
+      "texto": "🔥 *Headphone Philips Bluetooth E Energia Para 55h Tah2300bk/00 Preto*\n\n~De R$ 239,00~\n💰 *Por R$ 99,00* (-59%)\n🚚 Frete grátis\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB55776599?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_776643-MLA97452664977_112025-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB55776599?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB81095196:1794682867838",
+      "criadoEm": 1794682867838,
+      "loja": "mercadolivre",
+      "categoria": "tech",
+      "texto": "🔥 *Hub USB 8 Portas 3.0 2.0 Adaptador Extensor Expansor USB C Tipo A Híbrido Dock Station Multifuncional para*\n\n~De R$ 70,00~\n💰 *Por R$ 23,50* (-66%)\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB81095196?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_823474-MLA118643853540_102026-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB81095196?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB22024653:1794682871194",
+      "criadoEm": 1794682871194,
+      "loja": "mercadolivre",
+      "categoria": "geral",
+      "texto": "🔥 *Telefone Comunicação Condominial Tdmi 300 Preto Intelbras*\n\n~De R$ 104,90~\n💰 *Por R$ 62,91* (-40%)\n📉 Menor preço em 9 dias\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB22024653?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_839290-MLA99992711697_112025-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB22024653?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB48918581:1794682874557",
+      "criadoEm": 1794682874557,
+      "loja": "mercadolivre",
+      "categoria": "tech",
+      "texto": "🔥 *Adaptador Hub Usb-c Compatível Com Macbook Air M1 M2 Dex Hdmi 4k 7 Em 1 Cinza*\n\n~De R$ 99,98~\n💰 *Por R$ 48,98* (-51%)\n📉 Menor preço em 30 dias\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB48918581?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_871403-MLA108972469264_032026-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB48918581?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB27653141:1794682877931",
+      "criadoEm": 1794682877931,
+      "loja": "mercadolivre",
+      "categoria": "tech",
+      "texto": "🔥 *Case Externo USB 3.0 Exbom Gaveta Hd Sata 2.5 Notebook Slim 5 Gbps Cor Preto*\n\n~De R$ 44,90~\n💰 *Por R$ 27,90* (-38%)\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB27653141?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_685452-MLU72141736266_102023-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB27653141?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB19444510:1794682881332",
+      "criadoEm": 1794682881332,
+      "loja": "mercadolivre",
+      "categoria": "tech",
+      "texto": "🔥 *Processador AMD Ryzen 5 5500 3.6GHz 4.2GHz Max Turbo Cache 16MB AM4*\n\n~De R$ 1.399,00~\n💰 *Por R$ 578,00* (-59%)\n🚚 Frete grátis\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB19444510?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_821363-MLA118014839321_092026-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB19444510?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "shopee:58269695467:1794684559020",
+      "criadoEm": 1794684559020,
+      "loja": "shopee",
+      "categoria": "geral",
+      "texto": "🔥 *Mini Pente Térmico Sem Fio Portátil Para Franja Baby Hair Recarregável USB Tipo C*\n\n~De R$ 99,96~\n💰 *Por R$ 26,99* (-73%)\n⭐ 4,6 · 1,2 mil vendidos\n🏬 Shopee\n\n👉 https://s.shopee.com.br/9AQC2qh4lQ\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://cf.shopee.com.br/file/sg-11134201-8259g-mtv95ucuodfud9",
+      "link": "https://s.shopee.com.br/9AQC2qh4lQ"
+    },
+    {
+      "id": "mercadolivre:MLB24116658:1794684562706",
+      "criadoEm": 1794684562706,
+      "loja": "mercadolivre",
+      "categoria": "geral",
+      "texto": "🔥 *Elgin Selada Bateria 12v Alarme E Cerca Elétrica*\n\n~De R$ 129,98~\n💰 *Por R$ 66,40* (-49%)\n📉 Menor preço em 30 dias\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB24116658?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_727190-MLA100185481487_122025-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB24116658?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB62870034:1794684566068",
+      "criadoEm": 1794684566068,
+      "loja": "mercadolivre",
+      "categoria": "games",
+      "texto": "🔥 *Monitor Gamer LG UltraGear Curvo 34\"- QuadHD 2K, UltraWide 1800R, 160Hz, 1ms (MBR), AMD FreeSync Premium*\n\n~De R$ 2.665,23~\n💰 *Por R$ 1.789,00* (-33%)\n🚚 Frete grátis\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB62870034?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_714205-MLA120725726433_112026-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB62870034?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB60717499:1794684569416",
+      "criadoEm": 1794684569416,
+      "loja": "mercadolivre",
+      "categoria": "tech",
+      "texto": "🔥 *Adaptador Rec Bluetooth 5.4 P/ Computador Até 7 Dispositivos*\n\n~De R$ 59,99~\n💰 *Por R$ 34,00* (-43%)\n📉 Menor preço em 30 dias\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB60717499?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_807067-MLA95808203787_102025-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB60717499?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB14421011:1794684572762",
+      "criadoEm": 1794684572762,
+      "loja": "mercadolivre",
+      "categoria": "geral",
+      "texto": "🔥 *Telefone Sem Fio Intelbras TS 2510, com Identificador de Chamadas e Display Luminoso, Preto*\n\n~De R$ 299,00~\n💰 *Por R$ 157,99* (-47%)\n🚚 Frete grátis\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB14421011?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_969896-MLA99931604753_112025-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB14421011?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB74778510:1794684576128",
+      "criadoEm": 1794684576128,
+      "loja": "mercadolivre",
+      "categoria": "tech",
+      "texto": "🔥 *Cabo USB para Transferência de Dados Gurumania, USB-A Macho para USB-A Macho, 1.5m*\n\n~De R$ 26,90~\n💰 *Por R$ 19,00* (-29%)\n📉 Menor preço em 11 dias\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB74778510?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_784403-MLA114220824067_072026-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB74778510?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "shopee:58268863717:1794686231933",
+      "criadoEm": 1794686231933,
+      "loja": "shopee",
+      "categoria": "geral",
+      "texto": "🔥 *Blusinha Virginia Bata Tule Alcinha Camadas Com Bojo E Fivela Amarração Nas Costas Moda Feminina Verão*\n\n~De R$ 99,00~\n💰 *Por R$ 39,60* (-60%)\n📉 Menor preço em 5 dias\n⭐ 4,7 · 1 mil vendidos\n🏬 Shopee\n\n👉 https://s.shopee.com.br/2VtI2ZEymS\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://cf.shopee.com.br/file/br-11134207-820m4-mth5gep6hclc04",
+      "link": "https://s.shopee.com.br/2VtI2ZEymS"
+    },
+    {
+      "id": "shopee:58271196603:1794686235413",
+      "criadoEm": 1794686235413,
+      "loja": "shopee",
+      "categoria": "casa",
+      "texto": "🔥 *4x3M 3x3M 300 Luz De Cortina LED 8 Modos De Iluminação De Fada USB Para Decorações Natal 110v-220v*\n\n~De R$ 40,31~\n💰 *Por R$ 24,99* (-38%)\n⭐ 4,8 · 1,1 mil vendidos\n🏬 Shopee\n\n👉 https://s.shopee.com.br/70LhSrtefx\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://cf.shopee.com.br/file/br-11134207-820lj-mumvuob86xoi89",
+      "link": "https://s.shopee.com.br/70LhSrtefx"
+    },
+    {
+      "id": "mercadolivre:MLB58147143:1794686238702",
+      "criadoEm": 1794686238702,
+      "loja": "mercadolivre",
+      "categoria": "casa",
+      "texto": "🔥 *Mini Ventilador Portátil Basike de 3 Velocidades Recarregável com USB*\n\n~De R$ 112,57~\n💰 *Por R$ 74,00* (-34%)\n📉 Menor preço em 30 dias\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB58147143?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_888276-MLA99369518484_112025-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB58147143?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB49851461:1794686241995",
+      "criadoEm": 1794686241995,
+      "loja": "mercadolivre",
+      "categoria": "games",
+      "texto": "🔥 *Controle Gamepad Gamesir X5 Lite Usb-c Android iPhone 15/16 Mobile Hall Effect Turbo Leve Verde*\n\n~De R$ 249,00~\n💰 *Por R$ 154,90* (-38%)\n📉 Menor preço em 25 dias\n🚚 Frete grátis\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB49851461?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_718644-MLA99496654954_112025-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB49851461?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB63047503:1794686245321",
+      "criadoEm": 1794686245321,
+      "loja": "mercadolivre",
+      "categoria": "moda",
+      "texto": "🔥 *Mochila Viagem Feminina Masculina Para Notebook Executiva Cor Preto*\n\n💰 *Por R$ 78,00*\n📉 Menor preço em 30 dias\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB63047503?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_974650-MLA114948542868_082026-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB63047503?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB36772633:1794686248603",
+      "criadoEm": 1794686248603,
+      "loja": "mercadolivre",
+      "categoria": "tech",
+      "texto": "🔥 *Notebook ASUS Vivobook Go 15 E1504 AMD RYZEN 5 7520U 8GB Ram 256GB SSD Linux KeepOS 15,6” FHD Black*\n\n~De R$ 4.199,00~\n💰 *Por R$ 2.749,00* (-35%)\n🚚 Frete grátis\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB36772633?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_830301-MLA99949667885_112025-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB36772633?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB63033418:1794688267110",
+      "criadoEm": 1794688267110,
+      "loja": "mercadolivre",
+      "categoria": "tech",
+      "texto": "🔥 *Power Bank Basike 20000mAh para Notebook e Celular com Cabo USB-C 65W*\n\n~De R$ 342,00~\n💰 *Por R$ 232,22* (-32%)\n🚚 Frete grátis\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB63033418?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_720399-MLA116701969973_082026-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB63033418?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB22379833:1794688270659",
+      "criadoEm": 1794688270659,
+      "loja": "mercadolivre",
+      "categoria": "games",
+      "texto": "🔥 *Jogo Gta 5 Ps5 - Grand Theft Auto V Ps5 Mídia Física*\n\n~De R$ 197,43~\n💰 *Por R$ 148,07* (-25%)\n📉 Menor preço em 30 dias\n🚚 Frete grátis\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB22379833?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_813771-MLA109219355845_032026-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB22379833?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB47632469:1794688273974",
+      "criadoEm": 1794688273974,
+      "loja": "mercadolivre",
+      "categoria": "tech",
+      "texto": "🔥 *Tela Projeção Vithu Home 150 Polegadas Para Projetor Full Hd 4k Uso Interno E Externo Lona Com Ilhos 2,5m*\n\n~De R$ 73,35~\n💰 *Por R$ 55,01* (-25%)\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB47632469?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_888496-MLA99506602544_112025-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB47632469?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB79843944:1794688277293",
+      "criadoEm": 1794688277293,
+      "loja": "mercadolivre",
+      "categoria": "tech",
+      "texto": "🔥 *Webcam Camera Full Hd Zoom 1080p Plug and Play Videoconferencia Streamcam Web Cam Entrada Usb 2.0 Com*\n\n~De R$ 44,57~\n💰 *Por R$ 28,39* (-36%)\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB79843944?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_754165-MLA119925151331_102026-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB79843944?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB77356916:1794688280609",
+      "criadoEm": 1794688280609,
+      "loja": "mercadolivre",
+      "categoria": "moda",
+      "texto": "🔥 *Boné Ny New York Unissex Yankees Fitão Trucker Masculino Feminino Moda Verão Marca Lemon Shark Cor*\n\n~De R$ 44,99~\n💰 *Por R$ 31,99* (-29%)\n📉 Menor preço em 7 dias\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB77356916?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_772153-MLA116204648701_082026-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB77356916?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB19907986:1794688283918",
+      "criadoEm": 1794688283918,
+      "loja": "mercadolivre",
+      "categoria": "games",
+      "texto": "🔥 *Fonte Gamer ATX Fortrek Crusader 500W Bivolt Cooler 120mm*\n\n~De R$ 179,89~\n💰 *Por R$ 101,99* (-43%)\n🚚 Frete grátis\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB19907986?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_652216-MLA119567769937_102026-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB19907986?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB69441385:1794689659602",
+      "criadoEm": 1794689659602,
+      "loja": "mercadolivre",
+      "categoria": "ferramentas",
+      "texto": "🔥 *Lanterna A Verdadeira Mais Forte Do Mundo Tática Alcance 3km Super Potente Recarregável Led Alta Potência*\n\n💰 *Por R$ 50,58*\n📉 Menor preço em 6 dias\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB69441385?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_711699-MLA111577220144_062026-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB69441385?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB50364586:1794689663116",
+      "criadoEm": 1794689663116,
+      "loja": "mercadolivre",
+      "categoria": "esporte",
+      "texto": "🔥 *Balança Para Pesca Peixe Com Gancho De Mão Pendurada Digital Portátil Para Malas De Viagem Bolsa Bagagem Até*\n\n~De R$ 32,99~\n💰 *Por R$ 22,28* (-32%)\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB50364586?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_821504-MLA114030559984_072026-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB50364586?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB15749699:1794689666423",
+      "criadoEm": 1794689666423,
+      "loja": "mercadolivre",
+      "categoria": "geral",
+      "texto": "🔥 *SSD240GB Adata 2.5 SU650 ASU650SS-240GT-R 240GB preto*\n\n~De R$ 399,00~\n💰 *Por R$ 275,31* (-31%)\n🚚 Frete grátis\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB15749699?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_751167-MLA99943522395_112025-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB15749699?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB50645114:1794689669734",
+      "criadoEm": 1794689669734,
+      "loja": "mercadolivre",
+      "categoria": "ferramentas",
+      "texto": "🔥 *Nível a Laser Verde 2 Linhas Com Tripé Para Profissional Autonivelante*\n\n~De R$ 184,97~\n💰 *Por R$ 131,20* (-29%)\n🚚 Frete grátis\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB50645114?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_972279-MLA100664825241_122025-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB50645114?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "mercadolivre:MLB73418954:1794689673021",
+      "criadoEm": 1794689673021,
+      "loja": "mercadolivre",
+      "categoria": "casa",
+      "texto": "🔥 *Soprador De Ar Turbo Automotivo Limpeza Profunda Portatil Sem Fio Multifuncional Churrasqueira Janelas*\n\n~De R$ 78,99~\n💰 *Por R$ 43,55* (-45%)\n🏬 Mercado Livre\n\n👉 https://www.mercadolivre.com.br/p/MLB73418954?matt_word=topfera&matt_tool=25960771\n\n_Preço pode mudar a qualquer momento._\n\nQuer seguir também?\n✈️ Telegram: t.me/topfera_achadinhos\n📸 Instagram: instagram.com/mataprecooficial/",
+      "imagem": "https://http2.mlstatic.com/D_NQ_NP_855518-MLA118434888446_102026-F.jpg",
+      "link": "https://www.mercadolivre.com.br/p/MLB73418954?matt_word=topfera&matt_tool=25960771"
+    },
+    {
+      "id": "convite:2026-11-14:1",
+      "criadoEm": 1794680640000,
+      "loja": "convite",
+      "texto": "Boa tarde! 👀 Quer saber quais ofertas já saíram hoje?\n\n👇 Estão todas no blog:\n🌐 https://flavianoct.github.io/achadinhos",
+      "textos": {
+        "canal": "Boa tarde! 👀 Quer saber quais ofertas já saíram hoje?\n\n👇 Estão todas no blog:\n🌐 https://flavianoct.github.io/achadinhos",
+        "grupo": "Boa tarde! 👀 Quer saber quais ofertas já saíram hoje?\n\n👇 Estão todas no blog:\n🌐 https://flavianoct.github.io/achadinhos"
+      },
+      "imagem": "https://raw.githubusercontent.com/flavianoct/achadinhos/main/marca/blog/blog-ofertas.png",
+      "link": ""
+    }
+  ]
+}
