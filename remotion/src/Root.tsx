@@ -3,6 +3,7 @@ import { Composition } from 'remotion';
 import { Achados, ACHADOS_FPS, duracaoDosAchados, type PropsDosAchados } from './Achados';
 import { Carrossel, imagensDoCarrossel, type PropsDoCarrossel } from './Carrossel';
 import { Destaque, DESTAQUE_FPS, duracaoDoDestaque, type PropsDoDestaque } from './Destaque';
+import { Divulgacao, DIVULGACAO_FPS, DURACAO_DA_DIVULGACAO, type PropsDaDivulgacao } from './Divulgacao';
 import { duracaoDoReel, Reel, REEL_FPS, type PropsDoReel } from './Reel';
 import { duracaoDaSolucao, SOLUCAO_FPS, SolucaoReel, type PropsDaSolucao } from './Solucao';
 import { duracaoDoTikTok, TikTok, TIKTOK_FPS, type PropsDoTikTok } from './TikTok';
@@ -20,6 +21,9 @@ const tiktok: PropsDoTikTok = {
   passos: ['Liga', 'Espera', 'Mexe', 'Aproveita'],
   duracaoS: 8,
 };
+
+/** Vídeo de divulgação do grupo: a narração é a gerada no ElevenLabs (voz Gabriel). */
+const divulgacao: PropsDaDivulgacao = { chamada: 'botao', voz: 'voz-divulgacao.mp3', musica: 'musica-pop-leve-1.mp3' };
 
 /** Exemplo do Reel de achados para o editor visual; o robô passa os produtos de verdade em --props. */
 const achados: PropsDosAchados = {
@@ -54,7 +58,8 @@ const solucao: PropsDaSolucao = {
 
 export const Root: React.FC = () => (
   <>
-    <Composition id="Solucao" component={SolucaoReel} durationInFrames={duracaoDaSolucao(solucao)} fps={SOLUCAO_FPS} width={1080} height={1920} defaultProps={solucao} calculateMetadata={({ props }) => ({ durationInFrames: duracaoDaSolucao(props) })} />
+    <Composition id="Divulgacao" component={Divulgacao} durationInFrames={DURACAO_DA_DIVULGACAO} fps={DIVULGACAO_FPS} width={1080} height={1920} defaultProps={divulgacao} />
+    <Composition id="Solucao"component={SolucaoReel} durationInFrames={duracaoDaSolucao(solucao)} fps={SOLUCAO_FPS} width={1080} height={1920} defaultProps={solucao} calculateMetadata={({ props }) => ({ durationInFrames: duracaoDaSolucao(props) })} />
     <Composition id="Destaque" component={Destaque} durationInFrames={duracaoDoDestaque(destaque)} fps={DESTAQUE_FPS} width={1080} height={1920} defaultProps={destaque} calculateMetadata={({ props }) => ({ durationInFrames: duracaoDoDestaque(props) })} />
     <Composition
       id="Carrossel"
