@@ -85,11 +85,15 @@ export function respostaDeNavegacao(dado, estadoBruto, zap) {
 /** Toque que MUDA algo (o robô aplica na próxima rodada): a VPS só confirma o recebimento. */
 export function ehToqueQueMuda(dado) {
   const acao = String(dado).split(':')[0];
-  return acao === 'h' || acao === 'd' || acao === 'desligar';
+  return acao === 'h' || acao === 'd' || acao === 'desligar' || acao === 'cp';
 }
 
 export function respostaDeRecebido(dado) {
   const [acao, a = '', b = ''] = String(dado).split(':');
+  // Cupom achado pelo garimpo (Postar/Ignorar): a VPS só confirma na hora; o robô grava a decisão (e posta, se aprovada) na próxima rodada.
+  if (acao === 'cp') {
+    return { texto: a === 'ok' ? '⏳ Recebi: POSTAR este cupom.\nO robô registra na próxima rodada (até 30 min), posta no canal e no WhatsApp e confirma aqui.' : '⏳ Recebi: IGNORAR este cupom.\nO robô registra na próxima rodada e não posta.', teclado: [] };
+  }
   const o = acao === 'desligar' ? 'desligar o tema' : acao === 'h' ? `ligar o tema ${a} hoje` : `ligar o tema ${a} toda ${b}`;
   return { texto: `⏳ Recebi: ${o}.\nO robô aplica na próxima rodada (até 30 min) e confirma aqui.`, teclado: [[VOLTAR]] };
 }

@@ -26,6 +26,9 @@ test('menu da VPS: mudança só confirma o recebimento (quem aplica é o robô)'
   assert.equal(ehToqueQueMuda('d:vestidos:sexta'), true);
   assert.equal(ehToqueQueMuda('desligar'), true);
   assert.equal(ehToqueQueMuda('temas'), false);
+  assert.equal(ehToqueQueMuda('cp:ok:12'), true, 'o toque do cupom é confirmado na hora pela VPS');
+  assert.match(respostaDeRecebido('cp:ok:12').texto, /POSTAR este cupom/);
+  assert.match(respostaDeRecebido('cp:no:12').texto, /IGNORAR este cupom/);
   assert.match(respostaDeRecebido('d:games:sexta').texto, /Recebi.*games toda sexta.*próxima rodada/s);
   assert.equal(respostaDeTexto('/tema vestidos', undefined).tipo, 'muda');
   assert.equal(respostaDeTexto('/novotema calcas calça, jeans', undefined).tipo, 'muda');
