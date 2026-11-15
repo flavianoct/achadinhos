@@ -8,7 +8,7 @@ import { diaDe, horaDe } from './db.ts';
  * segundos) e só o que você aprova vai para o canal e o WhatsApp. Nada é publicado sem o seu toque. Liga com CUPONS_APROVACAO=1.
  */
 export const INTERVALO_DO_GARIMPO_HORAS = 3;
-export const MAXIMO_DE_CANDIDATOS_POR_DIA = 4;
+export const MAXIMO_DE_CANDIDATOS_POR_DIA = 6;
 
 type Fetch = typeof fetch;
 

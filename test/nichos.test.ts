@@ -564,7 +564,7 @@ test('tema do dia: na data marcada os ajustes do tema valem, no dia seguinte tud
   assert.equal(dia.instagram.soNosReels.length, 0, 'a moda sai também no feed hoje');
   assert.equal(dia.instagram.reelsDeRoupa, 3);
   assert.equal(dia.filtro.pontosPorNicho.moda, 45);
-  assert.equal(dia.filtro.pontosPorNicho.pet, 48, 'os outros cortes de sempre continuam');
+  assert.equal(dia.filtro.pontosPorNicho.pet, 44, 'os outros cortes de sempre continuam');
   // No dia seguinte, tudo volta ao que o ajustes.env diz.
   const normal = lerConfig(env, amanha);
   assert.equal(normal.temaDoDia, undefined);

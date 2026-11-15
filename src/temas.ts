@@ -12,7 +12,7 @@ export interface TemaDoDia {
 }
 
 /** Os pontos mínimos por nicho de sempre, para o tema poder baixar só o do nicho dele. */
-const PONTOS_PADRAO = 'pet=48,bebe=48,ferramentas=48,games=52';
+const PONTOS_PADRAO = 'pet=44,bebe=48,ferramentas=48,games=52';
 
 export const TEMAS_DO_DIA: Record<string, TemaDoDia> = {
   vestidos: {
@@ -28,6 +28,19 @@ export const TEMAS_DO_DIA: Record<string, TemaDoDia> = {
       INSTAGRAM_REELS_DE_ROUPA: '3',
       INSTAGRAM_NICHOS: 'moda',
       NICHO_MINIMOS: 'moda=30',
+    },
+  },
+  blackfriday: {
+    nome: 'Esquenta Black Friday: games, eletrônicos, acessórios, moda feminina e ferramentas',
+    ajustes: {
+      // Sem filtro de palavras (TEMA): o robô segue postando de tudo, mas estes nichos ganham meta maior hoje e cortes de qualidade mais baixos,
+      // para entrarem mais ofertas deles. O pet segue com a meta de 2 por hora (34 no dia).
+      NICHO_MINIMOS: 'pet=34,games=14,tech=50,moda=40,ferramentas=22',
+      NICHO_PONTOS_MINIMOS: `${PONTOS_PADRAO.replace('ferramentas=48', 'ferramentas=44').replace('games=52', 'games=46')},moda=45,tech=52`,
+      // Moda feminina vende pouco por anúncio, então o corte de vendas e de pontos cai só hoje.
+      SHOPEE_VENDAS_MINIMAS: '300',
+      VENDAS_MINIMAS: '40',
+      CUPONS_POR_DIA: '6',
     },
   },
   tecnologia: {
