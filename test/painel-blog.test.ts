@@ -186,7 +186,7 @@ test('blog: cria os posts do dia, página inicial, categorias e arquivo; escapa 
   assert.equal(r.gerou, true);
   assert.equal(r.postsDeHoje, 3); // geral, tech e casa; pet tem só 2 produtos e não vira post
   assert.deepEqual([...r.paginas].sort(), [
-    '404.html', 'arquivo.html', 'categoria-casa.html', 'categoria-tech.html', 'categoria-todas.html', 'index.html',
+    '404.html', 'arquivo.html', 'busca.html', 'categoria-casa.html', 'categoria-tech.html', 'categoria-todas.html', 'index.html',
     'post-2026-10-03-casa.html', 'post-2026-10-03-ofertas-do-dia.html', 'post-2026-10-03-tech.html', 'privacidade.html', 'sobre.html',
   ]);
   assert.equal(existsSync(join(dir, 'ofertas-antiga.html')), false, 'página que não faz mais parte do site é removida');

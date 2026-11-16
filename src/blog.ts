@@ -299,6 +299,7 @@ ${ld ? `<script type="application/ld+json">${JSON.stringify(ld).replace(/</g, '\
   <div class="topo-miolo">
     <a class="marca" href="index.html">${LOGO}${nomeDaMarca(esc(b.nome))}</a>
     <nav aria-label="Seções">${nav}</nav>
+    <form class="busca" action="busca.html" method="get" role="search"><input type="search" name="q" placeholder="Buscar ofertas…" aria-label="Buscar ofertas" autocomplete="off"><button type="submit" aria-label="Buscar">🔍</button></form>
   </div>
 </header>
 <main id="conteudo"${p.largo ? ' class="largo"' : ''}>
@@ -683,6 +684,57 @@ function paginaPrivacidade(site: Site): string {
 }
 
 /** Página 404 com saída clara: voltar ao início, ver os guias ou escolher uma categoria. */
+/** Entradas do buscador: cada produto dos posts e guias (título, página onde está e endereço), sem repetir o mesmo título (o mesmo produto aparece em vários posts: vale o primeiro, que é o guia ou o post mais novo). */
+export function indiceDeBusca(posts: Post[], guias: Guia[]): Array<{ t: string; p: string; u: string }> {
+  const vistos = new Set<string>();
+  const saida: Array<{ t: string; p: string; u: string }> = [];
+  const add = (t: string, p: string, u: string) => {
+    const chave = t.toLowerCase().replace(/\s+/g, ' ').trim();
+    if (!t || vistos.has(chave)) return;
+    vistos.add(chave);
+    saida.push({ t, p, u });
+  };
+  for (const g of guias) {
+    add(g.titulo, 'Guia de compra', g.arquivo);
+    for (const o of g.dados.itens) add(o.titulo, g.titulo, g.arquivo);
+  }
+  for (const post of posts) for (const o of post.dados.itens) add(o.titulo, post.titulo, post.arquivo);
+  return saida;
+}
+
+const SCRIPT_DA_BUSCA = `(function(){
+  var campo=document.getElementById('q'),lista=document.getElementById('resultado-busca'),resumo=document.getElementById('resumo-busca'),dados=null;
+  function norm(t){return String(t).toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g,'');}
+  function mostrar(){
+    var termos=norm(campo.value).split(/\\s+/).filter(Boolean);
+    lista.textContent='';
+    if(!dados){resumo.textContent='Carregando…';return;}
+    if(!termos.length){resumo.textContent='Digite o que você procura.';return;}
+    var achados=dados.filter(function(x){var alvo=norm(x.t+' '+x.p);return termos.every(function(t){return alvo.indexOf(t)>=0;});});
+    resumo.textContent=achados.length?achados.length+(achados.length>40?' resultados (mostrando 40)':achados.length===1?' resultado':' resultados'):'Nada encontrado. Tente outra palavra.';
+    achados.slice(0,40).forEach(function(x){
+      var li=document.createElement('li'),a=document.createElement('a'),p=document.createElement('span');
+      a.href=x.u;a.textContent=x.t;p.className='suave';p.textContent=' · '+x.p;
+      li.appendChild(a);li.appendChild(p);lista.appendChild(li);
+    });
+  }
+  campo.value=new URLSearchParams(location.search).get('q')||'';
+  fetch('busca.json').then(function(r){return r.json();}).then(function(d){dados=d;mostrar();}).catch(function(){resumo.textContent='Não consegui carregar a busca agora.';});
+  campo.addEventListener('input',mostrar);
+  mostrar();
+})();`;
+
+function paginaDeBusca(site: Site): string {
+  const corpo = `  <section class="busca-pagina">
+  <h1>Buscar ofertas</h1>
+  <form class="busca grande" action="busca.html" method="get" role="search"><input id="q" type="search" name="q" placeholder="Ex.: air fryer, fone, tênis…" aria-label="Buscar ofertas" autocomplete="off"><button type="submit">Buscar</button></form>
+  <p id="resumo-busca" class="suave" role="status"></p>
+  <ul id="resultado-busca" class="lista-busca"></ul>
+  </section>
+  <script>${SCRIPT_DA_BUSCA}</script>`;
+  return moldura(site, { arquivo: 'busca.html', titulo: 'Buscar ofertas e produtos', descricao: `Busque produtos nas ofertas do dia e nos guias de compra do ${site.config.blog.nome}: digite o nome e veja onde ele está.`, corpo });
+}
+
 function pagina404(site: Site): string {
   const categorias = site.temas.filter((t) => t !== TEMA_GERAL);
   const atalhos = categorias.length ? `\n  <nav class="chips" aria-label="Categorias">${categorias.map((t) => `<a href="categoria-${t}.html">${esc(nomeDoTema(t))}</a>`).join('')}</nav>` : '';
@@ -739,6 +791,7 @@ img{max-width:100%}
 .pular{position:absolute;left:-999px;top:8px;background:var(--texto);color:var(--fundo);padding:8px 12px;border-radius:8px;z-index:20}
 .pular:focus{left:8px}
 .topo{position:sticky;top:0;z-index:10;background:color-mix(in srgb,var(--cartao) 88%,transparent);backdrop-filter:saturate(1.4) blur(10px);border-bottom:1px solid var(--borda)}
+.busca{display:flex;margin-left:auto;gap:6px}.busca input{background:var(--fundo);color:var(--texto);border:1px solid var(--borda-forte);border-radius:999px;padding:8px 14px;font:inherit;font-size:.9rem;min-width:0;width:190px}.busca button{background:var(--cor);color:var(--cor-texto);border:0;border-radius:999px;padding:8px 14px;font:inherit;cursor:pointer}.busca.grande{margin:16px 0}.busca.grande input{flex:1;width:auto;font-size:1.05rem;padding:12px 18px}.lista-busca{list-style:none;padding:0;margin:0}.lista-busca li{padding:12px 0;border-bottom:1px solid var(--borda)}.lista-busca a{color:var(--texto);font-weight:600}.suave{color:var(--suave)}
 .topo-miolo{max-width:1120px;margin:0 auto;padding:12px 20px;display:flex;align-items:center;gap:8px 22px;flex-wrap:wrap}
 .marca{display:flex;align-items:center;gap:6px;font-size:1.7rem;color:var(--texto);text-decoration:none}
 .logo{flex:none}
@@ -1383,6 +1436,8 @@ export async function gerarBlog(banco: Banco, config: Config, agora: Date = new 
   gravar('privacidade.html', paginaPrivacidade(site));
   gravar('index.html', paginaInicial(site));
   gravar('404.html', pagina404(site));
+  gravar('busca.html', paginaDeBusca(site));
+  writeFileSync(join(b.pasta, 'busca.json'), JSON.stringify(indiceDeBusca(posts, guias)), 'utf8');
 
   // Remove páginas que não existem mais (posts vencidos, categorias vazias, formato antigo), para não ficar oferta velha no ar.
   for (const arquivo of readdirSync(b.pasta)) {
