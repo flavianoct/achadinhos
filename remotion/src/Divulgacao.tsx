@@ -15,14 +15,16 @@ carregarFonte();
 
 export const DIVULGACAO_FPS = 30;
 /** Quadro em que cada cena termina (acompanha a voz). */
-export const FIM_DAS_CENAS = { gancho: 114, garimpo: 228, historico: 330, grupo: 486, vantagens: 564, chamada: 690 };
+export const FIM_DAS_CENAS = { gancho: 114, garimpo: 228, historico: 330, grupo: 486, vantagens: 564, chamada: 720 };
 export const DURACAO_DA_DIVULGACAO = FIM_DAS_CENAS.chamada;
 
 /** Como a pessoa entra: pelo botão do anúncio, pelo link na descrição (Facebook, YouTube) ou pelo link na bio (Instagram). */
-export type ChamadaDaDivulgacao = 'botao' | 'descricao' | 'bio';
+export type ChamadaDaDivulgacao = 'botao' | 'descricao' | 'bio' | 'comenta';
 
 export type PropsDaDivulgacao = {
   chamada: ChamadaDaDivulgacao;
+  /** As três linhas da primeira cena (a abertura muda de vídeo para vídeo); vazio, usa a de sempre. */
+  gancho?: [string, string, string];
   /** Narração (em public/). */
   voz: string;
   /** Música baixinha por baixo da voz (em public/); vazio, sem música. */
@@ -107,7 +109,8 @@ const GrupoRolando: React.FC = () => {
 };
 
 /** Cena 1: o gancho. */
-const Gancho: React.FC = () => {
+const GANCHO_PADRAO: [string, string, string] = ['PROMOÇÃO BOA', 'ACABA RÁPIDO', 'e muita gente perde a hora'];
+const Gancho: React.FC<{ linhas: [string, string, string] }> = ({ linhas }) => {
   const frame = useCurrentFrame();
   const relogio = interpolate(frame, [0, 100], [0, 360], travar);
   return (
@@ -121,9 +124,9 @@ const Gancho: React.FC = () => {
           <circle cx="50" cy="50" r="5" fill="#fff" />
         </svg>
       </div>
-      <Texto y={730} tamanho={118} italico>PROMOÇÃO BOA</Texto>
-      <Texto y={870} tamanho={118} cor={MARCA.amarelo} italico atraso={8}>ACABA RÁPIDO</Texto>
-      <Texto y={1080} tamanho={52} cor="#fff" atraso={36}>e muita gente perde a hora</Texto>
+      <Texto y={730} tamanho={118} italico>{linhas[0]}</Texto>
+      <Texto y={870} tamanho={118} cor={MARCA.amarelo} italico atraso={8}>{linhas[1]}</Texto>
+      <Texto y={1080} tamanho={52} cor="#fff" atraso={36}>{linhas[2]}</Texto>
     </AbsoluteFill>
   );
 };
@@ -226,6 +229,7 @@ const TEXTOS_DA_CHAMADA: Record<ChamadaDaDivulgacao, { botao: string; seta: stri
   botao: { botao: 'ENTRAR NO GRUPO', seta: '👆', rodape: 'toque no botão · é grátis' },
   descricao: { botao: 'LINK NA DESCRIÇÃO', seta: '👇', rodape: 'toque no link da descrição · é grátis' },
   bio: { botao: 'LINK NA BIO', seta: '👆', rodape: 'toque no link do perfil · é grátis' },
+  comenta: { botao: 'COMENTA QUERO', seta: '👇', rodape: 'eu te mando o link do grupo no direct · é grátis' },
 };
 
 /** Cena 6: a chamada. Botão grande, que pulsa, e a seta apontando para ele. */
@@ -251,11 +255,11 @@ const Chamada: React.FC<{ tipo: ChamadaDaDivulgacao }> = ({ tipo }) => {
   );
 };
 
-export const Divulgacao: React.FC<PropsDaDivulgacao> = ({ chamada, voz, musica }) => {
+export const Divulgacao: React.FC<PropsDaDivulgacao> = ({ chamada, gancho, voz, musica }) => {
   const frame = useCurrentFrame();
   const f = FIM_DAS_CENAS;
   const cenas: Array<{ de: number; ate: number; no: React.ReactNode }> = [
-    { de: 0, ate: f.gancho, no: <Gancho /> },
+    { de: 0, ate: f.gancho, no: <Gancho linhas={gancho ?? GANCHO_PADRAO} /> },
     { de: f.gancho, ate: f.garimpo, no: <Garimpo /> },
     { de: f.garimpo, ate: f.historico, no: <Historico /> },
     { de: f.historico, ate: f.grupo, no: <Grupo /> },
