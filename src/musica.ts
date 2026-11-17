@@ -185,7 +185,7 @@ export function sintetizarEfeitos(segundos: number, eventos: Efeito[]): Buffer {
         // Ruído que sobe e desce, com o filtro abrindo: o "vuuush" da tela deslizando.
         const corte = 300 + 6000 * Math.sin(Math.PI * Math.min(1, x / 0.4));
         passa += (1 - Math.exp((-2 * Math.PI * corte) / TAXA)) * (ruido(k + 11) - passa);
-        v = passa * Math.sin(Math.PI * Math.min(1, x / 0.4)) * 0.7;
+        v = passa * Math.sin(Math.PI * Math.min(1, x / 0.4)) * 0.3;
       } else if (ev.tipo === 'pop') {
         // Bolha curta: tom que cai de agudo para médio.
         v = Math.sin(2 * Math.PI * (520 * x + (900 * (1 - Math.exp(-40 * x))) / 40)) * Math.exp(-28 * x) * 0.55;
