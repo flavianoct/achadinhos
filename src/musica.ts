@@ -183,14 +183,17 @@ export function sintetizarEfeitos(segundos: number, eventos: Efeito[]): Buffer {
       let v: number;
       if (ev.tipo === 'whoosh') {
         // Ruído que sobe e desce, com o filtro abrindo: o "vuuush" da tela deslizando.
-        const corte = 300 + 6000 * Math.sin(Math.PI * Math.min(1, x / 0.4));
+        // Suave: o filtro abre só até 1,6 kHz (sem o chiado agudo) e o volume sobe e desce devagar.
+        const corte = 200 + 1400 * Math.sin(Math.PI * Math.min(1, x / 0.4));
         passa += (1 - Math.exp((-2 * Math.PI * corte) / TAXA)) * (ruido(k + 11) - passa);
-        v = passa * Math.sin(Math.PI * Math.min(1, x / 0.4)) * 0.3;
+        v = passa * Math.pow(Math.sin(Math.PI * Math.min(1, x / 0.4)), 2) * 0.32;
       } else if (ev.tipo === 'pop') {
         // Bolha curta: tom que cai de agudo para médio.
-        v = Math.sin(2 * Math.PI * (520 * x + (900 * (1 - Math.exp(-40 * x))) / 40)) * Math.exp(-28 * x) * 0.55;
+        // Gotinha redonda: tom mais grave, entrada macia (sem estalo) e volume baixo.
+        v = Math.sin(2 * Math.PI * (330 * x + (420 * (1 - Math.exp(-40 * x))) / 40)) * Math.exp(-24 * x) * Math.min(1, x / 0.004) * 0.3;
       } else if (ev.tipo === 'ding') {
-        v = (Math.sin(2 * Math.PI * 1318.5 * x) * 0.6 + Math.sin(2 * Math.PI * 1975.5 * x) * 0.3 + Math.sin(2 * Math.PI * 2637 * x) * 0.1) * Math.exp(-4.2 * x) * 0.55;
+        // Sino mais grave e macio (sol 784 Hz com o harmônico baixinho), que some devagar, sem o brilho agudo.
+        v = (Math.sin(2 * Math.PI * 784 * x) * 0.75 + Math.sin(2 * Math.PI * 1176 * x) * 0.2 + Math.sin(2 * Math.PI * 1568 * x) * 0.05) * Math.exp(-3.4 * x) * Math.min(1, x / 0.006) * 0.3;
       } else {
         const f = ev.tipo === 'tic' ? 1800 : 1250;
         v = (Math.sin(2 * Math.PI * f * x) * 0.8 + ruido(k) * 0.2) * Math.exp(-55 * x) * 0.6;
