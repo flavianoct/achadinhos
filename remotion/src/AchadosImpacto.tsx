@@ -55,7 +55,7 @@ const Grande: React.FC<{ y: number; tamanho: number; cor?: string; atraso?: numb
 /** Abertura: "PARA!" tremendo e, depois, a frase de gancho. */
 const Gancho: React.FC<{ p: PropsDosAchados }> = ({ p }) => {
   const f = useCurrentFrame();
-  const t = useTremida(30, 12);
+  const t = useTremida(12, 10);
   const frase = p.frase?.length ? p.frase.slice(0, 2) : [p.promessa];
   return (
     <AbsoluteFill>

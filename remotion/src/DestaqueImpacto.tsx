@@ -75,7 +75,7 @@ const FotoQueBate: React.FC<{ src: string; cor: string; lado: number; legenda?: 
 
 const Gancho: React.FC<{ p: PropsDoDestaque }> = ({ p }) => {
   const f = useCurrentFrame();
-  const t = useTremida(30, 12);
+  const t = useTremida(12, 10);
   const frase = p.frase?.length ? p.frase.slice(0, 2) : p.fato ? [p.fato] : [];
   return (
     <AbsoluteFill>

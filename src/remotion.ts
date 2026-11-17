@@ -56,11 +56,11 @@ export interface PropsDoRemotion {
  */
 export function vozesDoImpacto(chave: string, itens: number, pastaDoRemotion: string): PropsDoRemotion['vozes'] {
   const soma = [...chave].reduce((t, c) => (t * 31 + c.charCodeAt(0)) >>> 0, 7);
-  const gancho = `vozes/h${(soma % 3) + 1}.mp3`;
-  const fim = `vozes/f${((soma >>> 3) % 2) + 1}.mp3`;
-  const numeros = Array.from({ length: Math.min(3, itens) }, (_, i) => `vozes/n${i + 1}.mp3`);
-  const todas = [gancho, fim, ...numeros];
-  return todas.every((a) => existsSync(join(pastaDoRemotion, 'public', a))) ? { gancho, itens: numeros, fim } : undefined;
+  // Só a abertura (sem o grito de "Para!": h2 "Isso saiu hoje!" ou h3 "Você viu esse?") e o fecho curto (f2 "Comenta aí!"): sem "Número N" em cada produto, que soava robótico.
+  const gancho = `vozes/h${(soma % 2) + 2}.mp3`;
+  const fim = 'vozes/f2.mp3';
+  const todas = [gancho, fim];
+  return todas.every((a) => existsSync(join(pastaDoRemotion, 'public', a))) ? { gancho, itens: [], fim } : undefined;
 }
 
 /** Provas reais do produto, uma por chip. */
