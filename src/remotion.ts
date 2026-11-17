@@ -183,7 +183,7 @@ export async function gravarComRemotion(itens: Array<{ oferta: OfertaAvaliada; i
     writeFileSync(caminhoDoAudio, audioDoRemotion(itens.length, chave, Boolean(musica)));
     const arquivoDosProps = join(tmp, 'props.json');
     writeFileSync(arquivoDosProps, JSON.stringify(props));
-    await executar(process.execPath, [remotion.cli, 'render', 'src/index.ts', 'Achados', destino, `--props=${arquivoDosProps}`, '--log=error'], { cwd: remotion.pasta, timeout: 6 * 60_000, maxBuffer: 20_000_000 });
+    await executar(process.execPath, [remotion.cli, 'render', 'src/index.ts', config.instagram.reelEstilo === 'impacto' ? 'AchadosImpacto' : 'Achados', destino, `--props=${arquivoDosProps}`, '--log=error'], { cwd: remotion.pasta, timeout: 6 * 60_000, maxBuffer: 20_000_000 });
     return existsSync(destino) ? undefined : 'o Remotion terminou sem gravar o vídeo';
   } catch (e) {
     const erro = e as Error & { stderr?: string };
