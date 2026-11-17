@@ -150,7 +150,8 @@ export const DestaqueImpacto: React.FC<PropsDoDestaque & { vozes?: VozesDoDestaq
   if (galeria) {
     const g = QUADROS_DA_GALERIA;
     cenas.push([0, g.gancho, <Gancho key="g" p={p} />]);
-    galeria.forEach((src, i) => cenas.push([g.gancho + i * g.foto, g.gancho + (i + 1) * g.foto, <FotoQueBate key={i} src={src} cor={cores[i % cores.length]!} lado={i % 2 ? 1 : -1} preco={p.preco} de={p.de} />]));
+    // Galeria: as fotos vão limpas (é o mesmo produto em todas) e o preço aparece só no fim.
+    galeria.forEach((src, i) => cenas.push([g.gancho + i * g.foto, g.gancho + (i + 1) * g.foto, <FotoQueBate key={i} src={src} cor={cores[i % cores.length]!} lado={i % 2 ? 1 : -1} />]));
     inicioDoFim = g.gancho + galeria.length * g.foto;
   } else {
     const q = QUADROS_DO_DESTAQUE;
