@@ -372,6 +372,14 @@ export async function gravarDestaqueComRemotion(item: { oferta: OfertaAvaliada; 
       ...(fotos ? { fotos } : {}),
     };
     writeFileSync(arquivoDosProps, JSON.stringify(props));
+    // Estilo impacto: a mesma tela do destaque, com a voz da biblioteca (a abertura e o "Gostou? Comenta QUERO"), se os arquivos existirem.
+    if (config.instagram.reelEstilo === 'impacto') {
+      const v = vozesDoImpacto(chave, 1, remotion.pasta);
+      const fim = 'vozes/q1.mp3';
+      const vozes = v && comentaQuero && existsSync(join(remotion.pasta, 'public', fim)) ? { gancho: v.gancho, fim } : undefined;
+      writeFileSync(arquivoDosProps, JSON.stringify({ ...props, ...(vozes ? { vozes } : {}) }));
+      return await renderizar('DestaqueImpacto');
+    }
     return await renderizar('Destaque');
   } catch (e) {
     const erro = e as Error & { stderr?: string };

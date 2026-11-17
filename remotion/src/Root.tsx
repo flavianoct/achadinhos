@@ -3,6 +3,7 @@ import { Composition } from 'remotion';
 import { Achados, ACHADOS_FPS, duracaoDosAchados, type PropsDosAchados } from './Achados';
 import { Carrossel, imagensDoCarrossel, type PropsDoCarrossel } from './Carrossel';
 import { Destaque, DESTAQUE_FPS, duracaoDoDestaque, type PropsDoDestaque } from './Destaque';
+import { DestaqueImpacto, duracaoDoDestaqueImpacto } from './DestaqueImpacto';
 import { AchadosImpacto, duracaoDosAchadosImpacto } from './AchadosImpacto';
 import { Impacto, IMPACTO_FPS, DURACAO_DO_IMPACTO, type PropsDoImpacto } from './Impacto';
 import { Divulgacao, DIVULGACAO_FPS, DURACAO_DA_DIVULGACAO, type PropsDaDivulgacao } from './Divulgacao';
@@ -73,6 +74,7 @@ export const Root: React.FC = () => (
       defaultProps={achados}
       calculateMetadata={({ props }) => ({ durationInFrames: duracaoDosAchadosImpacto(props.itens.length) })}
     />
+    <Composition id="DestaqueImpacto" component={DestaqueImpacto} durationInFrames={duracaoDoDestaqueImpacto(destaque)} fps={DESTAQUE_FPS} width={1080} height={1920} defaultProps={destaque} calculateMetadata={({ props }) => ({ durationInFrames: duracaoDoDestaqueImpacto(props) })} />
     <Composition id="Impacto" component={Impacto} durationInFrames={DURACAO_DO_IMPACTO} fps={IMPACTO_FPS} width={1080} height={1920} defaultProps={impacto} />
     <Composition id="Solucao" component={SolucaoReel} durationInFrames={duracaoDaSolucao(solucao)} fps={SOLUCAO_FPS} width={1080} height={1920} defaultProps={solucao} calculateMetadata={({ props }) => ({ durationInFrames: duracaoDaSolucao(props) })} />
     <Composition id="Destaque" component={Destaque} durationInFrames={duracaoDoDestaque(destaque)} fps={DESTAQUE_FPS} width={1080} height={1920} defaultProps={destaque} calculateMetadata={({ props }) => ({ durationInFrames: duracaoDoDestaque(props) })} />
