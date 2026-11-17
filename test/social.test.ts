@@ -410,7 +410,7 @@ test('instagram: o Reel sai com a capa no quadro de 1 segundo, e não no primeir
   }) as unknown as typeof fetch;
   assert.equal(await new Instagram('t', '1', falso, 0).publicarReel('https://x/v.mp4', 'legenda'), 'reel1');
   assert.match(corpos[0]!, new RegExp(`thumb_offset=${CAPA_DO_REEL_MS}`));
-  assert.ok(CAPA_DO_REEL_MS >= 800 && CAPA_DO_REEL_MS <= 1500);
+  assert.ok(CAPA_DO_REEL_MS >= 800 && CAPA_DO_REEL_MS <= 3500);
 });
 
 test('comenta QUERO: um post apagado no Instagram não impede o link de ir para quem comentou nos outros posts', async () => {

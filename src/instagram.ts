@@ -15,7 +15,7 @@ import { arquivoDaData, arquivoDoResumo, chaveDaDataPublicada, chaveDoResumoPubl
 
 const BASE = 'https://graph.instagram.com/v23.0';
 /** Em que momento do Reel (ms) fica a capa. */
-export const CAPA_DO_REEL_MS = 1000;
+export const CAPA_DO_REEL_MS = 3000;
 const pausa = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export class ErroInstagram extends Error {
