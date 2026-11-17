@@ -27,6 +27,9 @@ export const QUADROS_DO_REMOTION = { gancho: 54, item: 72, fim: 78 };
 const FPS = 30;
 
 export interface ItemDoRemotion {
+  /** Estilo impacto com REEL_PRECO=1: o preço de agora e o "de" riscado, já formatados. */
+  preco?: string;
+  de?: string;
   nome: string[];
   imagem: string;
   selo?: { texto: string; tipo: 'desconto' | 'historico' | 'febre' };
@@ -48,6 +51,13 @@ export interface PropsDoRemotion {
   frase?: string[];
   /** Vozes da biblioteca (estilo impacto): a abertura, "número N" de cada produto e o pedido para comentar. */
   vozes?: { gancho: string; itens: string[]; fim: string };
+}
+
+/** O preço para a tela: "R$ 77,90" e, quando a loja informa um preço "de" maior (com pelo menos 5% de diferença), o "de" riscado. */
+export function precoParaTela(o: OfertaAvaliada): { preco: string; de?: string } {
+  const reais = (n: number) => `R$ ${n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const de = o.precoOriginal && o.precoOriginal >= o.preco * 1.05 ? reais(o.precoOriginal) : undefined;
+  return { preco: reais(o.preco), ...(de ? { de } : {}) };
 }
 
 /**
@@ -194,8 +204,10 @@ export async function gravarComRemotion(itens: Array<{ oferta: OfertaAvaliada; i
     const musica = prepararMusica(chave, remotion.pasta);
     const gancho = ganchoDoReel(itens.map((it) => it.oferta), chave);
     console.log(`[reel] gancho de texto (${chave}): ${gancho.tipo} — ${gancho.linhas.join(' / ')}`);
-    const vozes = config.instagram.reelEstilo === 'impacto' ? vozesDoImpacto(chave, itens.length, remotion.pasta) : undefined;
-    const props: PropsDoRemotion = { ...propsDoRemotion(itens, comentaQuero, nomes), audio, frase: gancho.linhas, ...(musica ? { musica } : {}), ...(grupo ? { grupo } : {}), ...(vozes ? { vozes } : {}) };
+    const vozes = config.instagram.reelEstilo === 'impacto' && config.instagram.reelVoz ? vozesDoImpacto(chave, itens.length, remotion.pasta) : undefined;
+    const base = propsDoRemotion(itens, comentaQuero, nomes);
+    if (config.instagram.reelPreco) base.itens = base.itens.map((it, i) => ({ ...it, ...precoParaTela(itens[i]!.oferta) }));
+    const props: PropsDoRemotion = { ...base, audio, frase: gancho.linhas, ...(musica ? { musica } : {}), ...(grupo ? { grupo } : {}), ...(vozes ? { vozes } : {}) };
     writeFileSync(caminhoDoAudio, audioDoRemotion(itens.length, chave, Boolean(musica)));
     const arquivoDosProps = join(tmp, 'props.json');
     writeFileSync(arquivoDosProps, JSON.stringify(props));
@@ -367,6 +379,7 @@ export async function gravarDestaqueComRemotion(item: { oferta: OfertaAvaliada; 
       provas: provasDoProduto(o).slice(0, 3),
       cor: CORES_DO_NICHO[o.categoria] ?? CORES_DO_NICHO.geral!,
       comentaQuero,
+      ...(config.instagram.reelEstilo === 'impacto' && config.instagram.reelPreco ? precoParaTela(o) : {}),
       audio,
       ...(musicaDoFenaky ? { musica: musicaDoFenaky } : {}),
       ...(fotos ? { fotos } : {}),
@@ -376,7 +389,7 @@ export async function gravarDestaqueComRemotion(item: { oferta: OfertaAvaliada; 
     if (config.instagram.reelEstilo === 'impacto') {
       const v = vozesDoImpacto(chave, 1, remotion.pasta);
       const fim = 'vozes/q1.mp3';
-      const vozes = v && comentaQuero && existsSync(join(remotion.pasta, 'public', fim)) ? { gancho: v.gancho, fim } : undefined;
+      const vozes = config.instagram.reelVoz && v && comentaQuero && existsSync(join(remotion.pasta, 'public', fim)) ? { gancho: v.gancho, fim } : undefined;
       writeFileSync(arquivoDosProps, JSON.stringify({ ...props, ...(vozes ? { vozes } : {}) }));
       return await renderizar('DestaqueImpacto');
     }

@@ -18,6 +18,19 @@ const travar = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' } as const;
 const SOMBRA = '0 4px 18px rgba(0,0,0,.85), 0 0 4px rgba(0,0,0,.6)';
 const VERDE = '#25D366';
 const caber = (s: string, base: number, largura = 940) => Math.min(base, Math.floor(largura / (Math.max(1, s.length) * 0.78)));
+/** O preço grande: "R$ 77,90" e, em cima, o "de" riscado. */
+const Preco: React.FC<{ preco: string; de?: string; y: number; atraso?: number }> = ({ preco, de, y, atraso = 0 }) => {
+  const f = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const s = spring({ frame: f - atraso, fps, config: { damping: 8, stiffness: 300 } });
+  return (
+    <div style={{ position: 'absolute', top: y, left: 0, right: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', transform: `scale(${s})` }}>
+      {de ? <div style={{ fontFamily: FONTE, fontWeight: 900, fontSize: 40, color: 'rgba(255,255,255,.85)', textDecoration: 'line-through', textDecorationColor: MARCA.vermelho, textDecorationThickness: 5, textShadow: SOMBRA }}>{de}</div> : null}
+      <div style={{ padding: '4px 34px', borderRadius: 26, background: MARCA.amarelo, color: MARCA.fundo, fontFamily: FONTE, fontWeight: 900, fontSize: caber(preco, 112, 760), boxShadow: '0 14px 36px rgba(0,0,0,.55)', whiteSpace: 'nowrap', transform: 'rotate(-2deg)' }}>{preco}</div>
+    </div>
+  );
+};
+
 const foto = (src: string) => (/^(https?:|data:)/.test(src) ? src : staticFile(src));
 const musicaComFade = (frame: number, total: number) => 0.8 * Math.min(1, frame / 15, Math.max(0, (total - frame) / 30));
 
@@ -54,7 +67,7 @@ const Grande: React.FC<{ y: number; tamanho: number; cor?: string; atraso?: numb
 };
 
 /** Uma foto grande que bate na tela (zoom, tremida, flash). */
-const FotoQueBate: React.FC<{ src: string; cor: string; lado: number; legenda?: string }> = ({ src, cor, lado, legenda }) => {
+const FotoQueBate: React.FC<{ src: string; cor: string; lado: number; legenda?: string; preco?: string; de?: string }> = ({ src, cor, lado, legenda, preco, de }) => {
   const f = useCurrentFrame();
   const { fps } = useVideoConfig();
   const bate = spring({ frame: f, fps, config: { damping: 9, stiffness: 420 } });
@@ -67,7 +80,8 @@ const FotoQueBate: React.FC<{ src: string; cor: string; lado: number; legenda?: 
           <Img src={foto(src)} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
         </div>
       </AbsoluteFill>
-      {legenda ? <Grande y={1400} tamanho={84} cor={MARCA.amarelo} atraso={3}>{legenda}</Grande> : null}
+      {preco ? <Preco preco={preco} de={de} y={1340} atraso={3} /> : null}
+      {legenda ? <Grande y={preco ? 1560 : 1400} tamanho={preco ? 56 : 84} cor={MARCA.amarelo} atraso={3}>{legenda}</Grande> : null}
       <Flash forca={0.45} cor={cor} />
     </AbsoluteFill>
   );
@@ -111,14 +125,16 @@ const Fim: React.FC<{ p: PropsDoDestaque }> = ({ p }) => {
       {p.nome.slice(0, 2).map((l, k) => (
         <Grande key={k} y={850 + k * 92} tamanho={72} atraso={4 + k * 3}>{l}</Grande>
       ))}
-      <div style={{ position: 'absolute', top: 1090, width: '100%', display: 'flex', justifyContent: 'center', gap: 16 }}>
+      {p.preco ? <Preco preco={p.preco} de={p.de} y={1040} atraso={4} /> : null}
+      <div style={{ position: 'absolute', top: p.preco ? 1245 : 1090, width: '100%', display: 'flex', justifyContent: 'center', gap: 16 }}>
         {p.provas.slice(0, 3).map((s, k) => (
           <div key={k} style={{ padding: '10px 24px', borderRadius: 36, background: 'rgba(14,14,16,.88)', border: `3px solid ${MARCA.amarelo}`, color: '#fff', fontFamily: FONTE, fontWeight: 900, fontSize: caber(s, 36, 280) }}>{s}</div>
         ))}
       </div>
-      <div style={{ position: 'absolute', top: 1250, width: '100%', display: 'flex', justifyContent: 'center', transform: `scale(${entra * pulsa})` }}>
-        <div style={{ padding: '30px 56px', borderRadius: 100, background: VERDE, color: '#06210F', fontFamily: FONTE, fontWeight: 900, fontSize: 80, boxShadow: '0 0 0 14px rgba(37,211,102,.3), 0 24px 60px rgba(0,0,0,.55)', whiteSpace: 'nowrap' }}>{p.comentaQuero ? 'COMENTA QUERO' : 'LINK NO DIRECT'}</div>
+      <div style={{ position: 'absolute', top: p.preco ? 1345 : 1250, width: '100%', display: 'flex', justifyContent: 'center', transform: `scale(${entra * pulsa})` }}>
+        <div style={{ padding: '30px 56px', borderRadius: 100, background: VERDE, color: '#06210F', fontFamily: FONTE, fontWeight: 900, fontSize: caber(p.comentaQuero ? 'DIGITA EU QUERO' : 'LINK NO DIRECT', 80, 820), boxShadow: '0 0 0 14px rgba(37,211,102,.3), 0 24px 60px rgba(0,0,0,.55)', whiteSpace: 'nowrap' }}>{p.comentaQuero ? 'DIGITA EU QUERO' : 'LINK NO DIRECT'}</div>
       </div>
+      {p.comentaQuero ? <Grande y={p.preco ? 1530 : 1430} tamanho={50} atraso={10}>aí mandamos o link no direct</Grande> : null}
     </AbsoluteFill>
   );
 };
@@ -134,12 +150,12 @@ export const DestaqueImpacto: React.FC<PropsDoDestaque & { vozes?: VozesDoDestaq
   if (galeria) {
     const g = QUADROS_DA_GALERIA;
     cenas.push([0, g.gancho, <Gancho key="g" p={p} />]);
-    galeria.forEach((src, i) => cenas.push([g.gancho + i * g.foto, g.gancho + (i + 1) * g.foto, <FotoQueBate key={i} src={src} cor={cores[i % cores.length]!} lado={i % 2 ? 1 : -1} />]));
+    galeria.forEach((src, i) => cenas.push([g.gancho + i * g.foto, g.gancho + (i + 1) * g.foto, <FotoQueBate key={i} src={src} cor={cores[i % cores.length]!} lado={i % 2 ? 1 : -1} preco={p.preco} de={p.de} />]));
     inicioDoFim = g.gancho + galeria.length * g.foto;
   } else {
     const q = QUADROS_DO_DESTAQUE;
     cenas.push([0, q.gancho, <Gancho key="g" p={p} />]);
-    for (let i = 0; i < 3; i++) cenas.push([q.gancho + i * q.detalhe, q.gancho + (i + 1) * q.detalhe, <FotoQueBate key={i} src={p.imagem} cor={cores[i % cores.length]!} lado={i % 2 ? 1 : -1} legenda={p.provas[i]} />]);
+    for (let i = 0; i < 3; i++) cenas.push([q.gancho + i * q.detalhe, q.gancho + (i + 1) * q.detalhe, <FotoQueBate key={i} src={p.imagem} cor={cores[i % cores.length]!} lado={i % 2 ? 1 : -1} legenda={p.provas[i]} preco={p.preco} de={p.de} />]);
     inicioDoFim = q.gancho + 3 * q.detalhe;
   }
   cenas.push([inicioDoFim, total, <Fim key="f" p={p} />]);

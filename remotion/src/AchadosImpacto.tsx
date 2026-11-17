@@ -18,6 +18,19 @@ const travar = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' } as const;
 const SOMBRA = '0 4px 18px rgba(0,0,0,.85), 0 0 4px rgba(0,0,0,.6)';
 const VERDE = '#25D366';
 const caber = (s: string, base: number, largura = 940) => Math.min(base, Math.floor(largura / (Math.max(1, s.length) * 0.78)));
+/** O preço grande: "R$ 77,90" e, em cima, o "de" riscado. */
+const Preco: React.FC<{ preco: string; de?: string; y: number; atraso?: number }> = ({ preco, de, y, atraso = 0 }) => {
+  const f = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const s = spring({ frame: f - atraso, fps, config: { damping: 8, stiffness: 300 } });
+  return (
+    <div style={{ position: 'absolute', top: y, left: 0, right: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', transform: `scale(${s})` }}>
+      {de ? <div style={{ fontFamily: FONTE, fontWeight: 900, fontSize: 40, color: 'rgba(255,255,255,.85)', textDecoration: 'line-through', textDecorationColor: MARCA.vermelho, textDecorationThickness: 5, textShadow: SOMBRA }}>{de}</div> : null}
+      <div style={{ padding: '4px 34px', borderRadius: 26, background: MARCA.amarelo, color: MARCA.fundo, fontFamily: FONTE, fontWeight: 900, fontSize: caber(preco, 112, 760), boxShadow: '0 14px 36px rgba(0,0,0,.55)', whiteSpace: 'nowrap', transform: 'rotate(-2deg)' }}>{preco}</div>
+    </div>
+  );
+};
+
 const foto = (src: string) => (/^(https?:|data:)/.test(src) ? src : staticFile(src));
 
 const useTremida = (forca: number, duracao = 10) => {
@@ -89,15 +102,16 @@ const Produto: React.FC<{ item: ItemDosAchados; n: number }> = ({ item, n }) => 
     <AbsoluteFill>
       <Fundo cor={item.cor} />
       <AbsoluteFill style={{ transform: `translate(${t.x}px, ${t.y}px)` }}>
-        <div style={{ position: 'absolute', left: 100, top: 400, width: 880, height: 820, borderRadius: 48, background: '#fff', border: `12px solid ${item.cor}`, overflow: 'hidden', boxShadow: '0 30px 80px rgba(0,0,0,.6)', transform: `scale(${2.3 - 1.3 * bate}) rotate(${lado * (1 - bate) * 12 + lado * 1.5}deg)` }}>
+        <div style={{ position: 'absolute', left: 70, top: 340, width: 940, height: 730, borderRadius: 48, background: '#fff', border: `12px solid ${item.cor}`, overflow: 'hidden', boxShadow: '0 30px 80px rgba(0,0,0,.6)', transform: `scale(${2.3 - 1.3 * bate}) rotate(${lado * (1 - bate) * 12 + lado * 1.5}deg)` }}>
           <Img src={foto(item.imagem)} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
         </div>
       </AbsoluteFill>
       <div style={{ position: 'absolute', left: 60, top: 330, width: 130, height: 130, borderRadius: 65, background: MARCA.amarelo, color: MARCA.fundo, fontFamily: FONTE, fontWeight: 900, fontSize: 90, display: 'flex', alignItems: 'center', justifyContent: 'center', transform: `scale(${bate}) rotate(-8deg)`, boxShadow: '0 12px 30px rgba(0,0,0,.5)' }}>{n}</div>
+      {(item as { preco?: string }).preco ? <Preco preco={(item as { preco: string }).preco} de={(item as { de?: string }).de} y={1095} atraso={6} /> : null}
       {item.nome.slice(0, 2).map((l, k) => (
-        <Grande key={k} y={1270 + k * 92} tamanho={76} atraso={4 + k * 3}>{l}</Grande>
+        <Grande key={k} y={(item as { preco?: string }).preco ? 1320 + k * 80 : 1270 + k * 92} tamanho={(item as { preco?: string }).preco ? 66 : 76} atraso={4 + k * 3}>{l}</Grande>
       ))}
-      <div style={{ position: 'absolute', top: 1470, width: '100%', display: 'flex', justifyContent: 'center', gap: 18 }}>
+      <div style={{ position: 'absolute', top: 1510, width: '100%', display: 'flex', justifyContent: 'center', gap: 18 }}>
         {[...(item.selo ? [item.selo.texto] : []), ...item.provas].slice(0, 3).map((s, k) => {
           const pop = spring({ frame: f - 14 - k * 5, fps, config: { damping: 8, stiffness: 300 } });
           return <div key={k} style={{ padding: '12px 28px', borderRadius: 40, background: k === 0 && item.selo ? VERDE : 'rgba(14,14,16,.88)', border: `3px solid ${MARCA.amarelo}`, color: k === 0 && item.selo ? '#06210F' : '#fff', fontFamily: FONTE, fontWeight: 900, fontSize: caber(s, 40, 300), transform: `scale(${pop})` }}>{s}</div>;
@@ -115,7 +129,7 @@ const Fim: React.FC<{ p: PropsDosAchados }> = ({ p }) => {
   const entra = spring({ frame: f - 6, fps, config: { damping: 8, stiffness: 260 } });
   const pulsa = 1 + Math.sin(f / 3) * 0.04;
   const numeros = p.itens.map((_, i) => i + 1).join(', ').replace(/, (\d)$/, ' OU $1');
-  const texto = p.comentaQuero && p.itens.length === 1 ? 'COMENTA QUERO' : `COMENTA ${numeros}`;
+  const texto = p.comentaQuero && p.itens.length === 1 ? 'DIGITA EU QUERO' : `DIGITA ${numeros}`;
   return (
     <AbsoluteFill>
       <Fundo cor={VERDE} />
@@ -134,7 +148,7 @@ const Fim: React.FC<{ p: PropsDosAchados }> = ({ p }) => {
       <div style={{ position: 'absolute', top: 860, width: '100%', display: 'flex', justifyContent: 'center', transform: `scale(${entra * pulsa})` }}>
         <div style={{ padding: '34px 56px', borderRadius: 100, background: VERDE, color: '#06210F', fontFamily: FONTE, fontWeight: 900, fontSize: caber(texto, 84, 800), boxShadow: '0 0 0 14px rgba(37,211,102,.3), 0 24px 60px rgba(0,0,0,.55)', whiteSpace: 'nowrap' }}>{texto}</div>
       </div>
-      <Grande y={1110} tamanho={50} atraso={10}>e eu te mando o link no direct</Grande>
+      <Grande y={1110} tamanho={50} atraso={10}>aí mandamos o link no direct</Grande>
       {p.grupo ? <Grande y={1230} tamanho={44} cor={MARCA.amarelo} atraso={16}>{p.grupo}</Grande> : null}
     </AbsoluteFill>
   );
