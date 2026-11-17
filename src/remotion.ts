@@ -46,6 +46,21 @@ export interface PropsDoRemotion {
   grupo?: string;
   /** A frase de gancho dos primeiros 1,5 s. */
   frase?: string[];
+  /** Vozes da biblioteca (estilo impacto): a abertura, "número N" de cada produto e o pedido para comentar. */
+  vozes?: { gancho: string; itens: string[]; fim: string };
+}
+
+/**
+ * Sorteia, pela chave do Reel, as vozes da biblioteca (remotion/public/vozes, geradas uma vez no ElevenLabs: sem custo por vídeo).
+ * Sem os arquivos, o Reel sai sem voz.
+ */
+export function vozesDoImpacto(chave: string, itens: number, pastaDoRemotion: string): PropsDoRemotion['vozes'] {
+  const soma = [...chave].reduce((t, c) => (t * 31 + c.charCodeAt(0)) >>> 0, 7);
+  const gancho = `vozes/h${(soma % 3) + 1}.mp3`;
+  const fim = `vozes/f${((soma >>> 3) % 2) + 1}.mp3`;
+  const numeros = Array.from({ length: Math.min(3, itens) }, (_, i) => `vozes/n${i + 1}.mp3`);
+  const todas = [gancho, fim, ...numeros];
+  return todas.every((a) => existsSync(join(pastaDoRemotion, 'public', a))) ? { gancho, itens: numeros, fim } : undefined;
 }
 
 /** Provas reais do produto, uma por chip. */
@@ -179,7 +194,8 @@ export async function gravarComRemotion(itens: Array<{ oferta: OfertaAvaliada; i
     const musica = prepararMusica(chave, remotion.pasta);
     const gancho = ganchoDoReel(itens.map((it) => it.oferta), chave);
     console.log(`[reel] gancho de texto (${chave}): ${gancho.tipo} — ${gancho.linhas.join(' / ')}`);
-    const props: PropsDoRemotion = { ...propsDoRemotion(itens, comentaQuero, nomes), audio, frase: gancho.linhas, ...(musica ? { musica } : {}), ...(grupo ? { grupo } : {}) };
+    const vozes = config.instagram.reelEstilo === 'impacto' ? vozesDoImpacto(chave, itens.length, remotion.pasta) : undefined;
+    const props: PropsDoRemotion = { ...propsDoRemotion(itens, comentaQuero, nomes), audio, frase: gancho.linhas, ...(musica ? { musica } : {}), ...(grupo ? { grupo } : {}), ...(vozes ? { vozes } : {}) };
     writeFileSync(caminhoDoAudio, audioDoRemotion(itens.length, chave, Boolean(musica)));
     const arquivoDosProps = join(tmp, 'props.json');
     writeFileSync(arquivoDosProps, JSON.stringify(props));

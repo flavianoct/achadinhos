@@ -140,7 +140,10 @@ const Fim: React.FC<{ p: PropsDosAchados }> = ({ p }) => {
   );
 };
 
-export const AchadosImpacto: React.FC<PropsDosAchados> = (p) => {
+/** Vozes da biblioteca (public/vozes): a abertura, "número N" em cada produto e o pedido para comentar no fim. */
+export type VozesDoImpacto = { gancho: string; itens: string[]; fim: string };
+
+export const AchadosImpacto: React.FC<PropsDosAchados & { vozes?: VozesDoImpacto }> = (p) => {
   const frame = useCurrentFrame();
   const total = duracaoDosAchados(p.itens.length);
   const cenas: Array<[number, number, React.ReactNode]> = [[0, QUADROS.gancho, <Gancho key="g" p={p} />]];
@@ -155,7 +158,16 @@ export const AchadosImpacto: React.FC<PropsDosAchados> = (p) => {
         <div style={{ padding: '10px 26px', borderRadius: 30, background: 'rgba(0,0,0,.62)', fontFamily: 'Arial, sans-serif', fontWeight: 700, fontSize: 27, color: 'rgba(255,255,255,.92)', whiteSpace: 'nowrap' }}>Publi · link de afiliado · preço pode mudar</div>
       </div>
       {p.audio ? <Audio src={staticFile(p.audio)} /> : null}
-      {p.musica ? <Audio src={staticFile(p.musica)} volume={(f) => musicaComFade(f, total)} /> : null}
+      {p.musica ? <Audio src={staticFile(p.musica)} volume={(f) => musicaComFade(f, total) * (p.vozes ? 0.55 : 1)} /> : null}
+      {p.vozes ? (
+        <>
+          <Sequence from={0}><Audio src={staticFile(p.vozes.gancho)} /></Sequence>
+          {p.vozes.itens.slice(0, p.itens.length).map((v, i) => (
+            <Sequence key={i} from={QUADROS.gancho + i * QUADROS.item + 4}><Audio src={staticFile(v)} /></Sequence>
+          ))}
+          <Sequence from={QUADROS.gancho + p.itens.length * QUADROS.item + 4}><Audio src={staticFile(p.vozes.fim)} /></Sequence>
+        </>
+      ) : null}
     </AbsoluteFill>
   );
 };
