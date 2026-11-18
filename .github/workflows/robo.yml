@@ -8,6 +8,8 @@ on:
     # Reforço da manhã: o agendador do GitHub às vezes atrasa ou pula disparos, e a primeira rodada do dia
     # chegou a sair 2 horas depois das 8h. Estes disparos extras só valem se ainda não houver rodada em andamento.
     - cron: '17,27,47,57 10 * * *'
+    # Uma hora antes de abrir (6h de Brasília): se o cron das 7h atrasar, a corrente já está rodando e a primeira rodada do dia sai no horário.
+    - cron: '17,47 9 * * *'
   # Permite rodar na hora pelo botão "Run workflow" da aba Actions.
   workflow_dispatch:
 
@@ -168,7 +170,8 @@ jobs:
           inicio=$(grep -E '^HORA_INICIO=' ajustes.env | cut -d= -f2 | tr -d '\r ')
           fim=$(grep -E '^HORA_FIM=' ajustes.env | cut -d= -f2 | tr -d '\r ')
           hora=$(TZ=America/Sao_Paulo date -d '+25 minutes' +%-H)
-          if [ "$hora" -lt "${inicio:-8}" ] || [ "$hora" -ge "${fim:-23}" ]; then
+          # A corrente segue até uma hora antes de abrir (o cron do GitHub atrasa de manhã e deixava o robô parado por horas).
+          if [ "$hora" -lt "$(( ${inicio:-8} - 1 ))" ] || [ "$hora" -ge "${fim:-23}" ]; then
             echo "A próxima rodada cairia às ${hora}h, fora do horário (${inicio:-8}h às ${fim:-23}h). Ciclo pausado até o cron de manhã."
             exit 0
           fi
