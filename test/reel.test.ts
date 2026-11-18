@@ -436,6 +436,11 @@ test('destaque: produto de foto única não vira destaque (o zoom em foto parada
 });
 
 test('reel agendado: sai na hora marcada, uma vez só, e quem comenta "eu quero" recebe o link real do produto', async () => {
+  // Os Reels prontos antigos foram arquivados em reels-prontos/_arquivados: o teste traz o do vestido de volta só enquanto roda.
+  const { copyFileSync, existsSync, rmSync } = await import('node:fs');
+  const trazidos = ['vestido-vinho.json', 'vestido-vinho.mp4'].filter((n) => !existsSync(`reels-prontos/${n}`));
+  for (const n of trazidos) copyFileSync(`reels-prontos/_arquivados/${n}`, `reels-prontos/${n}`);
+  try {
   const { reelsNaHora, lerReelsAgendados, arquivoNoSite } = await import('../src/agendados.ts');
   const { responderComentarios } = await import('../src/instagram.ts');
   const reels = lerReelsAgendados();
@@ -472,6 +477,9 @@ test('reel agendado: sai na hora marcada, uma vez só, e quem comenta "eu quero"
   await responderComentarios(banco, lerConfig({ ...base, INSTAGRAM_COMENTA_QUERO: '1' }), agora, fetch, falso);
   assert.equal(directs.length, 1);
   assert.ok(directs[0]!.includes('MLB-3601773569') && directs[0]!.includes('matt_word=topfera'), 'o direct leva o link real do vestido');
+  } finally {
+    for (const n of trazidos) rmSync(`reels-prontos/${n}`, { force: true });
+  }
 });
 
 test('músicas do Fenaky: cada Reel usa uma faixa, as faixas giram entre os Reels e, sem faixa na pasta, vale a trilha sintetizada', async () => {
