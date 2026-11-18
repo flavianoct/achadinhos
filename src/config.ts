@@ -159,7 +159,7 @@ export interface Config {
   /** Arte de Story, legenda e roteiro de vídeo das ofertas postadas (aparecem no painel). */
   social: { ativo: boolean };
   /** Publicação automática no Instagram (conta profissional). Token e ID ficam nos Secrets. */
-  instagram: { ativo: boolean; token: string; userId: string; feedPorDia: number; storiesPorDia: number; intervaloFeedMin: number; intervaloStoryMin: number; notaMinima: number; vendasMinimas: number; palavrasBloqueadas: string[]; carrosselPorDia: number; carrosselItens: number; carrosselTetos: number[]; dicasDias: number[]; perguntaDias: number[]; horariosFeed: number[]; horariosStories: number[]; reelsPorDia: number; horariosReels: number[]; resumoHora: number; dataHora: number; grupoDias: number[]; tokenData: string; comentaQuero: boolean; palavrasDoComentario: string[]; respostasPorRodada: number; reelRemotion: boolean; reelEstilo: 'achados' | 'impacto'; reelPreco: boolean; reelVoz: boolean; destaqueNichos: string[]; reelsDeDestaque: number; destaquePrefere: string[]; soNosReels: string[]; reelsDeRoupa: number; destaqueMinFotos: number; nichos: string[]; problemas: boolean };
+  instagram: { ativo: boolean; token: string; userId: string; feedPorDia: number; storiesPorDia: number; intervaloFeedMin: number; intervaloStoryMin: number; notaMinima: number; vendasMinimas: number; palavrasBloqueadas: string[]; carrosselPorDia: number; carrosselItens: number; carrosselTetos: number[]; dicasDias: number[]; perguntaDias: number[]; horariosFeed: number[]; horariosStories: number[]; reelsPorDia: number; horariosReels: number[]; resumoHora: number; dataHora: number; grupoDias: number[]; tokenData: string; comentaQuero: boolean; palavrasDoComentario: string[]; respostasPorRodada: number; reelRemotion: boolean; reelEstilo: 'achados' | 'impacto' | 'oferta'; reelPreco: boolean; reelVoz: boolean; destaqueNichos: string[]; reelsDeDestaque: number; destaquePrefere: string[]; soNosReels: string[]; reelsDeRoupa: number; destaqueMinFotos: number; nichos: string[]; problemas: boolean };
   painel: { porta: number };
   /** O tema do dia que está valendo hoje (nome para mostrar), se houver. */
   temaDoDia?: string;
@@ -563,7 +563,7 @@ function lerConfigBase(env: Env): Config {
       respostasPorRodada: numero(env, 'INSTAGRAM_RESPOSTAS_POR_RODADA', 25),
       // Reel animado com o Remotion (pasta remotion/). Se ele não estiver instalado ou falhar, sai o Reel simples (ffmpeg).
       reelRemotion: ligado(env, 'REEL_REMOTION', true),
-      reelEstilo: opcao(env, 'REEL_ESTILO', ['achados', 'impacto'] as const, 'achados'),
+      reelEstilo: opcao(env, 'REEL_ESTILO', ['achados', 'impacto', 'oferta'] as const, 'achados'),
       reelPreco: ligado(env, 'REEL_PRECO', false),
       reelVoz: ligado(env, 'REEL_VOZ', true),
       // Reel de destaque (um produto só, "comenta EU QUERO"): os nichos que vendem pelo olho. Ocupa o 2º Reel do dia. Vazio = nunca.

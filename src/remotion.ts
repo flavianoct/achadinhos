@@ -211,7 +211,7 @@ export async function gravarComRemotion(itens: Array<{ oferta: OfertaAvaliada; i
     writeFileSync(caminhoDoAudio, audioDoRemotion(itens.length, chave, Boolean(musica)));
     const arquivoDosProps = join(tmp, 'props.json');
     writeFileSync(arquivoDosProps, JSON.stringify(props));
-    await executar(process.execPath, [remotion.cli, 'render', 'src/index.ts', config.instagram.reelEstilo === 'impacto' ? 'AchadosImpacto' : 'Achados', destino, `--props=${arquivoDosProps}`, '--log=error'], { cwd: remotion.pasta, timeout: 6 * 60_000, maxBuffer: 20_000_000 });
+    await executar(process.execPath, [remotion.cli, 'render', 'src/index.ts', config.instagram.reelEstilo !== 'achados' ? 'AchadosImpacto' : 'Achados', destino, `--props=${arquivoDosProps}`, '--log=error'], { cwd: remotion.pasta, timeout: 6 * 60_000, maxBuffer: 20_000_000 });
     return existsSync(destino) ? undefined : 'o Remotion terminou sem gravar o vídeo';
   } catch (e) {
     const erro = e as Error & { stderr?: string };
@@ -379,13 +379,14 @@ export async function gravarDestaqueComRemotion(item: { oferta: OfertaAvaliada; 
       provas: provasDoProduto(o).slice(0, 3),
       cor: CORES_DO_NICHO[o.categoria] ?? CORES_DO_NICHO.geral!,
       comentaQuero,
-      ...(config.instagram.reelEstilo === 'impacto' && config.instagram.reelPreco ? precoParaTela(o) : {}),
+      ...(config.instagram.reelEstilo !== 'achados' && config.instagram.reelPreco ? precoParaTela(o) : {}),
       audio,
       ...(musicaDoFenaky ? { musica: musicaDoFenaky } : {}),
       ...(fotos ? { fotos } : {}),
     };
     writeFileSync(arquivoDosProps, JSON.stringify(props));
     // Estilo impacto: a mesma tela do destaque, com a voz da biblioteca (a abertura e o "Gostou? Comenta QUERO"), se os arquivos existirem.
+    if (config.instagram.reelEstilo === 'oferta') return await renderizar('Oferta');
     if (config.instagram.reelEstilo === 'impacto') {
       const v = vozesDoImpacto(chave, 1, remotion.pasta);
       const fim = 'vozes/q1.mp3';
