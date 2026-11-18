@@ -17,6 +17,8 @@ export interface ReelAgendado {
   /** O link de afiliado que vai no direct de quem pedir. */
   link: string;
   legenda: string;
+  /** Em que momento do vídeo (ms) fica a capa; sem isso, vale CAPA_DO_REEL_MS (3 s). */
+  capaMs?: number;
 }
 
 export const PASTA_DOS_REELS_PRONTOS = 'reels-prontos';

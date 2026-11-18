@@ -144,8 +144,8 @@ export class Instagram {
    * A capa é o quadro de 1 segundo (e não o primeiro, em que o produto ainda está entrando e o texto, transparente): a frase do gancho já
    * está inteira e nítida.
    */
-  publicarReel(urlDoVideo: string, legenda: string): Promise<string> {
-    return this.publicar({ media_type: 'REELS', video_url: urlDoVideo, caption: legenda, share_to_feed: 'true', thumb_offset: String(CAPA_DO_REEL_MS) }, 60);
+  publicarReel(urlDoVideo: string, legenda: string, capaMs: number = CAPA_DO_REEL_MS): Promise<string> {
+    return this.publicar({ media_type: 'REELS', video_url: urlDoVideo, caption: legenda, share_to_feed: 'true', thumb_offset: String(Math.max(0, Math.round(capaMs))) }, 60);
   }
 
   /** Comentários de um post (só os de primeiro nível; as respostas não entram). */
@@ -370,7 +370,7 @@ export async function publicarNoInstagram(banco: Banco, config: Config, agora: D
       const video = `${config.blog.url}/social/${arquivoNoSite(ag)}`;
       if (!(await noAr(video))) continue;
       try {
-        const id = await api.publicarReel(video, ag.legenda);
+        const id = await api.publicarReel(video, ag.legenda, ag.capaMs);
         banco.salvarTexto(`agendado:${ag.id}`, agora.toISOString(), agora);
         if (id) {
           banco.registrarMidiaDoInstagram(id, 'reel', ag.titulo, ag.link, agora);
