@@ -282,3 +282,17 @@ test('instagram: só tecnologia, moda, games e casa vão para o Instagram (INSTA
   for (const c of ['pet', 'beleza', 'esporte', 'bebe', 'ferramentas', 'geral']) assert.equal(passaNoFiltroDoInstagram({ ...oferta('A', 5), categoria: c }, ig), false, c);
   assert.equal(passaNoFiltroDoInstagram({ ...oferta('A', 5), categoria: 'pet' }, lerConfig({ ...base, INSTAGRAM_NICHOS: '' }).instagram), true, 'vazio libera todos');
 });
+
+test('token do Instagram: descreverToken mostra o defeito sem revelar a chave, e a config tira espaço, quebra de linha e aspas', async () => {
+  const { descreverToken } = await import('../src/instagram.ts');
+  const longo = 'IGAA' + 'x'.repeat(200);
+  assert.match(descreverToken(longo), /204 caracteres, começa com "IG", formato parece normal/);
+  assert.ok(!descreverToken(longo).includes('xxx'), 'nunca mostra o miolo do token');
+  assert.match(descreverToken(`${longo}\n`), /quebra de linha/);
+  assert.match(descreverToken('123456789:AAHxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'), /dois pontos \(parece token do Telegram\)/);
+  assert.match(descreverToken('17841426388220828'), /parece o ID da conta/);
+  assert.match(descreverToken(''), /vazio/);
+  const c = lerConfig({ INSTAGRAM_TOKEN: `"${longo}"\r\n`, INSTAGRAM_USER_ID: ' 1784 \n' });
+  assert.equal(c.instagram.token, longo);
+  assert.equal(c.instagram.userId, '1784');
+});

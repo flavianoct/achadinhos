@@ -528,8 +528,9 @@ function lerConfigBase(env: Env): Config {
     social: { ativo: ligado(env, 'SOCIAL_ATIVO', true) },
     instagram: {
       ativo: ligado(env, 'INSTAGRAM_ATIVO', false),
-      token: (env.INSTAGRAM_TOKEN ?? '').trim(),
-      userId: (env.INSTAGRAM_USER_ID ?? '').trim(),
+      // Tolerante a erro de colagem: tira espaço, quebra de linha e aspas do token e do ID (o Instagram recusa um token com quebra de linha no fim).
+      token: (env.INSTAGRAM_TOKEN ?? '').replace(/[\s"'`]/g, ''),
+      userId: (env.INSTAGRAM_USER_ID ?? '').replace(/[\s"'`]/g, ''),
       feedPorDia: numero(env, 'INSTAGRAM_FEED_POR_DIA', 3),
       storiesPorDia: numero(env, 'INSTAGRAM_STORIES_POR_DIA', 6),
       intervaloFeedMin: numero(env, 'INSTAGRAM_INTERVALO_FEED_MIN', 180),

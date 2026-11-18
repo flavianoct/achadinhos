@@ -14,6 +14,22 @@ import { campanhaDeHoje, carregarCampanhas } from './datas.ts';
 import { arquivoDaData, arquivoDoResumo, chaveDaDataPublicada, chaveDoResumoPublicado } from './vitrine.ts';
 
 const BASE = 'https://graph.instagram.com/v23.0';
+/**
+ * Descreve o token SEM revelá-lo (vai para o aviso do robô, que é público): tamanho, as 2 primeiras letras e os defeitos comuns de colagem
+ * (espaço, quebra de linha, aspas, dois pontos de token do Telegram). Serve para achar o defeito do secret sem ninguém ver a chave.
+ */
+export function descreverToken(token: string): string {
+  const t = String(token ?? '');
+  const defeitos: string[] = [];
+  if (!t) return 'o secret INSTAGRAM_TOKEN está vazio';
+  if (/\s/.test(t)) defeitos.push(/\n|\r/.test(t) ? 'tem quebra de linha ou espaço' : 'tem espaço');
+  if (/["'`]/.test(t)) defeitos.push('tem aspas');
+  if (t.includes(':')) defeitos.push('tem dois pontos (parece token do Telegram)');
+  if (/^\d{15,}$/.test(t.trim())) defeitos.push('só tem números (parece o ID da conta)');
+  if (t.length < 100) defeitos.push('curto demais para um token do Instagram');
+  return `diagnóstico do token: ${t.length} caracteres, começa com "${t.trim().slice(0, 2)}"${defeitos.length ? `, ${defeitos.join(', ')}` : ', formato parece normal'}`;
+}
+
 /** Em que momento do Reel (ms) fica a capa. */
 export const CAPA_DO_REEL_MS = 3000;
 const pausa = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -61,7 +77,8 @@ export class Instagram {
     const fatal = erro.code === 190 || erro.code === 10 || erro.code === 200 || r.status === 401 || r.status === 403;
     const codigo = `${r.status}${erro.code ? `/${erro.code}` : ''}${erro.error_subcode ? `/${erro.error_subcode}` : ''}`;
     const detalhe = erro.error_user_msg && erro.error_user_msg !== erro.message ? ` (${erro.error_user_msg})` : '';
-    throw new ErroInstagram(`Instagram recusou (${codigo}): ${erro.message ?? 'erro desconhecido'}${detalhe}`, fatal);
+    const dica = erro.code === 190 ? ` [${descreverToken(this.token)}]` : '';
+    throw new ErroInstagram(`Instagram recusou (${codigo}): ${erro.message ?? 'erro desconhecido'}${detalhe}${dica}`, fatal);
   }
 
   /** Confere o token e o ID da conta, sem postar nada. */
