@@ -89,6 +89,8 @@ export interface Config {
     postsPorRodada: number;
     /** Fatia desejada de cada loja nos posts (LOJA_PROPORCAO=mercadolivre=65,shopee=35). Vazio = as lojas se alternam. */
     proporcaoDasLojas: Record<string, number>;
+    /** Teto de cada loja no dia, em % dos posts (LOJA_TETO=shopee=40): passou disso, a loja espera até a outra repor a fila. Vazio = sem teto. */
+    tetoDasLojas: Record<string, number>;
   };
   /** Cupons do Mercado Livre e da Amazon, cadastrados por você em cupons.json. */
   cupons: { ativo: boolean; arquivo: string; porDia: number; repetirDias: number; garimpo: boolean; aprovacao: boolean; lojas: string[]; bloquear: string[]; linkShopee: string; paginaShopee: string };
@@ -457,6 +459,7 @@ function lerConfigBase(env: Env): Config {
       parecidosHoras: numero(env, 'PARECIDOS_HORAS', 24),
       postsPorRodada: numero(env, 'POSTS_POR_RODADA', 2),
       proporcaoDasLojas: lerProporcaoDasLojas(env.LOJA_PROPORCAO),
+      tetoDasLojas: lerProporcaoDasLojas(env.LOJA_TETO),
     },
     vendas: { ativo: ligado(env, 'VENDAS_ATIVO', true), horasEntreLeituras: numero(env, 'VENDAS_HORAS', 3), dias: numero(env, 'VENDAS_DIAS', 30) },
     campanhas: { porDia: numero(env, 'CAMPANHAS_POR_DIA', 0), repetirDias: numero(env, 'CAMPANHAS_REPETIR_DIAS', 7) },

@@ -600,3 +600,18 @@ test('pipeline: com NICHOS_ATIVOS só o nicho escolhido entra na fila, e o resto
   assert.equal(soPet.tamanhoDaFilaDoNicho('pet'), 1);
   assert.equal(r.reprovadasPorMotivo['fora dos nichos ativos'], 1);
 });
+
+test('teto por loja: melhorDaFila sem a loja que passou do teto, e postsDoDiaPorLoja conta o dia por loja', () => {
+  const banco = new Banco(':memory:');
+  const sh = naFila('S1', 'Fone Shopee', 'tech', 90);
+  const ml = naFila('M1', 'Fone Mercado', 'tech', 50);
+  banco.enfileirar({ ...sh, loja: 'shopee' }, AGORA);
+  banco.enfileirar({ ...ml, loja: 'mercadolivre' }, AGORA);
+  assert.equal(banco.melhorDaFila()!.idProduto, 'S1', 'sem teto, a de mais pontos');
+  assert.equal(banco.melhorDaFila(undefined, [], [], ['shopee'])!.idProduto, 'M1', 'com a Shopee no teto, só o Mercado Livre');
+  assert.equal(banco.melhorDaFila(undefined, [], [], ['shopee', 'mercadolivre']), undefined, 'as duas no teto: nada sai');
+  banco.registrarPost({ ...sh, loja: 'shopee' }, AGORA, 'telegram', true);
+  banco.registrarPost({ ...ml, loja: 'mercadolivre' }, AGORA, 'telegram', true);
+  banco.registrarPost({ ...ml, idProduto: 'M2', loja: 'mercadolivre' }, AGORA, 'telegram', true);
+  assert.deepEqual(banco.postsDoDiaPorLoja(AGORA), { shopee: 1, mercadolivre: 2 });
+});

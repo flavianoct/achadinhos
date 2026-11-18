@@ -175,9 +175,17 @@ export async function postarProxima(publicador: Publicador, banco: Banco, config
   // Nicho com mínimo diário (NICHO_MINIMOS, ou o padrão dos nichos com canal próprio) que está atrás da meta de agora passa na frente do ranking geral.
   const preferidos = nichosAbaixoDaMeta(postsHoje, config, hora).filter((n) => !cheios.includes(n));
   const recentes = config.ritmo.parecidosHoras > 0 ? banco.titulosPostados(config.ritmo.parecidosHoras, agora) : [];
+  // Teto por loja (LOJA_TETO): a loja que já passou da fatia máxima do dia (com pelo menos 20 posts no dia) espera a outra repor a fila.
+  const semLojas: string[] = [];
+  const tetos = Object.entries(config.ritmo.tetoDasLojas);
+  if (tetos.length) {
+    const porLoja = banco.postsDoDiaPorLoja(agora);
+    const total = Object.values(porLoja).reduce((a, b) => a + b, 0);
+    if (total >= 20) for (const [loja, teto] of tetos) if ((porLoja[loja] ?? 0) / total >= teto / 100) semLojas.push(loja);
+  }
   for (let tentativa = 0; tentativa < 200; tentativa++) {
     const evitarLoja = lojaParaEvitar(banco.lojasDosUltimosPosts(20), banco.ultimaLojaPostada(), config) as Loja | undefined;
-    oferta = (preferidos.length ? banco.melhorDaFila(evitarLoja, cheios, preferidos) : undefined) ?? banco.melhorDaFila(evitarLoja, cheios);
+    oferta = (preferidos.length ? banco.melhorDaFila(evitarLoja, cheios, preferidos, semLojas) : undefined) ?? banco.melhorDaFila(evitarLoja, cheios, [], semLojas);
     if (!oferta) break;
     // Outro anúncio do mesmo tipo de produto já saiu há pouco (ex.: 3 chapas de policarbonato de vendedores diferentes): sai da fila.
     if (parecidoComAlgum(oferta.titulo, recentes)) {
