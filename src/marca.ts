@@ -6,23 +6,23 @@ export const CORES = { vermelho: '#E10600', vermelhoEscuro: '#A80400', amarelo: 
 export const FONTES = '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@1,800;1,900&family=Barlow:wght@400;500;600;700;800&display=swap">';
 
 /** Os traços do símbolo num quadro de 200x200. `etiqueta` é a cor da etiqueta e `corte` a cor do fundo onde ele fica. */
-function tracos(etiqueta: string, corte: string, raio: string = CORES.amarelo): string {
+function tracos(etiqueta: string, corte: string, raio: string = CORES.vermelho): string {
   return `<g transform="rotate(-18 100 100)"><path d="M26 100 L74 50 H164 Q176 50 176 62 V138 Q176 150 164 150 H74 Z" fill="${etiqueta}" stroke="${etiqueta}" stroke-width="10" stroke-linejoin="round"/><circle cx="70" cy="100" r="10" fill="${corte}"/></g><path d="M128 10 L82 106 H112 L90 190 L154 84 H122 L146 10 Z" fill="${raio}" stroke="${corte}" stroke-width="10" stroke-linejoin="round" paint-order="stroke"/>`;
 }
 
 /** Símbolo solto, para ficar sobre o fundo da página (por padrão, o preto da marca). */
-export function simbolo(tamanho = 34, etiqueta: string = CORES.vermelho, corte = 'var(--fundo,#0E0E10)'): string {
+export function simbolo(tamanho = 34, etiqueta: string = CORES.amarelo, corte = 'var(--fundo,#0E0E10)'): string {
   return `<svg class="logo" viewBox="0 0 200 200" width="${tamanho}" height="${tamanho}" aria-hidden="true">${tracos(etiqueta, corte)}</svg>`;
 }
 
 /** Símbolo dentro de um quadrado vermelho de cantos arredondados (ícone do site e foto de perfil). */
 export function simboloNoQuadro(x = 0, y = 0, lado = 200): string {
   const e = lado / 200;
-  return `<g transform="translate(${x} ${y}) scale(${e})"><rect width="200" height="200" rx="44" fill="${CORES.vermelho}"/><g transform="translate(22 22) scale(.78)">${tracos('#ffffff', CORES.vermelho)}</g></g>`;
+  return `<g transform="translate(${x} ${y}) scale(${e})"><rect width="200" height="200" rx="44" fill="${CORES.amarelo}"/><g transform="translate(22 22) scale(.78)">${tracos(CORES.preto, CORES.amarelo)}</g></g>`;
 }
 
 /** Símbolo para dentro de uma arte em SVG (Instagram): canto em (x, y), com `lado` de largura. `corte` é a cor do fundo da arte. */
-export function simboloNaArte(x: number, y: number, lado: number, etiqueta: string = CORES.vermelho, corte: string = CORES.preto): string {
+export function simboloNaArte(x: number, y: number, lado: number, etiqueta: string = CORES.amarelo, corte: string = CORES.preto): string {
   return `<g transform="translate(${x} ${y}) scale(${lado / 200})">${tracos(etiqueta, corte)}</g>`;
 }
 

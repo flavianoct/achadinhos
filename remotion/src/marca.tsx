@@ -18,8 +18,12 @@ export const FONTE = '"Archivo Black", "Arial Black", "Segoe UI Black", Impact, 
 /** Logo escrito em texto + raio (sem depender de arquivo de imagem). */
 export const Logo: React.FC<{ altura?: number }> = ({ altura = 64 }) => (
   <div style={{ display: 'flex', alignItems: 'center', gap: altura * 0.2, fontFamily: FONTE, fontWeight: 900, fontStyle: 'italic', fontSize: altura * 0.8, lineHeight: 1, filter: 'drop-shadow(0 3px 8px rgba(0,0,0,.55))' }}>
-    <svg width={altura * 0.75} height={altura} viewBox="0 0 48 64" aria-hidden>
-      <polygon points="28,0 6,36 22,36 16,64 42,24 26,24" fill={MARCA.vermelho} stroke={MARCA.amarelo} strokeWidth="3" strokeLinejoin="round" />
+    <svg width={altura} height={altura} viewBox="0 0 200 200" aria-hidden>
+      <g transform="rotate(-18 100 100)">
+        <path d="M26 100 L74 50 H164 Q176 50 176 62 V138 Q176 150 164 150 H74 Z" fill={MARCA.amarelo} stroke={MARCA.amarelo} strokeWidth="10" strokeLinejoin="round" />
+        <circle cx="70" cy="100" r="10" fill={MARCA.fundo} />
+      </g>
+      <path d="M128 10 L82 106 H112 L90 190 L154 84 H122 L146 10 Z" fill={MARCA.vermelho} stroke={MARCA.fundo} strokeWidth="10" strokeLinejoin="round" paintOrder="stroke" />
     </svg>
     <span style={{ color: MARCA.branco }}>MATA</span>
     <span style={{ color: MARCA.amarelo }}>PREÇO</span>
