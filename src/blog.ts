@@ -781,7 +781,7 @@ function paginaDoArquivo(site: Site): string {
   return moldura(site, { arquivo: 'arquivo.html', titulo: 'Arquivo de posts', descricao: `Arquivo de ofertas do ${site.config.blog.nome}: todos os posts por dia, com os preços do dia em que foram escritos e o histórico de preço.`, corpo, trilha: [['Arquivo']], largo: true });
 }
 
-const ESTILO = `:root{color-scheme:dark;--fundo:#0E0E10;--cartao:#17171B;--texto:#fff;--suave:#A9A9B3;--borda:#2A2A31;--borda-forte:#3A3A42;--cor:#E10600;--cor-forte:#FFD60A;--cor-texto:#fff;--cor-suave:#2A1110;--ok:#4cd694;--ok-fundo:#10281e;--aviso-fundo:#3a2c0c;--aviso:#f2c261;--estrela:#FFD60A;--sombra:none;--sombra-forte:0 12px 32px rgba(0,0,0,.45);--raio:16px}
+const ESTILO = `:root{color-scheme:dark;--fundo:#0E0E10;--cartao:#17171B;--texto:#fff;--suave:#A9A9B3;--borda:#2A2A31;--borda-forte:#3A3A42;--cor:#FFD60A;--cor-forte:#FFD60A;--cor-texto:#0E0E10;--cor-suave:#2A2208;--ok:#4cd694;--ok-fundo:#10281e;--aviso-fundo:#3a2c0c;--aviso:#f2c261;--estrela:#FFD60A;--sombra:none;--sombra-forte:0 12px 32px rgba(0,0,0,.45);--raio:16px}
 ${estiloDaMarca()}
 *{box-sizing:border-box}
 html{scroll-behavior:smooth;scroll-padding-top:76px}
