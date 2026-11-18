@@ -483,10 +483,27 @@ function variante(chave: string, n: number): number {
   return h % n;
 }
 
+/** O link para onde o convite leva: o CANAL de WhatsApp (BLOG_WHATSAPP); sem canal, o grupo geral de WHATSAPP_DESTINOS. Vazio se não houver nenhum. */
+export function linkDoGrupo(config: Config): string {
+  const grupo = config.whatsapp.destinos.find((d) => /^https:\/\/chat\.whatsapp\.com\//i.test(d));
+  return config.blog.whatsappLink || grupo || '';
+}
+
+const eLinkDeWhatsapp = (l: string) => /^https:\/\/(chat\.whatsapp\.com|whatsapp\.com\/channel)\//i.test(l);
+
+/** O direct de quem pediu o grupo (comentou "grupo", ou "eu quero" num post de convite): só o link do grupo, sem aviso de preço. */
+export function mensagemDoGrupo(link: string, chave = link): string {
+  const aberturas = ['Oi! Aqui está o link do canal 👇', 'Que bom que você quer entrar! Olha o link 👇', 'Prontinho, aqui está o canal 👇', 'Oi, tudo bem? Separei o link do canal pra você 👇'];
+  return [aberturas[variante(chave, aberturas.length)]!, '', `👉 ${link}`, '', 'É grátis e você sai quando quiser. As ofertas do dia chegam direto no seu WhatsApp, sem conversa e sem mostrar o seu número.'].join('\n');
+}
+
 export function mensagemDoDirect(titulo: string, link: string, config: Config, chave = link): string {
+  // Post de convite ao grupo: o link do post já é o do grupo.
+  if (eLinkDeWhatsapp(link)) return mensagemDoGrupo(link, chave);
+  const grupo = linkDoGrupo(config);
   const curto = titulo.length > 80 ? `${titulo.slice(0, 80).replace(/\s+\S*$/, '')}…` : titulo;
   const linhas = [ABERTURAS_1[variante(chave, ABERTURAS_1.length)]!, '', `🛒 ${curto}`, `👉 ${link}`, '', AVISOS_DO_PRECO[variante(`a${chave}`, AVISOS_DO_PRECO.length)]!];
-  if (config.blog.whatsappLink) linhas.push('', `📲 ${CONVITES[variante(`c${chave}`, CONVITES.length)]} ${config.blog.whatsappLink}`);
+  if (grupo) linhas.push('', `📲 ${CONVITES[variante(`c${chave}`, CONVITES.length)]} ${grupo}`);
   return linhas.join('\n');
 }
 
@@ -506,6 +523,9 @@ function produtosDoPost(link: string): Array<{ titulo: string; link: string }> |
  * "quero o 3") leva ao link daquele produto; "quero" sem número leva aos links de todos. Nos outros posts, uma das palavras leva ao link do post.
  */
 export function mensagemParaOComentario(texto: string, midia: { titulo: string; link: string }, palavras: string[], config: Config, idDoComentario = texto): string | undefined {
+  // "Grupo" no comentário (em qualquer post): o link do grupo, sem o produto.
+  const grupo = linkDoGrupo(config);
+  if (grupo && contemPalavra(texto, 'grupo')) return mensagemDoGrupo(grupo, idDoComentario);
   const produtos = produtosDoPost(midia.link);
   const pediu = palavras.some((p) => contemPalavra(texto, p));
   if (!produtos) return pediu ? mensagemDoDirect(midia.titulo, midia.link, config, idDoComentario) : undefined;
@@ -517,7 +537,7 @@ export function mensagemParaOComentario(texto: string, midia: { titulo: string; 
   const linhas = [ABERTURAS_N[variante(idDoComentario, ABERTURAS_N.length)]!, ''];
   for (const p of escolhidos) linhas.push(`${produtos.indexOf(p) + 1}. ${curto(p.titulo)}`, `👉 ${p.link}`, '');
   linhas.push(AVISOS_DO_PRECO[variante(`a${idDoComentario}`, AVISOS_DO_PRECO.length)]!);
-  if (config.blog.whatsappLink) linhas.push('', `📲 ${CONVITES[variante(`c${idDoComentario}`, CONVITES.length)]} ${config.blog.whatsappLink}`);
+  if (grupo) linhas.push('', `📲 ${CONVITES[variante(`c${idDoComentario}`, CONVITES.length)]} ${grupo}`);
   return linhas.join('\n');
 }
 

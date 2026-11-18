@@ -559,7 +559,7 @@ function lerConfigBase(env: Env): Config {
       tokenData: (env.INSTAGRAM_TOKEN_DATA ?? '').trim(),
       // "Comenta QUERO": quem comenta uma das palavras recebe o link no direct (o robô lê os comentários a cada rodada).
       comentaQuero: ligado(env, 'INSTAGRAM_COMENTA_QUERO', true),
-      palavrasDoComentario: lista(env.INSTAGRAM_PALAVRAS_DO_COMENTARIO ?? 'quero,eu quero,link,manda,me manda,qual o link,preco,quanto'),
+      palavrasDoComentario: lista(env.INSTAGRAM_PALAVRAS_DO_COMENTARIO ?? 'quero,eu quero,link,manda,me manda,qual o link,preco,quanto,grupo'),
       respostasPorRodada: numero(env, 'INSTAGRAM_RESPOSTAS_POR_RODADA', 25),
       // Reel animado com o Remotion (pasta remotion/). Se ele não estiver instalado ou falhar, sai o Reel simples (ffmpeg).
       reelRemotion: ligado(env, 'REEL_REMOTION', true),
