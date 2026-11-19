@@ -131,11 +131,37 @@ export const Folha: React.FC = () => {
   );
 };
 
+
+export type Expressao = 'decidido' | 'feliz' | 'surpreso' | 'triste' | 'safado' | 'cansado';
+
+/** O rosto do mascote (dentro do quadro 400x500 do corpo): cada expressão muda olhos, sobrancelhas e boca. */
+const Rosto: React.FC<{ expressao: Expressao; contorno: string; corpo: string }> = ({ expressao, corpo }) => {
+  // O rosto é sempre preto sobre o corpo amarelo (o contorno do mascote pode ser branco, e pupila branca sobre olho branco some).
+  const contorno = COR.preto;
+  const tr = { stroke: contorno, strokeWidth: 12, fill: 'none' } as const;
+  const olho = (cx: number, ry = 38, rx = 30) => <ellipse cx={cx} cy={240} rx={rx} ry={ry} fill="#fff" stroke={contorno} strokeWidth={8} />;
+  const pupila = (cx: number, dx = 0, dy = 0, r = 13) => <circle cx={cx + dx} cy={240 + dy} r={r} fill={contorno} />;
+  switch (expressao) {
+    case 'feliz':
+      return (<g><path d="M130 250 Q160 205 190 250" {...tr} strokeWidth={14} /><path d="M224 250 Q254 205 284 250" {...tr} strokeWidth={14} /><path d="M140 312 Q206 395 272 312 Z" fill="#fff" stroke={contorno} strokeWidth={10} /><circle cx={118} cy={300} r={16} fill={COR.vermelho} opacity={0.35} /><circle cx={296} cy={300} r={16} fill={COR.vermelho} opacity={0.35} /></g>);
+    case 'surpreso':
+      return (<g>{olho(160, 46, 36)}{olho(254, 46, 36)}{pupila(160, 0, 0, 8)}{pupila(254, 0, 0, 8)}<path d="M124 176 Q160 156 196 176 M218 176 Q254 156 290 176" {...tr} strokeWidth={12} /><ellipse cx={207} cy={344} rx={24} ry={32} fill={contorno} /></g>);
+    case 'triste':
+      return (<g>{olho(160)}{olho(254)}{pupila(160, 0, 10)}{pupila(254, 0, 10)}<path d="M124 208 L190 190 M290 208 L222 190" {...tr} strokeWidth={14} /><path d="M150 356 Q206 316 266 352" {...tr} /><path d="M176 282 Q168 312 180 326 Q192 312 176 282 Z" fill="#5BC0EB" stroke={contorno} strokeWidth={4} /></g>);
+    case 'safado':
+      return (<g>{olho(160)}{olho(254)}{pupila(160, 16, 4)}{pupila(254, 16, 4)}<path d="M124 196 L190 206 M290 190 L222 214" {...tr} strokeWidth={14} /><path d="M150 330 Q206 360 268 318" {...tr} /><path d="M268 318 L282 308" {...tr} strokeWidth={10} /></g>);
+    case 'cansado':
+      return (<g>{olho(160)}{olho(254)}{pupila(160, 0, 16, 11)}{pupila(254, 0, 16, 11)}<path d="M130 240 A30 38 0 0 1 190 240 Z" fill={corpo} stroke={contorno} strokeWidth={8} /><path d="M224 240 A30 38 0 0 1 284 240 Z" fill={corpo} stroke={contorno} strokeWidth={8} /><path d="M132 292 Q160 304 188 292 M226 292 Q254 304 284 292" stroke={contorno} strokeWidth={6} fill="none" opacity={0.45} /><path d="M156 346 H258" {...tr} /></g>);
+    default:
+      return (<g>{olho(160)}{olho(254)}{pupila(172, 0, 6)}{pupila(266, 0, 6)}<path d="M122 192 L190 214 M290 192 L222 214" {...tr} strokeWidth={14} /><path d="M148 328 Q206 372 268 322" {...tr} /><path d="M232 340 L244 322" stroke="#fff" strokeWidth={10} fill="none" /></g>);
+  }
+};
+
 /**
  * Mascote "Etiquetinha": a etiqueta de preço com cara decidida, que segura o raio e mata o preço. Desenhado em vetor (400x500), para usar em
  * Reels, capas e figurinhas, sempre igual. `fundo` é a cor de trás (o contorno de baixo do raio e do corpo).
  */
-export const Mascote: React.FC<{ altura: number; corpo?: string; contorno?: string }> = ({ altura, corpo = COR.amarelo, contorno = COR.preto }) => (
+export const Mascote: React.FC<{ altura: number; corpo?: string; contorno?: string; expressao?: Expressao }> = ({ altura, corpo = COR.amarelo, contorno = COR.preto, expressao = 'decidido' }) => (
   <svg height={altura} width={altura * 0.8} viewBox="0 0 400 500" strokeLinecap="round" strokeLinejoin="round">
     {/* pernas e tênis */}
     <path d="M150 395 L140 450 M250 395 L262 450" stroke={contorno} strokeWidth="16" fill="none" />
@@ -146,14 +172,7 @@ export const Mascote: React.FC<{ altura: number; corpo?: string; contorno?: stri
     {/* corpo: a etiqueta */}
     <path d="M80 130 L150 62 H300 Q322 62 322 84 V378 Q322 400 300 400 H102 Q80 400 80 378 Z" fill={corpo} stroke={contorno} strokeWidth="12" />
     <circle cx="152" cy="108" r="13" fill="#17171B" stroke={contorno} strokeWidth="6" />
-    {/* rosto */}
-    <ellipse cx="160" cy="240" rx="30" ry="38" fill="#fff" stroke={contorno} strokeWidth="8" />
-    <ellipse cx="254" cy="240" rx="30" ry="38" fill="#fff" stroke={contorno} strokeWidth="8" />
-    <circle cx="172" cy="246" r="13" fill={contorno} />
-    <circle cx="266" cy="246" r="13" fill={contorno} />
-    <path d="M122 192 L190 214 M290 192 L222 214" stroke={contorno} strokeWidth="14" fill="none" />
-    <path d="M148 328 Q206 372 268 322" stroke={contorno} strokeWidth="12" fill="none" />
-    <path d="M232 340 L244 322" stroke="#fff" strokeWidth="10" fill="none" />
+    <Rosto expressao={expressao} contorno={contorno} corpo={corpo} />
     {/* braço direito levantado com o raio */}
     <path d="M322 270 L362 230 L350 170" stroke={contorno} strokeWidth="16" fill="none" />
     <circle cx="350" cy="166" r="16" fill={corpo} stroke={contorno} strokeWidth="8" />
@@ -173,7 +192,7 @@ export const MascoteSozinho: React.FC<{ fundo: 'preto' | 'amarelo' }> = ({ fundo
 };
 
 /** Meme original do Mata Preço (1080x1350): a situação em cima (faixa amarela), o mascote no meio e a resposta embaixo. Sem marca de terceiros. */
-export const Meme: React.FC<{ topo: string; base: string }> = ({ topo, base }) => {
+export const Meme: React.FC<{ topo: string; base: string; expressao?: Expressao }> = ({ topo, base, expressao = 'decidido' }) => {
   const tam = (s: string, max: number, largura: number) => Math.min(max, Math.floor(largura / (Math.max(1, s.length) * 0.5)));
   return (
     <AbsoluteFill style={{ background: COR.preto }}>
@@ -181,7 +200,7 @@ export const Meme: React.FC<{ topo: string; base: string }> = ({ topo, base }) =
         <div style={{ fontFamily: FONTE, fontWeight: 900, fontStyle: 'italic', fontSize: tam(topo, 82, 2000), lineHeight: 1.08, color: COR.preto, textAlign: 'center' }}>{topo}</div>
       </div>
       <div style={{ position: 'absolute', top: 340, left: 0, right: 0, display: 'flex', justifyContent: 'center' }}>
-        <Mascote altura={640} corpo={COR.amarelo} contorno={COR.branco} />
+        <Mascote altura={640} corpo={COR.amarelo} contorno={COR.branco} expressao={expressao} />
       </div>
       <div style={{ position: 'absolute', bottom: 120, left: 60, right: 60, textAlign: 'center', fontFamily: FONTE, fontWeight: 900, fontStyle: 'italic', fontSize: tam(base, 76, 2000), lineHeight: 1.1, color: COR.branco }}>{base}</div>
       <div style={{ position: 'absolute', bottom: 34, width: '100%', display: 'flex', justifyContent: 'center' }}><Nome tamanho={44} /></div>
