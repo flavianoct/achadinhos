@@ -171,3 +171,20 @@ export const MascoteSozinho: React.FC<{ fundo: 'preto' | 'amarelo' }> = ({ fundo
     </AbsoluteFill>
   );
 };
+
+/** Meme original do Mata Preço (1080x1350): a situação em cima (faixa amarela), o mascote no meio e a resposta embaixo. Sem marca de terceiros. */
+export const Meme: React.FC<{ topo: string; base: string }> = ({ topo, base }) => {
+  const tam = (s: string, max: number, largura: number) => Math.min(max, Math.floor(largura / (Math.max(1, s.length) * 0.5)));
+  return (
+    <AbsoluteFill style={{ background: COR.preto }}>
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 360, background: COR.amarelo, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 60px' }}>
+        <div style={{ fontFamily: FONTE, fontWeight: 900, fontStyle: 'italic', fontSize: tam(topo, 82, 2000), lineHeight: 1.08, color: COR.preto, textAlign: 'center' }}>{topo}</div>
+      </div>
+      <div style={{ position: 'absolute', top: 340, left: 0, right: 0, display: 'flex', justifyContent: 'center' }}>
+        <Mascote altura={640} corpo={COR.amarelo} contorno={COR.branco} />
+      </div>
+      <div style={{ position: 'absolute', bottom: 120, left: 60, right: 60, textAlign: 'center', fontFamily: FONTE, fontWeight: 900, fontStyle: 'italic', fontSize: tam(base, 76, 2000), lineHeight: 1.1, color: COR.branco }}>{base}</div>
+      <div style={{ position: 'absolute', bottom: 34, width: '100%', display: 'flex', justifyContent: 'center' }}><Nome tamanho={44} /></div>
+    </AbsoluteFill>
+  );
+};
