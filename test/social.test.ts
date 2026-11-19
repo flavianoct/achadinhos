@@ -124,7 +124,7 @@ test('moldes: toda arte é válida, sem preço em reais, com a prova real, a cha
           assert.ok(svg.includes('Publi · link de afiliado'), 'aviso de publi');
           assert.ok(!svg.includes('<INMA>') && svg.includes('&lt;INMA&gt;'), 'título escapado');
           assert.equal(svg.includes('MENOR PREÇO'), i % 2 === 1, 'selo de menor preço só com histórico confirmado');
-          assert.ok(/5 mil vendidos/.test(svg) && svg.includes('Frete grátis'), 'a prova real (vendidos, frete) aparece');
+          assert.ok(!/5 mil vendidos/.test(svg) && !svg.includes('Frete grátis'), 'a arte simplificada não leva a pílula de nota, vendas e frete sobre a foto');
           // Story não tem comentário: ele leva sempre ao link da bio; só o feed pede o comenta QUERO.
           if (comentaQuero && h === 1350) assert.ok(svg.includes('COMENTA &quot;QUERO&quot;') && svg.includes('NO DIRECT'), 'a chamada do comenta QUERO');
           else assert.ok(svg.includes('LINK NA BIO'), 'sem o comenta QUERO, leva ao link da bio');
@@ -134,9 +134,9 @@ test('moldes: toda arte é válida, sem preço em reais, com a prova real, a cha
       }
     }
   }
-  // Cada nicho com a sua cor de destaque.
-  assert.ok(montarSvgDoFeed({ ...oferta, categoria: 'pet' }, undefined).includes(CORES_DO_NICHO.pet!));
-  assert.ok(montarSvgDoFeed({ ...oferta, categoria: 'moda' }, undefined).includes(CORES_DO_NICHO.moda!));
+  // Identidade nova: o brilho do fundo é sempre o amarelo da marca (a cor por nicho saiu, para o perfil ter uma cara só).
+  assert.ok(montarSvgDoFeed({ ...oferta, categoria: 'pet' }, undefined).includes('#FFD60A'));
+  assert.ok(montarSvgDoFeed({ ...oferta, categoria: 'moda' }, undefined).includes('#FFD60A'));
   // O mesmo produto sai sempre igual.
   assert.equal(montarSvgDoStory(oferta, undefined), montarSvgDoStory({ ...oferta }, undefined));
 });
@@ -204,7 +204,7 @@ test('social: arte do Story é um SVG válido de 1080x1920, com texto escapado e
   assert.ok(!svg.includes('<INMA>'));
   assert.ok(svg.includes('data:image/png;base64,AAAA'));
   assert.doesNotMatch(svg, /R\$|34,41/, 'o preço não vai na arte');
-  assert.match(svg, /Frete grátis/, 'a prova real vai na arte');
+  assert.doesNotMatch(svg, /Frete grátis/, 'a arte simplificada não leva a pílula de prova sobre a foto');
   const semFoto =montarSvgDoStory({ ...oferta, precoOriginal: undefined, desconto: undefined, freteGratis: false }, undefined, config);
   assert.ok(!semFoto.includes('<image'));
   assert.ok(!semFoto.includes('line-through'));

@@ -288,12 +288,12 @@ function arteDoProduto(d: DadosDaArte, g: { largura: number; altura: number; yFo
   const chamada = d.chamada ?? { linha: 'LINK NA BIO', apoio: d.grupo ?? 'VEJA O PREÇO DE AGORA' };
   const tamanhoDaChamada = Math.min(g.tamanhoDaChamada, Math.floor(900 / (chamada.linha.length * 0.7)));
   const tamanhoDoApoio = Math.min(28, Math.floor(980 / (chamada.apoio.length * 0.72)));
-  return `${fundo(g.largura, g.altura, d.cor)}
+  // Simplificado: fundo com brilho amarelo (a cor da marca) e sem a pílula de nota/vendas/frete sobre a foto; ficam o produto, um selo e a chamada.
+  return `${fundo(g.largura, g.altura, MARCA.amarelo)}
 <rect x="0" y="${g.yFoto}" width="${g.largura}" height="${g.hFoto}" fill="${MARCA.branco}"/>
 ${foto(d, g.margemFoto, g.yFoto + g.margemFoto, g.largura - 2 * g.margemFoto, g.hFoto - 2 * g.margemFoto, 56)}
 ${logoNaFoto(28, g.yLogo)}
 ${seloDaFoto(d, g.largura - 16, g.ySelo)}
-${provaNaFoto(d, 28, g.yFoto + g.hFoto - 26, g.tamanhoDaProva)}
 ${linhasDoTitulo(d, 540, yTitulo, g.passoDoTitulo, g.tamanhoDoTitulo, MARCA.branco)}
 ${texto(540, g.yChamada, tamanhoDaChamada, MARCA.amarelo, chamada.linha, ' font-style="italic"')}
 ${texto(540, g.yChamada + Math.round(tamanhoDaChamada * 0.8), tamanhoDoApoio, MARCA.branco, chamada.apoio, ' letter-spacing="2"')}
