@@ -127,6 +127,8 @@ export function nomeDaIaServe(nome: string, tituloOriginal: string): boolean {
  */
 export async function nomesDaIa(titulos: string[], config: Config, fetchFn: Fetch = fetch): Promise<string[] | undefined> {
   const b = config.blog;
+  // REEL_NOME_DA_IA=0: o nome do produto no vídeo é o título da loja, cortado (a IA às vezes errava ou inventava o nome).
+  if (!config.instagram.reelNomeIa) return undefined;
   if (b.ia !== 'gemini' || !b.geminiChave || !titulos.length) return undefined;
   const prompt = [
     'Para cada produto abaixo, escreva um nome curto para aparecer em letras grandes num vídeo de ofertas.',
