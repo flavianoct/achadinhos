@@ -4,6 +4,7 @@ import { Achados, ACHADOS_FPS, duracaoDosAchados, type PropsDosAchados } from '.
 import { Carrossel, imagensDoCarrossel, type PropsDoCarrossel } from './Carrossel';
 import { Destaque, DESTAQUE_FPS, duracaoDoDestaque, type PropsDoDestaque } from './Destaque';
 import { CapaDoGrupo, Destaque as DestaqueDeIdentidade, Folha, Meme, MascoteSozinho, Perfil } from './Identidade';
+import { VideoOferta, duracaoDoVideoOferta, VIDEO_OFERTA_FPS, type PropsDoVideoOferta } from './VideoOferta';
 import { Oferta, duracaoDaOferta } from './Oferta';
 import { DestaqueImpacto, duracaoDoDestaqueImpacto } from './DestaqueImpacto';
 import { AchadosImpacto, duracaoDosAchadosImpacto } from './AchadosImpacto';
@@ -30,6 +31,7 @@ const tiktok: PropsDoTikTok = {
 /** Vídeo de divulgação do grupo: a narração é a gerada no ElevenLabs (voz Gabriel). */
 const divulgacao: PropsDaDivulgacao = { chamada: 'botao', voz: 'voz-divulgacao.mp3', musica: 'musica-pop-leve-1.mp3' };
 
+const videoOferta: PropsDoVideoOferta = { video: 'videos/panela-cacarola.mp4', quadros: 304, nome: ['PANELA CAÇAROLA 24 CM', 'TAMPA DE VIDRO · ANTIADERENTE'], comentaQuero: true };
 const impacto: PropsDoImpacto = { voz: 'voz-impacto.mp3', musica: 'musica-funk-leve-1.mp3' };
 
 /** Exemplo do Reel de achados para o editor visual; o robô passa os produtos de verdade em --props. */
@@ -86,6 +88,7 @@ export const Root: React.FC = () => (
     <Composition id="IdCapaGrupo" component={CapaDoGrupo} durationInFrames={1} fps={30} width={1080} height={1350} />
     <Composition id="IdMeme" component={Meme} durationInFrames={1} fps={30} width={1080} height={1350} defaultProps={{ topo: 'ME: só vou olhar as promoções', base: 'O CARRINHO: 7 itens' }} />
     <Composition id="IdFolha" component={Folha} durationInFrames={1} fps={30} width={1920} height={1080} />
+    <Composition id="VideoOferta" component={VideoOferta} durationInFrames={304} fps={VIDEO_OFERTA_FPS} width={1080} height={1920} defaultProps={videoOferta} calculateMetadata={({ props }) => ({ durationInFrames: duracaoDoVideoOferta(props) })} />
     <Composition id="Impacto" component={Impacto} durationInFrames={DURACAO_DO_IMPACTO} fps={IMPACTO_FPS} width={1080} height={1920} defaultProps={impacto} />
     <Composition id="Solucao" component={SolucaoReel} durationInFrames={duracaoDaSolucao(solucao)} fps={SOLUCAO_FPS} width={1080} height={1920} defaultProps={solucao} calculateMetadata={({ props }) => ({ durationInFrames: duracaoDaSolucao(props) })} />
     <Composition id="Destaque" component={Destaque} durationInFrames={duracaoDoDestaque(destaque)} fps={DESTAQUE_FPS} width={1080} height={1920} defaultProps={destaque} calculateMetadata={({ props }) => ({ durationInFrames: duracaoDoDestaque(props) })} />
