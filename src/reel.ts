@@ -77,7 +77,9 @@ export async function prepararReel(banco: Banco, config: Config, agora: Date, fe
   if (janelas.length > 0 && hora < (janelas[Math.min(jaCriados, janelas.length - 1)] as number) - 1) return false;
 
   // Os Reels de destaque (um produto só, de preferência com várias fotos) vêm primeiro no dia; sem produto bom, sai o Reel de 3 achados.
-  if (jaCriados < ig.reelsDeDestaque && (await prepararDestaque(banco, config, agora, fetchFn))) return true;
+  if ((ig.reelSoDeUmProduto || jaCriados < ig.reelsDeDestaque) && (await prepararDestaque(banco, config, agora, fetchFn))) return true;
+  // REEL_SO_DE_UM_PRODUTO=1: o único Reel do robô é o de um produto só (minimalista). Sem produto bom hoje, não sai Reel (nunca cai no de 3 achados).
+  if (ig.reelSoDeUmProduto) return false;
   // Usa a mesma escolha do carrossel (qualidade, foto e variedade de categorias), com o teto de preço do dia.
   const config3 = { ...config, instagram: { ...ig, carrosselItens: ITENS_DO_REEL } };
   const escolha = escolherParaCarrossel(banco.melhoresProdutos({ horas: 36, limite: 150 }, agora), config3, agora);
