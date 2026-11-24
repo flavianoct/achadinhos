@@ -153,3 +153,26 @@ if (um) {
     await sondar(`15. preços do anúncio (/items/${item}/prices)`, `/items/${item}/prices`, (j) => `campos: ${chaves(j, 12)} | preços: ${j.prices?.length ?? 0}`);
   }
 }
+
+// ───────── 24/11/2026: o produto de catálogo deixou de trazer o vencedor e /products/{id}/items dá 403 ─────────
+// Outras portas para chegar ao preço: o item do tipo USER_PRODUCT do ranking e os mesmos recursos sem o token do app.
+console.log('\n--- outras portas para o preço (USER_PRODUCT e pedidos sem token) ---');
+const semToken = (caminho) => fetch(`${API}${caminho}`, { headers: { accept: 'application/json' } });
+const up = (hj.content ?? []).find((c) => c.type === 'USER_PRODUCT')?.id;
+if (up) {
+  await sondar(`16. user product (/user-products/${up})`, `/user-products/${up}`, (j) => `campos: ${chaves(j, 14)} | preço: ${j.price ?? '-'}`);
+  await sondar(`17. anúncios do user product (/user-products/${up}/items)`, `/user-products/${up}/items`, (j) => `campos: ${chaves(j, 10)} | resultados: ${j.results?.length ?? '-'}`);
+  await sondar(`18. user product como item (/items/${up})`, `/items/${up}`, (j) => `preço ${j.price ?? '-'} | campos: ${chaves(j, 10)}`);
+}
+if (idProduto) {
+  const r = await semToken(`/products/${idProduto}`);
+  const j = await json(r);
+  linha(`19. produto SEM token (/products/${idProduto})`, r, r.ok ? `vencedor: ${j.buy_box_winner ? `preço ${j.buy_box_winner.price}` : 'NÃO TEM'}` : `${j.error ?? ''} ${j.message ?? ''}`.trim());
+  const r2 = await semToken(`/products/${idProduto}/items?limit=1`);
+  const j2 = await json(r2);
+  linha(`20. anúncios do produto SEM token (/products/${idProduto}/items)`, r2, r2.ok ? `resultados: ${j2.results?.length ?? 0} | preço: ${j2.results?.[0]?.price ?? '-'}` : `${j2.error ?? ''} ${j2.message ?? ''} ${j2.blocked_by ?? ''}`.trim());
+  await sondar(`21. vencedor de preço (/products/${idProduto}/items?status=active)`, `/products/${idProduto}/items?status=active&limit=1`, (j) => `resultados: ${j.results?.length ?? 0}`);
+}
+const r3 = await semToken('/sites/MLB/search?q=celular&limit=1');
+const j3 = await json(r3);
+linha('22. busca de anúncios SEM token (/sites/MLB/search)', r3, r3.ok ? `resultados: ${j3.results?.length ?? 0} | preço: ${j3.results?.[0]?.price ?? '-'}` : `${j3.error ?? ''} ${j3.message ?? ''}`.trim());
