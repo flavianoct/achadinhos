@@ -615,3 +615,26 @@ test('teto por loja: melhorDaFila sem a loja que passou do teto, e postsDoDiaPor
   banco.registrarPost({ ...ml, idProduto: 'M2', loja: 'mercadolivre' }, AGORA, 'telegram', true);
   assert.deepEqual(banco.postsDoDiaPorLoja(AGORA), { shopee: 1, mercadolivre: 2 });
 });
+
+test('pipeline: teto da loja (LOJA_TETO) não para o canal quando a fila só tem ofertas dessa loja', async () => {
+  const banco = new Banco(':memory:');
+  const comTeto: Config = { ...config, ritmo: { ...config.ritmo, tetoDasLojas: { shopee: 40 } } };
+  // 20 posts no dia, metade da Shopee: passou do teto de 40%.
+  for (let i = 0; i < 20; i++) {
+    const loja = i % 2 ? 'shopee' : 'mercadolivre';
+    banco.registrarPost({ ...oferta({ loja, idProduto: `J${i}`, titulo: `Produto ${i}` }), categoria: 'geral', pontos: 50 } as OfertaAvaliada, AGORA);
+  }
+  await coletar([fonteFixa([oferta({ idProduto: 'S1', titulo: 'Air Fryer', desconto: 80 })])], banco, comTeto, AGORA);
+  const pub = new PublicadorFalso();
+  // Só Shopee na fila: o teto é ignorado e a oferta sai.
+  assert.equal((await postarProxima(pub, banco, comTeto, AGORA)).postou, true);
+  assert.deepEqual(pub.enviados, ['S1']);
+
+  // Com oferta do Mercado Livre na fila, o teto volta a valer e a vez é dela.
+  await coletar([
+    fonteFixa([oferta({ idProduto: 'S2', titulo: 'Mochila Escolar', desconto: 90 })]),
+    { nome: 'mercadolivre', coletar: async () => [oferta({ loja: 'mercadolivre', idProduto: 'M1', titulo: 'Cadeira Gamer', desconto: 50 })] },
+  ], banco, comTeto, AGORA);
+  assert.equal((await postarProxima(pub, banco, comTeto, AGORA)).postou, true);
+  assert.equal(pub.enviados.at(-1), 'M1');
+});

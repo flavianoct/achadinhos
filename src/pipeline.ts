@@ -182,6 +182,9 @@ export async function postarProxima(publicador: Publicador, banco: Banco, config
     const porLoja = banco.postsDoDiaPorLoja(agora);
     const total = Object.values(porLoja).reduce((a, b) => a + b, 0);
     if (total >= 20) for (const [loja, teto] of tetos) if ((porLoja[loja] ?? 0) / total >= teto / 100) semLojas.push(loja);
+    // O teto só serve para dar a vez à outra loja. Se na fila só há ofertas das lojas no teto (ex.: a outra loja está fora do ar
+    // e não repõe a fila), o teto não vale: senão o canal fica parado o resto do dia (aconteceu em 24/11 com o Mercado Livre bloqueado).
+    if (semLojas.length && !banco.itensDaFila(2000).some((o) => !semLojas.includes(o.loja))) semLojas.length = 0;
   }
   for (let tentativa = 0; tentativa < 200; tentativa++) {
     const evitarLoja = lojaParaEvitar(banco.lojasDosUltimosPosts(20), banco.ultimaLojaPostada(), config) as Loja | undefined;
