@@ -314,8 +314,7 @@ export class FonteMercadoLivreApi {
       // Sem nenhuma oferta: o robô explora, com poucos pedidos, o que a API responde para os outros tipos (vai para o aviso público, sem chaves).
       const exploracao = await this.explorar(amostras);
       if (exploracao) d.formatos.add(`exploração: ${exploracao}`);
-      d.formatos.add(`login: ${this.situacaoDoLogin}`);
-      throw new ErroApiML(`API do Mercado Livre sem ofertas${d.ultimoErro ? `: ${d.ultimoErro}` : ''}${tipos ? ` (itens que a API devolveu em outro formato: ${tipos})` : ''}${d.formatos.size ? ` [${[...d.formatos].slice(0, 2).join('; ')}]` : ''}`);
+      throw new ErroApiML(`API do Mercado Livre sem ofertas [login: ${this.situacaoDoLogin}]${d.ultimoErro ? `: ${d.ultimoErro}` : ''}${tipos ? ` (itens que a API devolveu em outro formato: ${tipos})` : ''}${d.formatos.size ? ` [${[...d.formatos].slice(0, 2).join('; ')}]` : ''}`);
     }
     return lista;
   }
