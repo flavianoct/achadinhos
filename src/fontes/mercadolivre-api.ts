@@ -325,6 +325,23 @@ export class FonteMercadoLivreApi {
           if (typeof preco === 'number' && preco > 0) return { voltou: true, detalhe: `/products/${produto} trouxe o preço do vencedor (R$ ${preco})` };
         } catch { /* segue */ }
       }
+      // API de preços (doc "Preços de produtos"): o preço sai do /items e passa para /items/{id}/sale_price e /items/{id}/prices.
+      const tentativas: string[] = [];
+      if (item) {
+        for (const [rotulo, caminho, ler] of [
+          ['sale_price', `/items/${item}/sale_price?context=channel_marketplace`, (r: any) => r?.amount],
+          ['prices', `/items/${item}/prices`, (r: any) => (r?.prices ?? []).find((x: any) => typeof x?.amount === 'number')?.amount],
+        ] as Array<[string, string, (r: any) => unknown]>) {
+          try {
+            const r = await this.autorizado(caminho);
+            const preco = ler(r);
+            if (typeof preco === 'number' && preco > 0) return { voltou: true, detalhe: `${rotulo} trouxe o preço do anúncio ${item} (R$ ${preco})` };
+            tentativas.push(`${rotulo} 200 sem preço [${Object.keys(r ?? {}).slice(0, 8).join(',')}]`);
+          } catch (e) {
+            tentativas.push(`${rotulo} ${String((e as Error).message).slice(0, 60)}`);
+          }
+        }
+      }
       if (item) {
         try {
           const r = await this.autorizado(`/items/bulk?ids=${item}`);
@@ -333,7 +350,7 @@ export class FonteMercadoLivreApi {
           if (typeof preco === 'number' && preco > 0) return { voltou: true, detalhe: `/items/bulk trouxe o preço do anúncio ${item} (R$ ${preco})` };
         } catch { /* segue */ }
       }
-      return { voltou: false, detalhe: `ainda sem preço (login: ${this.situacaoDoLogin})` };
+      return { voltou: false, detalhe: `ainda sem preço (login: ${this.situacaoDoLogin}${tentativas.length ? `; ${tentativas.join(' | ')}` : ''})` };
     } catch (e) {
       return { voltou: false, detalhe: `não consegui testar (${String((e as Error).message).slice(0, 80)})` };
     }
