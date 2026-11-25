@@ -186,10 +186,35 @@ export class FonteMercadoLivreApi {
     return oferta;
   }
 
+  /** Diagnóstico: para um id de cada tipo (USER_PRODUCT, ITEM...), o que a API responde e quais campos (e se há preço). Nunca lança erro. */
+  private async explorar(amostras: Map<string, string>): Promise<string> {
+    const partes: string[] = [];
+    const tenta = async (rotulo: string, caminho: string) => {
+      try {
+        const r = await this.autorizado(caminho);
+        const campos = Object.keys(r ?? {}).slice(0, 18).join(',');
+        const preco = r?.price ?? r?.buy_box_winner?.price ?? r?.results?.[0]?.price;
+        partes.push(`${rotulo} 200 [${campos}]${preco !== undefined ? ` preço=${preco}` : ' sem preço'}`);
+      } catch (e) {
+        partes.push(`${rotulo} ${String((e as Error).message).slice(0, 70)}`);
+      }
+    };
+    const up = amostras.get('USER_PRODUCT');
+    const item = amostras.get('ITEM');
+    if (up) {
+      await tenta('user-products', `/user-products/${up}`);
+      await tenta('items?user_product_id', `/items?user_product_id=${up}`);
+    }
+    if (item) await tenta('items/ID', `/items/${item}`);
+    return partes.join(' | ');
+  }
+
   async coletar(turno = Math.floor(Date.now() / (25 * 60_000))): Promise<Oferta[]> {
     if (!this.opcoes.clientId || !this.opcoes.clientSecret) throw new ErroApiML('faltam os Secrets ML_CLIENT_ID e ML_CLIENT_SECRET');
     const ofertas = new Map<string, Oferta>();
     const ignorados = new Map<string, number>();
+    /** Um id de exemplo de cada tipo que a API devolveu em outro formato, para a exploração do diagnóstico. */
+    const amostras = new Map<string, string>();
     const d = this.novoDiagnostico();
     const jaPedidos = new Set<string>();
     let vistosNoRanking = 0;
@@ -205,7 +230,10 @@ export class FonteMercadoLivreApi {
         for (const c of destaque?.content ?? []) {
           if (c?.id) vistosNoRanking++;
           if (c?.type === 'PRODUCT' && /^MLB\d+$/.test(String(c.id))) produtos.push(String(c.id));
-          else ignorados.set(String(c?.type), (ignorados.get(String(c?.type)) ?? 0) + 1);
+          else {
+            ignorados.set(String(c?.type), (ignorados.get(String(c?.type)) ?? 0) + 1);
+            if (c?.id && !amostras.has(String(c?.type))) amostras.set(String(c.type), String(c.id));
+          }
         }
       } catch (e) {
         d.ultimoErro = (e as Error).message;
@@ -230,6 +258,9 @@ export class FonteMercadoLivreApi {
     console.log(`[ml-api] categorias: ${categoriasLidas.join(',') || 'nenhuma'}; ranking: ${vistosNoRanking} produtos; ofertas: ${lista.length}; com preço antigo: ${lista.filter((o) => o.precoOriginal).length}; com nota: ${lista.filter((o) => o.nota).length}; com vendas: ${lista.filter((o) => o.vendas).length}; com frete grátis: ${lista.filter((o) => o.freteGratis).length}; pedidos: ${this.pedidos}${this.limiteAtingido ? ' (parou por limite)' : ''}; falhas dos complementos: ${[...d.falhas].map(([k, n]) => `${k} x${n}`).join(', ') || 'nenhuma'}`);
     if (lista.length === 0) {
       const tipos = [...ignorados].map(([t, n]) => `${n} do tipo ${t}`).join(', ');
+      // Sem nenhuma oferta: o robô explora, com poucos pedidos, o que a API responde para os outros tipos (vai para o aviso público, sem chaves).
+      const exploracao = await this.explorar(amostras);
+      if (exploracao) d.formatos.add(`exploração: ${exploracao}`);
       throw new ErroApiML(`API do Mercado Livre sem ofertas${d.ultimoErro ? `: ${d.ultimoErro}` : ''}${tipos ? ` (itens que a API devolveu em outro formato: ${tipos})` : ''}${d.formatos.size ? ` [${[...d.formatos].slice(0, 2).join('; ')}]` : ''}`);
     }
     return lista;
