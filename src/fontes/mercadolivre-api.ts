@@ -269,7 +269,8 @@ export class FonteMercadoLivreApi {
         const r = Array.isArray(bruto) ? (bruto[0]?.body ?? bruto[0]) : bruto;
         const campos = Object.keys(r ?? {}).slice(0, 18).join(',');
         const preco = r?.price ?? r?.buy_box_winner?.price ?? r?.results?.[0]?.price;
-        partes.push(`${rotulo} 200 [${campos}]${preco !== undefined ? ` preço=${preco}` : ' sem preço'}`);
+        const cru = Array.isArray(bruto) && preco === undefined ? ` cru=${JSON.stringify(bruto).slice(0, 220)}` : '';
+        partes.push(`${rotulo} 200 [${campos}]${preco !== undefined ? ` preço=${preco}` : ' sem preço'}${cru}`);
       } catch (e) {
         partes.push(`${rotulo} ${String((e as Error).message).slice(0, 70)}`);
       }
