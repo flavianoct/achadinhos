@@ -47,7 +47,15 @@ export function avaliar(o: Oferta, banco: Banco, config: Config, agora: Date): A
   if (semApelo) return nao(`sem apelo para o grupo: ${semApelo}`);
 
   if (o.nota !== undefined && o.nota > 0 && o.nota < f.notaMinima) return nao('nota baixa');
-  if (o.vendas !== undefined && o.vendas < (o.loja === 'shopee' ? f.vendasMinimasShopee : f.vendasMinimas)) return nao('poucas vendas');
+  // Vendas por dia (a "febre"): precisa do histórico, então é medida aqui e reaproveitada na pontuação.
+  const vendasPorDia = o.vendas ? banco.vendasPorDia(o.loja, o.idProduto, o.vendas, DIAS_PARA_MEDIR_A_FEBRE, agora) : undefined;
+  const minimoDeVendas = o.loja === 'shopee' ? f.vendasMinimasShopee : f.vendasMinimas;
+  if (o.vendas !== undefined && o.vendas < minimoDeVendas) {
+    // Duas exceções ao mínimo de vendas: produto muito bem avaliado (caro vende pouco) e produto viral (vendendo rápido agora).
+    const notaAlta = o.nota !== undefined && o.nota >= f.notaAlta && o.vendas >= Math.min(minimoDeVendas, f.vendasMinimasNotaAlta);
+    const viral = f.febreVendasPorDia > 0 && vendasPorDia !== undefined && vendasPorDia >= f.febreVendasPorDia && o.vendas >= Math.min(minimoDeVendas, f.vendasMinimasNotaAlta);
+    if (!notaAlta && !viral) return nao('poucas vendas');
+  }
 
   let desconto = o.desconto;
   if ((desconto === undefined || desconto <= 0) && o.precoOriginal && o.precoOriginal > o.preco) {
@@ -92,7 +100,6 @@ export function avaliar(o: Oferta, banco: Banco, config: Config, agora: Date): A
 
   // A "febre do momento": quantas vendas por dia o produto está fazendo (a diferença entre o total de vendas de hoje e o de dias atrás).
   // Em escala log (10 por dia = 7 pontos, 100 = 14); na Shopee, que entra justamente com o que está estourado, vale uma vez e meia.
-  const vendasPorDia = o.vendas ? banco.vendasPorDia(o.loja, o.idProduto, o.vendas, DIAS_PARA_MEDIR_A_FEBRE, agora) : undefined;
   const bonusDeFebre = vendasPorDia ? Math.min(TETO_DO_BONUS_DE_FEBRE, Math.log10(1 + vendasPorDia) * 7) * (o.loja === 'shopee' ? 1.5 : 1) : 0;
 
   // A comissão conta de verdade, nas duas formas: a porcentagem e o valor em reais por venda (3% de um produto de R$ 300 rende mais que
@@ -109,7 +116,8 @@ export function avaliar(o: Oferta, banco: Banco, config: Config, agora: Date): A
     Math.min(30, Math.max(0, quedaHistorica ?? 0) * 1.5) +
     bonusDeComissao +
     bonusDeFebre +
-    (o.nota ? (o.nota - 4) * 10 : 0) +
+    // A nota pesa mais que o total de vendas: produto caro vende pouco e pode ser ótimo (nota 4,9 = 12,6 pontos).
+    (o.nota ? (o.nota - 4) * 14 : 0) +
     // Vendas em escala log: 100 vendas = 12, 1 mil = 18, 10 mil = 24, 100 mil = 30.
     (o.vendas ? Math.log10(o.vendas + 1) * 6 : 0) +
     (o.maisVendido ? 10 : 0) +

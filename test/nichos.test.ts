@@ -471,8 +471,12 @@ test('filtro: a Shopee exige mais vendas (SHOPEE_VENDAS_MINIMAS), o Mercado Livr
   const c = lerConfig({ ...base, VENDAS_MINIMAS: '50', SHOPEE_VENDAS_MINIMAS: '1000' });
   const banco = new Banco(':memory:');
   const o = { loja: 'shopee' as const, idProduto: 'V1', titulo: 'Fone Bluetooth Sem Fio Premium', preco: 80, precoOriginal: 200, link: 'https://s/v', vendas: 400, nota: 4.8 };
-  assert.deepEqual(avaliar(o, banco, c, AGORA), { aprovada: false, motivo: 'poucas vendas' });
-  assert.equal(avaliar({ ...o, vendas: 4000 }, banco, c, AGORA).aprovada, true);
+  // Nota 4,5 com 400 vendas: abaixo do mínimo da Shopee e sem nota excelente, então é recusada.
+  assert.deepEqual(avaliar({ ...o, nota: 4.5 }, banco, c, AGORA), { aprovada: false, motivo: 'poucas vendas' });
+  // Nota excelente (4,8+) passa com poucas vendas (produto caro vende pouco), desde que tenha o mínimo de prova (150).
+  assert.equal(avaliar(o, banco, c, AGORA).aprovada, true);
+  assert.deepEqual(avaliar({ ...o, vendas: 100 }, banco, c, AGORA), { aprovada: false, motivo: 'poucas vendas' });
+  assert.equal(avaliar({ ...o, nota: 4.5, vendas: 4000 }, banco, c, AGORA).aprovada, true);
   assert.equal(avaliar({ ...o, loja: 'mercadolivre', vendas: 400 }, banco, c, AGORA).aprovada, true);
 });
 
@@ -589,4 +593,20 @@ test('tema do dia: pode ser um dia da semana (toda sexta), com ou sem acento e "
   assert.ok(temaDeHoje({ TEMA_DO_DIA: 'games', TEMA_DO_DIA_SEMANA: 'sabado', TEMA_DO_DIA_DATA: '2026-10-30' }, sexta), 'a data avulsa continua valendo junto');
   assert.equal(temaDeHoje({ TEMA_DO_DIA: 'vestidos', TEMA_DO_DIA_SEMANA: 'sextou' }, sexta), undefined, 'dia que não existe não liga');
   assert.equal(lerConfig({ ...base, TEMA_DO_DIA: 'vestidos', TEMA_DO_DIA_SEMANA: 'sexta' }, sabado).temaDoDia, undefined);
+});
+
+test('filtro: produto viral (vendendo rápido agora) passa com poucas vendas no total, mesmo com nota comum', async () => {
+  const { avaliar } = await import('../src/filtro.ts');
+  const c = lerConfig({ ...base, SHOPEE_VENDAS_MINIMAS: '2000', FEBRE_VENDAS_POR_DIA: '30' });
+  const banco = new Banco(':memory:');
+  const o = { loja: 'shopee' as const, idProduto: 'VIRAL', titulo: 'Fone Bluetooth Sem Fio Premium', preco: 80, precoOriginal: 200, link: 'https://s/v', vendas: 1000, nota: 4.7 };
+  // Sem histórico, não dá para saber a velocidade: nota 4,7 com 1000 vendas é recusada.
+  assert.deepEqual(avaliar(o, banco, c, AGORA), { aprovada: false, motivo: 'poucas vendas' });
+  // Há 2 dias tinha 800 vendas: 100 por dia, bem acima de 30. Passa.
+  const antes = new Date(AGORA.getTime() - 2 * 86_400_000);
+  banco.registrarVendas({ ...o, vendas: 800 }, antes);
+  assert.equal(avaliar(o, banco, c, AGORA).aprovada, true);
+  // Com FEBRE_VENDAS_POR_DIA=0 o recurso fica desligado.
+  const c0 = lerConfig({ ...base, SHOPEE_VENDAS_MINIMAS: '2000', FEBRE_VENDAS_POR_DIA: '0' });
+  assert.deepEqual(avaliar(o, banco, c0, AGORA), { aprovada: false, motivo: 'poucas vendas' });
 });

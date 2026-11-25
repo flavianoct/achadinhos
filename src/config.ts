@@ -66,6 +66,12 @@ export interface Config {
     reprovarSeJaEsteveMaisBarato: boolean;
     /** Vendas mínimas dos produtos da Shopee, que entra com os mais vendidos do momento (SHOPEE_VENDAS_MINIMAS; padrão: o mesmo de todos). */
     vendasMinimasShopee: number;
+    /** Produto com nota a partir daqui passa mesmo com poucas vendas (NOTA_ALTA; padrão 4,8): produto caro vende pouco e pode ser ótimo. */
+    notaAlta: number;
+    /** Vendas mínimas (só como prova de que o produto é real) para quem tem nota alta (VENDAS_MINIMAS_NOTA_ALTA; padrão 150). */
+    vendasMinimasNotaAlta: number;
+    /** Vendas por dia a partir das quais o produto é "viral" e passa mesmo com poucas vendas no total (FEBRE_VENDAS_POR_DIA; padrão 30). 0 desliga. */
+    febreVendasPorDia: number;
     /** Pontuação mínima para a oferta entrar na fila de postagem. 0 deixa tudo entrar (as fracas ficam só no blog). */
     pontosMinimos: number;
     /** Corte de pontuação próprio de alguns nichos (NICHO_PONTOS_MINIMOS=pet=48); vale mais que o de todos. Nicho pequeno tem menos oferta e precisa de um corte menor. */
@@ -451,6 +457,9 @@ function lerConfigBase(env: Env): Config {
       vendasMinimas: numero(env, 'VENDAS_MINIMAS', 50),
       reprovarSeJaEsteveMaisBarato: ligado(env, 'PRECO_JA_MAIS_BARATO_REPROVA', false),
       vendasMinimasShopee: numero(env, 'SHOPEE_VENDAS_MINIMAS', numero(env, 'VENDAS_MINIMAS', 50)),
+      notaAlta: numero(env, 'NOTA_ALTA', 4.8),
+      vendasMinimasNotaAlta: numero(env, 'VENDAS_MINIMAS_NOTA_ALTA', 150),
+      febreVendasPorDia: numero(env, 'FEBRE_VENDAS_POR_DIA', 30),
       palavrasBloqueadas: lista(env.PALAVRAS_BLOQUEADAS ?? 'réplica,replica,usado,recondicionado,erótico'),
       palavrasSemApelo: lista(env.PALAVRAS_SEM_APELO ?? PALAVRAS_SEM_APELO_PADRAO),
       filaMinima: numero(env, 'FILA_MINIMA', 12),
