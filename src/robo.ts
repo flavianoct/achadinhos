@@ -40,11 +40,11 @@ export interface OpcoesDoRobo {
   garimparCupons?: (config: Config, agora: Date) => Promise<ResultadoDoGarimpo>;
 }
 
-function fontesReais(config: Config): Fonte[] {
+function fontesReais(config: Config, banco?: Banco): Fonte[] {
   const fontes: Fonte[] = [];
   if (config.shopee.ativo) fontes.push(new FonteShopee(config.shopee));
   if (config.ml.ativo) {
-    const api = config.ml.clientId && config.ml.clientSecret ? new FonteMercadoLivreApi({ clientId: config.ml.clientId, clientSecret: config.ml.clientSecret, mattWord: config.ml.mattWord, mattTool: config.ml.mattTool, categorias: config.ml.categorias, porRodada: config.ml.apiCategoriasPorRodada }) : undefined;
+    const api = config.ml.clientId && config.ml.clientSecret ? new FonteMercadoLivreApi({ usuario: { ...config.ml.usuario, guarda: banco ? { ler: () => banco.ajustesDeComando().ML_TOKEN_CIFRADO, gravar: (v: string) => banco.salvarAjusteDeComando('ML_TOKEN_CIFRADO', v) } : undefined }, clientId: config.ml.clientId, clientSecret: config.ml.clientSecret, mattWord: config.ml.mattWord, mattTool: config.ml.mattTool, categorias: config.ml.categorias, porRodada: config.ml.apiCategoriasPorRodada }) : undefined;
     // As mesmas buscas de nicho da Shopee, em rodízio, só dos nichos com canal ou grupo próprio.
     const buscasDeNicho = (turno: number) => planoDeBuscas([], 0, config.shopee.nichosPrioritarios, config.ml.buscasDeNicho, turno, config.shopee.nichosAtivos);
     fontes.push(new FonteMercadoLivre({ ...config.ml, reserva: api, tema: config.filtro.tema, buscasDeNicho }));
@@ -107,7 +107,7 @@ export class Robo {
       if (!this.config) this.config = lerConfig({});
       return;
     }
-    this.fontes = (this.opcoes.criarFontes ?? fontesReais)(this.config);
+    this.fontes = this.opcoes.criarFontes ? this.opcoes.criarFontes(this.config) : fontesReais(this.config, this.banco);
     this.publicador = this.config.telegram.token && this.config.telegram.chatId
       ? (this.opcoes.criarPublicador ?? ((c) => new Telegram(c.telegram.token, c.telegram.chatId)))(this.config)
       : undefined;

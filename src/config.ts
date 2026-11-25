@@ -37,6 +37,8 @@ export interface Config {
     /** App do DevCenter do Mercado Livre (API oficial, o caminho principal da coleta). */
     clientId: string;
     clientSecret: string;
+    /** Login de usuário (conta do dono): código de autorização (ML_CODIGO), chave para cifrar o token (ML_CHAVE) e endereço de retorno do app (ML_REDIRECT_URI). */
+    usuario: { codigo: string; chave: string; redirectUri: string };
     /** Quantas páginas de ofertas ler a cada rodada, no total (cerca de 48 produtos por página). */
     paginas: number;
     /** Categorias do Mercado Livre lidas em rodízio (IDs como MLB1051). Vazio = só a vitrine geral. */
@@ -420,6 +422,7 @@ function lerConfigBase(env: Env): Config {
       mattTool: (env.ML_MATT_TOOL ?? '').trim(),
       clientId: (env.ML_CLIENT_ID ?? '').trim(),
       clientSecret: (env.ML_CLIENT_SECRET ?? '').trim(),
+      usuario: { codigo: (env.ML_CODIGO ?? '').trim(), chave: (env.ML_CHAVE ?? '').trim(), redirectUri: (env.ML_REDIRECT_URI ?? '').trim() || 'https://flavianoct.github.io/achadinhos/' },
       paginas: numero(env, 'ML_PAGINAS', 3),
       // Eletrônicos, Celulares, Informática, Eletrodomésticos, Casa, Games, Beleza e Esportes.
       categorias: env.ML_CATEGORIAS === undefined ? ['MLB1000', 'MLB1051', 'MLB1648', 'MLB5726', 'MLB1574', 'MLB1144', 'MLB1246', 'MLB1276', 'MLB1071', 'MLB1384', 'MLB1430', 'MLB263532'] : lista(env.ML_CATEGORIAS).map((c) => c.toUpperCase()),

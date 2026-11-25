@@ -107,6 +107,9 @@ jobs:
           ML_MATT_TOOL: ${{ secrets.ML_MATT_TOOL }}
           ML_CLIENT_ID: ${{ secrets.ML_CLIENT_ID }}
           ML_CLIENT_SECRET: ${{ secrets.ML_CLIENT_SECRET }}
+          # Login de usuário no Mercado Livre: o código de autorização (uma vez) e a chave que cifra o token guardado no banco.
+          ML_CODIGO: ${{ secrets.ML_CODIGO }}
+          ML_CHAVE: ${{ secrets.ML_CHAVE }}
           AMAZON_TAG: ${{ secrets.AMAZON_TAG }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}

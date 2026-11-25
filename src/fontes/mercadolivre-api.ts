@@ -1,4 +1,5 @@
 import type { Oferta } from '../types.ts';
+import { cifrar, decifrar, type LoginDeUsuario } from '../ml-usuario.ts';
 import { linkAfiliadoML } from './mercadolivre.ts';
 
 type Fetch = typeof fetch;
@@ -45,14 +46,16 @@ export class FonteMercadoLivreApi {
   private token?: string;
   private fetchFn: Fetch;
   private pausaMs: number;
-  private opcoes: { clientId: string; clientSecret: string; mattWord: string; mattTool: string; categorias: string[]; porRodada?: number };
+  private opcoes: { clientId: string; clientSecret: string; mattWord: string; mattTool: string; categorias: string[]; porRodada?: number; usuario?: LoginDeUsuario };
+  /** Como o robô entrou nesta rodada: "usuário" (login da conta do dono) ou "app" (sem login), e o motivo, se o login de usuário falhou. */
+  situacaoDoLogin = 'app';
   private pedidos = 0;
   /** Recursos que já responderam 401/403 nesta rodada: não adianta pedir de novo. */
   private negados = new Set<string>();
   private limiteAtingido = false;
   private categoriasExpandidas?: string[];
 
-  constructor(opcoes: { clientId: string; clientSecret: string; mattWord: string; mattTool: string; categorias: string[]; porRodada?: number }, fetchFn: Fetch = fetch, pausaMs = 250) {
+  constructor(opcoes: { clientId: string; clientSecret: string; mattWord: string; mattTool: string; categorias: string[]; porRodada?: number; usuario?: LoginDeUsuario }, fetchFn: Fetch = fetch, pausaMs = 250) {
     this.opcoes = opcoes;
     this.fetchFn = fetchFn;
     this.pausaMs = pausaMs;
@@ -79,8 +82,58 @@ export class FonteMercadoLivreApi {
     }
   }
 
+  /** Pede um token ao /oauth/token com os campos dados. */
+  private async pedirToken(campos: Record<string, string>): Promise<{ access_token?: string; refresh_token?: string }> {
+    const corpo = new URLSearchParams({ client_id: this.opcoes.clientId, client_secret: this.opcoes.clientSecret, ...campos });
+    return this.pedir('/oauth/token', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' }, body: corpo });
+  }
+
+  /**
+   * Login de usuário (conta do dono), quando há ML_CHAVE: renova pelo refresh token guardado (cifrado) ou, na primeira vez, troca o
+   * código de autorização (ML_CODIGO). Guarda o novo refresh token cifrado. Devolve undefined se não deu (aí vale o token do app).
+   */
+  private async loginDeUsuario(): Promise<string | undefined> {
+    const u = this.opcoes.usuario;
+    if (!u?.chave || !u.guarda) return undefined;
+    const guardado = u.guarda.ler();
+    const refresh = guardado ? decifrar(guardado, u.chave) : undefined;
+    const motivos: string[] = [];
+    if (guardado && !refresh) motivos.push('o token guardado não abre com a ML_CHAVE atual');
+    if (refresh) {
+      try {
+        const r = await this.pedirToken({ grant_type: 'refresh_token', refresh_token: refresh });
+        if (r?.access_token) {
+          if (r.refresh_token) u.guarda.gravar(cifrar(String(r.refresh_token), u.chave));
+          this.situacaoDoLogin = 'usuário';
+          return String(r.access_token);
+        }
+      } catch (e) {
+        motivos.push(`renovação recusada (${String((e as Error).message).slice(0, 80)})`);
+      }
+    }
+    if (u.codigo) {
+      try {
+        const r = await this.pedirToken({ grant_type: 'authorization_code', code: u.codigo, redirect_uri: u.redirectUri });
+        if (r?.access_token) {
+          if (r.refresh_token) u.guarda.gravar(cifrar(String(r.refresh_token), u.chave));
+          this.situacaoDoLogin = 'usuário';
+          return String(r.access_token);
+        }
+      } catch (e) {
+        motivos.push(`código de autorização recusado (${String((e as Error).message).slice(0, 80)}); gere um código novo`);
+      }
+    } else if (!refresh) motivos.push('falta o código de autorização (ML_CODIGO)');
+    this.situacaoDoLogin = `app (login de usuário falhou: ${motivos.join('; ')})`;
+    return undefined;
+  }
+
   private async autenticar(): Promise<string> {
     if (this.token) return this.token;
+    const doUsuario = await this.loginDeUsuario();
+    if (doUsuario) {
+      this.token = doUsuario;
+      return this.token;
+    }
     const corpo = new URLSearchParams({ grant_type: 'client_credentials', client_id: this.opcoes.clientId, client_secret: this.opcoes.clientSecret });
     const r = await this.pedir('/oauth/token', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' }, body: corpo });
     if (!r?.access_token) throw new ErroApiML('o Mercado Livre não devolveu o token do app');
@@ -261,6 +314,7 @@ export class FonteMercadoLivreApi {
       // Sem nenhuma oferta: o robô explora, com poucos pedidos, o que a API responde para os outros tipos (vai para o aviso público, sem chaves).
       const exploracao = await this.explorar(amostras);
       if (exploracao) d.formatos.add(`exploração: ${exploracao}`);
+      d.formatos.add(`login: ${this.situacaoDoLogin}`);
       throw new ErroApiML(`API do Mercado Livre sem ofertas${d.ultimoErro ? `: ${d.ultimoErro}` : ''}${tipos ? ` (itens que a API devolveu em outro formato: ${tipos})` : ''}${d.formatos.size ? ` [${[...d.formatos].slice(0, 2).join('; ')}]` : ''}`);
     }
     return lista;
