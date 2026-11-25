@@ -121,7 +121,9 @@ async function modoNuvem(): Promise<void> {
       avisar('coleta:todas', `Nenhuma loja respondeu na coleta: ${Object.entries(coleta.errosPorFonte).map(([l, e]) => `${l} (${e})`).join('; ')}`, 'erro');
     }
     // Uma loja quebrada em silêncio (as outras seguem postando) vira alerta depois de 3 coletas seguidas.
-    for (const f of robo.banco.fontesComFalhas(FALHAS_PARA_ALERTAR)) {
+    // Loja pausada (ex.: ML_ATIVO=0) não coleta, então nunca zera a contagem: não vale alerta nem rodada vermelha.
+    const lojaLigada: Record<string, boolean> = { mercadolivre: robo.config.ml.ativo, shopee: robo.config.shopee.ativo, amazon: robo.config.amazon.ativo };
+    for (const f of robo.banco.fontesComFalhas(FALHAS_PARA_ALERTAR).filter((f) => lojaLigada[f.fonte] !== false)) {
       dizer(`- **ALERTA: ${f.fonte} falhou ${f.falhas} coletas seguidas.** Último erro: ${f.erro}`);
       avisar(`coleta:${f.fonte}`, `A coleta de ${f.fonte} falhou ${f.falhas} vezes seguidas. Último erro: ${f.erro}`, 'erro');
       process.exitCode = 1;

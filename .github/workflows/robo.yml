@@ -31,7 +31,7 @@ jobs:
     timeout-minutes: 25
     environment:
       name: github-pages
-      url: ${{ steps.publicar.outputs.page_url }}
+      url: ${{ steps.publicar.outputs.page_url || steps.publicar1.outputs.page_url }}
     steps:
       - uses: actions/checkout@v5
 
@@ -141,13 +141,25 @@ jobs:
 
       - name: Enviar o blog
         if: always() && steps.pages.outcome == 'success' && hashFiles('blog/index.html') != ''
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
           path: blog
 
+      # Às vezes o GitHub ainda não "enxerga" o arquivo do blog logo depois do envio ("No artifacts named github-pages were found").
+      # Por isso a primeira publicação não derruba a rodada: se falhar, espera 30 s e tenta de novo.
       - name: Publicar o blog
-        id: publicar
+        id: publicar1
         if: always() && steps.pages.outcome == 'success' && hashFiles('blog/index.html') != ''
+        continue-on-error: true
+        uses: actions/deploy-pages@v5
+
+      - name: Esperar antes de publicar de novo
+        if: always() && steps.publicar1.outcome == 'failure'
+        run: sleep 30
+
+      - name: Publicar o blog (segunda tentativa)
+        id: publicar
+        if: always() && steps.publicar1.outcome == 'failure'
         uses: actions/deploy-pages@v5
 
       - name: Aviso sobre o Pages
