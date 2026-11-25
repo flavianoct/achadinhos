@@ -90,3 +90,20 @@ test('ML login de usuário: um código novo no Secret vale mais que o refresh to
   assert.equal(await (new FonteMercadoLivreApi(com('TG-3'), d.f, 0) as any).autenticar(), 'U4');
   assert.deepEqual(d.pedidos, ['/oauth/token authorization_code TG-3', '/oauth/token refresh_token R3']);
 });
+
+test('ML vigia: diz se a API voltou a entregar preço (vencedor do produto ou /items/bulk)', async () => {
+  const fake = (comPreco: boolean) => (async (url: string) => {
+    const u = String(url);
+    if (u.includes('/oauth/token')) return new Response(JSON.stringify({ access_token: 'APP' }), { status: 200 });
+    if (u.includes('/highlights/')) return new Response(JSON.stringify({ content: [{ id: 'MLB1', type: 'PRODUCT' }, { id: 'MLB2', type: 'ITEM' }] }), { status: 200 });
+    if (u.includes('/products/MLB1')) return new Response(JSON.stringify(comPreco ? { id: 'MLB1', buy_box_winner: { price: 99.9 } } : { id: 'MLB1' }), { status: 200 });
+    if (u.includes('/items/bulk')) return new Response(JSON.stringify([{ id: 'MLB2', status_code: 403, error: { message: 'forbidden' } }]), { status: 200 });
+    return new Response('{}', { status: 404 });
+  }) as unknown as typeof fetch;
+  const opcoes = { ...base, categorias: ['MLB1055'] };
+  const sim = await new FonteMercadoLivreApi(opcoes, fake(true), 0).precoVoltou(0);
+  assert.equal(sim.voltou, true);
+  assert.match(sim.detalhe, /99\.9/);
+  const nao = await new FonteMercadoLivreApi(opcoes, fake(false), 0).precoVoltou(0);
+  assert.equal(nao.voltou, false);
+});

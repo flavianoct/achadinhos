@@ -13,7 +13,7 @@ import { Telegram } from './telegram.ts';
  */
 export const HORA_DO_RESUMO = 21;
 /** Alertas que valem uma mensagem (além de todo alerta de nível "erro"). */
-const IMPORTANTES = /agendado|token|venceu|vence|expira|permiss|recusou|desconect/i;
+const IMPORTANTES = /agendado|token|venceu|vence|expira|permiss|recusou|desconect|voltou/i;
 
 const inicioDoDia = (agora: Date) => Date.parse(`${diaDe(agora)}T00:00:00-03:00`);
 

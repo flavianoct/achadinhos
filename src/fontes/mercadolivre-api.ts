@@ -306,6 +306,39 @@ export class FonteMercadoLivreApi {
     return partes.join(' | ');
   }
 
+  /**
+   * Vigia (com o Mercado Livre pausado): com 2 ou 3 pedidos, vê se a API voltou a entregar PREÇO de anúncio de outro vendedor
+   * (o vencedor do produto de catálogo, ou o anúncio pelo /items/bulk). Nunca lança.
+   */
+  async precoVoltou(turno = Math.floor(Date.now() / (25 * 60_000))): Promise<{ voltou: boolean; detalhe: string }> {
+    try {
+      if (!this.opcoes.clientId || !this.opcoes.clientSecret) return { voltou: false, detalhe: 'sem as chaves do app' };
+      const [categoria] = await this.categoriasDoTurno(turno);
+      const destaque = await this.autorizado(`/highlights/MLB/category/${categoria}`);
+      const conteudo: Array<{ id?: string; type?: string }> = destaque?.content ?? [];
+      const produto = conteudo.find((c) => c?.type === 'PRODUCT')?.id;
+      const item = conteudo.find((c) => c?.type === 'ITEM')?.id;
+      if (produto) {
+        try {
+          const p = await this.autorizado(`/products/${produto}`);
+          const preco = p?.buy_box_winner?.price;
+          if (typeof preco === 'number' && preco > 0) return { voltou: true, detalhe: `/products/${produto} trouxe o preço do vencedor (R$ ${preco})` };
+        } catch { /* segue */ }
+      }
+      if (item) {
+        try {
+          const r = await this.autorizado(`/items/bulk?ids=${item}`);
+          const corpo = Array.isArray(r) ? (r[0]?.body ?? r[0]) : r;
+          const preco = corpo?.price;
+          if (typeof preco === 'number' && preco > 0) return { voltou: true, detalhe: `/items/bulk trouxe o preço do anúncio ${item} (R$ ${preco})` };
+        } catch { /* segue */ }
+      }
+      return { voltou: false, detalhe: `ainda sem preço (login: ${this.situacaoDoLogin})` };
+    } catch (e) {
+      return { voltou: false, detalhe: `não consegui testar (${String((e as Error).message).slice(0, 80)})` };
+    }
+  }
+
   async coletar(turno = Math.floor(Date.now() / (25 * 60_000))): Promise<Oferta[]> {
     if (!this.opcoes.clientId || !this.opcoes.clientSecret) throw new ErroApiML('faltam os Secrets ML_CLIENT_ID e ML_CLIENT_SECRET');
     const ofertas = new Map<string, Oferta>();

@@ -3,7 +3,7 @@ import { execFile } from 'node:child_process';
 import { appendFileSync } from 'node:fs';
 import { FonteSimulada, OFERTAS_SIMULADAS } from './fontes/simulada.ts';
 import { iniciarPainel } from './painel.ts';
-import { Robo } from './robo.ts';
+import { Robo, apiDoMercadoLivre } from './robo.ts';
 import { publicarControle, type DadosDaRodada } from './exportar.ts';
 import { gravarPngsDoCarrossel, prepararCarrossel } from './carrossel.ts';
 import { publicarNoInstagram, responderComentarios } from './instagram.ts';
@@ -270,6 +270,16 @@ async function modoNuvem(): Promise<void> {
       }
     } catch (e) {
       dizer(`- Aviso: o Pinterest falhou nesta rodada (${(e as Error).message}).`);
+    }
+    // Mercado Livre pausado (a API parou de entregar preço em 24/11/2026): o vigia testa com 2 ou 3 pedidos se o preço voltou e,
+    // se voltou, avisa no Telegram privado (uma vez por dia) para religar com ML_ATIVO=1.
+    if (!robo.config.ml.ativo) {
+      const api = apiDoMercadoLivre(robo.config, robo.banco);
+      if (api) {
+        const vigia = await api.precoVoltou();
+        dizer(`- Mercado Livre pausado; vigia da API: ${vigia.voltou ? 'VOLTOU' : 'sem preço ainda'} (${vigia.detalhe}).`);
+        if (vigia.voltou) avisar('ml-voltou', `✅ O Mercado Livre voltou a entregar preço pela API (${vigia.detalhe}). Para religar: ML_ATIVO=1 no ajustes.env (ou me peça).`);
+      }
     }
     robo.banco.registrarAvisos(avisos, new Date());
     // Resumo do dia, números do Instagram e alertas no seu Telegram privado (só manda mensagem; erro nunca atrapalha a rodada).
