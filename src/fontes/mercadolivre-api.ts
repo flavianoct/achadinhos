@@ -47,7 +47,9 @@ export class FonteMercadoLivreApi {
   private token?: string;
   private fetchFn: Fetch;
   private pausaMs: number;
-  private opcoes: { clientId: string; clientSecret: string; mattWord: string; mattTool: string; categorias: string[]; porRodada?: number; usuario?: LoginDeUsuario };
+  private opcoes: { clientId: string; clientSecret: string; mattWord: string; mattTool: string; categorias: string[]; porRodada?: number; /** Apelidos de vendedores para testar a busca por vendedor no diagnóstico (ML_VENDEDORES). */
+  vendedoresDeTeste?: string[];
+  usuario?: LoginDeUsuario };
   /** Como o robô entrou nesta rodada: "usuário" (login da conta do dono) ou "app" (sem login), e o motivo, se o login de usuário falhou. */
   situacaoDoLogin = 'app';
   private pedidos = 0;
@@ -56,7 +58,7 @@ export class FonteMercadoLivreApi {
   private limiteAtingido = false;
   private categoriasExpandidas?: string[];
 
-  constructor(opcoes: { clientId: string; clientSecret: string; mattWord: string; mattTool: string; categorias: string[]; porRodada?: number; usuario?: LoginDeUsuario }, fetchFn: Fetch = fetch, pausaMs = 250) {
+  constructor(opcoes: { clientId: string; clientSecret: string; mattWord: string; mattTool: string; categorias: string[]; porRodada?: number; vendedoresDeTeste?: string[]; usuario?: LoginDeUsuario }, fetchFn: Fetch = fetch, pausaMs = 250) {
     this.opcoes = opcoes;
     this.fetchFn = fetchFn;
     this.pausaMs = pausaMs;
@@ -260,7 +262,7 @@ export class FonteMercadoLivreApi {
   }
 
   /** Diagnóstico: para um id de cada tipo (USER_PRODUCT, ITEM...), o que a API responde e quais campos (e se há preço). Nunca lança erro. */
-  private async explorar(amostras: Map<string, string>): Promise<string> {
+  private async explorar(amostras: Map<string, string>, ids: Set<string> = new Set()): Promise<string> {
     const partes: string[] = [];
     const tenta = async (rotulo: string, caminho: string) => {
       try {
@@ -268,7 +270,7 @@ export class FonteMercadoLivreApi {
         // Consultas em lote (/items/bulk) devolvem uma lista; olha o primeiro elemento.
         const r = Array.isArray(bruto) ? (bruto[0]?.body ?? bruto[0]) : bruto;
         const campos = Object.keys(r ?? {}).slice(0, 18).join(',');
-        const preco = r?.price ?? r?.buy_box_winner?.price ?? r?.results?.[0]?.price;
+        const preco = r?.price ?? r?.buy_box_winner?.price ?? r?.results?.[0]?.price ?? (r?.paging ? `(total ${r.paging.total}, sem itens com preço)` : undefined);
         const cru = Array.isArray(bruto) && preco === undefined ? ` cru=${JSON.stringify(bruto).slice(0, 220)}` : '';
         partes.push(`${rotulo} 200 [${campos}]${preco !== undefined ? ` preço=${preco}` : ' sem preço'}${cru}`);
       } catch (e) {
@@ -282,8 +284,25 @@ export class FonteMercadoLivreApi {
       await tenta('items?user_product_id', `/items?user_product_id=${up}`);
     }
     if (item) await tenta('items/ID', `/items/${item}`);
-    if (item) await tenta('items/bulk', `/items/bulk?ids=${item}&attributes=body.id,body.price,body.title`);
+    if (item) await tenta('items/bulk', `/items/bulk?ids=${item}`);
+    const varios = [...ids].slice(0, 5);
+    if (varios.length > 1) await tenta('items/bulk x' + varios.length, `/items/bulk?ids=${varios.join(',')}`);
     if (item) await tenta('items?ids', `/items?ids=${item}&attributes=id,price,title`);
+    // Busca de itens (documentação "Busca de itens"): listagens por vendedor, que trazem preço.
+    try {
+      const eu = await this.autorizado('/users/me');
+      const meuId = eu?.id;
+      partes.push(`users/me ${meuId ? 'ok' : 'sem id'}`);
+      if (meuId) {
+        await tenta('sites/search?seller_id', `/sites/MLB/search?seller_id=${meuId}&limit=2`);
+        await tenta('users/items/search', `/users/${meuId}/items/search?limit=2`);
+      }
+    } catch (e) {
+      partes.push(`users/me ${String((e as Error).message).slice(0, 70)}`);
+    }
+    for (const apelido of this.opcoes.vendedoresDeTeste ?? []) {
+      await tenta(`sites/search?nickname=${apelido}`, `/sites/MLB/search?nickname=${encodeURIComponent(apelido)}&limit=2`);
+    }
     return partes.join(' | ');
   }
 
@@ -293,6 +312,7 @@ export class FonteMercadoLivreApi {
     const ignorados = new Map<string, number>();
     /** Um id de exemplo de cada tipo que a API devolveu em outro formato, para a exploração do diagnóstico. */
     const amostras = new Map<string, string>();
+    const ids = new Set<string>();
     const d = this.novoDiagnostico();
     const jaPedidos = new Set<string>();
     let vistosNoRanking = 0;
@@ -311,6 +331,7 @@ export class FonteMercadoLivreApi {
           else {
             ignorados.set(String(c?.type), (ignorados.get(String(c?.type)) ?? 0) + 1);
             if (c?.id && !amostras.has(String(c?.type))) amostras.set(String(c.type), String(c.id));
+            if (c?.type === 'ITEM' && c?.id) ids.add(String(c.id));
           }
         }
       } catch (e) {
@@ -337,7 +358,7 @@ export class FonteMercadoLivreApi {
     if (lista.length === 0) {
       const tipos = [...ignorados].map(([t, n]) => `${n} do tipo ${t}`).join(', ');
       // Sem nenhuma oferta: o robô explora, com poucos pedidos, o que a API responde para os outros tipos (vai para o aviso público, sem chaves).
-      const exploracao = await this.explorar(amostras);
+      const exploracao = await this.explorar(amostras, ids);
       if (exploracao) d.formatos.add(`exploração: ${exploracao}`);
       throw new ErroApiML(`API do Mercado Livre sem ofertas [login: ${this.situacaoDoLogin}]${d.ultimoErro ? `: ${d.ultimoErro}` : ''}${tipos ? ` (itens que a API devolveu em outro formato: ${tipos})` : ''}${d.formatos.size ? ` [${[...d.formatos].slice(0, 2).join('; ')}]` : ''}`);
     }
