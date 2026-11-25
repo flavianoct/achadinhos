@@ -264,7 +264,9 @@ export class FonteMercadoLivreApi {
     const partes: string[] = [];
     const tenta = async (rotulo: string, caminho: string) => {
       try {
-        const r = await this.autorizado(caminho);
+        const bruto = await this.autorizado(caminho);
+        // Consultas em lote (/items/bulk) devolvem uma lista; olha o primeiro elemento.
+        const r = Array.isArray(bruto) ? (bruto[0]?.body ?? bruto[0]) : bruto;
         const campos = Object.keys(r ?? {}).slice(0, 18).join(',');
         const preco = r?.price ?? r?.buy_box_winner?.price ?? r?.results?.[0]?.price;
         partes.push(`${rotulo} 200 [${campos}]${preco !== undefined ? ` preço=${preco}` : ' sem preço'}`);
@@ -279,6 +281,8 @@ export class FonteMercadoLivreApi {
       await tenta('items?user_product_id', `/items?user_product_id=${up}`);
     }
     if (item) await tenta('items/ID', `/items/${item}`);
+    if (item) await tenta('items/bulk', `/items/bulk?ids=${item}&attributes=body.id,body.price,body.title`);
+    if (item) await tenta('items?ids', `/items?ids=${item}&attributes=id,price,title`);
     return partes.join(' | ');
   }
 
