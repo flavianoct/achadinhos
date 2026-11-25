@@ -1,4 +1,5 @@
 import type { Oferta } from '../types.ts';
+import { createHash } from 'node:crypto';
 import { cifrar, decifrar, type LoginDeUsuario } from '../ml-usuario.ts';
 import { linkAfiliadoML } from './mercadolivre.ts';
 
@@ -95,34 +96,53 @@ export class FonteMercadoLivreApi {
   private async loginDeUsuario(): Promise<string | undefined> {
     const u = this.opcoes.usuario;
     if (!u?.chave || !u.guarda) return undefined;
-    const guardado = u.guarda.ler();
-    const refresh = guardado ? decifrar(guardado, u.chave) : undefined;
+    const chave = u.chave;
+    const guarda = u.guarda;
+    // O valor guardado é "<marca do código usado>|<refresh token cifrado>" (sem a marca, é do formato antigo).
+    const bruto = guarda.ler() ?? '';
+    const barra = bruto.indexOf('|');
+    const marcaGuardada = barra > 0 && !bruto.startsWith('v1:') ? bruto.slice(0, barra) : '';
+    const cifrado = barra > 0 && !bruto.startsWith('v1:') ? bruto.slice(barra + 1) : bruto;
+    const refresh = cifrado ? decifrar(cifrado, chave) : undefined;
+    const marcaDoCodigo = u.codigo ? createHash('sha256').update(u.codigo, 'utf8').digest('hex').slice(0, 12) : '';
+    const codigoNovo = !!u.codigo && marcaDoCodigo !== marcaGuardada;
     const motivos: string[] = [];
-    if (guardado && !refresh) motivos.push('o token guardado não abre com a ML_CHAVE atual');
-    if (refresh) {
+    if (bruto && !refresh) motivos.push('o token guardado não abre com a ML_CHAVE atual');
+    const guardar = (novoRefresh: string | undefined, marca: string) => {
+      if (novoRefresh) guarda.gravar(`${marca}|${cifrar(novoRefresh, chave)}`);
+    };
+    const comRefresh = async (): Promise<string | undefined> => {
+      if (!refresh) return undefined;
       try {
         const r = await this.pedirToken({ grant_type: 'refresh_token', refresh_token: refresh });
         if (r?.access_token) {
-          if (r.refresh_token) u.guarda.gravar(cifrar(String(r.refresh_token), u.chave));
+          guardar(r.refresh_token ? String(r.refresh_token) : undefined, marcaDoCodigo || marcaGuardada);
           this.situacaoDoLogin = 'usuário';
           return String(r.access_token);
         }
       } catch (e) {
         motivos.push(`renovação recusada (${String((e as Error).message).slice(0, 80)})`);
       }
-    }
-    if (u.codigo) {
+      return undefined;
+    };
+    const comCodigo = async (): Promise<string | undefined> => {
+      if (!u.codigo) return undefined;
       try {
         const r = await this.pedirToken({ grant_type: 'authorization_code', code: u.codigo, redirect_uri: u.redirectUri });
         if (r?.access_token) {
-          if (r.refresh_token) u.guarda.gravar(cifrar(String(r.refresh_token), u.chave));
+          guardar(r.refresh_token ? String(r.refresh_token) : undefined, marcaDoCodigo);
           this.situacaoDoLogin = 'usuário';
           return String(r.access_token);
         }
       } catch (e) {
         motivos.push(`código de autorização recusado (${String((e as Error).message).slice(0, 80)}); gere um código novo`);
       }
-    } else if (!refresh) motivos.push('falta o código de autorização (ML_CODIGO)');
+      return undefined;
+    };
+    // Código diferente do último usado: tenta o código primeiro (token novo, com as permissões de agora); senão, renova pelo refresh.
+    const token = codigoNovo ? ((await comCodigo()) ?? (await comRefresh())) : ((await comRefresh()) ?? (await comCodigo()));
+    if (token) return token;
+    if (!u.codigo && !refresh) motivos.push('falta o código de autorização (ML_CODIGO)');
     this.situacaoDoLogin = `app (login de usuário falhou: ${motivos.join('; ')})`;
     return undefined;
   }

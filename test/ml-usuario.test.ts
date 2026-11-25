@@ -26,6 +26,9 @@ function oauthFalso(respostas: Record<string, { access_token?: string; refresh_t
   return { f, pedidos };
 }
 
+/** O valor guardado é "<marca>|<cifrado>": abre só a parte cifrada. */
+const aberto = (g: string | undefined, k: string) => decifrar(String(g).split('|')[1] ?? '', k);
+
 const base = { clientId: 'id', clientSecret: 'segredo', mattWord: 'w', mattTool: 't', categorias: [] as string[] };
 
 test('ML login de usuário: troca o código uma vez, guarda o refresh cifrado e depois só renova', async () => {
@@ -37,7 +40,7 @@ test('ML login de usuário: troca o código uma vez, guarda o refresh cifrado e 
   const api1 = new FonteMercadoLivreApi({ ...base, usuario }, a.f, 0);
   assert.equal(await (api1 as any).autenticar(), 'U1');
   assert.equal(api1.situacaoDoLogin, 'usuário');
-  assert.equal(decifrar(guardado!, 'k'), 'R1', 'o refresh token fica guardado cifrado');
+  assert.equal(aberto(guardado, 'k'), 'R1', 'o refresh token fica guardado cifrado');
   assert.deepEqual(a.pedidos, ['/oauth/token authorization_code TG-codigo']);
 
   // Na rodada seguinte: renova pelo refresh token guardado (o código não é usado de novo) e guarda o novo.
@@ -45,7 +48,7 @@ test('ML login de usuário: troca o código uma vez, guarda o refresh cifrado e 
   const api2 = new FonteMercadoLivreApi({ ...base, usuario }, b.f, 0);
   assert.equal(await (api2 as any).autenticar(), 'U2');
   assert.deepEqual(b.pedidos, ['/oauth/token refresh_token R1']);
-  assert.equal(decifrar(guardado!, 'k'), 'R2');
+  assert.equal(aberto(guardado, 'k'), 'R2');
 });
 
 test('ML login de usuário: sem chave usa o token do app; com o código recusado, também cai no app e diz o motivo', async () => {
@@ -60,4 +63,30 @@ test('ML login de usuário: sem chave usa o token do app; com o código recusado
   assert.equal(await (api2 as any).autenticar(), 'APP');
   assert.match(api2.situacaoDoLogin, /^app \(login de usuário falhou: código de autorização recusado/);
   assert.equal(guardado, undefined);
+});
+
+test('ML login de usuário: um código novo no Secret vale mais que o refresh token guardado (permissões novas)', async () => {
+  let guardado: string | undefined;
+  const guarda = { ler: () => guardado, gravar: (v: string) => void (guardado = v) };
+  const com = (codigo: string) => ({ ...base, usuario: { codigo, chave: 'k', redirectUri: 'https://exemplo.com/', guarda } });
+
+  const a = oauthFalso({ authorization_code: { access_token: 'U1', refresh_token: 'R1' } });
+  await (new FonteMercadoLivreApi(com('TG-1'), a.f, 0) as any).autenticar();
+  assert.deepEqual(a.pedidos, ['/oauth/token authorization_code TG-1']);
+
+  // Mesmo código: só renova.
+  const b = oauthFalso({ refresh_token: { access_token: 'U2', refresh_token: 'R2' } });
+  await (new FonteMercadoLivreApi(com('TG-1'), b.f, 0) as any).autenticar();
+  assert.deepEqual(b.pedidos, ['/oauth/token refresh_token R1']);
+
+  // Código diferente: troca o código primeiro e guarda o refresh novo.
+  const c = oauthFalso({ authorization_code: { access_token: 'U3', refresh_token: 'R3' } });
+  assert.equal(await (new FonteMercadoLivreApi(com('TG-2'), c.f, 0) as any).autenticar(), 'U3');
+  assert.deepEqual(c.pedidos, ['/oauth/token authorization_code TG-2']);
+  assert.equal(aberto(guardado, 'k'), 'R3');
+
+  // Código novo recusado (venceu): cai no refresh que já existe.
+  const d = oauthFalso({ authorization_code: 400, refresh_token: { access_token: 'U4', refresh_token: 'R4' } });
+  assert.equal(await (new FonteMercadoLivreApi(com('TG-3'), d.f, 0) as any).autenticar(), 'U4');
+  assert.deepEqual(d.pedidos, ['/oauth/token authorization_code TG-3', '/oauth/token refresh_token R3']);
 });
