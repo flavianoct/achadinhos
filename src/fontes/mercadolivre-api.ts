@@ -313,20 +313,31 @@ export class FonteMercadoLivreApi {
   async precoVoltou(turno = Math.floor(Date.now() / (25 * 60_000))): Promise<{ voltou: boolean; detalhe: string }> {
     try {
       if (!this.opcoes.clientId || !this.opcoes.clientSecret) return { voltou: false, detalhe: 'sem as chaves do app' };
-      const [categoria] = await this.categoriasDoTurno(turno);
-      const destaque = await this.autorizado(`/highlights/MLB/category/${categoria}`);
-      const conteudo: Array<{ id?: string; type?: string }> = destaque?.content ?? [];
-      const produto = conteudo.find((c) => c?.type === 'PRODUCT')?.id;
-      const item = conteudo.find((c) => c?.type === 'ITEM')?.id;
+      // Procura, em até 4 categorias do turno, um produto de catálogo e um anúncio (ITEM) para testar.
+      let produto: string | undefined;
+      let item: string | undefined;
+      for (const categoria of (await this.categoriasDoTurno(turno)).slice(0, 4)) {
+        if (produto && item) break;
+        try {
+          const destaque = await this.autorizado(`/highlights/MLB/category/${categoria}`);
+          const conteudo: Array<{ id?: string; type?: string }> = destaque?.content ?? [];
+          produto ??= conteudo.find((c) => c?.type === 'PRODUCT')?.id;
+          item ??= conteudo.find((c) => c?.type === 'ITEM')?.id;
+        } catch { /* tenta a próxima */ }
+      }
+      const tentativas: string[] = [];
+      if (!item) tentativas.push('nenhum anúncio (ITEM) nos destaques para testar a API de preços');
       if (produto) {
         try {
           const p = await this.autorizado(`/products/${produto}`);
           const preco = p?.buy_box_winner?.price;
           if (typeof preco === 'number' && preco > 0) return { voltou: true, detalhe: `/products/${produto} trouxe o preço do vencedor (R$ ${preco})` };
-        } catch { /* segue */ }
+          tentativas.push('products sem vencedor');
+        } catch (e) {
+          tentativas.push(`products ${String((e as Error).message).slice(0, 50)}`);
+        }
       }
       // API de preços (doc "Preços de produtos"): o preço sai do /items e passa para /items/{id}/sale_price e /items/{id}/prices.
-      const tentativas: string[] = [];
       if (item) {
         for (const [rotulo, caminho, ler] of [
           ['sale_price', `/items/${item}/sale_price?context=channel_marketplace`, (r: any) => r?.amount],
@@ -350,7 +361,7 @@ export class FonteMercadoLivreApi {
           if (typeof preco === 'number' && preco > 0) return { voltou: true, detalhe: `/items/bulk trouxe o preço do anúncio ${item} (R$ ${preco})` };
         } catch { /* segue */ }
       }
-      return { voltou: false, detalhe: `ainda sem preço (login: ${this.situacaoDoLogin}${tentativas.length ? `; ${tentativas.join(' | ')}` : ''})` };
+      return { voltou: false, detalhe: `login: ${this.situacaoDoLogin}${tentativas.length ? `; ${tentativas.join(' | ')}` : ''}` };
     } catch (e) {
       return { voltou: false, detalhe: `não consegui testar (${String((e as Error).message).slice(0, 80)})` };
     }
