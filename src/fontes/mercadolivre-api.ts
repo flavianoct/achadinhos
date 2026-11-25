@@ -316,7 +316,7 @@ export class FonteMercadoLivreApi {
       // Procura, em até 4 categorias do turno, um produto de catálogo e um anúncio (ITEM) para testar.
       let produto: string | undefined;
       let item: string | undefined;
-      for (const categoria of (await this.categoriasDoTurno(turno)).slice(0, 4)) {
+      for (const categoria of (await this.categoriasDoTurno(turno)).slice(0, 8)) {
         if (produto && item) break;
         try {
           const destaque = await this.autorizado(`/highlights/MLB/category/${categoria}`);
@@ -326,7 +326,8 @@ export class FonteMercadoLivreApi {
         } catch { /* tenta a próxima */ }
       }
       const tentativas: string[] = [];
-      if (!item) tentativas.push('nenhum anúncio (ITEM) nos destaques para testar a API de preços');
+      // Sem anúncio nos destaques da vez: usa anúncios reais já vistos nos destaques (25/11/2026) para o teste não ficar sem fazer.
+      item ??= 'MLB4842714153';
       if (produto) {
         try {
           const p = await this.autorizado(`/products/${produto}`);
