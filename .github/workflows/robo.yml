@@ -207,4 +207,11 @@ jobs:
             echo "Uma rodada mais nova começou enquanto esta esperava; ela segue a corrente. Esta não chama a próxima."
             exit 0
           fi
-          gh workflow run robo.yml --repo "$GITHUB_REPOSITORY" --ref main
+          # O GitHub às vezes responde 500 ao disparo (25/11: a corrente parou às 13h10 e o cron não cobriu). Tenta até 5 vezes.
+          for tentativa in 1 2 3 4 5; do
+            if gh workflow run robo.yml --repo "$GITHUB_REPOSITORY" --ref main; then exit 0; fi
+            echo "Disparo da próxima rodada falhou (tentativa $tentativa); tento de novo em $(( tentativa * 30 ))s."
+            sleep $(( tentativa * 30 ))
+          done
+          echo "::error::Não consegui chamar a próxima rodada depois de 5 tentativas."
+          exit 1
