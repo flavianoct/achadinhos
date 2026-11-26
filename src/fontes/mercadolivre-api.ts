@@ -326,6 +326,14 @@ export class FonteMercadoLivreApi {
         } catch { /* tenta a próxima */ }
       }
       const tentativas: string[] = [];
+      // Quais escopos o ML diz que o app tem (Novidade de 26/08/2026: "confirme via applications/$APP_ID"). Só os escopos: nada de chaves.
+      try {
+        const app = await this.autorizado(`/applications/${encodeURIComponent(this.opcoes.clientId)}`);
+        const escopos = Array.isArray(app?.scopes) ? app.scopes.join(',') : String(app?.scopes ?? '?');
+        tentativas.push(`escopos do app: ${escopos.slice(0, 160)}`);
+      } catch (e) {
+        tentativas.push(`applications ${String((e as Error).message).slice(0, 50)}`);
+      }
       // Sem anúncio nos destaques da vez: usa anúncios reais já vistos nos destaques (25/11/2026) para o teste não ficar sem fazer.
       item ??= 'MLB4842714153';
       if (produto) {
