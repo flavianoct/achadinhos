@@ -12,13 +12,26 @@ permissions:
 jobs:
   diagnosticar:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
 
       - uses: actions/setup-node@v5
         with:
           node-version: 24
+
+      - name: Testar a página de ofertas (sem API)
+        continue-on-error: true
+        run: |
+          npm install --no-save playwright@1.49.1 >/dev/null 2>&1 && npx playwright install --with-deps chromium >/dev/null 2>&1 || echo 'Playwright não instalou'
+          node testar-pagina-ml.mjs | tee ml-pagina.txt
+          {
+            echo '## Página de ofertas do Mercado Livre (sem API)'
+            echo
+            echo '```'
+            cat ml-pagina.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Testar a API
         env:
