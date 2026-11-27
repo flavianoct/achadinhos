@@ -26,6 +26,7 @@ jobs:
 
       - name: Coletar no Promobit
         run: |
+          set -o pipefail
           node testar-promobit.mjs | tee promobit.txt
           {
             echo '## Teste do Promobit'

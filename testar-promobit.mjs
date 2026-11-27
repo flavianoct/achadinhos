@@ -37,10 +37,17 @@ async function rodar(rotulo, afiliados, maximo) {
     console.log(`\n[rastreio] oferta ${o.offerId}: ${url}`);
     for (let i = 0; url && i < 5; i++) {
       try {
-        const r = await fetch(url, { headers: cab, redirect: 'manual', signal: AbortSignal.timeout(10_000) });
+        const r = await fetch(url, { headers: { ...cab, accept: 'text/html' }, redirect: 'manual', signal: AbortSignal.timeout(10_000) });
         const loc = r.headers.get('location');
         const corpo = loc ? '' : (await r.text()).replace(/\s+/g, ' ');
         console.log(`  ${r.status} ${url}\n    -> ${loc ?? '(sem location) ' + corpo.slice(0, 200)}`);
+        if (!loc) {
+          const ids = {}; for (const m of corpo.matchAll(/MLB-?\d{6,}/g)) ids[m[0]] = (ids[m[0]] ?? 0) + 1;
+          console.log('    MLB no corpo:', JSON.stringify(Object.entries(ids).sort((x, y) => y[1] - x[1]).slice(0, 8)));
+          const perma = [...new Set(corpo.match(/https?:\\?\/\\?\/(?:produto|www)\.mercadolivre\.com\.br\\?\/[^"'\s<>]*MLB[^"'\s<>]*/g) ?? [])].slice(0, 5);
+          console.log('    permalinks:', perma);
+          for (const chave of ['"permalink"', '"item_id"', '"product_id"', '"title"', 'og:title', 'og:url', 'canonical']) { const i = corpo.indexOf(chave); if (i >= 0) console.log(`    ${chave}: ${corpo.slice(i, i + 220)}`); }
+        }
         if (!loc) { const achados = [...new Set(corpo.match(/https?:\/\/[^"'\s<>]*mercadoli[^"'\s<>]*/g) ?? [])].slice(0, 5); console.log('    links no corpo:', achados); break; }
         url = new URL(loc, url).toString();
       } catch (e) { console.log(`  erro em ${url}: ${e.message} ${e.cause?.code ?? ''}`); break; }
