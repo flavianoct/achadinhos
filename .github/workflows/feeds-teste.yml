@@ -1,0 +1,27 @@
+name: Testar feeds de ofertas
+
+# Só lê feeds RSS e mostra as ofertas que a fonte de feeds montaria. Não posta nem grava nada.
+on:
+  pull_request:
+    paths:
+      - 'src/fontes/feeds.ts'
+      - 'testar-feeds.mjs'
+      - '.github/workflows/feeds-teste.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  testar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Sondar os feeds
+        run: |
+          set -o pipefail
+          node testar-feeds.mjs | tee feeds.txt
