@@ -1,0 +1,36 @@
+name: Testar Promobit
+
+# Coleta de verdade no Promobit (sem tocar o Mercado Livre) e mostra as ofertas do ML que chegariam ao robô.
+# Não posta nada e não grava nada. Roda nos PRs que mexem no Promobit e pelo botão "Run workflow".
+on:
+  pull_request:
+    paths:
+      - 'src/fontes/promobit.ts'
+      - 'testar-promobit.mjs'
+      - '.github/workflows/promobit-teste.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  testar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Coletar no Promobit
+        run: |
+          node testar-promobit.mjs | tee promobit.txt
+          {
+            echo '## Teste do Promobit'
+            echo
+            echo '```'
+            cat promobit.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
