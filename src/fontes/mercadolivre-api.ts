@@ -307,6 +307,25 @@ export class FonteMercadoLivreApi {
   }
 
   /**
+   * Evidência para o suporte do ML (consulta 498853216): repete uma chamada negada e devolve o identificador da requisição que o ML
+   * manda no cabeçalho, com a data e a hora em UTC e em Brasília. Só cabeçalhos de rastreio: nada de token.
+   */
+  private async evidencia(caminho: string): Promise<string> {
+    try {
+      const r = await this.fetchFn(`${API}${caminho}`, { headers: { authorization: `Bearer ${await this.autenticar()}`, accept: 'application/json' }, signal: AbortSignal.timeout(30_000) });
+      const agora = new Date();
+      const ids: string[] = [];
+      r.headers.forEach((v, k) => {
+        if (/request-?id|trace|correlation/i.test(k)) ids.push(`${k}=${v.slice(0, 80)}`);
+      });
+      const brasilia = new Date(agora.getTime() - 3 * 3_600_000).toISOString().slice(0, 19).replace('T', ' ');
+      return `EVIDENCIA GET ${caminho.split('?')[0]} HTTP ${r.status}; ${ids.join('; ') || 'sem cabecalho de id'}; utc ${agora.toISOString()}; brasilia ${brasilia} (UTC-3)`;
+    } catch (e) {
+      return `EVIDENCIA falhou: ${String((e as Error).message).slice(0, 80)}`;
+    }
+  }
+
+  /**
    * Vigia (com o Mercado Livre pausado): com 2 ou 3 pedidos, vê se a API voltou a entregar PREÇO de anúncio de outro vendedor
    * (o vencedor do produto de catálogo, ou o anúncio pelo /items/bulk). Nunca lança.
    */
@@ -370,6 +389,7 @@ export class FonteMercadoLivreApi {
           if (typeof preco === 'number' && preco > 0) return { voltou: true, detalhe: `/items/bulk trouxe o preço do anúncio ${item} (R$ ${preco})` };
         } catch { /* segue */ }
       }
+      if (item) tentativas.unshift(await this.evidencia(`/items/${item}/sale_price?context=channel_marketplace`));
       return { voltou: false, detalhe: `login: ${this.situacaoDoLogin}${tentativas.length ? `; ${tentativas.join(' | ')}` : ''}` };
     } catch (e) {
       return { voltou: false, detalhe: `não consegui testar (${String((e as Error).message).slice(0, 80)})` };
