@@ -26,6 +26,28 @@ async function rodar(rotulo, afiliados, maximo) {
   return r;
 }
 
+// Rastreio dos saltos do link curto do ML (para ver onde para).
+{
+  const cab = { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36', 'accept-language': 'pt-BR,pt;q=0.9' };
+  const html = await (await fetch('https://www.promobit.com.br/promocoes/loja/mercado-livre/', { headers: cab })).text();
+  const { extrairOfertasPromobit, linkDoRedirecionamento } = await import('./src/fontes/promobit.ts');
+  for (const o of (extrairOfertasPromobit(html) ?? []).slice(0, 2)) {
+    const pag = await (await fetch(`https://www.promobit.com.br/Redirect/to/${o.offerId}/`, { headers: cab, redirect: 'manual' })).text();
+    let url = linkDoRedirecionamento(pag);
+    console.log(`\n[rastreio] oferta ${o.offerId}: ${url}`);
+    for (let i = 0; url && i < 5; i++) {
+      try {
+        const r = await fetch(url, { headers: cab, redirect: 'manual', signal: AbortSignal.timeout(10_000) });
+        const loc = r.headers.get('location');
+        const corpo = loc ? '' : (await r.text()).replace(/\s+/g, ' ');
+        console.log(`  ${r.status} ${url}\n    -> ${loc ?? '(sem location) ' + corpo.slice(0, 200)}`);
+        if (!loc) { const achados = [...new Set(corpo.match(/https?:\/\/[^"'\s<>]*mercadoli[^"'\s<>]*/g) ?? [])].slice(0, 5); console.log('    links no corpo:', achados); break; }
+        url = new URL(loc, url).toString();
+      } catch (e) { console.log(`  erro em ${url}: ${e.message} ${e.cause?.code ?? ''}`); break; }
+    }
+  }
+}
+
 const ml = await rodar('Mercado Livre', { mercadolivre: { mattWord: 'MEU_WORD', mattTool: 'MEU_TOOL' } }, 15);
 await rodar('Amazon (só teste; no robô fica desligada)', { amazon: { tag: 'minhatag-20' } }, 4);
 
