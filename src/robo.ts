@@ -7,6 +7,7 @@ import { FonteMercadoLivre } from './fontes/mercadolivre.ts';
 import { FonteMercadoLivreApi } from './fontes/mercadolivre-api.ts';
 import { FonteShopee, planoDeBuscas } from './fontes/shopee.ts';
 import { FontePromobit } from './fontes/promobit.ts';
+import { FonteEspelho } from './fontes/espelho.ts';
 import { convitesDeHoje } from './convite.ts';
 import { escaparHtml } from './mensagem.ts';
 import { carregarCampanhas, chaveDaFase, fasesDevidas, grandesDeHoje, lembretesDoDono, lerDatas, textoDaData, textoDosMelhores, todasAsCampanhas } from './datas.ts';
@@ -63,6 +64,12 @@ function fontesReais(config: Config, banco?: Banco): Fonte[] {
       amazon: config.amazon.ativo && config.amazon.tag ? { tag: config.amazon.tag } : undefined,
     };
     fontes.push(new FontePromobit({ afiliados, maximo: config.promobit.maximo }));
+  }
+  // Fonte extra: ofertas dos grupos de WhatsApp espelhados pelo enviador da VPS (só ML), com o SEU código. Desligada por padrão.
+  if (config.espelho.ativo) {
+    const repo = process.env.GITHUB_REPOSITORY || 'flavianoct/achadinhos';
+    const afiliados = { mercadolivre: config.ml.mattWord && config.ml.mattTool ? { mattWord: config.ml.mattWord, mattTool: config.ml.mattTool } : undefined };
+    fontes.push(new FonteEspelho({ url: config.espelho.url || `https://raw.githubusercontent.com/${repo}/espelho/espelho.json`, afiliados, maximo: config.espelho.maximo, idadeMaximaMin: config.espelho.idadeMaximaMin }));
   }
   return fontes;
 }
