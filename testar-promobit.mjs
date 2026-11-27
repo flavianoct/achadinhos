@@ -1,5 +1,6 @@
 // Teste de verdade da fonte Promobit: roda a mesma coleta que o robô roda e mostra as ofertas que chegariam,
-// com foto (conferida), preço e o link final. Não posta nada e não grava nada. O ML nunca é aberto: só o link curto é expandido.
+// com foto (conferida), preço e o link final. Não posta nada e não grava nada. Do ML, só abre a vitrine de afiliado do Promobit
+// (o destino do link curto) para saber qual é o produto; a página do produto nunca é aberta.
 // Os códigos de afiliado aqui são de mentira (MEU_WORD / MEU_TOOL / minhatag-20), só para mostrar onde entram.
 import { coletarPromobit } from './src/fontes/promobit.ts';
 
@@ -24,35 +25,6 @@ async function rodar(rotulo, afiliados, maximo) {
     console.log(`\n- [${o.loja} ${o.idProduto}] ${o.titulo}\n  R$ ${o.preco.toFixed(2)}${de}\n  foto: ${o.imagem} -> ${await conferirFoto(o.imagem)}\n  link: ${o.link}`);
   }
   return r;
-}
-
-// Rastreio dos saltos do link curto do ML (para ver onde para).
-{
-  const cab = { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36', 'accept-language': 'pt-BR,pt;q=0.9' };
-  const html = await (await fetch('https://www.promobit.com.br/promocoes/loja/mercado-livre/', { headers: cab })).text();
-  const { extrairOfertasPromobit, linkDoRedirecionamento } = await import('./src/fontes/promobit.ts');
-  for (const o of (extrairOfertasPromobit(html) ?? []).slice(0, 2)) {
-    const pag = await (await fetch(`https://www.promobit.com.br/Redirect/to/${o.offerId}/`, { headers: cab, redirect: 'manual' })).text();
-    let url = linkDoRedirecionamento(pag);
-    console.log(`\n[rastreio] oferta ${o.offerId}: ${url}`);
-    for (let i = 0; url && i < 5; i++) {
-      try {
-        const r = await fetch(url, { headers: { ...cab, accept: 'text/html' }, redirect: 'manual', signal: AbortSignal.timeout(10_000) });
-        const loc = r.headers.get('location');
-        const corpo = loc ? '' : (await r.text()).replace(/\s+/g, ' ');
-        console.log(`  ${r.status} ${url}\n    -> ${loc ?? '(sem location) ' + corpo.slice(0, 200)}`);
-        if (!loc) {
-          const ids = {}; for (const m of corpo.matchAll(/MLB-?\d{6,}/g)) ids[m[0]] = (ids[m[0]] ?? 0) + 1;
-          console.log('    MLB no corpo:', JSON.stringify(Object.entries(ids).sort((x, y) => y[1] - x[1]).slice(0, 8)));
-          const perma = [...new Set(corpo.match(/https?:\\?\/\\?\/(?:produto|www)\.mercadolivre\.com\.br\\?\/[^"'\s<>]*MLB[^"'\s<>]*/g) ?? [])].slice(0, 5);
-          console.log('    permalinks:', perma);
-          for (const chave of ['"permalink"', '"item_id"', '"product_id"', '"title"', 'og:title', 'og:url', 'canonical']) { const i = corpo.indexOf(chave); if (i >= 0) console.log(`    ${chave}: ${corpo.slice(i, i + 220)}`); }
-        }
-        if (!loc) { const achados = [...new Set(corpo.match(/https?:\/\/[^"'\s<>]*mercadoli[^"'\s<>]*/g) ?? [])].slice(0, 5); console.log('    links no corpo:', achados); break; }
-        url = new URL(loc, url).toString();
-      } catch (e) { console.log(`  erro em ${url}: ${e.message} ${e.cause?.code ?? ''}`); break; }
-    }
-  }
 }
 
 const ml = await rodar('Mercado Livre', { mercadolivre: { mattWord: 'MEU_WORD', mattTool: 'MEU_TOOL' } }, 15);

@@ -7,10 +7,12 @@ type Fetch = typeof fetch;
 /**
  * Promobit como fonte EXTRA de ofertas do Mercado Livre (e da Amazon, quando ela for ligada). Ideia copiada do projeto pega-oferta.
  * O site do ML barra o nosso servidor por IP desde 06/10; o Promobit, não. A página de ofertas da loja Mercado Livre no Promobit
- * traz título, preço, preço "de" e foto já estruturados (bloco __NEXT_DATA__). O link do produto sai da página de redirecionamento
- * do Promobit (um link curto meli.la), que é expandido só até o primeiro endereço do ML, sem abrir a página do produto.
- * Depois, o link de afiliado do Promobit é trocado pelo SEU (matt_word e matt_tool). Oferta cujo link não deu para expandir é
- * descartada: sem o link limpo do ML, a venda iria para o Promobit e não para você.
+ * traz título, preço, preço "de" e foto já estruturados (bloco __NEXT_DATA__). O link sai da página de redirecionamento do Promobit
+ * (um link curto meli.la). No ML esse link leva à vitrine de afiliado DO PROMOBIT (/social/promobit?ref=...), com o produto
+ * cifrado no ref: o robô abre essa vitrine uma vez (página leve, que respondeu 200 no GitHub) só para ler qual é o produto
+ * em destaque e o preço atual dele no ML, e monta o link limpo do produto com o SEU código (matt_word e matt_tool).
+ * O pega-oferta não faz isso: ele posta o link da página do Promobit, e a venda não é creditada a quem divulga.
+ * Oferta cujo produto não deu para descobrir é descartada: com o link do Promobit, a venda iria para o Promobit e não para você.
  */
 
 const SITE = 'https://www.promobit.com.br';
@@ -157,13 +159,67 @@ export async function expandirLink(url: string, fetchFn: Fetch = fetch, saltos =
   return ehEnderecoFinal(atual) ? atual : undefined;
 }
 
+/** Palavras que contam para comparar títulos (sem acento, 4 letras ou mais). */
+function palavras(t: string): Set<string> {
+  return new Set(t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().split(/[^a-z0-9]+/).filter((p) => p.length >= 4));
+}
+
+/** O produto em destaque na vitrine de afiliado do ML (/social/...): link, id de catálogo ou anúncio, título e preço atual. */
+export interface ProdutoDaVitrine {
+  url: string;
+  idProduto: string;
+  titulo?: string;
+  preco?: number;
+}
+
+/** Lê a vitrine /social/ do ML e devolve o primeiro produto (o destacado pelo link). undefined se a página não trouxer. */
+export function produtoDaVitrineML(html: string): ProdutoDaVitrine | undefined {
+  const desescapar = (t: string) => t.replace(/\\u002F/gi, '/').replace(/&amp;/g, '&');
+  let url: string | undefined;
+  let idProduto: string | undefined;
+  const m = /"product_id":"(MLB\d+)"[^{}]{0,600}?"url":"([^"]+)"/.exec(html);
+  if (m) {
+    idProduto = m[1];
+    url = desescapar(m[2]!);
+  } else {
+    // Sem catálogo: o anúncio do cartão em destaque.
+    const c = /href="(https:\/\/[\w.]*mercadolivre\.com\.br\/[^"]+)"[^>]*>/.exec(html.slice(Math.max(0, html.indexOf('card-featured') - 3000)));
+    if (c) url = desescapar(c[1]!);
+  }
+  if (!url) return undefined;
+  if (!/^https?:\/\//.test(url)) url = `https://${url}`;
+  url = url.split('#')[0]!;
+  idProduto ??= idDoProdutoML(url);
+  if (!idProduto || !/(^|\.)mercadolivre\.com\.br$/.test(new URL(url).hostname)) return undefined;
+  const og = /property="og:title"\s+content="([^"]+)"/.exec(html)?.[1] ?? /og:title"\s*content="([^"]+)"/.exec(html)?.[1];
+  let titulo: string | undefined;
+  let preco: number | undefined;
+  if (og) {
+    const p = /\s-\sR\$\s?([\d.]+(?:,\d{1,2})?)\s*$/.exec(og);
+    if (p) preco = Number(p[1]!.replace(/\./g, '').replace(',', '.'));
+    titulo = og.replace(/\s-\sR\$.*$/, '').trim();
+  }
+  return { url, idProduto, titulo, preco: preco && Number.isFinite(preco) && preco > 0 ? preco : undefined };
+}
+
+/** O produto da vitrine é o mesmo da oferta? (ao menos um terço das palavras do título do Promobit aparecem no título do ML). */
+export function mesmoProduto(tituloPromobit: string, tituloML: string | undefined): boolean {
+  if (!tituloML) return true;
+  const a = palavras(tituloPromobit);
+  if (a.size === 0) return true;
+  const b = palavras(tituloML);
+  let comuns = 0;
+  for (const p of a) if (b.has(p)) comuns++;
+  return comuns / a.size >= 1 / 3;
+}
+
 export interface Afiliados {
   mercadolivre?: { mattWord: string; mattTool: string };
   amazon?: { tag: string };
 }
 
 /** Monta a Oferta do robô a partir da oferta do Promobit e do link do produto na loja, já com o SEU código de afiliado. */
-export function converterOfertaPromobit(o: OfertaPromobit, linkDaLoja: string, afiliados: Afiliados): Oferta | undefined {
+export function converterOfertaPromobit(o: OfertaPromobit, linkDaLoja: string, afiliados: Afiliados, precoNaLoja?: number): Oferta | undefined {
   let loja: LojaPromobit;
   let idProduto: string | undefined;
   let link: string | undefined;
@@ -179,7 +235,8 @@ export function converterOfertaPromobit(o: OfertaPromobit, linkDaLoja: string, a
     link = linkAfiliadoML(limparLinkML(linkDaLoja), afiliados.mercadolivre.mattWord, afiliados.mercadolivre.mattTool);
   }
   if (!idProduto || !link) return undefined;
-  const preco = Math.round(o.offerPrice * 100) / 100;
+  // O preço do Promobit às vezes já desconta um cupom; quando a loja informa o preço atual, vale o da loja.
+  const preco = Math.round((precoNaLoja ?? o.offerPrice) * 100) / 100;
   const antigo = Number(o.offerOldPrice);
   const precoOriginal = Number.isFinite(antigo) && antigo > preco ? antigo : undefined;
   const desconto = precoOriginal ? Math.round((1 - preco / precoOriginal) * 100) : undefined;
@@ -199,7 +256,7 @@ export function converterOfertaPromobit(o: OfertaPromobit, linkDaLoja: string, a
 export interface OpcoesPromobit {
   /** Lojas ligadas e o seu código de afiliado em cada uma. Loja sem código não é coletada. */
   afiliados: Afiliados;
-  /** Quantas ofertas abrir por rodada (cada uma custa 2 ou 3 pedidos pequenos, nenhum à página do produto). */
+  /** Quantas ofertas abrir por rodada (cada uma custa 3 ou 4 pedidos: Promobit, link curto e a vitrine de afiliado do ML). */
   maximo?: number;
   intervaloMs?: number;
 }
@@ -229,7 +286,7 @@ export async function coletarPromobit(opcoes: OpcoesPromobit, fetchFn: Fetch = f
     return resultado;
   }
   const maximo = Math.max(0, opcoes.maximo ?? 15);
-  const intervalo = opcoes.intervaloMs ?? 300;
+  const intervalo = opcoes.intervaloMs ?? 1500;
   const brutas = new Map<number, OfertaPromobit>();
   let erro: string | undefined;
   for (const pagina of [...lojas.map((l) => LOJAS[l].pagina), PAGINA_INICIAL]) {
@@ -254,14 +311,22 @@ export async function coletarPromobit(opcoes: OpcoesPromobit, fetchFn: Fetch = f
     if (abertas >= maximo) break;
     if (abertas++) await pausa(intervalo);
     let linkDaLoja: string | undefined;
+    let precoNaLoja: number | undefined;
     try {
       const r = await fetchFn(`${SITE}/Redirect/to/${o.offerId}/`, { headers: CABECALHOS, redirect: 'manual', signal: AbortSignal.timeout(15_000) });
       const destino = r.headers.get('location') ?? (r.status === 200 ? linkDoRedirecionamento(await r.text()) : undefined);
       if (destino) linkDaLoja = await expandirLink(destino, fetchFn);
+      // Vitrine de afiliado do Promobit no ML: descobre qual é o produto (e o preço atual) para montar o SEU link.
+      if (linkDaLoja && new URL(linkDaLoja).pathname.startsWith('/social/')) {
+        const v = await fetchFn(linkDaLoja, { headers: CABECALHOS, redirect: 'follow', signal: AbortSignal.timeout(15_000) });
+        const produto = v.ok ? produtoDaVitrineML(await v.text()) : undefined;
+        linkDaLoja = produto && mesmoProduto(o.offerTitle, produto.titulo) ? produto.url : undefined;
+        precoNaLoja = produto?.preco;
+      }
     } catch {
-      // sem link: a oferta é descartada abaixo
+      linkDaLoja = undefined;
     }
-    const oferta = linkDaLoja ? converterOfertaPromobit(o, linkDaLoja, opcoes.afiliados) : undefined;
+    const oferta = linkDaLoja ? converterOfertaPromobit(o, linkDaLoja, opcoes.afiliados, precoNaLoja) : undefined;
     if (!oferta) {
       resultado.semLink++;
       continue;
