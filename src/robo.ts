@@ -6,6 +6,7 @@ import { FonteAmazon } from './fontes/amazon.ts';
 import { FonteMercadoLivre } from './fontes/mercadolivre.ts';
 import { FonteMercadoLivreApi } from './fontes/mercadolivre-api.ts';
 import { FonteShopee, planoDeBuscas } from './fontes/shopee.ts';
+import { FontePromobit } from './fontes/promobit.ts';
 import { convitesDeHoje } from './convite.ts';
 import { escaparHtml } from './mensagem.ts';
 import { carregarCampanhas, chaveDaFase, fasesDevidas, grandesDeHoje, lembretesDoDono, lerDatas, textoDaData, textoDosMelhores, todasAsCampanhas } from './datas.ts';
@@ -55,6 +56,14 @@ function fontesReais(config: Config, banco?: Banco): Fonte[] {
     fontes.push(new FonteMercadoLivre({ ...config.ml, reserva: api, tema: config.filtro.tema, buscasDeNicho }));
   }
   if (config.amazon.ativo) fontes.push(new FonteAmazon());
+  // Fonte extra, sem mexer nas de cima: as ofertas do ML (e da Amazon, se ligada) que o Promobit publica, com o SEU código de afiliado.
+  if (config.promobit.ativo) {
+    const afiliados = {
+      mercadolivre: config.ml.mattWord && config.ml.mattTool ? { mattWord: config.ml.mattWord, mattTool: config.ml.mattTool } : undefined,
+      amazon: config.amazon.ativo && config.amazon.tag ? { tag: config.amazon.tag } : undefined,
+    };
+    fontes.push(new FontePromobit({ afiliados, maximo: config.promobit.maximo }));
+  }
   return fontes;
 }
 
