@@ -24,6 +24,8 @@ async function rodar(rotulo, afiliados, maximo) {
     const de = o.precoOriginal ? ` (de R$ ${o.precoOriginal.toFixed(2)}, -${o.desconto}%)` : '';
     console.log(`\n- [${o.loja} ${o.idProduto}] ${o.titulo}\n  R$ ${o.preco.toFixed(2)}${de}\n  foto: ${o.imagem} -> ${await conferirFoto(o.imagem)}\n  link: ${o.link}`);
   }
+  console.log('\n--- conferência (Promobit | página do ML | link) ---');
+  for (const c of r.conferencia) console.log(`* ${c.promobit}\n  ML: ${c.ml ?? '-'}\n  -> ${c.link ? new URL(c.link).pathname : 'DESCARTADA'}`);
   return r;
 }
 

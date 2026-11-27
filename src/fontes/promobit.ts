@@ -172,25 +172,23 @@ export interface ProdutoDaVitrine {
   preco?: number;
 }
 
-/** Lê a vitrine /social/ do ML e devolve o primeiro produto (o destacado pelo link). undefined se a página não trouxer. */
-export function produtoDaVitrineML(html: string): ProdutoDaVitrine | undefined {
+/** Nota de 0 a 1: quanto das palavras de `referencia` aparecem em `texto`. */
+function semelhanca(referencia: string, texto: string): number {
+  const a = palavras(referencia);
+  if (a.size === 0) return 0;
+  const b = palavras(texto);
+  let comuns = 0;
+  for (const p of a) if (b.has(p)) comuns++;
+  return comuns / a.size;
+}
+
+/**
+ * Lê a vitrine /social/ do ML e devolve o produto destacado pelo link. A vitrine mostra também recomendações parecidas
+ * (outra cor, outro modelo), então o produto escolhido é o link cujo nome mais se parece com o título da página (og:title,
+ * que é o do produto destacado) e com o título da oferta no Promobit. undefined se nenhum link bater o suficiente.
+ */
+export function produtoDaVitrineML(html: string, tituloDaOferta = ''): ProdutoDaVitrine | undefined {
   const desescapar = (t: string) => t.replace(/\\u002F/gi, '/').replace(/&amp;/g, '&');
-  let url: string | undefined;
-  let idProduto: string | undefined;
-  const m = /"product_id":"(MLB\d+)"[^{}]{0,600}?"url":"([^"]+)"/.exec(html);
-  if (m) {
-    idProduto = m[1];
-    url = desescapar(m[2]!);
-  } else {
-    // Sem catálogo: o anúncio do cartão em destaque.
-    const c = /href="(https:\/\/[\w.]*mercadolivre\.com\.br\/[^"]+)"[^>]*>/.exec(html.slice(Math.max(0, html.indexOf('card-featured') - 3000)));
-    if (c) url = desescapar(c[1]!);
-  }
-  if (!url) return undefined;
-  if (!/^https?:\/\//.test(url)) url = `https://${url}`;
-  url = url.split('#')[0]!;
-  idProduto ??= idDoProdutoML(url);
-  if (!idProduto || !/(^|\.)mercadolivre\.com\.br$/.test(new URL(url).hostname)) return undefined;
   const og = /property="og:title"\s+content="([^"]+)"/.exec(html)?.[1] ?? /og:title"\s*content="([^"]+)"/.exec(html)?.[1];
   let titulo: string | undefined;
   let preco: number | undefined;
@@ -199,7 +197,26 @@ export function produtoDaVitrineML(html: string): ProdutoDaVitrine | undefined {
     if (p) preco = Number(p[1]!.replace(/\./g, '').replace(',', '.'));
     titulo = og.replace(/\s-\sR\$.*$/, '').trim();
   }
-  return { url, idProduto, titulo, preco: preco && Number.isFinite(preco) && preco > 0 ? preco : undefined };
+  // Todos os links de produto da página: os do JSON ("url":"www.mercadolivre.com.br\u002F...") e os dos cartões (href).
+  const candidatos = new Map<string, string>();
+  const bruto = desescapar(html);
+  for (const m of bruto.matchAll(/(?:"url":"|href=")((?:https?:\/\/)?(?:www|produto)\.mercadolivre\.com\.br\/[^"#\s]+)/g)) {
+    let url = m[1]!;
+    if (!/^https?:\/\//.test(url)) url = `https://${url}`;
+    const id = idDoProdutoML(url);
+    if (!id || !/\/p\/MLB\d|MLB-?\d{6,}/i.test(url)) continue;
+    if (!candidatos.has(id)) candidatos.set(id, url);
+  }
+  const referencia = `${titulo ?? ''} ${tituloDaOferta}`.trim();
+  let melhor: { id: string; url: string; nota: number } | undefined;
+  for (const [id, url] of candidatos) {
+    const slug = new URL(url).pathname.replace(/[-/]+/g, ' ');
+    const nota = referencia ? (semelhanca(titulo ?? tituloDaOferta, slug) * 2 + semelhanca(tituloDaOferta || (titulo ?? ''), slug)) / 3 : 0;
+    if (!melhor || nota > melhor.nota) melhor = { id, url, nota };
+  }
+  // Sem título para comparar, vale o primeiro; com título, o nome do link tem de bater em boa parte.
+  if (!melhor || (referencia && melhor.nota < 0.5)) return undefined;
+  return { url: melhor.url, idProduto: melhor.id, titulo, preco: preco && Number.isFinite(preco) && preco > 0 ? preco : undefined };
 }
 
 /** O produto da vitrine é o mesmo da oferta? (ao menos um terço das palavras do título do Promobit aparecem no título do ML). */
@@ -267,6 +284,8 @@ export interface ColetaPromobit {
   lidas: number;
   semLink: number;
   erro?: string;
+  /** Para conferência: título no Promobit, título da vitrine do ML e o link escolhido (ou o motivo do descarte). */
+  conferencia: Array<{ promobit: string; ml?: string; link?: string }>;
 }
 
 /** Lojas que a coleta vai buscar: só as que têm o código de afiliado. */
@@ -280,7 +299,7 @@ function lojasLigadas(afiliados: Afiliados): LojaPromobit[] {
 /** Coleta as ofertas no Promobit. Nunca lança erro: falha vira `erro` no resultado (o Promobit é só um a mais). */
 export async function coletarPromobit(opcoes: OpcoesPromobit, fetchFn: Fetch = fetch): Promise<ColetaPromobit> {
   const lojas = lojasLigadas(opcoes.afiliados);
-  const resultado: ColetaPromobit = { ofertas: [], lidas: 0, semLink: 0 };
+  const resultado: ColetaPromobit = { ofertas: [], lidas: 0, semLink: 0, conferencia: [] };
   if (!lojas.length) {
     resultado.erro = 'nenhuma loja com código de afiliado para o Promobit';
     return resultado;
@@ -312,6 +331,7 @@ export async function coletarPromobit(opcoes: OpcoesPromobit, fetchFn: Fetch = f
     if (abertas++) await pausa(intervalo);
     let linkDaLoja: string | undefined;
     let precoNaLoja: number | undefined;
+    let tituloML: string | undefined;
     try {
       const r = await fetchFn(`${SITE}/Redirect/to/${o.offerId}/`, { headers: CABECALHOS, redirect: 'manual', signal: AbortSignal.timeout(15_000) });
       const destino = r.headers.get('location') ?? (r.status === 200 ? linkDoRedirecionamento(await r.text()) : undefined);
@@ -319,14 +339,16 @@ export async function coletarPromobit(opcoes: OpcoesPromobit, fetchFn: Fetch = f
       // Vitrine de afiliado do Promobit no ML: descobre qual é o produto (e o preço atual) para montar o SEU link.
       if (linkDaLoja && new URL(linkDaLoja).pathname.startsWith('/social/')) {
         const v = await fetchFn(linkDaLoja, { headers: CABECALHOS, redirect: 'follow', signal: AbortSignal.timeout(15_000) });
-        const produto = v.ok ? produtoDaVitrineML(await v.text()) : undefined;
+        const produto = v.ok ? produtoDaVitrineML(await v.text(), o.offerTitle) : undefined;
         linkDaLoja = produto && mesmoProduto(o.offerTitle, produto.titulo) ? produto.url : undefined;
         precoNaLoja = produto?.preco;
+        tituloML = produto?.titulo;
       }
     } catch {
       linkDaLoja = undefined;
     }
     const oferta = linkDaLoja ? converterOfertaPromobit(o, linkDaLoja, opcoes.afiliados, precoNaLoja) : undefined;
+    resultado.conferencia.push({ promobit: o.offerTitle, ml: tituloML, link: oferta?.link });
     if (!oferta) {
       resultado.semLink++;
       continue;
