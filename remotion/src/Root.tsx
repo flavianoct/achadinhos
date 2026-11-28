@@ -6,6 +6,7 @@ import { Destaque, DESTAQUE_FPS, duracaoDoDestaque, type PropsDoDestaque } from 
 import { CapaDoGrupo, Destaque as DestaqueDeIdentidade, Folha, Meme, MascoteSozinho, Perfil } from './Identidade';
 import { VideoOferta, duracaoDoVideoOferta, VIDEO_OFERTA_FPS, type PropsDoVideoOferta } from './VideoOferta';
 import { Oferta, duracaoDaOferta } from './Oferta';
+import { duracaoDoReelNarrado, ReelNarrado, type PropsDoReelNarrado } from './ReelNarrado';
 import { DestaqueImpacto, duracaoDoDestaqueImpacto } from './DestaqueImpacto';
 import { AchadosImpacto, duracaoDosAchadosImpacto } from './AchadosImpacto';
 import { Impacto, IMPACTO_FPS, DURACAO_DO_IMPACTO, type PropsDoImpacto } from './Impacto';
@@ -65,6 +66,9 @@ const solucao: PropsDaSolucao = {
   comentaQuero: true,
 };
 
+/** Exemplo do Reel narrado; o vídeo de verdade e os tempos da narração vêm em --props. */
+const narrado: PropsDoReelNarrado = { video: 'videos/panela-cacarola.mp4', quadros: 304, quadrosDoFim: 130, cortes: [], gancho: { linhas: ['GANCHO'], ate: 1.6 }, falas: [], codigo: 101 };
+
 export const Root: React.FC = () => (
   <>
     <Composition id="Divulgacao" component={Divulgacao} durationInFrames={DURACAO_DA_DIVULGACAO} fps={DIVULGACAO_FPS} width={1080} height={1920} defaultProps={divulgacao} />
@@ -80,6 +84,7 @@ export const Root: React.FC = () => (
     />
     <Composition id="DestaqueImpacto" component={DestaqueImpacto} durationInFrames={duracaoDoDestaqueImpacto(destaque)} fps={DESTAQUE_FPS} width={1080} height={1920} defaultProps={destaque} calculateMetadata={({ props }) => ({ durationInFrames: duracaoDoDestaqueImpacto(props) })} />
     <Composition id="Oferta" component={Oferta} durationInFrames={duracaoDaOferta(destaque)} fps={DESTAQUE_FPS} width={1080} height={1920} defaultProps={destaque} calculateMetadata={({ props }) => ({ durationInFrames: duracaoDaOferta(props) })} />
+    <Composition id="ReelNarrado" component={ReelNarrado} durationInFrames={duracaoDoReelNarrado(narrado)} fps={30} width={1080} height={1920} defaultProps={narrado} calculateMetadata={({ props }) => ({ durationInFrames: duracaoDoReelNarrado(props) })} />
     <Composition id="IdPerfilAmarelo" component={Perfil} durationInFrames={1} fps={30} width={1080} height={1080} defaultProps={{ fundo: 'amarelo' as const }} />
     <Composition id="IdPerfilPreto" component={Perfil} durationInFrames={1} fps={30} width={1080} height={1080} defaultProps={{ fundo: 'preto' as const }} />
     <Composition id="IdMascoteAmarelo" component={MascoteSozinho} durationInFrames={1} fps={30} width={1080} height={1080} defaultProps={{ fundo: 'amarelo' as const }} />

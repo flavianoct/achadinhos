@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Banco } from './db.ts';
+import { reservarNumerosDosAgendados } from './agendados.ts';
 import type { Config } from './config.ts';
 import type { OfertaAvaliada } from './types.ts';
 import { formatarPreco } from './mensagem.ts';
@@ -251,6 +252,7 @@ export function indiceDosNumeros(numeradas: OfertaNumerada[]): Record<string, [s
 export function gravarBio(banco: Banco, config: Config, agora: Date): number {
   if (!config.blog.ativo) return 0;
   const ofertas = ofertasDaBio(banco, agora);
+  if (config.instagram.codigoNaBio) reservarNumerosDosAgendados(banco, agora);
   if (config.instagram.codigoNaBio) for (const o of [...ofertas].reverse()) banco.numeroDaOferta({ titulo: o.titulo, link: o.link, imagem: o.imagem, loja: o.loja }, agora);
   mkdirSync(config.blog.pasta, { recursive: true });
   // A página leva as 1.500 vistas há menos tempo; numeros.json leva todas (a página busca lá o número que não estiver nela).

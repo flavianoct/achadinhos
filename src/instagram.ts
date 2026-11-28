@@ -6,7 +6,7 @@ import { diaDe, horaDe } from './db.ts';
 import { CHAVE_DIRECT_BLOQUEADO, HORAS_DO_SOCIAL, comentaQueroAtivo, marcaDoToken, textoAlternativo, arquivoDaArte, arquivosDoCarrossel, legendaDoCarrossel, montarLegenda, totalDeImagens, type DadosDoCarrossel, type Fetch } from './social.ts';
 import { Telegram } from './telegram.ts';
 import { legendaDoQuiz, legendaParaTikTokEShorts, type DadosDoQuiz } from './quiz.ts';
-import { arquivoNoSite, lerReelsAgendados, reelsNaHora } from './agendados.ts';
+import { arquivoNoSite, lerReelsAgendados, reelsNaHora, reservarNumerosDosAgendados } from './agendados.ts';
 import { arquivoDoReel, legendaDoDestaque, legendaDoReel, type DadosDoDestaque, type DadosDoReel } from './reel.ts';
 import { linhaDeChegada, linhaDeOntem, numerosDoGrupo } from './grupo.ts';
 import type { OfertaAvaliada } from './types.ts';
@@ -372,6 +372,15 @@ export async function publicarNoInstagram(banco: Banco, config: Config, agora: D
       if (banco.textoSalvo(`agendado:${ag.id}`, 60, agora)) continue;
       const video = `${config.blog.url}/social/${arquivoNoSite(ag)}`;
       if (!(await noAr(video))) continue;
+      if (ag.numero && ig.codigoNaBio) {
+        reservarNumerosDosAgendados(banco, agora, [ag]);
+        // O vídeo mostra um número: se a legenda e a bio fossem dar outro, quem digitasse cairia no produto errado.
+        const dado = banco.numeroDaOferta({ titulo: ag.titulo, link: ag.link, imagem: ag.imagem, loja: ag.loja }, agora);
+        if (dado !== ag.numero) {
+          resumo.avisos.push(`Instagram: o Reel agendado "${ag.titulo}" não saiu: o vídeo mostra a oferta nº ${ag.numero}, mas este link tem o nº ${dado}.`);
+          continue;
+        }
+      }
       try {
         const id = await api.publicarReel(video, codificar(ag.legenda, [{ titulo: ag.titulo, link: ag.link }]), ag.capaMs);
         banco.salvarTexto(`agendado:${ag.id}`, agora.toISOString(), agora);

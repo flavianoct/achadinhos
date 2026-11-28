@@ -991,6 +991,11 @@ export class Banco {
     return Number((this.db.prepare(`SELECT numero FROM ofertas_numeradas WHERE link = ?`).get(o.link) as { numero: number }).numero);
   }
 
+  /** Grava um número escolhido (o que já está desenhado num vídeo). Os próximos automáticos continuam depois do mais alto. */
+  reservarNumero(numero: number, o: { link: string; titulo: string; imagem?: string; loja?: string }, agora: Date): void {
+    this.db.prepare(`INSERT OR IGNORE INTO ofertas_numeradas (numero, link, titulo, imagem, loja, visto_em) VALUES (?, ?, ?, ?, ?, ?)`).run(numero, o.link, o.titulo, o.imagem ?? null, o.loja ?? null, agora.getTime());
+  }
+
   /** As ofertas numeradas, da mais nova para a mais antiga (para a busca por número da página da bio). */
   ofertasNumeradas(limite = 1500): Array<{ numero: number; link: string; titulo: string; imagem?: string; loja?: string }> {
     const linhas = this.db.prepare(`SELECT numero, link, titulo, imagem, loja FROM ofertas_numeradas ORDER BY visto_em DESC, numero DESC LIMIT ?`).all(limite) as Array<{ numero: number; link: string; titulo: string; imagem: string | null; loja: string | null }>;

@@ -43,3 +43,14 @@ test('blog: numeros.json tem o número, o título e o link de cada oferta', asyn
   const { indiceDosNumeros } = await import('../src/bio.ts');
   assert.deepEqual(indiceDosNumeros([{ numero: 247, titulo: 'Fone', link: 'https://s.shopee.com.br/a', loja: 'shopee' }, { numero: 248, titulo: 'Sem link', link: 'javascript:alert(1)' }]), { '247': ['Fone', 'https://s.shopee.com.br/a', 'Shopee'] });
 });
+
+test('reel agendado: o número desenhado no vídeo é reservado para o link, e os próximos continuam depois dele', async () => {
+  const { reservarNumerosDosAgendados } = await import('../src/agendados.ts');
+  const banco = new Banco(':memory:');
+  banco.numeroDaOferta({ titulo: 'Fone', link: 'https://s.shopee.com.br/a' }, AGORA);
+  const reel = { id: 'r', arquivo: 'r.mp4', quando: '2026-11-29T14:00:00-03:00', titulo: 'Sacos', link: 'https://s.shopee.com.br/s', legenda: 'x', numero: 7777 };
+  reservarNumerosDosAgendados(banco, AGORA, [reel]);
+  reservarNumerosDosAgendados(banco, AGORA, [reel]);
+  assert.equal(banco.numeroDaOferta(reel, AGORA), 7777);
+  assert.equal(banco.numeroDaOferta({ titulo: 'Panela', link: 'https://s.shopee.com.br/b' }, AGORA), 7778);
+});

@@ -1,6 +1,7 @@
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Config } from './config.ts';
+import type { Banco } from './db.ts';
 
 /**
  * Reels prontos e agendados: um vídeo que você (ou eu) montou à mão fica na pasta reels-prontos/ com uma ficha .json (hora, legenda e o link
@@ -19,6 +20,18 @@ export interface ReelAgendado {
   legenda: string;
   /** Em que momento do vídeo (ms) fica a capa; sem isso, vale CAPA_DO_REEL_MS (3 s). */
   capaMs?: number;
+  /** Número da oferta escrito dentro do vídeo: o robô o reserva para este link (legenda, página da bio e busca usam o mesmo). */
+  numero?: number;
+  /** Foto do produto, para a busca por número da página da bio. */
+  imagem?: string;
+  loja?: string;
+}
+
+/** Reserva o número que já está desenhado no vídeo, antes de o Reel sair. Número ou link já usados ficam como estão. */
+export function reservarNumerosDosAgendados(banco: Pick<Banco, 'reservarNumero'>, agora: Date, reels: ReelAgendado[] = lerReelsAgendados()): void {
+  for (const r of reels) {
+    if (r.numero && Date.parse(r.quando) + HORAS_DE_TOLERANCIA * 3_600_000 > agora.getTime()) banco.reservarNumero(r.numero, r, agora);
+  }
 }
 
 export const PASTA_DOS_REELS_PRONTOS = 'reels-prontos';
