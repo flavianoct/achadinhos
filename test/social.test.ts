@@ -26,9 +26,9 @@ test('social: legenda sem valor nenhum, manda o preço para o grupo com gatilho,
   assert.match(l.split('\n')[0], /#publi/, 'aviso de publicidade já na primeira linha, antes do "mais"');
   assert.match(l, /#achadinhos #promocao/);
   assert.doesNotMatch(l, /grupo/i, 'sem grupo configurado, nem a linha de assunto nem as hashtags falam em grupo');
-  assert.deepEqual(hashtagsDaCategoria('moda'), ['#achadinhos', '#promocao', '#grupodepromocoes'], 'só 3 hashtags, iguais em todo post');
-  assert.deepEqual(hashtagsDaCategoria('moda', false), ['#achadinhos', '#promocao']);
-  assert.match(l, /🔎 Achadinhos e promoções do dia em casa e cozinha/);
+  assert.deepEqual(hashtagsDaCategoria('moda'), ['#achadinhos', '#promocao', '#grupodepromocoes', '#achadinhosdemoda'], '3 do perfil e 1 do assunto');
+  assert.deepEqual(hashtagsDaCategoria('moda', false), ['#achadinhos', '#promocao', '#achadinhosdemoda']);
+  assert.match(l, /🔎 Achadinhos, ofertas e promoções do dia em casa e cozinha/);
   assert.ok(!l.includes('https://exemplo/x'), 'link não vai na legenda, só na bio');
   assert.equal(nomeDoCanal(config), '@topfera_achadinhos');
   assert.ok(hashtagsDaCategoria('inexistente').includes('#achadinhos'));

@@ -22,7 +22,7 @@ export interface ConteudoSocial {
   svg: string;
 }
 
-/** As 2 hashtags do assunto do produto: complemento, porque o assunto do perfil é promoção. */
+/** As hashtags do assunto do produto: a primeira entra no post, porque o assunto do perfil é promoção. */
 const HASHTAGS: Record<string, string[]> = {
   tech: ['#achadinhostech', '#tecnologia'],
   casa: ['#achadinhosdecasa', '#utilidadesdomesticas'],
@@ -37,14 +37,16 @@ const HASHTAGS: Record<string, string[]> = {
 };
 
 /**
- * As hashtags de cada post: só 3, sempre as mesmas (o Instagram diz que hashtag pesa pouco no alcance; o que pesa são as palavras da
- * legenda, por isso a linha de assunto). O assunto do produto vai na linha de assunto e no texto alternativo, não em hashtag.
+ * As hashtags de cada post: as 3 do perfil e 1 do assunto do produto. Com o #publi da primeira linha dá 5, o limite do Instagram.
+ * Hashtag pesa pouco no alcance; o que mais diz para quem é o conteúdo são as palavras da legenda (a linha de assunto).
  */
 const HASHTAGS_DO_PERFIL = ['#achadinhos', '#promocao', '#grupodepromocoes'];
 
 /** As hashtags do post (sem grupo de WhatsApp configurado, sai a de grupo). O #publi vai na primeira linha. */
-export function hashtagsDaCategoria(_categoria: string, comGrupo = true): string[] {
-  return comGrupo ? HASHTAGS_DO_PERFIL : HASHTAGS_DO_PERFIL.filter((h) => h !== '#grupodepromocoes');
+export function hashtagsDaCategoria(categoria: string, comGrupo = true): string[] {
+  const perfil = comGrupo ? HASHTAGS_DO_PERFIL : HASHTAGS_DO_PERFIL.filter((h) => h !== '#grupodepromocoes');
+  const doAssunto = HASHTAGS[categoria]?.[0];
+  return doAssunto && categoria !== 'geral' ? [...perfil, doAssunto] : perfil;
 }
 
 /**
@@ -70,6 +72,19 @@ const ASSUNTO_DA_BUSCA: Record<string, string> = {
   pet: 'pet',
 };
 
+/** O que o público de cada assunto digita na busca: entra na linha de assunto, para o Instagram saber a quem mostrar. */
+const TERMOS_DA_BUSCA: Record<string, string> = {
+  tech: 'eletrônicos, celular e acessórios',
+  casa: 'utilidades domésticas, cozinha e organização',
+  beleza: 'cabelo, maquiagem e cuidados com a pele',
+  moda: 'roupas, calçados e acessórios',
+  esporte: 'treino, academia e vida fitness',
+  games: 'setup gamer, consoles e acessórios',
+  bebe: 'enxoval, maternidade e brinquedos',
+  ferramentas: 'ferramentas elétricas, consertos e obra',
+  pet: 'cachorro, gato e acessórios pet',
+};
+
 /**
  * A linha de assunto da legenda, com as palavras que as pessoas buscam: o Instagram lê a legenda como texto de busca e usa isso para
  * achar o público. O assunto do perfil vem primeiro (promoções), o do produto depois.
@@ -77,7 +92,8 @@ const ASSUNTO_DA_BUSCA: Record<string, string> = {
 export function linhaDeAssunto(categoria: string, comGrupo = true): string {
   const assunto = ASSUNTO_DA_BUSCA[categoria];
   // Sem grupo de WhatsApp configurado, não promete grupo.
-  return `🔎 Achadinhos e promoções do dia${assunto ? ` em ${assunto}` : ''} | ${nomeDaMarca()}${comGrupo ? ', grupo de promoções' : ''}`;
+  const termos = TERMOS_DA_BUSCA[categoria];
+  return `🔎 Achadinhos, ofertas e promoções do dia${assunto ? ` em ${assunto}` : ''}${termos ? `: ${termos}` : ''} | ${nomeDaMarca()}${comGrupo ? ', grupo de promoções' : ''}`;
 }
 
 const ROTULO_DA_CATEGORIA: Record<string, string> = {
