@@ -315,8 +315,8 @@ async function modoComentarios(): Promise<void> {
   const robo = new Robo({ caminhoEnv: 'ajustes.env', modeloEnv: '' });
   try {
     const ativoAntes = comentaQueroAtivo(robo.banco, robo.config, new Date());
-    // Só os posts dos últimos 3 dias (onde chega quase todo "eu quero"), para gastar poucas chamadas à API; a rodada normal olha 7 dias.
-    const c = await responderComentarios(robo.banco, robo.config, new Date(), fetch, undefined, 3);
+    // Os posts dos últimos 7 dias, como a rodada normal: um Reel de 3 dias atrás ainda recebe "eu quero". A leitura só roda quando a contagem de comentários muda, então o custo é baixo.
+    const c = await responderComentarios(robo.banco, robo.config, new Date(), fetch, undefined, 7);
     if (robo.config.instagram.ativo && robo.config.instagram.comentaQuero) console.log(`Comenta QUERO: ${c.lidos} comentários lidos, ${c.respondidos} links mandados no direct.`);
     for (const a of c.avisos) console.log(`Aviso do Instagram: ${a}`);
     const desligou = ativoAntes && !comentaQueroAtivo(robo.banco, robo.config, new Date());
