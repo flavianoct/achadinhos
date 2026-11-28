@@ -218,8 +218,17 @@ jobs:
                 --jq '[.jobs[] | select(.name == "rodar" and .status != "completed")] | length' 2>/dev/null || echo 1
             done | awk '{s += $1} END {print (s > 0) ? 1 : 0}'
           }
-          # "Comenta QUERO" rápido: enquanto espera a próxima rodada, lê os comentários a cada ~4 minutos e manda os links no direct.
-          # Antes quem comentava esperava a rodada seguinte (até ~28 minutos). Qualquer falha aqui só pula aquela leitura: a corrente segue.
+          # "Comenta QUERO" rápido: enquanto espera a próxima rodada, confere a cada minuto se algum post ganhou comentário e, se ganhou,
+          # lê os comentários e manda os links no direct. Antes quem comentava esperava a rodada seguinte (até ~28 minutos).
+          # A conferência é uma chamada só à API (a lista de posts com o número de comentários): o banco (52 MB) só é baixado quando
+          # o número muda. Qualquer falha aqui só pula aquela leitura: a corrente segue.
+          contagem() {
+            [ -n "$INSTAGRAM_TOKEN" ] && [ -n "$INSTAGRAM_USER_ID" ] || return 1
+            curl -sf --max-time 20 --get "https://graph.instagram.com/v23.0/$(echo "$INSTAGRAM_USER_ID" | tr -d ' \r\n')/media" \
+              --data-urlencode "fields=id,comments_count" --data-urlencode "limit=40" \
+              --data-urlencode "access_token=$(echo "$INSTAGRAM_TOKEN" | tr -d ' \r\n')" \
+              | jq -er '[.data[] | "\(.id):\(.comments_count)"] | join(",")'
+          }
           comentarios() {
             if [ "$(rodar_ativo)" = "1" ]; then echo "Uma rodada está em andamento; esta leitura de comentários fica para depois."; return; fi
             git fetch -q --depth=1 origin dados || return
@@ -239,11 +248,21 @@ jobs:
               || echo "Não consegui guardar o banco depois da leitura de comentários."
           }
           ate=$(( $(date +%s) + 1500 ))
-          while [ $(( ate - $(date +%s) )) -gt 300 ]; do
-            sleep 240
+          visto=""
+          ultima=0
+          while [ $(( ate - $(date +%s) )) -gt 90 ]; do
             # Outra execução mais nova assumiu a corrente: ela é que lê os comentários (duas leituras juntas poderiam mandar o link duas vezes).
             if [ "$(mais_novas)" -gt 0 ]; then break; fi
-            comentarios || true
+            agora_c=$(contagem 2>/dev/null || echo "")
+            # Leitura completa quando a contagem mudou, ou a cada 5 minutos se a conferência falhar.
+            if { [ -n "$agora_c" ] && [ "$agora_c" != "$visto" ]; } || { [ -z "$agora_c" ] && [ $(( $(date +%s) - ultima )) -ge 300 ]; }; then
+              comentarios || true
+              ultima=$(date +%s)
+              # Guarda a contagem de ANTES da leitura: um comentário que chegou durante a leitura não se perde (a resposta pública do
+              # robô, "te mandei no direct", também conta e causa uma leitura a mais no minuto seguinte, que não acha nada novo).
+              visto="$agora_c"
+            fi
+            sleep 60
           done
           resto=$(( ate - $(date +%s) ))
           [ "$resto" -gt 0 ] && sleep "$resto"
