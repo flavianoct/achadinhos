@@ -84,3 +84,16 @@ export function cuponsAprovados(banco: Banco, agora: Date): Cupom[] {
   }
   return saida;
 }
+
+/** Depois que um cupom que você aprovou sai no canal, confirma no seu Telegram privado (o "confirma aqui" do botão Postar). Nunca lança. */
+export async function confirmarCupomPostado(env: Record<string, string | undefined>, token: string, cupom: Cupom, fetchFn: Fetch = fetch): Promise<boolean> {
+  const chat = String(env.TELEGRAM_COMANDOS_CHAT ?? '').trim();
+  if (!token || !/^-?\d{5,}$/.test(chat)) return false;
+  const texto = `✅ Cupom postado no canal${cupom.codigo ? ` (${cupom.codigo})` : ''}:\n${cupom.titulo}`;
+  try {
+    const r = await fetchFn(`https://api.telegram.org/bot${token}/sendMessage`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ chat_id: chat, text: texto }), signal: AbortSignal.timeout(20_000) });
+    return r.ok;
+  } catch {
+    return false;
+  }
+}
