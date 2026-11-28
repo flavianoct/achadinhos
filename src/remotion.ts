@@ -335,7 +335,7 @@ export function propsDaSolucao(item: { oferta: OfertaAvaliada; imagem: string; f
  * Desenha o Reel de destaque e grava em `saida`. Com INSTAGRAM_PROBLEMAS ligado e um problema comprovado pelo título, sai no formato
  * "problema → solução" (composição "Solucao"); senão, na composição "Destaque". Devolve o motivo da falha, ou undefined se gravou.
  */
-export async function gravarDestaqueComRemotion(item: { oferta: OfertaAvaliada; imagem: string; fotos?: string[] }, nome: string | undefined, chave: string, saida: string, config: Config, comentaQuero: boolean): Promise<string | undefined> {
+export async function gravarDestaqueComRemotion(item: { oferta: OfertaAvaliada; imagem: string; fotos?: string[] }, nome: string | undefined, chave: string, saida: string, config: Config, comentaQuero: boolean, codigo?: number): Promise<string | undefined> {
   if (!config.instagram.reelRemotion) return 'desligado (REEL_REMOTION=0)';
   const remotion = remotionInstalado();
   if (!remotion) return 'o Remotion não está instalado (npm ci em remotion/)';
@@ -381,6 +381,7 @@ export async function gravarDestaqueComRemotion(item: { oferta: OfertaAvaliada; 
       provas: provasDoProduto(o).slice(0, 3),
       cor: CORES_DO_NICHO[o.categoria] ?? CORES_DO_NICHO.geral!,
       comentaQuero,
+      ...(codigo ? { codigo } : {}),
       ...(config.instagram.reelEstilo !== 'achados' && config.instagram.reelPreco ? precoParaTela(o) : {}),
       audio,
       ...(musicaDoFenaky ? { musica: musicaDoFenaky } : {}),

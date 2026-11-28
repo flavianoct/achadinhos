@@ -82,6 +82,14 @@ export class Banco {
         chave TEXT PRIMARY KEY,
         valor TEXT NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS ofertas_numeradas (
+        numero INTEGER PRIMARY KEY,
+        link TEXT NOT NULL UNIQUE,
+        titulo TEXT NOT NULL,
+        imagem TEXT,
+        loja TEXT,
+        visto_em INTEGER NOT NULL
+      );
       CREATE TABLE IF NOT EXISTS instagram_respostas (
         comment_id TEXT PRIMARY KEY,
         respondido_em INTEGER NOT NULL,
@@ -972,8 +980,27 @@ export class Banco {
    * Faxina: apaga o que não é mais usado, para o banco não crescer sem parar.
    * (Histórico de preços de 90 dias, posts do canal de 90 dias, produtos e textos antigos.)
    */
+  /** O número fixo da oferta (o "Oferta nº 247" do post): o mesmo link sempre tem o mesmo número. A contagem começa em 101. */
+  numeroDaOferta(o: { link: string; titulo: string; imagem?: string; loja?: string }, agora: Date): number {
+    this.db
+      .prepare(
+        `INSERT INTO ofertas_numeradas (numero, link, titulo, imagem, loja, visto_em) VALUES ((SELECT COALESCE(MAX(numero), 100) + 1 FROM ofertas_numeradas), ?, ?, ?, ?, ?)
+         ON CONFLICT (link) DO UPDATE SET titulo = excluded.titulo, imagem = COALESCE(excluded.imagem, ofertas_numeradas.imagem), visto_em = excluded.visto_em`,
+      )
+      .run(o.link, o.titulo, o.imagem ?? null, o.loja ?? null, agora.getTime());
+    return Number((this.db.prepare(`SELECT numero FROM ofertas_numeradas WHERE link = ?`).get(o.link) as { numero: number }).numero);
+  }
+
+  /** As ofertas numeradas, da mais nova para a mais antiga (para a busca por número da página da bio). */
+  ofertasNumeradas(limite = 1500): Array<{ numero: number; link: string; titulo: string; imagem?: string; loja?: string }> {
+    const linhas = this.db.prepare(`SELECT numero, link, titulo, imagem, loja FROM ofertas_numeradas ORDER BY numero DESC LIMIT ?`).all(limite) as Array<{ numero: number; link: string; titulo: string; imagem: string | null; loja: string | null }>;
+    return linhas.map((l) => ({ numero: Number(l.numero), link: l.link, titulo: l.titulo, imagem: l.imagem ?? undefined, loja: l.loja ?? undefined }));
+  }
+
   limpar(agora: Date): void {
     const t = agora.getTime();
+    // Números de oferta valem 120 dias depois da última vez que o produto saiu. O mais alto nunca é apagado, para um número não voltar.
+    this.db.prepare(`DELETE FROM ofertas_numeradas WHERE visto_em < ? AND numero < (SELECT MAX(numero) FROM ofertas_numeradas)`).run(t - 120 * 86_400_000);
     this.db.prepare(`DELETE FROM precos WHERE dia < ?`).run(diasAtras(agora, 90));
     this.db.prepare(`DELETE FROM vendas_por_dia WHERE dia < ?`).run(diasAtras(agora, 10));
     this.db.prepare(`DELETE FROM instagram_midias WHERE publicado_em < ?`).run(t - 14 * 86_400_000);

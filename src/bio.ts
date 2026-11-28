@@ -47,9 +47,60 @@ export function ofertasDaBio(banco: Banco, agora: Date): OfertaAvaliada[] {
   return lista.slice(0, MAXIMO_NA_BIO);
 }
 
+export interface OfertaNumerada {
+  numero: number;
+  titulo: string;
+  link: string;
+  imagem?: string;
+  loja?: string;
+}
+
+/**
+ * A caixa "digite o número da oferta" (o número que vai na legenda e no fim do vídeo). Roda no próprio aparelho: os dados vão na página e o
+ * resultado é montado com textContent, sem inserir HTML. Aceita também bio.html?n=247. Sem ofertas numeradas, não aparece nada.
+ */
+function blocoDoNumero(numeradas: OfertaNumerada[]): { html: string; script: string } {
+  const validas = numeradas.filter((o) => https(o.link));
+  if (!validas.length) return { html: '', script: '' };
+  const dados = Object.fromEntries(validas.map((o) => [o.numero, [o.titulo.length > 90 ? `${o.titulo.slice(0, 87).trimEnd()}…` : o.titulo, o.link, https(o.imagem) ?? '', NOME_DA_LOJA[o.loja ?? ''] ?? '']]));
+  // "<" vira a sequencia barra-u003c (que o JavaScript le como "<"): um titulo nunca consegue fechar a tag script.
+  const json = JSON.stringify(dados).replace(/</g, '\\u003c');
+  const html = `<section class="numero" id="numero">
+    <label for="n">Viu um post? Digite o número da oferta</label>
+    <input id="n" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="7" placeholder="Ex.: ${validas[0]!.numero}" autocomplete="off" enterkeyhint="search">
+    <div id="achou" aria-live="polite"></div>
+  </section>`;
+  const script = `<script>
+(function(){
+  var dados=${json};
+  var campo=document.getElementById('n'),saida=document.getElementById('achou');
+  if(!campo||!saida)return;
+  function el(tag,classe,texto){var e=document.createElement(tag);if(classe)e.className=classe;if(texto)e.textContent=texto;return e;}
+  function mostrar(){
+    var num=campo.value.replace(/\D/g,'');
+    saida.textContent='';
+    if(num.length<3)return;
+    var o=Object.prototype.hasOwnProperty.call(dados,num)?dados[num]:null;
+    if(!o){saida.appendChild(el('p','nao','Não achei a oferta nº '+num+'. Confira o número no post.'));return;}
+    var card=el('div','oferta');
+    if(o[2]){var img=el('img');img.src=o[2];img.alt='';img.width=96;img.height=96;img.referrerPolicy='no-referrer';card.appendChild(img);}
+    var info=el('div','info');
+    info.appendChild(el('p','titulo','Oferta nº '+num+' · '+o[0]));
+    var a=el('a','ver','Ver oferta'+(o[3]?' · '+o[3]:''));a.href=o[1];a.target='_blank';a.rel='sponsored nofollow noopener';
+    info.appendChild(a);card.appendChild(info);saida.appendChild(card);
+  }
+  campo.addEventListener('input',mostrar);
+  var m=/[?&]n=([0-9]{3,7})/.exec(location.search);
+  if(m){campo.value=m[1];mostrar();}
+})();
+</script>`;
+  return { html, script };
+}
+
 /** Página para o link da bio do Instagram/TikTok: leve, em coluna única, com botões grandes. */
-export function paginaDaBio(ofertas: OfertaAvaliada[], config: Config, agora: Date): string {
+export function paginaDaBio(ofertas: OfertaAvaliada[], config: Config, agora: Date, numeradas: OfertaNumerada[] = []): string {
   const nome = config.blog.nome;
+  const porNumero = blocoDoNumero(numeradas);
   const blog = https(config.blog.url ? `${config.blog.url}/` : undefined);
   const telegram = https(config.blog.telegramLink);
   // O canal do Telegram é o destino principal: quem entra recebe cada oferta na hora, sem depender do Instagram.
@@ -138,6 +189,7 @@ ul{list-style:none;margin:0;padding:0}
 .extra{display:none}.achou .extra{display:flex}.escondido,.achou .escondido{display:none}
 .semresultado{background:var(--card);border:1px dashed var(--bd);border-radius:14px;padding:14px;text-align:center;color:var(--mut);font-size:14px}.semresultado.escondido{display:none}.semresultado a{color:var(--cor2);font-weight:700}
 .vazio{text-align:center;color:var(--mut)}
+.numero{background:var(--card);border:2px solid var(--cor2);border-radius:18px;padding:14px;margin:0 0 16px}.numero label{display:block;font-weight:800;text-align:center;margin:0 0 8px}.numero input{width:100%;font:inherit;font-size:28px;font-weight:800;text-align:center;padding:12px;border-radius:12px;border:2px solid var(--bd);background:var(--fundo);color:var(--tx)}.numero input:focus{outline:none;border-color:var(--cor2)}.numero .oferta{margin:12px 0 0}.numero .nao{color:var(--mut);text-align:center;margin:10px 0 0;font-size:14px}
 .nota{color:var(--mut);font-size:12px;text-align:center;margin-top:22px}
 </style>
 </head>
@@ -148,6 +200,7 @@ ul{list-style:none;margin:0;padding:0}
     <h1>${nomeDaMarca(esc(nome))}</h1>
     <p class="sub">Ofertas conferidas, com o preço do momento</p>
   </header>
+  ${porNumero.html}
   ${chamada}
   ${botaoWhatsapp}
   ${botoes.join('\n  ')}
@@ -158,6 +211,7 @@ ul{list-style:none;margin:0;padding:0}
   ${chamadaFinal}
   <p class="nota">Publi: os links são de afiliado e o site pode ganhar uma comissão, sem custo extra para você. Preços e estoque podem mudar a qualquer momento. Atualizado em ${esc(atualizado)}.</p>
 </main>
+${porNumero.script}
 <script>
 (function(){
   var q=document.getElementById('q'),lista=document.getElementById('lista'),box=document.getElementById('busca');
@@ -188,6 +242,6 @@ export function gravarBio(banco: Banco, config: Config, agora: Date): number {
   if (!config.blog.ativo) return 0;
   const ofertas = ofertasDaBio(banco, agora);
   mkdirSync(config.blog.pasta, { recursive: true });
-  writeFileSync(join(config.blog.pasta, 'bio.html'), paginaDaBio(ofertas, config, agora), 'utf8');
+  writeFileSync(join(config.blog.pasta, 'bio.html'), paginaDaBio(ofertas, config, agora, banco.ofertasNumeradas()), 'utf8');
   return ofertas.length;
 }

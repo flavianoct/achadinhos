@@ -447,7 +447,9 @@ export async function gravarReel(banco: Banco, config: Config, agora: Date): Pro
     const pasta = join(config.blog.pasta, 'social');
     mkdirSync(pasta, { recursive: true });
     const comentaQuero = comentaQueroAtivo(banco, config, agora);
-    const animado = await gravarDestaqueComRemotion(lido.item, lido.nome, pendente.chave, join(pasta, nomeDoArquivo(pendente.chave)), config, comentaQuero);
+    // O número do corte do fim é o mesmo da legenda (o mesmo link sempre tem o mesmo número).
+    const codigo = config.instagram.codigoNaBio ? banco.numeroDaOferta(lido.item.oferta, agora) : undefined;
+    const animado = await gravarDestaqueComRemotion(lido.item, lido.nome, pendente.chave, join(pasta, nomeDoArquivo(pendente.chave)), config, comentaQuero, codigo);
     if (!animado) return undefined;
     console.log(`[reel] destaque animado não saiu (${animado}); montando o simples.`);
     return montarVideo({ svgs: svgsDoDestaque(lido, comentaQuero), duracoes: [6, 3.5], chave: pendente.chave, pasta, transicao: TRANSICAO_DO_REEL, zoom: 0.0016 });

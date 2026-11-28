@@ -1,7 +1,8 @@
 import React from 'react';
-import { AbsoluteFill, interpolate, OffthreadVideo, spring, staticFile, useCurrentFrame, useVideoConfig } from 'remotion';
+import { AbsoluteFill, interpolate, OffthreadVideo, Sequence, spring, staticFile, useCurrentFrame, useVideoConfig } from 'remotion';
 import { carregarFonte } from './fonte';
 import { FONTE, Logo, MARCA } from './marca';
+import { FimNaBio, QUADROS_DO_FIM_NA_BIO } from './FimNaBio';
 
 carregarFonte();
 
@@ -20,6 +21,8 @@ export type PropsDoVideoOferta = {
   /** Nome do produto, em até 2 linhas. */
   nome: string[];
   comentaQuero: boolean;
+  /** O número da oferta (o mesmo da legenda), mostrado no corte do fim. */
+  codigo?: number;
 };
 
 const travar = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' } as const;
@@ -27,9 +30,9 @@ const VERDE = '#25D366';
 const SOMBRA = '0 3px 14px rgba(0,0,0,.85)';
 const caber = (s: string, base: number, largura: number) => Math.min(base, Math.floor(largura / (Math.max(1, s.length) * 0.78)));
 
-export const duracaoDoVideoOferta = (p: { quadros: number }) => p.quadros;
+export const duracaoDoVideoOferta = (p: { quadros: number; codigo?: number }) => p.quadros + (p.codigo ? QUADROS_DO_FIM_NA_BIO : 0);
 
-export const VideoOferta: React.FC<PropsDoVideoOferta> = ({ video, quadros, nome, comentaQuero }) => {
+export const VideoOferta: React.FC<PropsDoVideoOferta> = ({ video, quadros, nome, comentaQuero, codigo }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const linhas = nome.slice(0, 2);
@@ -41,7 +44,7 @@ export const VideoOferta: React.FC<PropsDoVideoOferta> = ({ video, quadros, nome
   const fim = interpolate(frame, [inicioDoBotao - 6, inicioDoBotao + 8], [0, 1], travar);
   return (
     <AbsoluteFill style={{ background: MARCA.fundo }}>
-      <OffthreadVideo src={staticFile(video)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+      <Sequence durationInFrames={quadros}><OffthreadVideo src={staticFile(video)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /></Sequence>
       <AbsoluteFill style={{ background: 'linear-gradient(180deg, rgba(14,14,16,.55) 0%, rgba(14,14,16,0) 16%, rgba(14,14,16,0) 58%, rgba(14,14,16,.92) 90%)' }} />
       <div style={{ position: 'absolute', top: 70, width: '100%', display: 'flex', justifyContent: 'center' }}><Logo altura={60} /></div>
       <div style={{ position: 'absolute', left: 60, right: 60, top: 1250, opacity: nomeEntra * (1 - fim * 0.0), textAlign: 'center' }}>
@@ -56,6 +59,7 @@ export const VideoOferta: React.FC<PropsDoVideoOferta> = ({ video, quadros, nome
       <div style={{ position: 'absolute', left: 0, right: 0, top: 1660, display: 'flex', justifyContent: 'center' }}>
         <div style={{ padding: '8px 24px', borderRadius: 26, background: 'rgba(0,0,0,.62)', fontFamily: 'Arial, sans-serif', fontWeight: 700, fontSize: 26, color: 'rgba(255,255,255,.92)', whiteSpace: 'nowrap' }}>Publi · link de afiliado · preço pode mudar</div>
       </div>
+      {codigo ? <Sequence from={quadros}><FimNaBio codigo={codigo} /></Sequence> : null}
     </AbsoluteFill>
   );
 };

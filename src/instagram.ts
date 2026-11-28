@@ -1,4 +1,5 @@
 import { contemPalavra, normalizar } from './categoria.ts';
+import { comCodigo, type ProdutoNumerado } from './codigo.ts';
 import type { Config } from './config.ts';
 import type { Banco } from './db.ts';
 import { diaDe, horaDe } from './db.ts';
@@ -297,6 +298,8 @@ export async function publicarNoInstagram(banco: Banco, config: Config, agora: D
 
   const api = cliente ?? new Instagram(ig.token, ig.userId, fetchFn);
   const comentaQuero = comentaQueroAtivo(banco, config, agora);
+  // "Oferta nº 247 · link na bio" na legenda (INSTAGRAM_CODIGO_NA_BIO): funciona mesmo quando o direct não chega.
+  const codificar = (legenda: string, produtos: ProdutoNumerado[]) => (ig.codigoNaBio ? comCodigo(legenda, produtos, banco, agora) : legenda);
   const ontem = linhaDeOntem(numerosDoGrupo(banco, agora));
   const todos = banco
     .socialRecentes(HORAS_DO_SOCIAL, 50, agora)
@@ -346,7 +349,7 @@ export async function publicarNoInstagram(banco: Banco, config: Config, agora: D
       }
       if (todasNoAr) {
         try {
-          const id = await api.publicarCarrossel(urls, legendaDoCarrossel(dados, config, comentaQuero, ontem));
+          const id = await api.publicarCarrossel(urls, codificar(legendaDoCarrossel(dados, config, comentaQuero, ontem), dados.formato === 'achados' ? dados.itens.map((it) => it.oferta) : []));
           banco.marcarCarrosselPublicado(carrossel.chave, agora);
           if (id) {
             // Carrossel de achados: o "comenta 3" leva ao produto 3. Os outros formatos levam à página da bio.
@@ -370,7 +373,7 @@ export async function publicarNoInstagram(banco: Banco, config: Config, agora: D
       const video = `${config.blog.url}/social/${arquivoNoSite(ag)}`;
       if (!(await noAr(video))) continue;
       try {
-        const id = await api.publicarReel(video, ag.legenda, ag.capaMs);
+        const id = await api.publicarReel(video, codificar(ag.legenda, [{ titulo: ag.titulo, link: ag.link }]), ag.capaMs);
         banco.salvarTexto(`agendado:${ag.id}`, agora.toISOString(), agora);
         if (id) {
           banco.registrarMidiaDoInstagram(id, 'reel', ag.titulo, ag.link, agora);
@@ -393,7 +396,8 @@ export async function publicarNoInstagram(banco: Banco, config: Config, agora: D
         try {
           const dadosDoReel = JSON.parse(reel.dados) as DadosDoReel | DadosDoQuiz | DadosDoDestaque;
           const legenda = dadosDoReel.formato === 'quiz' ? legendaDoQuiz(dadosDoReel, config) : dadosDoReel.formato === 'destaque' ? legendaDoDestaque(dadosDoReel, config, comentaQuero, ontem) : legendaDoReel(dadosDoReel, config, comentaQuero, ontem);
-          const id = await api.publicarReel(video, legenda);
+          const doReel = dadosDoReel.formato === 'destaque' ? [dadosDoReel.item.oferta] : dadosDoReel.formato === 'reel' ? dadosDoReel.itens.map((it) => it.oferta) : [];
+          const id = await api.publicarReel(video, codificar(legenda, doReel));
           banco.marcarReelPublicado(reel.chave, agora);
           if (id) {
             // Reel de produtos: guarda o nome e o link de cada um, na ordem (o "comenta 2" leva ao produto 2). O quiz leva à página da bio.
@@ -446,7 +450,7 @@ export async function publicarNoInstagram(banco: Banco, config: Config, agora: D
     }
     for (const c of candidatos) {
       if (!c.igFeedEm && podePublicar('feed') && (await noAr(url(c.chave, 'feed')))) {
-        const id = await etapa('post do feed', () => api.publicarFoto(url(c.chave, 'feed'), montarLegenda(c.oferta, config, comentaQuero, { chegada: linhaDeChegada(banco, c.oferta, agora), ontem }), textoAlternativo(c.oferta)));
+        const id = await etapa('post do feed', () => api.publicarFoto(url(c.chave, 'feed'), codificar(montarLegenda(c.oferta, config, comentaQuero, { chegada: linhaDeChegada(banco, c.oferta, agora), ontem }), [c.oferta]), textoAlternativo(c.oferta)));
         banco.marcarInstagram(c.chave, 'feed', agora);
         if (id) banco.registrarMidiaDoInstagram(id, 'feed', c.oferta.titulo, c.oferta.link, agora);
         resumo.feed++;
