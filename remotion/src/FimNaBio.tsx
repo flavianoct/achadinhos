@@ -22,7 +22,7 @@ const TOQUE = { x: 912, y: 1128 };
 const MAO = { escala: 1.55, ponta: { x: 50, y: 4 }, giro: -28 };
 const ANEL = 96;
 
-export const FimNaBio: React.FC<{ codigo?: number; imagem?: string }> = ({ codigo, imagem }) => {
+export const FimNaBio: React.FC<{ codigo?: number; imagem?: string; direct?: boolean }> = ({ codigo, imagem, direct }) => {
   const f = useCurrentFrame();
   const { fps } = useVideoConfig();
   const entra = spring({ frame: f, fps, config: { damping: 14, stiffness: 190 } });
@@ -86,7 +86,8 @@ export const FimNaBio: React.FC<{ codigo?: number; imagem?: string }> = ({ codig
       <div style={{ ...centro, top: 1380, fontSize: 56, color: '#fff' }}>1. Toque no nosso perfil</div>
       <div style={{ ...centro, top: 1470, fontSize: 56, color: MARCA.amarelo }}>2. Abra o link da bio</div>
       {codigo ? <div style={{ ...centro, top: 1560, fontSize: 56, color: '#fff' }}>3. Digite {codigo}</div> : null}
-      <div style={{ position: 'absolute', left: 0, right: 0, top: 1680, display: 'flex', justifyContent: 'center' }}>
+      {direct ? <div style={{ ...centro, top: 1642, fontSize: 38, color: MARCA.amarelo }}>ou manda EU QUERO no direct</div> : null}
+      <div style={{ position: 'absolute', left: 0, right: 0, top: direct ? 1730 : 1680, display: 'flex', justifyContent: 'center' }}>
         <div style={{ padding: '8px 24px', borderRadius: 26, background: 'rgba(255,255,255,.08)', fontFamily: TEXTO, fontWeight: 700, fontSize: 26, color: 'rgba(255,255,255,.92)', whiteSpace: 'nowrap' }}>Publi · link de afiliado · preço pode mudar</div>
       </div>
     </AbsoluteFill>

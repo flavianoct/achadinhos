@@ -23,7 +23,7 @@ const caber = (s: string, base: number, largura: number) => Math.min(base, Math.
 const foto = (src: string) => (/^(https?:|data:)/.test(src) ? src : staticFile(src));
 const musicaComFade = (frame: number, total: number) => 0.8 * Math.min(1, frame / 15, Math.max(0, (total - frame) / 30));
 
-type Props = PropsDoDestaque & { preco?: string; de?: string; codigo?: number };
+type Props = PropsDoDestaque & { preco?: string; de?: string; codigo?: number; direct?: boolean };
 
 /** As fotos do anúncio, uma de cada vez, com troca suave (a cada ~1,5 s) e aproximação lenta. */
 const Fotos: React.FC<{ lista: string[] }> = ({ lista }) => {
@@ -67,7 +67,7 @@ export const Oferta: React.FC<Props & { vozes?: unknown }> = (p) => {
       <div style={{ position: 'absolute', left: 0, right: 0, top: 1660, display: 'flex', justifyContent: 'center' }}>
         <div style={{ padding: '8px 24px', borderRadius: 26, background: 'rgba(0,0,0,.62)', fontFamily: 'Arial, sans-serif', fontWeight: 700, fontSize: 26, color: 'rgba(255,255,255,.92)', whiteSpace: 'nowrap' }}>Publi · link de afiliado · oferta pode ser alterada ou encerrada</div>
       </div>
-      {p.codigo ? <Sequence from={duracaoDoDestaque(p)}><FimNaBio codigo={p.codigo} imagem={p.imagem} /></Sequence> : null}
+      {p.codigo ? <Sequence from={duracaoDoDestaque(p)}><FimNaBio codigo={p.codigo} imagem={p.imagem} direct={p.direct} /></Sequence> : null}
       {p.audio ? <Audio src={staticFile(p.audio)} /> : null}
       {p.musica ? <Audio src={staticFile(p.musica)} volume={(f) => musicaComFade(f, total) * 0.7} /> : null}
     </AbsoluteFill>

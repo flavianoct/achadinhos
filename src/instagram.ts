@@ -299,7 +299,7 @@ export async function publicarNoInstagram(banco: Banco, config: Config, agora: D
   const api = cliente ?? new Instagram(ig.token, ig.userId, fetchFn);
   const comentaQuero = comentaQueroAtivo(banco, config, agora);
   // "Oferta nº 247 · link na bio" na legenda (INSTAGRAM_CODIGO_NA_BIO): funciona mesmo quando o direct não chega.
-  const codificar = (legenda: string, produtos: ProdutoNumerado[]) => (ig.codigoNaBio ? comCodigo(legenda, produtos, banco, agora) : legenda);
+  const codificar = (legenda: string, produtos: ProdutoNumerado[]) => (ig.codigoNaBio ? comCodigo(legenda, produtos, banco, agora, ig.directEuQuero) : legenda);
   const ontem = linhaDeOntem(numerosDoGrupo(banco, agora));
   const todos = banco
     .socialRecentes(HORAS_DO_SOCIAL, 50, agora)

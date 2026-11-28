@@ -381,7 +381,7 @@ export async function gravarDestaqueComRemotion(item: { oferta: OfertaAvaliada; 
       provas: provasDoProduto(o).slice(0, 3),
       cor: CORES_DO_NICHO[o.categoria] ?? CORES_DO_NICHO.geral!,
       comentaQuero,
-      ...(codigo ? { codigo } : {}),
+      ...(codigo ? { codigo, direct: config.instagram.directEuQuero } : {}),
       ...(config.instagram.reelEstilo !== 'achados' && config.instagram.reelPreco ? precoParaTela(o) : {}),
       audio,
       ...(musicaDoFenaky ? { musica: musicaDoFenaky } : {}),

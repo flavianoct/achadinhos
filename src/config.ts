@@ -173,7 +173,7 @@ export interface Config {
   /** Arte de Story, legenda e roteiro de vídeo das ofertas postadas (aparecem no painel). */
   social: { ativo: boolean };
   /** Publicação automática no Instagram (conta profissional). Token e ID ficam nos Secrets. */
-  instagram: { ativo: boolean; token: string; userId: string; feedPorDia: number; storiesPorDia: number; intervaloFeedMin: number; intervaloStoryMin: number; notaMinima: number; vendasMinimas: number; palavrasBloqueadas: string[]; carrosselPorDia: number; carrosselItens: number; carrosselTetos: number[]; dicasDias: number[]; perguntaDias: number[]; horariosFeed: number[]; horariosStories: number[]; reelsPorDia: number; horariosReels: number[]; resumoHora: number; dataHora: number; grupoDias: number[]; tokenData: string; comentaQuero: boolean; codigoNaBio: boolean; queroIgnorar: string[]; palavrasDoComentario: string[]; respostasPorRodada: number; reelRemotion: boolean; reelEstilo: 'achados' | 'impacto' | 'oferta'; reelPreco: boolean; reelVoz: boolean; reelNomeIa: boolean; reelSoDeUmProduto: boolean; destaqueNichos: string[]; reelsDeDestaque: number; destaquePrefere: string[]; soNosReels: string[]; reelsDeRoupa: number; destaqueMinFotos: number; nichos: string[]; problemas: boolean };
+  instagram: { ativo: boolean; token: string; userId: string; feedPorDia: number; storiesPorDia: number; intervaloFeedMin: number; intervaloStoryMin: number; notaMinima: number; vendasMinimas: number; palavrasBloqueadas: string[]; carrosselPorDia: number; carrosselItens: number; carrosselTetos: number[]; dicasDias: number[]; perguntaDias: number[]; horariosFeed: number[]; horariosStories: number[]; reelsPorDia: number; horariosReels: number[]; resumoHora: number; dataHora: number; grupoDias: number[]; tokenData: string; comentaQuero: boolean; codigoNaBio: boolean; directEuQuero: boolean; queroIgnorar: string[]; palavrasDoComentario: string[]; respostasPorRodada: number; reelRemotion: boolean; reelEstilo: 'achados' | 'impacto' | 'oferta'; reelPreco: boolean; reelVoz: boolean; reelNomeIa: boolean; reelSoDeUmProduto: boolean; destaqueNichos: string[]; reelsDeDestaque: number; destaquePrefere: string[]; soNosReels: string[]; reelsDeRoupa: number; destaqueMinFotos: number; nichos: string[]; problemas: boolean };
   painel: { porta: number };
   /** O tema do dia que está valendo hoje (nome para mostrar), se houver. */
   temaDoDia?: string;
@@ -591,6 +591,8 @@ function lerConfigBase(env: Env): Config {
       comentaQuero: ligado(env, 'INSTAGRAM_COMENTA_QUERO', true),
       // "Oferta nº 247 · link na bio" nas legendas, com busca pelo número na página da bio.
       codigoNaBio: ligado(env, 'INSTAGRAM_CODIGO_NA_BIO', false),
+      // Há uma automação (ManyChat) que responde "eu quero" mandado no direct: as legendas e o fim do Reel oferecem essa opção.
+      directEuQuero: ligado(env, 'INSTAGRAM_DIRECT_EU_QUERO', false),
       // Posts que outra ferramenta responde (ex.: um Reel turbinado no ManyChat): o robô não lê os comentários deles. Vale o link do post.
       queroIgnorar: (env.INSTAGRAM_QUERO_IGNORAR ?? '').split(',').map((v) => v.trim()).filter(Boolean),
       palavrasDoComentario: lista(env.INSTAGRAM_PALAVRAS_DO_COMENTARIO ?? 'quero,eu quero,link,manda,me manda,qual o link,preco,quanto,grupo'),
