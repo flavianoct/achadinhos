@@ -146,7 +146,21 @@ export interface Descartes {
 
 export type ResultadoDoPost =
   | { postou: true; oferta: OfertaAvaliada; canais: string[]; avisos: string[] }
-  | { postou: false; motivo: 'fora do horário' | 'limite diário' | 'fila vazia' | 'nichos no limite' | 'erro'; detalhe?: string };
+  | { postou: false; motivo: 'fora do horário' | 'limite diário' | 'ritmo do dia' | 'fila vazia' | 'nichos no limite' | 'erro'; detalhe?: string };
+
+/** Quanto o robô pode adiantar sobre a distribuição por igual (uma rodada). */
+const FOLGA_DO_RITMO_MIN = 30;
+
+/**
+ * Quantas vagas do limite diário já foram liberadas a esta hora: elas abrem por igual de HORA_INICIO a HORA_FIM. Assim, rodadas a mais
+ * (disparo na mão, duas seguidas) não gastam de manhã as vagas da noite. Rodada que atrasou é compensada nas seguintes.
+ */
+export function vagasLiberadas(config: Config, agora: Date): number {
+  const { horaInicio, horaFim, maxPostsPorDia } = config.ritmo;
+  const total = Math.max(1, (horaFim - horaInicio) * 60);
+  const passou = (horaDe(agora) - horaInicio) * 60 + agora.getUTCMinutes();
+  return Math.min(maxPostsPorDia, Math.ceil((maxPostsPorDia * (passou + FOLGA_DO_RITMO_MIN)) / total));
+}
 
 /**
  * Posta a melhor oferta da fila, respeitando horário e limite diário.
@@ -157,7 +171,9 @@ export async function postarProxima(publicador: Publicador, banco: Banco, config
   const hora = horaDe(agora);
   if (hora < config.ritmo.horaInicio || hora >= config.ritmo.horaFim) return { postou: false, motivo: 'fora do horário' };
   // O post só do grupo de um nicho não gasta o limite do dia: ele é a mais, o geral segue com as suas vagas.
-  if (banco.postsNoGeralNoDia(agora) >= config.ritmo.maxPostsPorDia) return { postou: false, motivo: 'limite diário' };
+  const noGeral = banco.postsNoGeralNoDia(agora);
+  if (noGeral >= config.ritmo.maxPostsPorDia) return { postou: false, motivo: 'limite diário' };
+  if (config.ritmo.distribuirNoDia && noGeral >= vagasLiberadas(config, agora)) return { postou: false, motivo: 'ritmo do dia' };
 
   banco.limparFilaAntiga(HORAS_NA_FILA, agora);
   // Com tema ligado, o que está na fila fora do tema sai (a fila renasce a cada coleta).

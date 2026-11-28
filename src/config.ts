@@ -97,6 +97,8 @@ export interface Config {
     horaInicio: number;
     horaFim: number;
     maxPostsPorDia: number;
+    /** RITMO_DISTRIBUIR=1: o limite do dia é liberado aos poucos, da abertura ao fechamento, para não acabar antes da noite. */
+    distribuirNoDia: boolean;
     /** Não posta outro anúncio do mesmo tipo de produto (ex.: 3 chapas de policarbonato) por esta quantidade de horas. 0 desliga. */
     parecidosHoras: number;
     /** Modo nuvem: quantas ofertas postar no Telegram a cada execução. */
@@ -485,6 +487,7 @@ function lerConfigBase(env: Env): Config {
       horaInicio: numero(env, 'HORA_INICIO', 8),
       horaFim: numero(env, 'HORA_FIM', 23),
       maxPostsPorDia: numero(env, 'MAX_POSTS_POR_DIA', 60),
+      distribuirNoDia: ligado(env, 'RITMO_DISTRIBUIR', false),
       parecidosHoras: numero(env, 'PARECIDOS_HORAS', 24),
       postsPorRodada: numero(env, 'POSTS_POR_RODADA', 2),
       proporcaoDasLojas: lerProporcaoDasLojas(env.LOJA_PROPORCAO),
