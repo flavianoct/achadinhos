@@ -601,7 +601,7 @@ export async function responderComentarios(banco: Banco, config: Config, agora: 
       // (nesse modo só chegam os comentários de quem tem função no app) ou falta a permissão.
       const total = await api.contagemDeComentarios?.(midia.mediaId).catch(() => undefined);
       if (total && total > comentarios.length) escondidos += total - comentarios.length;
-      if (diagnostico.length < 8) diagnostico.push(`${midia.titulo.slice(0, 18)}: ${comentarios.length}/${total ?? '?'}`);
+      if (diagnostico.length < 8 && (comentarios.length > 0 || (total ?? 0) > 0)) diagnostico.push(`${midia.titulo.slice(0, 18)}: ${comentarios.length}/${total ?? '?'}`);
       for (const c of comentarios) {
         if (resumo.respondidos >= ig.respostasPorRodada) break;
         resumo.lidos++;
