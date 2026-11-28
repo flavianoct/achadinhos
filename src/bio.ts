@@ -66,8 +66,8 @@ function blocoDoNumero(numeradas: OfertaNumerada[]): { html: string; script: str
   // "<" vira a sequencia barra-u003c (que o JavaScript le como "<"): um titulo nunca consegue fechar a tag script.
   const json = JSON.stringify(dados).replace(/</g, '\\u003c');
   const html = `<section class="numero" id="numero">
-    <label for="n">Viu um post? Digite o número da oferta</label>
-    <input id="n" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="7" placeholder="Ex.: ${validas[0]!.numero}" autocomplete="off" enterkeyhint="search">
+    <label for="n">Viu um post ou vídeo? <strong>Digite aqui o número da oferta</strong> 👇</label>
+    <input id="n" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="7" placeholder="toque e digite (ex.: ${validas[0]!.numero})" autocomplete="off" enterkeyhint="search">
     <div id="achou" aria-live="polite"></div>
   </section>`;
   const script = `<script>
@@ -129,10 +129,12 @@ export function paginaDaBio(ofertas: OfertaAvaliada[], config: Config, agora: Da
       const de = o.precoOriginal && o.precoOriginal > o.preco ? `<s>${esc(formatarPreco(o.precoOriginal))}</s> ` : '';
       const desc = o.desconto && o.desconto > 0 ? `<span class="selo">-${Math.round(o.desconto)}%</span>` : '';
       const frete = o.freteGratis ? '<span class="selo verde">Frete grátis</span>' : '';
-      const busca = semAcento(`${o.titulo} ${loja}`);
+      const numero = numeradas.find((n) => n.link === o.link)?.numero;
+      const busca = semAcento(`${o.titulo} ${loja}${numero ? ` ${numero}` : ''}`);
       return `<li class="oferta${i >= MOSTRAR_NA_BIO ? ' extra' : ''}" data-b="${esc(busca)}">
   ${img ? `<img src="${esc(img)}" alt="" width="96" height="96" loading="lazy" decoding="async" referrerpolicy="no-referrer">` : '<div class="semfoto"></div>'}
   <div class="info">
+    ${numero ? `<span class="num">Oferta nº ${numero}</span>` : ''}
     <p class="titulo">${esc(o.titulo.length > 80 ? `${o.titulo.slice(0, 77).trimEnd()}…` : o.titulo)}</p>
     <p class="preco">${de}<strong>${esc(formatarPreco(o.preco))}</strong> ${desc} ${frete}</p>
     <a class="ver" href="${esc(o.link)}" target="_blank" rel="sponsored nofollow noopener">Ver oferta ${o.loja === 'mercadolivre' ? 'no' : 'na'} ${esc(loja)}</a>
@@ -143,7 +145,7 @@ export function paginaDaBio(ofertas: OfertaAvaliada[], config: Config, agora: Da
 
   // Busca no próprio aparelho: sem servidor e sem JavaScript de terceiros. Sem JavaScript a caixa nem aparece e a lista segue normal.
   const buscador = `<div class="busca" id="busca" hidden>
-    <label for="q">Procurando uma promoção específica?</label>
+    <label for="q">Ou procure pelo nome do produto</label>
     <input id="q" type="search" placeholder="Digite o produto (ex.: air fryer, fone, tênis)" autocomplete="off" enterkeyhint="search">
     <p class="busca-info" id="info" aria-live="polite"></p>
   </div>`;
@@ -161,15 +163,15 @@ export function paginaDaBio(ofertas: OfertaAvaliada[], config: Config, agora: Da
 ${FONTES}
 <title>${esc(nome)}: ofertas de hoje</title>
 <style>
-:root{color-scheme:dark;--fundo:#0E0E10;--bg:#0E0E10;--card:#17171B;--tx:#fff;--mut:#A9A9B3;--bd:#2A2A31;--cor:#E10600;--cor2:#FFD60A;--ok:#4cd694;--okbg:#10281e;--lar:#E10600;--tg:#2AABEE}
+:root{color-scheme:dark;--fundo:#0E0E10;--bg:#0E0E10;--card:#17171B;--tx:#fff;--mut:#A9A9B3;--bd:#2A2A31;--cor:#FFD60A;--cor2:#FFD60A;--ok:#4cd694;--okbg:#10281e;--lar:#FFD60A;--tg:#2AABEE}
 ${estiloDaMarca()}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.45 Barlow,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:radial-gradient(520px 320px at 50% -80px,rgba(225,6,0,.38),transparent 70%) no-repeat var(--bg)}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.45 Barlow,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:radial-gradient(520px 320px at 50% -80px,rgba(255,214,10,.22),transparent 70%) no-repeat var(--bg)}
 main{max-width:520px;margin:0 auto;padding:28px 16px 48px}
 .marca{text-align:center;margin:0 0 18px}.logo{display:block;margin:0 auto 2px}
 h1{font-size:46px;margin:0 0 6px;font-weight:400}.sub{color:var(--mut);font-size:14px;margin:0}
 .botao{display:flex;align-items:center;justify-content:center;text-align:center;text-decoration:none;font-weight:800;font-size:17px;padding:16px;border-radius:14px;margin:0 0 10px;box-shadow:0 6px 18px rgba(16,24,40,.12)}
 .botao.telegram{background:var(--tg);color:#041018}
-.botao.blog{background:var(--cor);color:#fff}
+.botao.blog{background:var(--cor);color:#0E0E10}
 .botao.whatsapp{background:#25D366;color:#06120A}
 .chamada{background:var(--card);border:1px solid var(--bd);border-radius:18px;padding:16px;margin:0 0 18px}
 .chamada-titulo{font-size:17px;font-weight:800;line-height:1.25;margin:0 0 4px;text-align:center}.chamada-texto{font-size:14px;color:var(--mut);margin:0 0 14px;text-align:center}.chamada-mini{font-size:12px;color:var(--mut);margin:0;text-align:center}
@@ -181,15 +183,15 @@ ul{list-style:none;margin:0;padding:0}
 .semfoto{background:var(--bd)}
 .info{min-width:0;flex:1}.titulo{margin:0 0 4px;font-size:14px;font-weight:600}
 .preco{margin:0 0 8px;font-size:15px}.preco strong{font-size:22px;color:var(--cor2)}.preco s{color:var(--mut);font-size:13px;text-decoration-color:var(--cor)}
-.selo{display:inline-block;background:var(--cor);color:#fff;font-size:12px;font-weight:700;padding:1px 7px;border-radius:99px}
+.selo{display:inline-block;background:var(--cor);color:#0E0E10;font-size:12px;font-weight:700;padding:1px 7px;border-radius:99px}
 .selo.verde{background:var(--okbg);color:var(--ok)}
-.ver{display:block;text-align:center;background:var(--lar);color:#fff;text-decoration:none;font-weight:700;padding:11px 10px;border-radius:10px}
+.ver{display:block;text-align:center;background:var(--lar);color:#0E0E10;text-decoration:none;font-weight:700;padding:11px 10px;border-radius:10px}
 .fim{margin-top:20px}
 .busca{margin:0 0 14px}.busca label{display:block;font-weight:700;margin:0 0 6px}.busca input{width:100%;font:inherit;padding:13px 14px;border-radius:12px;border:2px solid var(--bd);background:var(--card);color:var(--tx)}.busca input:focus{outline:none;border-color:var(--cor)}.busca-info{font-size:13px;color:var(--mut);margin:6px 2px 0;min-height:1.2em}
 .extra{display:none}.achou .extra{display:flex}.escondido,.achou .escondido{display:none}
 .semresultado{background:var(--card);border:1px dashed var(--bd);border-radius:14px;padding:14px;text-align:center;color:var(--mut);font-size:14px}.semresultado.escondido{display:none}.semresultado a{color:var(--cor2);font-weight:700}
 .vazio{text-align:center;color:var(--mut)}
-.numero{background:var(--card);border:2px solid var(--cor2);border-radius:18px;padding:14px;margin:0 0 16px}.numero label{display:block;font-weight:800;text-align:center;margin:0 0 8px}.numero input{width:100%;font:inherit;font-size:28px;font-weight:800;text-align:center;padding:12px;border-radius:12px;border:2px solid var(--bd);background:var(--fundo);color:var(--tx)}.numero input:focus{outline:none;border-color:var(--cor2)}.numero .oferta{margin:12px 0 0}.numero .nao{color:var(--mut);text-align:center;margin:10px 0 0;font-size:14px}
+.num{display:inline-block;border:1px solid var(--cor2);color:var(--cor2);font-size:12px;font-weight:800;padding:1px 8px;border-radius:99px;margin:0 0 4px}.numero{background:var(--cor2);color:#0E0E10;border-radius:20px;padding:18px 14px;margin:0 0 18px;box-shadow:0 10px 30px rgba(255,214,10,.25)}.numero label{display:block;font-size:17px;line-height:1.35;text-align:center;margin:0 0 12px}.numero label strong{display:block;font-size:22px;font-weight:800}.numero input{width:100%;font:inherit;font-size:30px;font-weight:800;text-align:center;padding:14px;border-radius:14px;border:4px solid #0E0E10;background:#fff;color:#0E0E10}.numero input::placeholder{font-size:17px;font-weight:600;color:#6b6b75}.numero input:focus{outline:4px solid #fff}.numero .oferta .ver{background:#FFD60A}.numero .oferta{margin:12px 0 0}.numero .nao{color:#0E0E10;font-weight:700;text-align:center;margin:10px 0 0;font-size:14px}
 .nota{color:var(--mut);font-size:12px;text-align:center;margin-top:22px}
 </style>
 </head>
@@ -241,6 +243,7 @@ ${porNumero.script}
 export function gravarBio(banco: Banco, config: Config, agora: Date): number {
   if (!config.blog.ativo) return 0;
   const ofertas = ofertasDaBio(banco, agora);
+  if (config.instagram.codigoNaBio) for (const o of [...ofertas].reverse()) banco.numeroDaOferta({ titulo: o.titulo, link: o.link, imagem: o.imagem, loja: o.loja }, agora);
   mkdirSync(config.blog.pasta, { recursive: true });
   writeFileSync(join(config.blog.pasta, 'bio.html'), paginaDaBio(ofertas, config, agora, banco.ofertasNumeradas()), 'utf8');
   return ofertas.length;
