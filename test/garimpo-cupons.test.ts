@@ -168,3 +168,24 @@ test('cupons: o cupom postado também vai para o WhatsApp, com o banner da loja 
   assert.ok(m!.texto.includes('https://s.shopee.com.br/abc') && !m!.texto.includes('<b>'), 'link solto e sem HTML do Telegram');
   assert.match(m!.imagem ?? '', /marca\/cupons\/cupom-shopee\.png$/);
 });
+
+test('garimpo: com o ML pausado (ML_ATIVO=0), PROMOBIT_CUPONS_ATIVO=1 ainda pega os cupons do ML no Promobit, com o seu link', async () => {
+  const base = { ML_ATIVO: '0', ML_MATT_WORD: 'eu', ML_MATT_TOOL: '123', SHOPEE_ATIVO: '0', CUPONS_LOJAS: 'mercadolivre' };
+  const chamadas: string[] = [];
+  const f = (async (url: string) => {
+    chamadas.push(String(url));
+    if (String(url).includes('mercado-livre')) return new Response(pagina([site({})]));
+    throw new Error('não devia buscar outra página');
+  }) as unknown as typeof fetch;
+  // Sem a chave: o ML pausado não garimpa nada (como antes).
+  assert.equal(lerConfig(base).promobit.cupons, false);
+  assert.deepEqual((await garimparCupons(lerConfig(base), AGORA, f)).cupons, []);
+  assert.equal(chamadas.length, 0);
+  // Com a chave: busca só a página de cupons do ML no Promobit e o link é o seu de afiliado.
+  const r = await garimparCupons(lerConfig({ ...base, PROMOBIT_CUPONS_ATIVO: '1' }), AGORA, f);
+  assert.equal(chamadas.length, 1);
+  assert.match(chamadas[0]!, /promobit\.com\.br\/cupons\/loja\/mercado-livre/);
+  assert.equal(r.cupons.length, 1);
+  assert.equal(r.cupons[0]!.loja, 'mercadolivre');
+  assert.match(r.cupons[0]!.link, /mercadolivre\.com\.br\/cupons.*matt_word=eu/);
+});

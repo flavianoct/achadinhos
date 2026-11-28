@@ -216,7 +216,9 @@ export async function garimparCupons(config: Config, agora: Date, fetchFn: typeo
     }
   }
   const lojas: Loja[] = [];
-  if (config.ml.ativo && quer('mercadolivre')) lojas.push('mercadolivre');
+  // Cupom do ML não usa a API do ML (só lê o Promobit e leva à página de cupons com o seu matt_word/matt_tool), então com
+  // PROMOBIT_CUPONS_ATIVO=1 ele vale mesmo com o ML pausado (ML_ATIVO=0).
+  if ((config.ml.ativo || config.promobit.cupons) && quer('mercadolivre')) lojas.push('mercadolivre');
   if (config.shopee.ativo && quer('shopee')) lojas.push('shopee');
   for (const loja of lojas) {
     const link = loja === 'mercadolivre' ? opcoes.linkMercadoLivre : opcoes.linkShopee;

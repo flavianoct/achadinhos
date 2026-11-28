@@ -140,6 +140,7 @@ O robô posta no Telegram cupons de duas origens: os que você cadastrar no arqu
 - cupom de **ativar na página** (sem código): só com data de validade futura e um benefício concreto (R$ ou %) no título;
 - **cashback não é cupom** e fica de fora; entram no máximo 4 cupons por loja, os mais recentes, e o mesmo cupom não repete antes de `CUPONS_REPETIR_DIAS`;
 - o link do post é sempre o **seu** de afiliado: no Mercado Livre sai dos seus `ML_MATT_WORD`/`ML_MATT_TOOL` (leva à página de cupons da loja); na Shopee você informa o seu link da página de cupons em `CUPONS_LINK_SHOPEE` (sem ele, a Shopee fica de fora e o painel avisa);
+- com o Mercado Livre pausado (`ML_ATIVO=0`), `PROMOBIT_CUPONS_ATIVO=1` mantém o garimpo dos cupons do ML no Promobit (não usa a API do ML; o link é a página de cupons com o seu `matt_word`/`matt_tool`). Cupom da Amazon nunca entra;
 - `CUPONS_BLOQUEAR` descarta qualquer cupom que tenha uma dessas palavras no código ou no título (ex.: `primeira compra`);
 - problemas (site fora do ar, página que mudou de formato) aparecem só na seção **Avisos do robô** do painel, nunca no canal.
 

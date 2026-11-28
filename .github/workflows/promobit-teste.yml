@@ -6,6 +6,7 @@ on:
   pull_request:
     paths:
       - 'src/fontes/promobit.ts'
+      - 'src/garimpo-cupons.ts'
       - 'testar-promobit.mjs'
       - '.github/workflows/promobit-teste.yml'
   workflow_dispatch:
