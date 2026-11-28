@@ -68,3 +68,49 @@ test('cupons: se o Telegram não entregar, o candidato não fica pendente invis�
   assert.equal(banco.candidatosDeCupom('pendente').length, 0);
   assert.equal(await enviarCandidatosDeCupom(new Banco(':memory:'), env, 'T', true, async () => { throw new Error('Promobit fora'); }, agora, falso), 0);
 });
+
+test('cupons: ponta a ponta — garimpo com o ML pausado, toque em Postar no Telegram, cupom sai no canal e o dono recebe a confirmação', async () => {
+  const { Robo } = await import('../src/robo.ts');
+  const { lerComandosDoTelegram } = await import('../src/comandos.ts');
+  const { confirmarCupomPostado } = await import('../src/cupons-aprovacao.ts');
+  const { mkdtempSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const pasta = mkdtempSync(join(tmpdir(), 'cupom-'));
+  const publicados: Cupom[] = [];
+  const robo = new Robo({
+    caminhoEnv: join(pasta, '.env'),
+    caminhoBanco: ':memory:',
+    silencioso: true,
+    // Como no ajustes.env: ML pausado, cupons do Promobit ligados, garimpo automático desligado e aprovação ligada.
+    envBase: { TELEGRAM_BOT_TOKEN: '1:a', TELEGRAM_CHAT_ID: '@canal', HORA_INICIO: '0', HORA_FIM: '24', ML_ATIVO: '0', ML_MATT_WORD: 'eu', ML_MATT_TOOL: '123', PROMOBIT_CUPONS_ATIVO: '1', CUPONS_ATIVO: '1', CUPONS_GARIMPO: '0', CUPONS_APROVACAO: '1', CUPONS_LOJAS: 'mercadolivre', CUPONS_ARQUIVO: join(pasta, 'cupons.json'), TELEGRAM_COMANDOS_CHAT: '123456' },
+    criarPublicador: () => ({ publicar: async () => {}, publicarCupom: async (c: Cupom) => void publicados.push(c) }) as any,
+    garimparCupons: async () => ({ cupons: [c2], avisos: [] }),
+  });
+  // 1) O robô manda o candidato para você; nada sai no canal antes do toque.
+  const { enviadas, falso } = telegramFalso();
+  assert.equal(await enviarCandidatosDeCupom(robo.banco, robo.env, robo.config.telegram.token, robo.config.cupons.aprovacao, () => robo.garimparParaAprovacao(agora), agora, falso), 1);
+  const ok = enviadas[0].reply_markup.inline_keyboard[0][0].callback_data as string;
+  assert.equal((await robo.postarCupomAgora(agora)).resultado.postou, false, 'sem o toque, não posta');
+  assert.equal(publicados.length, 0);
+  // 2) Você toca em Postar: a próxima rodada lê o toque no Telegram.
+  const chamadas: string[] = [];
+  const tg = (async (url: string) => {
+    chamadas.push(String(url));
+    const corpo = String(url).includes('/getUpdates')
+      ? { ok: true, result: [{ update_id: 7, callback_query: { id: 'q', data: ok, from: { id: 123456 }, message: { message_id: 9, chat: { id: 123456, type: 'private' } } } }] }
+      : { ok: true };
+    return new Response(JSON.stringify(corpo));
+  }) as unknown as typeof fetch;
+  await lerComandosDoTelegram(robo.banco, '1:a', '123456', agora, { menuNaVps: true }, tg);
+  assert.ok(chamadas.some((c) => c.includes('/editMessageText')), 'responde no próprio cartão do cupom');
+  // 3) Na mesma rodada, o cupom aprovado sai no canal.
+  const r = await robo.postarCupomAgora(agora);
+  assert.equal(r.resultado.postou, true);
+  assert.deepEqual(publicados.map((c) => c.titulo), [c2.titulo]);
+  // 4) E o dono recebe a confirmação.
+  const conf = telegramFalso();
+  assert.equal(await confirmarCupomPostado(robo.env, '1:a', publicados[0]!, conf.falso), true);
+  assert.match(conf.enviadas[0].text, /Cupom postado no canal/);
+  assert.equal(conf.enviadas[0].chat_id, '123456');
+});

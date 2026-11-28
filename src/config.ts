@@ -54,7 +54,7 @@ export interface Config {
   };
   amazon: { ativo: boolean; tag: string };
   /** Promobit como fonte extra de ofertas (ML; Amazon só se AMAZON_ATIVO). Independe de ML_ATIVO. maximo = ofertas abertas por rodada. */
-  promobit: { ativo: boolean; maximo: number };
+  promobit: { ativo: boolean; maximo: number; /** Garimpa cupons do ML no Promobit mesmo com ML_ATIVO=0. */ cupons: boolean };
   /** Espelho de grupos de WhatsApp (o enviador da VPS publica na branch espelho). Só ML. url vazia = a do próprio repositório. */
   espelho: { ativo: boolean; maximo: number; idadeMaximaMin: number; url: string };
   filtro: {
@@ -450,6 +450,7 @@ function lerConfigBase(env: Env): Config {
     promobit: {
       ativo: ligado(env, 'PROMOBIT_ATIVO', false),
       maximo: Math.max(0, numero(env, 'PROMOBIT_MAXIMO', 15)),
+      cupons: ligado(env, 'PROMOBIT_CUPONS_ATIVO', false),
     },
     espelho: {
       ativo: ligado(env, 'ESPELHO_ATIVO', false),

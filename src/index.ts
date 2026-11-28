@@ -16,7 +16,8 @@ import { gravarReel, prepararReel } from './reel.ts';
 import { comentaQueroAtivo, gravarPngs, prepararSocial } from './social.ts';
 import { gravarBio } from './bio.ts';
 import { avisosNoTelegram, previaDeCampanhas } from './avisos-telegram.ts';
-import { enviarCandidatosDeCupom } from './cupons-aprovacao.ts';
+import { confirmarCupomPostado, cuponsAprovados, enviarCandidatosDeCupom } from './cupons-aprovacao.ts';
+import { chaveDoCupom } from './cupons.ts';
 import { lerComandosDoTelegram } from './comandos.ts';
 import { PublicadorDeTeste } from './telegram.ts';
 import { gravarDataEspecial, gravarResumoDoDia } from './vitrine.ts';
@@ -178,7 +179,14 @@ async function modoNuvem(): Promise<void> {
         dizer(`- **Aviso nos cupons:** ${aviso}`);
         avisar(chaveDoAviso('cupons', aviso), aviso);
       }
-      if (cupom.resultado.postou) dizer(`- Cupom postado: ${cupom.resultado.cupom.titulo}`);
+      if (cupom.resultado.postou) {
+        const postado = cupom.resultado.cupom;
+        dizer(`- Cupom postado: ${postado.titulo}`);
+        // Foi um que você aprovou no Telegram (botão Postar): avisa lá que saiu.
+        if (robo.config.cupons.aprovacao && cuponsAprovados(robo.banco, new Date()).some((c) => chaveDoCupom(c) === chaveDoCupom(postado))) {
+          await confirmarCupomPostado(robo.env, robo.config.telegram.token, postado);
+        }
+      }
       else if (cupom.resultado.motivo === 'erro') dizer(`- **Erro ao postar cupom:** ${cupom.resultado.detalhe}`);
     }
 
