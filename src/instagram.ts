@@ -575,6 +575,7 @@ export async function responderComentarios(banco: Banco, config: Config, agora: 
   let escondidos = 0;
   let semLeitura = 0;
   const detalhesSemLeitura: string[] = [];
+  const diagnostico: string[] = [];
   const eu = await api.meuUsuario?.().catch(() => undefined);
   const bloquear = (motivo: string, como: string) => {
     banco.salvarTexto(CHAVE_DIRECT_BLOQUEADO, `${marcaDoToken(ig.token)}|${motivo}`, agora);
@@ -591,7 +592,7 @@ export async function responderComentarios(banco: Banco, config: Config, agora: 
       } catch (e) {
         if (e instanceof ErroInstagram && !e.fatal) {
           semLeitura++;
-          detalhesSemLeitura.push(`${midia.titulo.slice(0, 30)} [${midia.mediaId}]: ${e.message.slice(0, 160)}`);
+          detalhesSemLeitura.push(`${midia.titulo.slice(0, 30)} [${midia.mediaId}]: ${e.message.slice(0, 40)}`);
           continue;
         }
         throw e;
@@ -600,6 +601,7 @@ export async function responderComentarios(banco: Banco, config: Config, agora: 
       // (nesse modo só chegam os comentários de quem tem função no app) ou falta a permissão.
       const total = await api.contagemDeComentarios?.(midia.mediaId).catch(() => undefined);
       if (total && total > comentarios.length) escondidos += total - comentarios.length;
+      if (diagnostico.length < 8 && (comentarios.length > 0 || (total ?? 0) > 0)) diagnostico.push(`${midia.titulo.slice(0, 18)}: ${comentarios.length}/${total ?? '?'}`);
       for (const c of comentarios) {
         if (resumo.respondidos >= ig.respostasPorRodada) break;
         resumo.lidos++;
@@ -636,7 +638,8 @@ export async function responderComentarios(banco: Banco, config: Config, agora: 
         await pausa(1500);
       }
     }
-    if (semLeitura > 0) resumo.avisos.push(`Instagram: ${semLeitura} post(s) sem leitura de comentários (provavelmente apagados no Instagram); os outros foram lidos normalmente. Detalhe: ${detalhesSemLeitura.join(' | ').slice(0, 500)}`);
+    if (diagnostico.length) resumo.avisos.push(`Instagram, diagnóstico dos comentários (recebidos/contagem do post): ${diagnostico.join(' | ')}`);
+    if (semLeitura > 0) resumo.avisos.push(`Instagram: ${semLeitura} post(s) sem leitura de comentários (provavelmente apagados no Instagram); os outros foram lidos normalmente. Detalhe: ${detalhesSemLeitura.join(" | ").slice(0, 900)}`);
     if (escondidos > 0) resumo.avisos.push(`Instagram: os posts têm ${escondidos} comentário(s) que o app não recebeu (modo de desenvolvimento: só chegam comentários de quem tem função no app). Para o público receber o link no direct, o app precisa do acesso avançado da Meta.`);
   } catch (e) {
     const mensagem = (e as Error).message;
