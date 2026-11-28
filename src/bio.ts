@@ -194,6 +194,7 @@ ul{list-style:none;margin:0;padding:0}
 .semresultado{background:var(--card);border:1px dashed var(--bd);border-radius:14px;padding:14px;text-align:center;color:var(--mut);font-size:14px}.semresultado.escondido{display:none}.semresultado a{color:var(--cor2);font-weight:700}
 .vazio{text-align:center;color:var(--mut)}
 .num{display:inline-block;background:var(--cor2);color:#0E0E10;font-size:13px;font-weight:800;padding:2px 10px;border-radius:99px;margin:0 0 6px}.numero{background:var(--cor2);color:#0E0E10;border-radius:20px;padding:18px 14px;margin:0 0 18px;box-shadow:0 10px 30px rgba(255,214,10,.25)}.numero label{display:block;font-size:17px;line-height:1.35;text-align:center;margin:0 0 12px}.numero label strong{display:block;font-size:22px;font-weight:800}.numero input{width:100%;font:inherit;font-size:30px;font-weight:800;text-align:center;padding:14px;border-radius:14px;border:4px solid #0E0E10;background:#fff;color:#0E0E10}.numero input::placeholder{font-size:17px;font-weight:600;color:#6b6b75}.numero input:focus{outline:4px solid #fff}.numero .oferta .ver{background:#FFD60A}.numero .oferta{margin:12px 0 0}.numero .nao{color:#0E0E10;font-weight:700;text-align:center;margin:10px 0 0;font-size:14px}
+#achou .oferta .titulo{color:#fff}
 .nota{color:var(--mut);font-size:12px;text-align:center;margin-top:22px}
 </style>
 </head>
