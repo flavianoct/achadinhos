@@ -588,6 +588,8 @@ export async function responderComentarios(banco: Banco, config: Config, agora: 
   try {
     for (const midia of banco.midiasRecentesDoInstagram(dias, agora)) {
       if (resumo.respondidos >= ig.respostasPorRodada) break;
+      // Post cuidado por outra ferramenta (INSTAGRAM_QUERO_IGNORAR): dois respondendo o mesmo comentário não dá certo.
+      if (ig.queroIgnorar.includes(midia.link)) continue;
       // Um post apagado (ou sem acesso) não pode derrubar a leitura dos outros: pula só ele. Token vencido ou falta de permissão continuam
       // parando tudo (e desligando o comenta QUERO), como antes.
       let comentarios: Array<{ id: string; texto: string; usuario?: string }>;
