@@ -561,11 +561,11 @@ export function mensagemParaOComentario(texto: string, midia: { titulo: string; 
 const RESPOSTAS_PUBLICAS = ['Te mandei no direct! 📩', 'Mandei o link no seu direct 📩', 'Enviado! Olha o seu direct 📩', 'Prontinho, link no direct 📩', 'Olha lá no seu direct 😉', 'Já te mandei! Confere o direct 📲'];
 
 /**
- * "Comenta QUERO": lê os comentários dos posts dos últimos 7 dias (ou `dias`; a leitura rápida entre as rodadas olha só os mais novos) e, a quem comentou uma das palavras, manda o link no direct e responde
+ * "Comenta QUERO": lê os comentários dos posts dos últimos 15 dias (ou `dias`; a leitura rápida entre as rodadas olha só os mais novos) e, a quem comentou uma das palavras, manda o link no direct e responde
  * o comentário ("te mandei no direct"). Cada comentário é tratado uma vez só. Se o token não tiver as permissões de comentários e mensagens
  * (ou o app não puder mandar direct ao público), desliga o "comenta QUERO" até o token mudar e avisa como resolver.
  */
-export async function responderComentarios(banco: Banco, config: Config, agora: Date, fetchFn: Fetch = fetch, cliente?: Instagram, dias = 7): Promise<ResumoDosComentarios> {
+export async function responderComentarios(banco: Banco, config: Config, agora: Date, fetchFn: Fetch = fetch, cliente?: Instagram, dias = 15): Promise<ResumoDosComentarios> {
   const resumo: ResumoDosComentarios = { lidos: 0, respondidos: 0, avisos: [] };
   const ig = config.instagram;
   if (!ig.ativo || !ig.token || !ig.userId || !comentaQueroAtivo(banco, config, agora)) return resumo;
