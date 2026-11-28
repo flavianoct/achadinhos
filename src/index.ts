@@ -1,6 +1,6 @@
 import { lerMetricasDoInstagram } from './metricas.ts';
 import { execFile } from 'node:child_process';
-import { appendFileSync } from 'node:fs';
+import { appendFileSync, writeFileSync } from 'node:fs';
 import { FonteSimulada, OFERTAS_SIMULADAS } from './fontes/simulada.ts';
 import { iniciarPainel } from './painel.ts';
 import { Robo, apiDoMercadoLivre } from './robo.ts';
@@ -13,7 +13,7 @@ import { gravarPins, prepararPins, publicarNoPinterest } from './pinterest.ts';
 import { gravarQuiz, prepararQuiz } from './quiz.ts';
 import { copiarReelsAgendados } from './agendados.ts';
 import { gravarReel, prepararReel } from './reel.ts';
-import { gravarPngs, prepararSocial } from './social.ts';
+import { comentaQueroAtivo, gravarPngs, prepararSocial } from './social.ts';
 import { gravarBio } from './bio.ts';
 import { avisosNoTelegram, previaDeCampanhas } from './avisos-telegram.ts';
 import { enviarCandidatosDeCupom } from './cupons-aprovacao.ts';
@@ -307,9 +307,32 @@ async function modoNuvem(): Promise<void> {
   if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${resumo.join('\n')}\n`);
 }
 
+/**
+ * Só o "comenta QUERO": lê os comentários e manda os links no direct, sem coletar nem postar nada.
+ * Roda várias vezes no intervalo entre as rodadas (job "proxima" do robo.yml), para quem comenta não esperar a rodada inteira.
+ */
+async function modoComentarios(): Promise<void> {
+  const robo = new Robo({ caminhoEnv: 'ajustes.env', modeloEnv: '' });
+  try {
+    const ativoAntes = comentaQueroAtivo(robo.banco, robo.config, new Date());
+    // Só os posts dos últimos 3 dias (onde chega quase todo "eu quero"), para gastar poucas chamadas à API; a rodada normal olha 7 dias.
+    const c = await responderComentarios(robo.banco, robo.config, new Date(), fetch, undefined, 3);
+    if (robo.config.instagram.ativo && robo.config.instagram.comentaQuero) console.log(`Comenta QUERO: ${c.lidos} comentários lidos, ${c.respondidos} links mandados no direct.`);
+    for (const a of c.avisos) console.log(`Aviso do Instagram: ${a}`);
+    const desligou = ativoAntes && !comentaQueroAtivo(robo.banco, robo.config, new Date());
+    // O direct foi desligado agora: o aviso vai para o painel (a rodada normal não o repete, porque o comenta QUERO já está desligado).
+    if (desligou) robo.banco.registrarAvisos(c.avisos.map((a) => ({ chave: chaveDoAviso('instagram', a), texto: a, nivel: 'aviso' as const })), new Date());
+    // Só vale guardar o banco (52 MB) quando algo importante mudou: um link foi mandado ou o direct foi desligado.
+    if (c.respondidos > 0 || desligou) writeFileSync('.comentarios-mudou', String(c.respondidos));
+  } finally {
+    robo.fechar();
+  }
+}
+
 async function main(): Promise<void> {
   const args = new Set(process.argv.slice(2));
   if (args.has('--nuvem')) return modoNuvem();
+  if (args.has('--comentarios')) return modoComentarios();
   if (args.has('--shopee-schema')) {
     const { descreverApiShopee } = await import('./descobrir.ts');
     const appId = (process.env.SHOPEE_APP_ID ?? '').trim();
