@@ -993,7 +993,7 @@ export class Banco {
 
   /** As ofertas numeradas, da mais nova para a mais antiga (para a busca por número da página da bio). */
   ofertasNumeradas(limite = 1500): Array<{ numero: number; link: string; titulo: string; imagem?: string; loja?: string }> {
-    const linhas = this.db.prepare(`SELECT numero, link, titulo, imagem, loja FROM ofertas_numeradas ORDER BY numero DESC LIMIT ?`).all(limite) as Array<{ numero: number; link: string; titulo: string; imagem: string | null; loja: string | null }>;
+    const linhas = this.db.prepare(`SELECT numero, link, titulo, imagem, loja FROM ofertas_numeradas ORDER BY visto_em DESC, numero DESC LIMIT ?`).all(limite) as Array<{ numero: number; link: string; titulo: string; imagem: string | null; loja: string | null }>;
     return linhas.map((l) => ({ numero: Number(l.numero), link: l.link, titulo: l.titulo, imagem: l.imagem ?? undefined, loja: l.loja ?? undefined }));
   }
 

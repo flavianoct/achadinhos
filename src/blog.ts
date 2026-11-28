@@ -237,6 +237,25 @@ function redesDaMarca(b: Config['blog']): string[] {
 /** Muda sempre que o CSS muda, para o navegador não usar uma cópia antiga guardada. */
 let VERSAO_DO_ESTILO = '1';
 
+/** Em qualquer página: se o produto de um botão tem número (numeros.json), mostra "Oferta nº X" antes dele. Sem o arquivo, nada muda. */
+const SCRIPT_DOS_NUMEROS = `(function(){
+  var links=[].slice.call(document.querySelectorAll('a[rel~="sponsored"]'));
+  if(!links.length||!window.fetch)return;
+  fetch('numeros.json').then(function(r){return r.ok?r.json():{};}).then(function(d){
+    var porLink={};Object.keys(d).forEach(function(n){porLink[d[n][1]]=n;});
+    var feitos=[];
+    links.forEach(function(a){
+      var n=porLink[a.getAttribute('href')],pai=a.parentNode;
+      if(!n||feitos.indexOf(pai)>=0)return;
+      feitos.push(pai);
+      var s=document.createElement('span');
+      s.textContent='Oferta nº '+n;
+      s.setAttribute('style','display:inline-block;margin:0 8px 8px 0;padding:4px 12px;border-radius:99px;background:#FFD60A;color:#0E0E10;font-weight:800;font-size:14px');
+      pai.insertBefore(s,a);
+    });
+  }).catch(function(){});
+})();`;
+
 function moldura(site: Site, p: { arquivo: string; titulo: string; tituloSeo?: string; descricao: string; corpo: string; imagem?: string; tipo?: string; dadosEstruturados?: unknown; rodapeExtra?: string; trilha?: Trilha; largo?: boolean }): string {
   const b = site.config.blog;
   const endereco = (arquivo: string) => (b.url ? `${b.url}/${arquivo === 'index.html' ? '' : arquivo}` : '');
@@ -299,7 +318,7 @@ ${ld ? `<script type="application/ld+json">${JSON.stringify(ld).replace(/</g, '\
   <div class="topo-miolo">
     <a class="marca" href="index.html">${LOGO}${nomeDaMarca(esc(b.nome))}</a>
     <nav aria-label="Seções">${nav}</nav>
-    <form class="busca" action="busca.html" method="get" role="search"><input type="search" name="q" placeholder="Buscar ofertas…" aria-label="Buscar ofertas" autocomplete="off"><button type="submit" aria-label="Buscar">🔍</button></form>
+    <form class="busca" action="busca.html" method="get" role="search"><input type="search" name="q" placeholder="Produto ou nº da oferta…" aria-label="Buscar ofertas" autocomplete="off"><button type="submit" aria-label="Buscar">🔍</button></form>
   </div>
 </header>
 <main id="conteudo"${p.largo ? ' class="largo"' : ''}>
@@ -326,6 +345,7 @@ ${migalhas}${p.corpo}
     </div>
   </div>
 </footer>
+<script>${SCRIPT_DOS_NUMEROS}</script>
 </body>
 </html>
 `;
@@ -703,13 +723,19 @@ export function indiceDeBusca(posts: Post[], guias: Guia[]): Array<{ t: string; 
 }
 
 const SCRIPT_DA_BUSCA = `(function(){
-  var campo=document.getElementById('q'),lista=document.getElementById('resultado-busca'),resumo=document.getElementById('resumo-busca'),dados=null;
+  var campo=document.getElementById('q'),lista=document.getElementById('resultado-busca'),resumo=document.getElementById('resumo-busca'),dados=null,numeros={};
   function norm(t){return String(t).toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g,'');}
   function mostrar(){
     var termos=norm(campo.value).split(/\\s+/).filter(Boolean);
     lista.textContent='';
     if(!dados){resumo.textContent='Carregando…';return;}
     if(!termos.length){resumo.textContent='Digite o que você procura.';return;}
+    var so=/^\s*(?:oferta\s*)?(?:n[ºo.]*\s*)?([0-9]{3,7})\s*$/i.exec(campo.value);
+    if(so&&numeros[so[1]]){
+      var o=numeros[so[1]],li0=document.createElement('li'),a0=document.createElement('a'),p0=document.createElement('span');
+      a0.href=o[1];a0.target='_blank';a0.rel='sponsored nofollow noopener';a0.textContent='Oferta nº '+so[1]+' · '+o[0];p0.className='suave';p0.textContent=o[2]?' · ver oferta · '+o[2]:' · ver oferta';
+      li0.appendChild(a0);li0.appendChild(p0);lista.appendChild(li0);resumo.textContent='Achei a oferta nº '+so[1]+'.';return;
+    }
     var achados=dados.filter(function(x){var alvo=norm(x.t+' '+x.p);return termos.every(function(t){return alvo.indexOf(t)>=0;});});
     resumo.textContent=achados.length?achados.length+(achados.length>40?' resultados (mostrando 40)':achados.length===1?' resultado':' resultados'):'Nada encontrado. Tente outra palavra.';
     achados.slice(0,40).forEach(function(x){
@@ -722,12 +748,13 @@ const SCRIPT_DA_BUSCA = `(function(){
   fetch('busca.json').then(function(r){return r.json();}).then(function(d){dados=d;mostrar();}).catch(function(){resumo.textContent='Não consegui carregar a busca agora.';});
   campo.addEventListener('input',mostrar);
   mostrar();
+  fetch('numeros.json').then(function(r){return r.ok?r.json():{};}).then(function(d){numeros=d;if(dados)mostrar();}).catch(function(){});
 })();`;
 
 function paginaDeBusca(site: Site): string {
   const corpo = `  <section class="busca-pagina">
   <h1>Buscar ofertas</h1>
-  <form class="busca grande" action="busca.html" method="get" role="search"><input id="q" type="search" name="q" placeholder="Ex.: air fryer, fone, tênis…" aria-label="Buscar ofertas" autocomplete="off"><button type="submit">Buscar</button></form>
+  <form class="busca grande" action="busca.html" method="get" role="search"><input id="q" type="search" name="q" placeholder="Nº da oferta ou produto (ex.: 247, fone)" aria-label="Buscar ofertas" autocomplete="off"><button type="submit">Buscar</button></form>
   <p id="resumo-busca" class="suave" role="status"></p>
   <ul id="resultado-busca" class="lista-busca"></ul>
   </section>
@@ -1437,6 +1464,8 @@ export async function gerarBlog(banco: Banco, config: Config, agora: Date = new 
   gravar('index.html', paginaInicial(site));
   gravar('404.html', pagina404(site));
   gravar('busca.html', paginaDeBusca(site));
+  // "Oferta nº X": toda oferta que aparece no blog tem número, preso ao link exato dela (o mesmo do post e do direct).
+  if (config.instagram.codigoNaBio) for (const o of [...posts, ...guias].flatMap((p) => p.dados.itens).reverse()) if (o.link) banco.numeroDaOferta({ titulo: o.titulo, link: o.link, imagem: o.imagem, loja: o.loja }, agora);
   writeFileSync(join(b.pasta, 'busca.json'), JSON.stringify(indiceDeBusca(posts, guias)), 'utf8');
 
   // Remove páginas que não existem mais (posts vencidos, categorias vazias, formato antigo), para não ficar oferta velha no ar.

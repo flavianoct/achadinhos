@@ -61,7 +61,7 @@ export const Oferta: React.FC<Props & { vozes?: unknown }> = (p) => {
         </div>
       ) : null}
       <div style={{ position: 'absolute', top: p.preco ? 1410 : 1330, width: '100%', display: 'flex', justifyContent: 'center', transform: `scale(${entra * pulsa})` }}>
-        <div style={{ padding: '20px 54px', borderRadius: 80, background: VERDE, color: '#06210F', fontFamily: FONTE, fontWeight: 900, fontSize: 52, whiteSpace: 'nowrap' }}>{p.comentaQuero ? 'DIGITA EU QUERO' : 'LINK NO DIRECT'}</div>
+        <div style={{ padding: '20px 54px', borderRadius: 80, background: VERDE, color: '#06210F', fontFamily: FONTE, fontWeight: 900, fontSize: 52, whiteSpace: 'nowrap' }}>{p.comentaQuero ? 'DIGITA EU QUERO' : 'LINK NA BIO ▲'}</div>
       </div>
       <div style={{ position: 'absolute', top: p.preco ? 1535 : 1455, width: '100%', textAlign: 'center', fontFamily: FONTE, fontWeight: 900, fontSize: 34, color: MARCA.amarelo, textShadow: SOMBRA }}>OFERTAS TODO DIA NO CANAL · LINK NA BIO</div>
       <div style={{ position: 'absolute', left: 0, right: 0, top: 1660, display: 'flex', justifyContent: 'center' }}>

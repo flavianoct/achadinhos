@@ -75,12 +75,14 @@ function blocoDoNumero(numeradas: OfertaNumerada[]): { html: string; script: str
   var dados=${json};
   var campo=document.getElementById('n'),saida=document.getElementById('achou');
   if(!campo||!saida)return;
+  var completa=false;
   function el(tag,classe,texto){var e=document.createElement(tag);if(classe)e.className=classe;if(texto)e.textContent=texto;return e;}
   function mostrar(){
     var num=campo.value.replace(/\D/g,'');
     saida.textContent='';
     if(num.length<3)return;
     var o=Object.prototype.hasOwnProperty.call(dados,num)?dados[num]:null;
+    if(!o&&!completa&&window.fetch){completa=true;fetch('numeros.json').then(function(r){return r.ok?r.json():{};}).then(function(d){Object.keys(d).forEach(function(n){if(!dados[n])dados[n]=[d[n][0],d[n][1],'',d[n][2]];});mostrar();}).catch(function(){});return;}
     if(!o){saida.appendChild(el('p','nao','Não achei a oferta nº '+num+'. Confira o número no post.'));return;}
     var card=el('div','oferta');
     if(o[2]){var img=el('img');img.src=o[2];img.alt='';img.width=96;img.height=96;img.referrerPolicy='no-referrer';card.appendChild(img);}
@@ -191,7 +193,7 @@ ul{list-style:none;margin:0;padding:0}
 .extra{display:none}.achou .extra{display:flex}.escondido,.achou .escondido{display:none}
 .semresultado{background:var(--card);border:1px dashed var(--bd);border-radius:14px;padding:14px;text-align:center;color:var(--mut);font-size:14px}.semresultado.escondido{display:none}.semresultado a{color:var(--cor2);font-weight:700}
 .vazio{text-align:center;color:var(--mut)}
-.num{display:inline-block;border:1px solid var(--cor2);color:var(--cor2);font-size:12px;font-weight:800;padding:1px 8px;border-radius:99px;margin:0 0 4px}.numero{background:var(--cor2);color:#0E0E10;border-radius:20px;padding:18px 14px;margin:0 0 18px;box-shadow:0 10px 30px rgba(255,214,10,.25)}.numero label{display:block;font-size:17px;line-height:1.35;text-align:center;margin:0 0 12px}.numero label strong{display:block;font-size:22px;font-weight:800}.numero input{width:100%;font:inherit;font-size:30px;font-weight:800;text-align:center;padding:14px;border-radius:14px;border:4px solid #0E0E10;background:#fff;color:#0E0E10}.numero input::placeholder{font-size:17px;font-weight:600;color:#6b6b75}.numero input:focus{outline:4px solid #fff}.numero .oferta .ver{background:#FFD60A}.numero .oferta{margin:12px 0 0}.numero .nao{color:#0E0E10;font-weight:700;text-align:center;margin:10px 0 0;font-size:14px}
+.num{display:inline-block;background:var(--cor2);color:#0E0E10;font-size:13px;font-weight:800;padding:2px 10px;border-radius:99px;margin:0 0 6px}.numero{background:var(--cor2);color:#0E0E10;border-radius:20px;padding:18px 14px;margin:0 0 18px;box-shadow:0 10px 30px rgba(255,214,10,.25)}.numero label{display:block;font-size:17px;line-height:1.35;text-align:center;margin:0 0 12px}.numero label strong{display:block;font-size:22px;font-weight:800}.numero input{width:100%;font:inherit;font-size:30px;font-weight:800;text-align:center;padding:14px;border-radius:14px;border:4px solid #0E0E10;background:#fff;color:#0E0E10}.numero input::placeholder{font-size:17px;font-weight:600;color:#6b6b75}.numero input:focus{outline:4px solid #fff}.numero .oferta .ver{background:#FFD60A}.numero .oferta{margin:12px 0 0}.numero .nao{color:#0E0E10;font-weight:700;text-align:center;margin:10px 0 0;font-size:14px}
 .nota{color:var(--mut);font-size:12px;text-align:center;margin-top:22px}
 </style>
 </head>
@@ -240,11 +242,18 @@ ${porNumero.script}
 }
 
 /** Grava blog/bio.html. Devolve quantas ofertas entraram. */
+/** numeros.json: {"247": [título, link, loja]}. O blog lê no próprio aparelho, então o número nunca fica desatualizado. */
+export function indiceDosNumeros(numeradas: OfertaNumerada[]): Record<string, [string, string, string]> {
+  return Object.fromEntries(numeradas.filter((o) => https(o.link)).map((o) => [String(o.numero), [o.titulo, o.link, NOME_DA_LOJA[o.loja ?? ''] ?? ''] as [string, string, string]]));
+}
+
 export function gravarBio(banco: Banco, config: Config, agora: Date): number {
   if (!config.blog.ativo) return 0;
   const ofertas = ofertasDaBio(banco, agora);
   if (config.instagram.codigoNaBio) for (const o of [...ofertas].reverse()) banco.numeroDaOferta({ titulo: o.titulo, link: o.link, imagem: o.imagem, loja: o.loja }, agora);
   mkdirSync(config.blog.pasta, { recursive: true });
+  // A página leva as 1.500 vistas há menos tempo; numeros.json leva todas (a página busca lá o número que não estiver nela).
   writeFileSync(join(config.blog.pasta, 'bio.html'), paginaDaBio(ofertas, config, agora, banco.ofertasNumeradas()), 'utf8');
+  writeFileSync(join(config.blog.pasta, 'numeros.json'), JSON.stringify(indiceDosNumeros(banco.ofertasNumeradas(30_000))), 'utf8');
   return ofertas.length;
 }

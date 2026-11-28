@@ -53,7 +53,7 @@ export const VideoOferta: React.FC<PropsDoVideoOferta> = ({ video, quadros, nome
         ))}
       </div>
       <div style={{ position: 'absolute', top: 1440, width: '100%', display: 'flex', justifyContent: 'center', opacity: fim, transform: `scale(${botao * pulsa})` }}>
-        <div style={{ padding: '20px 54px', borderRadius: 80, background: VERDE, color: '#06210F', fontFamily: FONTE, fontWeight: 900, fontSize: 52, whiteSpace: 'nowrap', boxShadow: '0 12px 30px rgba(0,0,0,.5)' }}>{comentaQuero ? 'DIGITA EU QUERO' : 'LINK NO DIRECT'}</div>
+        <div style={{ padding: '20px 54px', borderRadius: 80, background: VERDE, color: '#06210F', fontFamily: FONTE, fontWeight: 900, fontSize: 52, whiteSpace: 'nowrap', boxShadow: '0 12px 30px rgba(0,0,0,.5)' }}>{comentaQuero ? 'DIGITA EU QUERO' : 'LINK NA BIO ▲'}</div>
       </div>
       <div style={{ position: 'absolute', top: 1566, width: '100%', textAlign: 'center', opacity: fim, fontFamily: FONTE, fontWeight: 900, fontSize: 32, color: MARCA.amarelo, textShadow: SOMBRA }}>OFERTAS TODO DIA NO CANAL · LINK NA BIO</div>
       <div style={{ position: 'absolute', left: 0, right: 0, top: 1660, display: 'flex', justifyContent: 'center' }}>

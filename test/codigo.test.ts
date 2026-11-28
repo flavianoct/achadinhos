@@ -38,3 +38,8 @@ test('bio: a busca por número só aparece quando há ofertas numeradas, e um t�
   // O script da página é JavaScript válido.
   for (const m of html.matchAll(/<script>([\s\S]*?)<\/script>/g)) new Function(m[1]!);
 });
+
+test('blog: numeros.json tem o número, o título e o link de cada oferta', async () => {
+  const { indiceDosNumeros } = await import('../src/bio.ts');
+  assert.deepEqual(indiceDosNumeros([{ numero: 247, titulo: 'Fone', link: 'https://s.shopee.com.br/a', loja: 'shopee' }, { numero: 248, titulo: 'Sem link', link: 'javascript:alert(1)' }]), { '247': ['Fone', 'https://s.shopee.com.br/a', 'Shopee'] });
+});
