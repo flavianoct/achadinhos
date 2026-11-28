@@ -55,6 +55,8 @@ export interface Config {
   amazon: { ativo: boolean; tag: string };
   /** Promobit como fonte extra de ofertas (ML; Amazon só se AMAZON_ATIVO). Independe de ML_ATIVO. maximo = ofertas abertas por rodada. */
   promobit: { ativo: boolean; maximo: number };
+  /** Espelho de grupos de WhatsApp (o enviador da VPS publica na branch espelho). Só ML. url vazia = a do próprio repositório. */
+  espelho: { ativo: boolean; maximo: number; idadeMaximaMin: number; url: string };
   filtro: {
     /** Tema: só ofertas com uma destas palavras no título são coletadas e postadas (ex.: celular, projetor). Vazio = todos os assuntos. */
     tema: string[];
@@ -449,6 +451,12 @@ function lerConfigBase(env: Env): Config {
       ativo: ligado(env, 'PROMOBIT_ATIVO', false),
       maximo: Math.max(0, numero(env, 'PROMOBIT_MAXIMO', 15)),
     },
+    espelho: {
+      ativo: ligado(env, 'ESPELHO_ATIVO', false),
+      maximo: Math.max(0, numero(env, 'ESPELHO_MAXIMO', 15)),
+      idadeMaximaMin: Math.max(10, numero(env, 'ESPELHO_IDADE_MAXIMA_MIN', 180)),
+      url: (env.ESPELHO_URL ?? '').trim(),
+    },
     filtro: {
       tema: lista(env.TEMA),
       descontoMinimo: numero(env, 'DESCONTO_MINIMO', 25),
@@ -616,10 +624,11 @@ export function problemasDeConfig(c: Config): string[] {
   const p: string[] = [];
   if (!c.telegram.token) p.push('TELEGRAM_BOT_TOKEN está vazio (crie o bot no @BotFather).');
   if (!c.telegram.chatId) p.push('TELEGRAM_CHAT_ID está vazio (ex.: @seucanal).');
-  if (!c.shopee.ativo && !c.ml.ativo && !c.amazon.ativo && !c.promobit.ativo) p.push('Nenhuma loja está ativa.');
+  if (!c.shopee.ativo && !c.ml.ativo && !c.amazon.ativo && !c.promobit.ativo && !c.espelho.ativo) p.push('Nenhuma loja está ativa.');
   if (c.shopee.ativo && (!c.shopee.appId || !c.shopee.secret)) {
     p.push('Shopee ativa, mas SHOPEE_APP_ID ou SHOPEE_SECRET estão vazios.');
   }
+  if (c.espelho.ativo && (!c.ml.mattWord || !c.ml.mattTool)) p.push('Espelho ativo, mas ML_MATT_WORD ou ML_MATT_TOOL estão vazios (sem eles nenhuma oferta do espelho sai com o seu código).');
   if (c.promobit.ativo && (!c.ml.mattWord || !c.ml.mattTool)) p.push('Promobit ativo, mas ML_MATT_WORD ou ML_MATT_TOOL estão vazios (sem eles nenhuma oferta do ML sai com o seu código).');
   if (c.ml.ativo) {
     if (!c.ml.mattWord || !c.ml.mattTool) p.push('Mercado Livre ativo, mas ML_MATT_WORD ou ML_MATT_TOOL estão vazios (sem eles o link não leva seu código).');

@@ -1,0 +1,14 @@
+name: Testar espelho
+on:
+  pull_request:
+    paths: ['src/fontes/espelho.ts', 'enviador/espelho.mjs', 'test/espelho.test.ts', '.github/workflows/espelho-teste.yml']
+permissions:
+  contents: read
+jobs:
+  testar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version: 24 }
+      - run: node --disable-warning=ExperimentalWarning --test test/espelho.test.ts test/promobit.test.ts

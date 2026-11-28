@@ -7,9 +7,10 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import makeWASocket, { Browsers, DisconnectReason, fetchLatestBaileysVersion, useMultiFileAuthState } from '@whiskeysockets/baileys';
+import makeWASocket, { Browsers, DisconnectReason, downloadMediaMessage, fetchLatestBaileysVersion, useMultiFileAuthState } from '@whiskeysockets/baileys';
 import pino from 'pino';
 import qrcode from 'qrcode-terminal';
+import { itemDaMensagem, podarItens, PublicadorGitHub, temFoto, textoDaMensagem } from './espelho.mjs';
 import { comLimiteDeTempo, destinoAceita, enderecoDoWhatsappNaBranch, escolherMaisRecente, enderecosDaFoto, esperaAleatoria, podarEstado, podeEnviarAgora, ritmoDoEnvio, selecionarPendentes, textoParaDestino, tipoDeDestino } from './logica.mjs';
 
 const aqui = dirname(fileURLToPath(import.meta.url));
@@ -128,6 +129,13 @@ async function conectar(config = {}) {
       let codigoPedido = false;
       const sock = makeWASocket({ version, auth: state, logger: pino({ level: process.env.LOG_NIVEL || 'silent' }), browser: numero ? Browsers.macOS('Chrome') : Browsers.macOS('Desktop'), markOnlineOnConnect: false, generateHighQualityLinkPreview: false, syncFullHistory: false, ...(numero ? { qrTimeout: 180_000 } : {}) });
       sock.ev.on('creds.update', saveCreds);
+      sock.ev.on('messages.upsert', (u) => {
+        try {
+          ganchoDoEspelho?.(sock, u);
+        } catch (e) {
+          log(`Espelho: erro ao ler mensagem (${e.message}).`);
+        }
+      });
       sock.ev.on('connection.update', async ({ connection, lastDisconnect, qr }) => {
         if (qr) {
           if (numero && !state.creds.registered) {
@@ -182,6 +190,9 @@ async function conectar(config = {}) {
     abrir();
   });
 }
+/** Função do espelho que recebe as mensagens novas (definida em rodar, só com "espelho" ligado no config.json). */
+let ganchoDoEspelho = null;
+
 /** O que o menu do Telegram mostra do WhatsApp: se há código de conexão esperando e quando saiu a última mensagem. */
 const estadoZap = { codigo: undefined, codigoEm: 0, ultimoEnvioEm: 0 };
 
@@ -463,6 +474,77 @@ async function buscarFila(config) {
 /** O ritmo publicado pelo robô (whatsapp.json, "envio"): limite por hora, espera, idade máxima, horário e ordem. */
 let envioRemoto = {};
 
+/**
+ * Espelho (veja espelho.mjs). Ligue no config.json:
+ *   "espelho": { "ativo": true, "grupos": ["https://chat.whatsapp.com/CONVITE" ou "123@g.us"], "palavrasBloqueadas": [], "simular": false },
+ *   "githubToken": "token com Contents: leitura e escrita só neste repositório", "repositorio": "flavianoct/achadinhos"
+ * Só LÊ os grupos (nunca responde neles). Com "simular": true, ou sem githubToken, só mostra no log o que pegaria.
+ */
+async function ligarEspelho(config, sock) {
+  const cfg = config.espelho;
+  if (!cfg?.ativo) return;
+  const resolvidos = await resolverDestinos(sock, { destinos: cfg.grupos ?? [] });
+  const jids = new Set(resolvidos.map((d) => d.jid).filter((j) => j.endsWith('@g.us')));
+  if (!jids.size) {
+    log('Espelho ligado, mas nenhum grupo válido em "espelho.grupos". Nada será lido.');
+    return;
+  }
+  const simular = cfg.simular === true || !config.githubToken || !config.repositorio;
+  const caminho = join(PASTA_DE_DADOS, 'espelho.json');
+  let itens = [];
+  try {
+    itens = JSON.parse(readFileSync(caminho, 'utf8')).itens ?? [];
+  } catch {
+    itens = [];
+  }
+  const fotos = new Map();
+  let sujo = false;
+  const publicador = simular ? undefined : new PublicadorGitHub({ token: config.githubToken, repo: config.repositorio, log });
+  log(`Espelho ligado: lendo ${jids.size} grupo(s)${simular ? ' em modo SIMULAÇÃO (só mostra no log, não publica)' : ''}.`);
+  ganchoDoEspelho = (sockDaVez, upsert) => {
+    if (upsert.type !== 'notify') return;
+    for (const msg of upsert.messages ?? []) {
+      const jid = msg.key?.remoteJid;
+      if (!jid || !jids.has(jid) || msg.key.fromMe) continue;
+      const item = itemDaMensagem(textoDaMensagem(msg), { grupo: jid, palavrasBloqueadas: cfg.palavrasBloqueadas });
+      if (!item) continue;
+      if (itens.some((i) => i.id === item.id)) continue;
+      log(`Espelho: pegou "${item.titulo}" por R$ ${item.preco}${item.precoOriginal ? ` (de R$ ${item.precoOriginal})` : ''} ${item.link}`);
+      itens.push(item);
+      sujo = true;
+      if (temFoto(msg)) {
+        downloadMediaMessage(msg, 'buffer', {}, { logger: pino({ level: 'silent' }), reuploadRequest: sockDaVez.updateMediaMessage })
+          .then(async (bruto) => {
+            const { default: sharp } = await import('sharp');
+            fotos.set(item.id, await sharp(bruto).resize(900, 900, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 80 }).toBuffer());
+            sujo = true;
+          })
+          .catch((e) => log(`  Espelho: não consegui baixar a foto (${e.message}).`));
+      }
+    }
+  };
+  // A cada 3 minutos publica o que chegou (espera a foto baixar). Nunca derruba o enviador.
+  setInterval(async () => {
+    if (!sujo) return;
+    itens = podarItens(itens, Date.now());
+    writeFileSync(caminho, JSON.stringify({ itens }, null, 2));
+    if (!publicador) {
+      sujo = false;
+      return;
+    }
+    try {
+      const enviadas = new Map(fotos);
+      const finais = await publicador.publicar(itens, enviadas);
+      itens = finais.map(({ imagem, ...resto }) => resto);
+      for (const id of enviadas.keys()) fotos.delete(id);
+      sujo = false;
+      log(`Espelho: ${finais.length} item(ns) publicados na branch espelho.`);
+    } catch (e) {
+      log(`Espelho: não consegui publicar agora (${e.message}). Tento de novo em 3 minutos.`);
+    }
+  }, 180_000).unref?.();
+}
+
 async function rodar() {
   const config = lerConfig();
   enviarImagem = config.enviarImagem === true;
@@ -487,6 +569,8 @@ async function rodar() {
   import('./menu-telegram.mjs')
     .then((m) => m.iniciar({ token: config.telegram?.token, chat: config.telegram?.chat, urlDoSite: config.urlDoSite, estadoDoWhatsapp: () => ({ aberto: sockAtual.aberto, ...estadoZap }), vistosPath: join(PASTA_DE_DADOS, 'telegram-vistos.json'), log }))
     .catch((e) => log(`Menu do Telegram não ligou (${e.message}). O envio do WhatsApp segue normal.`));
+
+  await ligarEspelho(config, sock);
 
   let estado = lerEstado();
   const falhasSeguidas = new Map();
