@@ -173,13 +173,20 @@ jobs:
     needs: rodar
     if: always() && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
 
-      - name: Esperar e chamar a próxima rodada
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Esperar (respondendo o "eu quero") e chamar a próxima rodada
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INSTAGRAM_TOKEN: ${{ secrets.INSTAGRAM_TOKEN }}
+          INSTAGRAM_USER_ID: ${{ secrets.INSTAGRAM_USER_ID }}
         run: |
           # Fora do horário de postagem não há o que fazer: o ciclo pára e o cron retoma de manhã.
           inicio=$(grep -E '^HORA_INICIO=' ajustes.env | cut -d= -f2 | tr -d '\r ')
@@ -202,7 +209,44 @@ jobs:
             echo "Já existe uma rodada mais nova; ela segue a corrente. Esta não chama a próxima."
             exit 0
           fi
-          sleep 1500
+          # Rodada do robô (job "rodar") em andamento em outra execução? Nessa hora o banco é dela: a leitura rápida não mexe nele.
+          rodar_ativo() {
+            for id in $(gh run list --repo "$GITHUB_REPOSITORY" --workflow robo.yml --limit 10 --json databaseId,status \
+                --jq '.[] | select(.status != "completed") | .databaseId' 2>/dev/null); do
+              [ "$id" = "$GITHUB_RUN_ID" ] && continue
+              gh run view "$id" --repo "$GITHUB_REPOSITORY" --json jobs \
+                --jq '[.jobs[] | select(.name == "rodar" and .status != "completed")] | length' 2>/dev/null || echo 1
+            done | awk '{s += $1} END {print (s > 0) ? 1 : 0}'
+          }
+          # "Comenta QUERO" rápido: enquanto espera a próxima rodada, lê os comentários a cada ~4 minutos e manda os links no direct.
+          # Antes quem comentava esperava a rodada seguinte (até ~28 minutos). Qualquer falha aqui só pula aquela leitura: a corrente segue.
+          comentarios() {
+            if [ "$(rodar_ativo)" = "1" ]; then echo "Uma rodada está em andamento; esta leitura de comentários fica para depois."; return; fi
+            git fetch -q --depth=1 origin dados || return
+            git show FETCH_HEAD:dados.db > dados.db || return
+            rm -f .comentarios-mudou
+            timeout 180 node --disable-warning=ExperimentalWarning src/index.ts --comentarios || echo "A leitura de comentários falhou; tenta de novo na próxima."
+            # O banco só volta para o ramo "dados" quando um link foi mandado (ou o direct foi desligado).
+            [ -f .comentarios-mudou ] || return 0
+            if [ "$(rodar_ativo)" = "1" ]; then echo "Uma rodada começou durante a leitura; o banco dela vale."; return; fi
+            pasta=$(mktemp -d)
+            cp dados.db "$pasta/"
+            git show FETCH_HEAD:whatsapp.json > "$pasta/whatsapp.json" 2>/dev/null || rm -f "$pasta/whatsapp.json"
+            ( cd "$pasta" && git init -q -b dados && git config user.name "achadinhos-bot" \
+              && git config user.email "achadinhos-bot@users.noreply.github.com" && git add -A \
+              && git commit -q -m "Banco de dados do robô" \
+              && git push -q -f "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" dados ) \
+              || echo "Não consegui guardar o banco depois da leitura de comentários."
+          }
+          ate=$(( $(date +%s) + 1500 ))
+          while [ $(( ate - $(date +%s) )) -gt 300 ]; do
+            sleep 240
+            # Outra execução mais nova assumiu a corrente: ela é que lê os comentários (duas leituras juntas poderiam mandar o link duas vezes).
+            if [ "$(mais_novas)" -gt 0 ]; then break; fi
+            comentarios || true
+          done
+          resto=$(( ate - $(date +%s) ))
+          [ "$resto" -gt 0 ] && sleep "$resto"
           if [ "$(mais_novas)" -gt 0 ]; then
             echo "Uma rodada mais nova começou enquanto esta esperava; ela segue a corrente. Esta não chama a próxima."
             exit 0
